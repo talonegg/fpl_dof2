@@ -301,6 +301,40 @@ through PuLP, so this is a configuration change, not a rewrite.
 
 ---
 
+## DL-16 — Design principles adopted as binding and amendment-controlled
+
+**Status:** Accepted · **Date:** 2026-08-10 · **Decided by:** Owner
+
+Fifteen design principles (DP-01…DP-15) are adopted at **`docs/DESIGN-PRINCIPLES.md`**, derived from
+the charter, architecture, conceptual design, epics and DL-01…DL-15. They cover extensibility,
+modularisation, parameterisation, transparency of rules and derivations, incremental build,
+auditability, testability and traceability.
+
+**Four decisions taken with them:**
+
+| # | Decision | Rejected alternative |
+| --- | --- | --- |
+| 1 | **Binding constraints, waivable.** Violating code is a defect | Strong defaults — across many sessions, accumulated small deviations are how architectures erode |
+| 2 | **Enforced by a blocking `PreToolUse` hook**, not convention | Documented convention alone — instruction files are context, not enforcement; a sufficiently confident agent mid-task can rewrite them |
+| 3 | **Waivers require an inline marker *and* a decision-log entry** | Either alone — a central register with nothing at the code site leaves a future reader unable to tell deliberate from accidental |
+| 4 | **Principles outrank deadlines; scope is cut instead** | Deadline wins with a debt entry — debt taken under deadline pressure is the debt least likely to be repaid |
+
+**Why amendment control.** An agent that can rewrite its own constraints does not have constraints.
+`.claude/hooks/protect-principles.cjs` denies writes to the file; amendment requires explicit owner
+approval in conversation plus a decision-log entry, per §4 of that document.
+
+**Placement.** The canonical document sits at `docs/DESIGN-PRINCIPLES.md` — a sibling of
+`docs/planning/`, not inside it, because the planning set is season-specific and living whereas the
+principles are meant to outlast it. It is tool-neutral Markdown so any agent can read it. A thin
+always-loaded pointer at `.claude/rules/design-principles.md` carries **principle names only**, never
+duplicated reasoning, so the two cannot drift.
+
+**Consequence:** `CLAUDE.md` gains a binding reference and the waiver convention. The principles apply
+to E0 from the outset — they were derived partly *from* E0's design, so this codifies rather than
+changes it.
+
+---
+
 ## Open decisions
 
 Decisions deliberately deferred, with the point at which each must be resolved.

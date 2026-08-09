@@ -18,6 +18,7 @@ Read in order. Each builds on the one before.
 
 | # | Document | Answers |
 | --- | --- | --- |
+| — | **[Design Principles](../DESIGN-PRINCIPLES.md)** ⛔ | **Fifteen binding principles (DP-01…DP-15) governing all code in this repo. Amendment-controlled — never edit without owner approval (DL-16)** |
 | 00 | [Decision Log](00-decision-log.md) | What was decided, and what remains open |
 | 01 | [Project Charter](01-project-charter.md) | Why we are building it, what "done" and "successful" mean, and every numbered requirement · **v1.1** |
 | 02 | [Project Plan and Blueprint](02-project-plan-and-blueprint.md) | The seven design principles, the season calendar, and the RAID log. ⚠️ **Its phase plan, milestones and estimates are superseded by the epics** — the document opens with a table saying which sections are still live |
