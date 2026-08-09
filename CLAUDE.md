@@ -11,6 +11,22 @@ context beyond this file. AI tooling design is in `docs/planning/ai/README.md`.
 eight incremental epics. `docs/planning/02-project-plan-and-blueprint.md` still contains an older
 phase plan (P0–P6); its §3, §4 and §8 are superseded and marked as such. Do not plan work from them.
 
+## Design principles — binding
+
+**`docs/DESIGN-PRINCIPLES.md` holds fifteen binding design principles (DP-01…DP-15).** Read them
+before designing a module, adding a data source, adding or changing a model, changing the optimiser
+formulation, altering a contract, or deciding how something is tested. The invariants below are the
+short always-loaded subset; that document is the full reasoned set and is authoritative.
+
+- Violating code is a **defect**. Fix it, or record a waiver: an inline
+  `DP-WAIVER(DP-nn): <reason> — see DL-nn` marker at the code site **plus** a decision-log entry.
+  Both, never one alone. Find live waivers with `rg "DP-WAIVER"`.
+- **When a principle conflicts with a deadline, the principle holds and scope gets cut** (DL-10).
+  "No time" is a scope decision, not a waiver reason.
+- **That file is amendment-controlled and must never be edited by an agent** — a `PreToolUse` hook
+  blocks it. If a principle is wrong or obstructive, say so and stop; propose the wording to the
+  owner. Never work around or disable the hook (DL-16).
+
 ## Commands
 
 <!-- TODO Phase 0: fill in once the toolchain exists. -->

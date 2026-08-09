@@ -10,6 +10,15 @@
             "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/secret-scan.cjs\""
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/protect-principles.cjs\""
+          }
+        ]
       }
     ]
   }
