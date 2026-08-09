@@ -1,0 +1,72 @@
+[project]
+name = "fpl-dof"
+version = "0.1.0"
+description = "FPL DOF pipeline — ingest, conform, forecast, optimise, publish."
+requires-python = ">=3.14"
+license = { text = "MIT" }
+
+dependencies = [
+    "httpx>=0.28",
+    "numpy>=2.2",
+    "pandas>=2.2",
+    "pandera>=0.22",
+    "pulp>=3.0",
+    "pyarrow>=18",
+    "pydantic>=2.10",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "hypothesis>=6.120",
+    "mypy>=1.14",
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "respx>=0.22",
+    "ruff>=0.9",
+    "types-pyyaml>=6.0",
+]
+
+[project.scripts]
+fpl-dof = "fpl_dof.cli:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/fpl_dof"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py314"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "PTH", "RUF"]
+ignore = ["A005"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101"]
+
+[tool.mypy]
+python_version = "3.14"
+files = ["src", "tests"]
+strict = true
+warn_unreachable = true
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["pulp.*", "pandera.*", "pyarrow.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = [
+    "network: hits the live FPL API; deselected by default in CI",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["src/fpl_dof"]

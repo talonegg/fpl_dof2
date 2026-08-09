@@ -1,0 +1,6 @@
+# Execution context. Overridden by config/local.yaml, then by FPL_DOF_* environment variables.
+runtime:
+  env: local
+  log_level: INFO
+  # Rendering only. Storage and computation are UTC everywhere (DL-11).
+  timezone: Australia/Sydney
