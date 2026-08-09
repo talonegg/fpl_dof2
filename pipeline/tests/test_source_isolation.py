@@ -23,12 +23,14 @@ SRC = Path(fpl_dof.__file__).parent
 SOURCES_PKG = SRC / "sources"
 
 #: Names and strings that only ``sources/`` is allowed to contain.
+#: Source names are bounded by (?<![\w-]) / (?![\w-]) rather than \b, because \b would match
+#: "understat" inside the ordinary English word "understates" — which it duly did.
 FORBIDDEN_PATTERNS: tuple[str, ...] = (
     r"fantasy\.premierleague\.com",
     r"bootstrap-static",
     r"element-summary",
-    r"understat",
-    r"fbref",
+    r"(?<![\w-])understat(?![\w-])",
+    r"(?<![\w-])fbref(?![\w-])",
     r"the-odds-api",
     r"\bfrom fpl_dof\.sources\.\w+ import",
     r"\bimport fpl_dof\.sources\.\w+",

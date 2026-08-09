@@ -42,11 +42,11 @@ def test_no_op_run_writes_a_valid_manifest(
 
 def test_only_restricts_the_stages_that_run(tmp_path: Path) -> None:
     data_dir = tmp_path / "data"
-    assert main(["--data-dir", str(data_dir), "run", "--only", "forecast", "optimise"]) == EXIT_OK
+    assert main(["--data-dir", str(data_dir), "run", "--only", "ingest", "transform"]) == EXIT_OK
     manifest = json.loads(
         next((data_dir / "runs").glob("*/manifest.json")).read_text(encoding="utf-8")
     )
-    assert [s["name"] for s in manifest["stages"]] == ["forecast", "optimise"]
+    assert [s["name"] for s in manifest["stages"]] == ["ingest", "transform"]
 
 
 def test_single_stage_invocation(tmp_path: Path) -> None:

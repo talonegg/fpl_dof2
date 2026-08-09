@@ -137,6 +137,159 @@ class RulesConfig(_Section):
     transfers: SupplementaryTransfers = SupplementaryTransfers()
 
 
+class MinutesConfig(_Section):
+    """How playing time is turned into expected minutes.
+
+    E0 has no minutes model (debt D-02) and no start model (D-12). These are priors, and their
+    crudeness is the single biggest known weakness of the v0 forecast.
+    """
+
+    full_match: int = Field(default=90, description="Minutes in a match.")
+    team_games_per_season: int = Field(default=38, gt=0)
+    starter_minutes: float = Field(
+        default=82.0,
+        gt=0,
+        description="Average minutes played when a player starts, allowing for substitutions off.",
+    )
+    substitute_minutes: float = Field(
+        default=20.0,
+        gt=0,
+        description="Average minutes played when appearing from the bench.",
+    )
+    appearance_rate_if_not_starting: float = Field(
+        default=0.35,
+        ge=0,
+        le=1,
+        description="Probability a non-starter appears at all. A squad player, not an absentee.",
+    )
+
+
+class ShrinkageConfig(_Section):
+    """How hard a thin sample is pulled toward its group prior."""
+
+    rate_prior_minutes: float = Field(
+        default=900.0,
+        gt=0,
+        description=(
+            "Minutes of prior-season evidence at which a player's own rate carries half the "
+            "weight. 900 is ten full matches: enough to mean something, far from conclusive."
+        ),
+    )
+    start_prior_games: float = Field(
+        default=10.0,
+        gt=0,
+        description="Equivalent prior weight, in games, for the start-probability estimate.",
+    )
+
+
+class FixtureDifficultyConfig(_Section):
+    """Multipliers by FPL's own 1-5 difficulty rating.
+
+    Preseason team strength_attack/defence fields are all zero, so the fixture's own difficulty is
+    the only signal available. Defence swings harder than attack because a clean sheet is a
+    threshold event and a goal is not (debt D-05: an xG-based model replaces this in E3).
+    """
+
+    attack: dict[int, float] = Field(
+        default_factory=lambda: {1: 1.15, 2: 1.08, 3: 1.00, 4: 0.92, 5: 0.85}
+    )
+    defence: dict[int, float] = Field(
+        default_factory=lambda: {1: 1.30, 2: 1.14, 3: 1.00, 4: 0.86, 5: 0.72}
+    )
+
+
+class UncertaintyConfig(_Section):
+    """Deliberately wide bands (Invariant 6).
+
+    A heuristic coefficient of variation, not a modelled variance — debt D-09. Wide is the honest
+    choice for a forecast that has never been backtested.
+    """
+
+    coefficient_of_variation: dict[str, float] = Field(
+        default_factory=lambda: {"high": 0.45, "medium": 0.60, "low": 0.80, "none": 1.00}
+    )
+    floor: float = Field(
+        default=0.5,
+        ge=0,
+        description="Minimum standard deviation in points, so a near-zero xP is not near-certain.",
+    )
+
+
+class ForecastConfig(_Section):
+    """The v0 expected-points model. Every tunable is here; none is in code (DP-06)."""
+
+    horizon_gameweeks: int = Field(default=6, ge=1, le=38)
+    horizon_discount: float = Field(
+        default=0.92,
+        gt=0,
+        le=1,
+        description="Per-gameweek discount on future value. Nearer gameweeks are more knowable.",
+    )
+    defensive_contribution_seasons: tuple[str, ...] = Field(
+        default=("2025/26",),
+        description=(
+            "Seasons in which Defensive Contribution was actually recorded. Earlier seasons show "
+            "zero because the metric did not exist, not because nobody defended — reading those "
+            "as evidence would systematically underrate defenders."
+        ),
+    )
+    starts_recorded_from_season: str = Field(
+        default="2022/23",
+        description="Before this, starts are not recorded: the same absence-of-measurement trap.",
+    )
+    max_history_seasons: int = Field(
+        default=3,
+        ge=1,
+        description="How far back to look. Older football is weaker evidence about this season.",
+    )
+    season_recency_decay: float = Field(
+        default=0.6,
+        gt=0,
+        le=1,
+        description="Weight applied per season of age, before minutes weighting.",
+    )
+    confidence_minutes_high: int = Field(default=1800, ge=0)
+    confidence_minutes_medium: int = Field(default=600, ge=0)
+    price_tiers: int = Field(
+        default=4, ge=2, description="Quantile buckets, within position, for the group prior."
+    )
+    minimum_start_probability_for_xi: float = Field(
+        default=0.60,
+        ge=0,
+        le=1,
+        description=(
+            "E0-S5 acceptance: nothing below this may start. With no minutes model and preseason "
+            "status flags almost universally 'a', this is what stops the optimiser filling the XI "
+            "with cheap players who will never play."
+        ),
+    )
+    status_multiplier: dict[str, float] = Field(
+        default_factory=lambda: {"a": 1.0, "d": 0.5, "i": 0.0, "s": 0.0, "u": 0.0, "n": 0.0},
+        description="FPL availability flags: available, doubtful, injured, suspended, unavailable.",
+    )
+    minutes: MinutesConfig = MinutesConfig()
+    shrinkage: ShrinkageConfig = ShrinkageConfig()
+    fixture_difficulty: FixtureDifficultyConfig = FixtureDifficultyConfig()
+    uncertainty: UncertaintyConfig = UncertaintyConfig()
+
+
+class OptimiserConfig(_Section):
+    """The squad solver."""
+
+    bench_weight: float = Field(
+        default=0.15,
+        ge=0,
+        le=1,
+        description=(
+            "How much a bench player's expected points counts toward the objective. Not zero: a "
+            "bench that never plays is still four squad places and real money."
+        ),
+    )
+    captain_multiplier: int = Field(default=2, ge=1)
+    solve_time_limit_seconds: int = Field(default=60, gt=0)
+    solver: str = Field(default="CBC", description="PuLP's bundled solver. HiGHS arrives in E4.")
+
+
 class Config(_Section):
     """The whole configuration, as one immutable object threaded through every stage."""
 
@@ -144,3 +297,5 @@ class Config(_Section):
     http: HttpConfig = HttpConfig()
     sources: SourcesConfig = SourcesConfig()
     rules: RulesConfig = RulesConfig()
+    forecast: ForecastConfig = ForecastConfig()
+    optimiser: OptimiserConfig = OptimiserConfig()
