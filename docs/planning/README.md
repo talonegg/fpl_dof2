@@ -21,6 +21,7 @@ Read in order. Each builds on the one before.
 | 02 | [Project Plan and Blueprint](02-project-plan-and-blueprint.md) | The seven design principles, the six build phases, the season calendar, and the RAID log |
 | 03 | [Solution Architecture](03-solution-architecture.md) | How it is structured, what it is built with, where it runs, and how it stays free |
 | 04 | [Conceptual Design](04-conceptual-design.md) | Every logical component: sources, data layer, models, optimiser, UX, orchestration, testing, observability |
+| — | [AI Tooling Plan](ai/README.md) | How Claude Code is configured to build it: `CLAUDE.md`, path-scoped rules, skills, subagents and enforcement hooks |
 
 ---
 
