@@ -195,14 +195,121 @@ deadlines, moving it earlier in the epic sequence.
 
 ---
 
+## DL-12 — Public repository
+
+**Status:** Accepted · **Date:** 2026-08-09 · **Decided by:** Owner · **Supersedes the 2026-08-09 resolution of OD-01**
+
+The repository is **public**. This reverses the earlier decision to keep it private, taken before the
+Actions-minutes consequences had been costed.
+
+**Why it changed.** A private repository on the Free plan caps Actions at 2,000 minutes/month and
+puts GitHub Pages behind a paid plan. A recount of the workflow cadences in
+[03-solution-architecture.md §9](03-solution-architecture.md#9-orchestration) put realistic monthly
+consumption at roughly **1,800–3,400 minutes** — at or over the cap, with no headroom for
+deadline-day reruns, which are precisely the runs that must never be rationed.
+
+The privacy was also largely illusory. The published artefacts — squad, transfer plan, differentials,
+model outputs — are served from a public CDN regardless (DL-03). Keeping the repository private
+protected the *code*, not the *decisions*, while costing the compute budget the decisions depend on.
+
+**Consequence:**
+- Unlimited Actions minutes; GitHub Pages available free. **OD-01 and OD-02 are both closed.**
+- Cadence budgeting stops being a hard constraint, but the corrected estimates stay in the
+  architecture as an operational sanity check — an unbounded budget is not a licence for a wasteful
+  pipeline.
+- **NFR-13 becomes load-bearing rather than precautionary.** No secret may ever reach the repository.
+  The `ODDS_API_KEY` (E5) lives only in Actions secrets. The secret-scan hook in `.claude/hooks/` is
+  now the primary guard, not a belt-and-braces one.
+- Nothing personal beyond a public FPL team ID may be committed (NFR-11 already required this).
+
+---
+
+## DL-13 — Charter amendments following the 2026-08-09 architecture and plan audit
+
+**Status:** Accepted · **Date:** 2026-08-09 · **Decided by:** Owner
+
+Charter §12 requires a decision-log entry before any change to §4 or §6. This entry covers five
+amendments, all made for the same reason: a stated target was either unachievable or too weak to
+detect the failure it existed to catch. Charter version goes 1.0 → 1.1.
+
+| # | Change | Why |
+| --- | --- | --- |
+| 1 | **§5 tier-2 metrics become baseline-relative** rather than absolute | The `MAE ≤ 2.1` threshold sits in the range a constant predictor achieves, and `Spearman ≥ 0.30` across all positions is plausibly reachable by a model knowing only price and position. Both would have passed a model with no edge. Metrics are now expressed as skill over a stated `(position, price)` baseline, with top-20 precision added as the decision-relevant measure |
+| 2 | **NFR-06 downgraded from byte-for-byte to logical reproducibility** | A MILP over a densely degenerate problem does not return a deterministic optimum, and threaded gradient boosting is not bitwise stable. The original acceptance test could not have passed. Replaced by: byte-identical silver, identical objective within tolerance, identical published decisions — backed by a deterministic tie-break in the optimiser (see [04-conceptual-design.md §6.2](04-conceptual-design.md#62-milp-formulation)) |
+| 3 | **CON-11 added** — the maintainer is in AEST/AEDT | Already the stated reason E7 moved earlier in the epic sequence, but it existed only in an epic annex. A constraint that reorders the plan belongs in the charter |
+| 4 | **§13 definition of done gains a dated pre-CI carve-out** | E0 runs deliberately with no CI, to keep hosting and secrets off the GW1 critical path. Without an explicit exception the first increment breaks the quality bar, which is how a quality bar stops being one |
+| 5 | **OD-05 reconciled with §5** | The charter already set top-100k target / top-10k stretch. OD-05 is narrowed to the risk-dial *default posture*, which is a separate question from the rank ambition |
+
+**Not changed:** no functional or non-functional requirement was removed, and no scope was added.
+Per §12, adding scope requires trading scope away; nothing here adds any.
+
+---
+
+## DL-14 — The web data contract carries the rules configuration
+
+**Status:** Accepted · **Date:** 2026-08-09 · **Decided by:** Owner
+
+The published web contract includes **`rules.json`**, generated from the same configuration the
+Python rules module reads. The TypeScript legality validator is parameterised from it.
+
+**The problem this solves.** [Architecture §4](03-solution-architecture.md#4-the-static-hosting-constraint-and-how-interactivity-survives-it)
+assigns live legality checking, formation changes and lock-and-re-pick to **T2 — client-side
+compute**. Those need the squad rules in the browser. Without this decision the only options are a
+second, hand-written implementation of FPL's rules in TypeScript — guaranteed to drift from the
+Python one — or moving legality checking to T3, which breaks the design rule that nothing on the
+deadline path may be job-triggered.
+
+Two implementations of the scoring and squad rules is exactly the silent-wrongness failure mode
+Invariant 2 exists to prevent. A hardcoded `3` for the club limit in a `.tsx` file is the same bug as
+a hardcoded `4` for a forward goal in a `.py` file.
+
+**Consequence:**
+- `rules.json` is a first-class member of the versioned contract, generated, never hand-written.
+- A **cross-language conformance test** is required: the same squad fixtures produce the same
+  verdicts from the Python validator and the TypeScript one. Divergence is a build failure.
+- The TS validator checks legality only. It never computes points — expected points remain
+  precomputed (T1).
+
+---
+
+## DL-15 — Chip timing by scenario enumeration; HiGHS as the solver from E4
+
+**Status:** Accepted · **Date:** 2026-08-09 · **Decided by:** Owner
+
+Two related changes to the decision engine, both taken before E4 rather than discovered inside it.
+
+**Chip timing is decided by enumeration over scenarios, not by MILP decision variables.** Over a 5–8
+gameweek horizon there are only a small number of plausible `(chip, gameweek)` assignments. Solving
+the transfer MILP conditional on each and taking the best is dramatically easier to solve, trivially
+parallelisable, and far easier to explain — which matters, because chip timing is the recommendation
+the owner is most likely to want to argue with. Free Hit in particular avoids needing a parallel
+squad variable set inside a single monolithic model.
+
+Full MILP chip variables (the formulation in
+[04-conceptual-design.md §6.2](04-conceptual-design.md#62-milp-formulation) C10–C14) remain the
+documented stretch target, kept because it is the correct formulation and may become tractable.
+
+**The solver is HiGHS (`highspy`) from E4 onward, not CBC.** The E0 de-risking exercise verified CBC
+against the *single-gameweek* problem — 15 from 200 candidates, solved optimally in seconds. The
+multi-gameweek problem with transfer, hit and chip structure is a different animal: roughly 10–20k
+binaries with a weak LP relaxation. CBC is unlikely to hold. HiGHS is open-source, pip-installable,
+carries no licence cost, and is materially stronger on this class of problem. Both are reachable
+through PuLP, so this is a configuration change, not a rewrite.
+
+**Consequence:** R-07 (solve time exceeds the CI budget) is re-rated to High likelihood in the
+[RAID log](02-project-plan-and-blueprint.md#6-raid-log). The greedy fallback is not optional.
+
+---
+
 ## Open decisions
 
 Decisions deliberately deferred, with the point at which each must be resolved.
 
 | ID | Question | Must resolve by |
 | --- | --- | --- |
-| ~~OD-01~~ | ~~Public or private GitHub repository~~ — **Resolved 2026-08-09: private.** Consequence: GitHub Pages needs a paid plan, and Actions is capped at 2,000 min/month, which raises the stakes on OD-02 | Resolved |
-| OD-02 | Hosting: Cloudflare Pages, make the repo public, or local-only. See [epics/INPUTS-REQUIRED §5](epics/INPUTS-REQUIRED.md#5-needed-for-e7-automation-and-hosting-around-gw6-8) | E7, ~GW6 |
+| ~~OD-01~~ | ~~Public or private GitHub repository~~ — **Closed: public.** See [DL-12](#dl-12--public-repository) | Resolved |
+| ~~OD-02~~ | ~~Hosting: Cloudflare Pages, public repo, or local-only~~ — **Closed by DL-12.** GitHub Pages is free on a public repository; no Cloudflare account needed | Resolved |
 | OD-03 | Which odds provider and free-tier credit budget | E5, ~GW10 |
 | OD-04 | Whether to add injury/press-conference feeds as a fourth source | E8, in-season |
-| OD-05 | Target overall rank — determines how aggressively the risk dial should default | E4, before the risk dial ships |
+| OD-05 | **Default risk-dial posture.** Narrowed by [DL-13](#dl-13--charter-amendments-following-the-2026-08-09-architecture-and-plan-audit): the rank *ambition* is settled in charter §5 (top-100k target, top-10k stretch). What remains open is how aggressively the dial should default, which is a temperament question, not a target question | E4, before the risk dial ships |
+| OD-06 | **How effective ownership is obtained.** `selected_by_percent` is public; captaincy share is not exposed by any FPL endpoint, so `EO = selected_by% + captained_by%` is not directly computable. Three candidate routes are set out in [04-conceptual-design.md §7](04-conceptual-design.md#7-risk-and-ownership-model) | E4, with the risk dial |

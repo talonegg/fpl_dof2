@@ -1,8 +1,9 @@
 # E7 — Automation, Hosting and Observability
 
 **Objective:** OBJ-6, NFR-01, NFR-02, NFR-05, NFR-07 · **Target:** ~GW8 · **Estimate:** 3–5 days
-**Depends on:** E1 · **Repays debt:** D-08
-**Needs from you:** hosting decision — see [INPUTS-REQUIRED §5](INPUTS-REQUIRED.md#5-needed-for-e7-automation-and-hosting-around-gw6-8)
+**Depends on:** E1 · **Repays debt:** D-08, D-10
+**Needs from you:** nothing. Hosting is settled — [DL-12](../00-decision-log.md#dl-12--public-repository)
+made the repository public, so GitHub Pages is free and OD-02 is closed
 
 ---
 
@@ -21,30 +22,61 @@ operation is not sustainable by then, this epic jumps immediately regardless of 
 ## 2. Stories
 
 ### E7-S1 — Ingestion workflows · 1 day · FR-35
-Two cadences: a fast FPL-only workflow every four hours, hourly within 24 hours of a deadline; and a
-slow workflow for external sources daily, with odds on their credit budget.
+Two cadences, and the split between them matters more than it looks:
+
+- **Fast: `bootstrap-static` and `fixtures` only**, every four hours, hourly within 24 hours of a
+  deadline. Two requests, seconds. This is what keeps prices, status and ownership inside the NFR-05
+  freshness window, and all three live in `bootstrap-static`.
+- **Slow: everything expensive**, daily — `element-summary` for all players (~700 requests, ~6
+  minutes at a polite rate), plus external sources with odds on their credit budget.
+
+**`element-summary` never goes on the fast path.** Putting it in a 4-hourly workflow re-fetches data
+that changes daily at most, at roughly six minutes a run. It was the single largest line in the
+minutes recount that led to [DL-12](../00-decision-log.md#dl-12--public-repository), and it remains
+wrong even now that minutes are unlimited — a slow pipeline is a liability on the deadline path
+whether or not anyone is billed for it.
 
 **All scheduling arithmetic in UTC**, derived from the deadline in the data — never hardcoded cron
 assumptions about local time, which break when BST and AEDT shift within weeks of each other in
-October.
+October (CON-11).
 
 ### E7-S2 — Pipeline and publish workflow · 1 day
-Transform → gates → model → optimise → publish, triggered after ingest, nightly, and at **T−3h and
-T−45m before each deadline**.
+Transform → gates → model → optimise → publish. Triggered **nightly, after the slow ingest, and at
+T−3h and T−45m before each deadline** — deliberately *not* after every fast ingest. Re-solving a MILP
+because a price moved £0.1 is waste; the fast ingest keeps data fresh, and the pipeline turns fresh
+data into a recommendation on its own deadline-aware schedule.
 
 **Nothing scheduled inside 45 minutes of a deadline** (R-09). Scheduled CI runs are best-effort and
 can be delayed under platform load; the deadline is not. Manual dispatch is always available as the
 fallback.
 
-### E7-S3 — Site build and deploy · 0.5–1 day · NFR-01
-Build the SPA and deploy site plus data. **Hosting choice needed** — the repo is private, so GitHub
-Pages requires a paid plan. Cloudflare Pages is the recommended free path; see INPUTS-REQUIRED §5 for
-the three options and their trade-offs.
+**This workflow repays D-10.** It must run the E0 code path unchanged — the charter's pre-CI carve-out
+for E0 expires on 22 August, and any E0 code that turns out not to run in CI is a defect against the
+debt register, not a new requirement.
 
-### E7-S4 — Concurrency, idempotency and retention · 0.5 day · NFR-06
-One pipeline run at a time, newer superseding queued. Stages independently resumable. Bronze
-retention policy — full snapshots in a rolling window, one permanent snapshot per gameweek — so a Git
-branch does not grow without bound (R-13).
+### E7-S3 — Site build and deploy · 0.5 day · NFR-01
+Build the SPA and deploy site plus data to **GitHub Pages**. Free on a public repository; no account
+to create, no third party, no decision outstanding.
+
+### E7-S4 — Concurrency, idempotency and retention · 1 day · NFR-06 · R-13
+One pipeline run at a time, newer superseding queued. Stages independently resumable.
+
+**Retention needs a mechanism, not a policy.** Deleting a file from the tip of a Git branch reclaims
+nothing — the blob stays in history and in every clone, forever. A `data` branch taking several
+commits a day of gzipped JSON grows monotonically no matter how carefully old files are removed.
+"Prune old snapshots" is a null operation against a Git backend unless history is rewritten, which is
+why R-13 is rated High. Per
+[Architecture §7.3](../03-solution-architecture.md#73-storage-volume-and-retention-mechanics):
+
+- **`data`** — orphan branch, rebuilt from the retained ~30-day window and **force-pushed**, so
+  history is truncated rather than accumulated
+- **`snapshots`** — separate, small, append-only: one snapshot per source per gameweek, kept forever.
+  This is the NFR-06 evidence trail, and it is separated precisely so the churn cannot threaten it
+- **CI artefacts hold logs only.** They expire (90 days by default), so anything reproducibility
+  depends on must live in a branch — otherwise NFR-06 silently lapses a quarter after each run
+
+**Acceptance:** the `data` branch size is stable across a simulated month of runs, not merely growing
+slowly.
 
 ### E7-S5 — Alerting · 0.5 day · FR-38
 Notification on run failure or blocked quality gate, carrying the manifest excerpt.
@@ -68,10 +100,11 @@ of a deadline.
 
 - [ ] Data refreshes on schedule without intervention
 - [ ] A current recommendation exists before every deadline
-- [ ] Site deploys automatically; reachable from laptop and phone away from home
+- [ ] Site deploys automatically to GitHub Pages; reachable from laptop and phone away from home
 - [ ] Failures alert, and reach you at a time you will see them
 - [ ] Data health page live
 - [ ] **One full week passes with zero manual intervention** — the real acceptance test
 - [ ] Monthly cost £0.00
-- [ ] Actions minutes comfortably inside the private-repo cap
-- [ ] D-08 closed
+- [ ] `data` branch size stable across a month of runs, not merely growing slowly
+- [ ] **No secret has ever reached the repository** — it is world-readable, so NFR-13 is load-bearing
+- [ ] D-08 and D-10 closed; the E0 code path runs unchanged in CI

@@ -1,7 +1,7 @@
 # E2 — Data Platform Hardening
 
-**Objective:** OBJ-1, NFR-06, NFR-07 · **Target:** ~GW6 · **Estimate:** 4–6 days
-**Depends on:** E0 · **Repays debt:** D-06
+**Objective:** OBJ-1, OBJ-4, NFR-06, NFR-07 · **Target:** ~GW6 · **Estimate:** 4.5–6.5 days
+**Depends on:** E0 · **Repays debt:** D-06, D-11
 
 ---
 
@@ -29,12 +29,25 @@ publication, `warn` publishes and surfaces, `info` records. Each gate names the 
 **Acceptance:** injected bad data demonstrably blocks publication; the last good artefact stays live;
 gate results land in the manifest. **Testing the gate itself is the story, not an extra.**
 
-### E2-S3 — Historical backfill · 1 day · FR-06
+### E2-S3 — Historical backfill · 1 day · FR-06 · repays D-11
 Prior seasons of per-gameweek data for model training and backtesting — the input E3 cannot start
-without. Ingest once, snapshot, treat as static.
+without. Extends the 2025/26 archive already ingested in E0-S3. Ingest once, snapshot, treat as static.
 
-**Acceptance:** at least three prior seasons available as validated silver tables, with the
-scoring-regime caveats from the `fpl-rules` skill recorded alongside them.
+**Three seasons is fewer than it sounds, and the plan must say which components each one can train.**
+Defensive Contribution arrived in 2025/26 and the BPS matrix was revised for 2026/27, so:
+
+| Component | Usable training seasons | Why |
+| --- | --- | --- |
+| Minutes, goals, assists, clean sheets, saves, cards | **All available seasons** | Regime-invariant. These are the same events they always were |
+| Defensive Contribution (M4) | **2025/26 only** — unless [Q-13](../04-conceptual-design.md#15-open-design-questions) succeeds | The component did not exist before. Q-13 asks whether the underlying action counts can be reconstructed from BPS records for earlier seasons, which would widen this from one season to several |
+| Bonus (M8) | **None, directly** | *No* season used the 2026/27 BPS matrix. This is why M8 is modelled structurally — expected BPS computed from expected actions — rather than learned from historical bonus. Training M8 on past bonus would bake in a scoring regime that no longer exists |
+
+Backfilling three seasons is still worth doing: it is most of the model. It just is not three seasons
+of *everything*, and a backtest that quietly assumes otherwise will overstate its own evidence.
+
+**Acceptance:** at least three prior seasons available as validated silver tables; the per-component
+usability table above recorded alongside them; the scoring-regime caveats from the `fpl-rules` skill
+carried into the model cards, not just the data docs.
 
 ### E2-S4 — Contract tests for every endpoint · 0.5 day · R-02
 Recorded-response tests so upstream schema drift is caught in CI rather than at a deadline.
@@ -49,12 +62,36 @@ status, row counts and deltas, gate results, model versions, solver status, outp
 metrics to a history table so drift becomes visible.
 
 **Acceptance:** any published output is traceable to the exact snapshots, commit and config that
-produced it (NFR-06).
+produced it. Replay reproduces a **byte-identical silver layer, the same objective value within
+tolerance, and the same published decisions** — the logical-reproducibility form of NFR-06, not the
+byte-for-byte claim the charter carried at v1.0.
+
+### E2-S7 — Chip expiry tracker · 0.5 day · OBJ-4
+
+Not an optimiser. A **deliberately dumb insurance policy** against a dated, irreversible loss.
+
+Chip set 1 expires at the **GW19 deadline, 13:30 GMT Sat 2 Jan 2027**, and unused chips are simply
+gone. The real chip planner is [E4-S3](E4-decision-engine.md#e4-s3--chip-modelling--2-days--fr-20--repays-d-04),
+which sits last in the epic sequence and depends on E3. If either slips — and
+[ASM-8](../01-project-charter.md#8-assumptions) has no slack — the thing that gets lost is four chips.
+
+So the tracker ships here, months early, and costs half a day:
+
+- Which chips remain in set 1, and how many gameweeks until expiry
+- A blunt rule-of-thumb calendar: known double and blank gameweeks, congestion windows, and a
+  "latest sensible week to play each remaining chip" derived from fixture structure alone
+- **An escalating warning on the dashboard and in the weekly output** from GW12, becoming
+  unmissable from GW16
+
+**Acceptance:** it is impossible to reach the GW19 deadline with an unused set-1 chip without having
+been told, repeatedly, in the weekly output. Superseded — not deleted — by E4-S3 when that lands.
 
 ## 3. Definition of done
 
 - [ ] All FPL endpoints ingested, each with a contract test
 - [ ] Quality gates across all four classes, with blocking behaviour proven by test
-- [ ] Three-plus prior seasons backfilled and validated
+- [ ] Three-plus prior seasons backfilled and validated, with per-component usability recorded
 - [ ] Price and ownership history accumulating daily
-- [ ] Manifest complete; reproducibility demonstrated by replaying a past run
+- [ ] Manifest complete; logical reproducibility demonstrated by replaying a past run
+- [ ] Chip expiry tracker live and warning
+- [ ] D-11 closed, or Q-13 answered and D-11 re-scoped

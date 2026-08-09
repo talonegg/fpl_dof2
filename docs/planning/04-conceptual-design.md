@@ -592,13 +592,22 @@ discount (≈0.85, reflecting forecast decay) · `B₀` opening bank · `FT₀` 
 | C5 | `Σ_p k[p,w] = 1`; `k[p,w] ≤ e[p,w]` |
 | C6 | Squad continuity: `s[p,w] = s[p,w−1] + tin[p,w] − tout[p,w]`; `tin + tout ≤ 1` |
 | C7 | Budget: `bank[w] = bank[w−1] + Σ_p sell[p]·tout[p,w] − Σ_p buy[p]·tin[p,w] ≥ 0` |
-| C8 | Free transfers: `ft[w] = min(5, ft[w−1] − used[w−1] + 1)`, linearised with auxiliary variables |
+| C8 | Free transfers: `ft[w] = min(5, ft[w−1] − used[w−1] + 1)`, linearised with auxiliary variables. **`used[w] ≜ Σ_p tin[p,w]`, forced to 0 when a Wildcard or Free Hit is active in `w` — see C15** |
 | C9 | Hits: `h[w] ≥ Σ_p tin[p,w] − ft[w]`, `h[w] ≥ 0` |
 | C10 | One chip per gameweek: `wc[w] + fh[w] + tc[w] + bb[w] ≤ 1` |
 | C11 | Each chip at most once per set; set 1 variables are zero after GW19 |
 | C12 | Wildcard: `h[w] = 0` when `wc[w] = 1` (unlimited free transfers, no hit) |
 | C13 | Free Hit: a parallel squad variable set applies for that gameweek only, and continuity in C6 bridges across it |
 | C14 | Triple captain: `z[p,w] ≤ k[p,w]`, `z[p,w] ≤ tc[w]`, `z[p,w] ≥ k[p,w] + tc[w] − 1` |
+| C15 | **Chips do not consume free transfers:** `used[w] ≤ M · (1 − wc[w] − fh[w])`. On a Wildcard or Free Hit gameweek the free-transfer balance carries forward untouched |
+| C16 | **Same-club concentration:** at most 2 players from any one club in the starting XI. See "the correlation problem" below |
+
+**C15 is the one to write a property test for first.** C12 zeroes the *hit* on a Wildcard, which is the
+obvious half of the rule. The half that is easy to miss is that a Wildcard or Free Hit also does not
+*spend* free transfers — the balance is preserved and keeps accruing. Without C15, the model believes
+a Wildcard costs it up to five banked transfers, and will systematically play chips too late or not at
+all. It is a single constraint, the failure is silent, and it distorts exactly the decision the epic
+exists to get right.
 
 **Objective:**
 
@@ -606,7 +615,8 @@ discount (≈0.85, reflecting forecast decay) · `B₀` opening bank · `FT₀` 
 maximise  Σ_w γ^(w−1) · [  Σ_p μ[p,w] · ( e[p,w] + k[p,w] + z[p,w] )        ← XI, captain, triple captain
                          + β_w · Σ_p μ[p,w] · ( s[p,w] − e[p,w] )           ← bench, β_w = 1 under Bench Boost
                          − 4 · h[w]                                          ← hits
-                         − λ · R[w]  ]                                       ← risk term, see §7
+                         − λ · R[w]                                          ← risk term, see §7
+                         + ε · Σ_p incumbent[p] · s[p,w]  ]                  ← tie-break, see below
 ```
 
 `β_w` is the bench weight — small under normal rules, reflecting only auto-substitution probability,
@@ -614,26 +624,103 @@ and exactly 1 in a Bench Boost gameweek. Bench *order* is not a MILP variable; i
 afterwards by sorting bench players on `P(plays) × μ`, which is optimal in practice and removes a
 large block of binaries for no real loss.
 
-### 6.3 Chip strategy
+#### The tie-break term, and why it is not cosmetic
 
-Chips are inside the MILP over the horizon rather than decided by separate heuristics, so their
-interaction with transfers is captured. On top of that, a longer-horizon **chip calendar** projects
-likely windows across the season using fixture structure — anticipated double and blank gameweeks,
-congestion, and the GW19 expiry of set 1 (FR-20). Rolling horizon plus long-range calendar is the
-right split: the MILP decides *now*, the calendar stops *now* from ruining *later*.
+`ε` is tiny — small enough never to overturn a genuine expected-points difference — and `incumbent[p]`
+marks players already in the squad or in the previously published recommendation.
+
+The FPL squad problem is **densely degenerate**: many different 15s share an objective value identical
+to within floating-point noise. Which one a solver returns is an implementation detail, and it can
+change between runs on unchanged inputs. Two consequences, one technical and one much worse:
+
+- It makes NFR-06's original byte-for-byte claim unachievable, which is why the charter now claims
+  logical reproducibility instead.
+- **It churns the recommendation.** A user who refreshes three hours before a deadline and sees a
+  different squad for no stated reason stops trusting the tool, and is right to. Arbitrary-looking
+  advice erodes confidence faster than advice that is wrong for a reason.
+
+The tie-break fixes both, and it is also just correct behaviour: *do not transfer for +0.01 expected
+points.* A transfer should have to clear a margin, not merely tie. R-16 tracks this.
+
+#### The correlation problem, and the cheap part of the fix
+
+§6.4 is honest that a MILP cannot represent portfolio variance, because variance is quadratic and
+players in the same match are strongly correlated — two defenders from one club share a single clean
+sheet. That remains true and the full fix is the deferred stochastic layer.
+
+**C16 is the part that is linear and therefore free.** Capping the starting XI at two players per club
+targets the dominant correlation directly, costs one constraint per club, and needs no change to the
+objective. It is not a substitute for modelling covariance; it is the 80% of the benefit that a linear
+model can actually express. Where a triple-up is genuinely wanted — a premium defence in a good run —
+the constraint is relaxable per club through the constraint-override mechanism (FR-22).
+
+### 6.3 Chip strategy — enumeration, not decision variables
+
+Chip timing interacts with transfers, so it cannot be decided by a separate heuristic in isolation.
+But it does **not** follow that chips must be MILP variables. Per
+[DL-15](00-decision-log.md#dl-15--chip-timing-by-scenario-enumeration-highs-as-the-solver-from-e4),
+the primary approach is **enumeration over chip scenarios**:
+
+1. Enumerate the plausible `(chip, gameweek)` assignments within the horizon. Over 5–8 gameweeks with
+   four chips and an at-most-one-per-week rule, this is a small set, and most of it prunes
+   immediately — a Bench Boost in a single-fixture gameweek is not a candidate.
+2. Solve the transfer MILP **conditional on each scenario**, with the chip's effect applied as fixed
+   parameters rather than variables.
+3. Take the best, and keep the runners-up — they are exactly what the explanation layer needs.
+
+Three reasons this beats the C10–C14 formulation in practice:
+
+| | |
+| --- | --- |
+| **Tractable** | Free Hit in particular no longer needs a parallel squad variable set inside one monolithic model. Each sub-problem is the ordinary transfer MILP |
+| **Parallel** | The scenarios are independent, which suits CI |
+| **Explainable** | "Free Hit in GW18 beats Free Hit in GW17 by 4.1 points, and beats not playing it by 9.3" is a sentence the owner can argue with. A chip binary flipping inside a solver is not |
+
+The full MILP formulation (C10–C14) is retained above as the documented stretch target. It is the
+correct formulation and may become tractable; enumeration is what ships.
+
+On top of either, a longer-horizon **chip calendar** projects likely windows across the season from
+fixture structure — anticipated double and blank gameweeks, congestion, and the GW19 expiry of set 1
+(FR-20). Rolling horizon plus long-range calendar is the right split: the optimiser decides *now*, the
+calendar stops *now* from ruining *later*. A minimal version of the calendar
+([E2-S7](epics/E2-data-platform.md)) deliberately ships long before the optimiser, because GW19
+expiry is irreversible and must not depend on E3 and E4 both landing on time.
 
 ### 6.4 Solving, and an honest limitation
 
-Solved with an open-source MIP solver under a wall-clock limit, warm-started from the previous run.
-If it fails to converge in time, a greedy heuristic produces a legal solution flagged as
-fallback-quality (architecture §10.3) — a worse recommendation beats no recommendation at a deadline.
+**Solver: HiGHS** (`highspy`, via PuLP) from E4 onward, under a wall-clock limit and warm-started from
+the previous run. Not CBC: the E0 de-risking exercise validated CBC against the *single-gameweek*
+problem — 15 from 200 candidates, optimal in seconds — which is a much easier problem than the
+multi-gameweek model with transfer, hit and chip structure. That is roughly 10–20k binaries with a
+weak LP relaxation, and CBC is unlikely to hold. Both solvers are reachable through PuLP, so this is
+configuration, not a rewrite. R-07 is rated High accordingly, and the greedy fallback is not optional:
+if the solver does not converge in time it produces a legal solution flagged as fallback-quality
+(architecture §10.3), because a worse recommendation beats no recommendation at a deadline.
 
 **The honest limitation:** a MILP maximises *expected* points and cannot represent variance directly,
 because portfolio variance is quadratic and, worse, players in the same match are strongly correlated
 — two Arsenal defenders share one clean sheet. The `σ` term in §7 is a linear proxy, not a correct
-treatment of risk. Doing this properly requires the stochastic layer deferred in DL-06, which is
-precisely why the model→optimiser contract carries variance from day one even though the current
-solver only approximates its use.
+treatment of risk. C16's same-club cap covers the crudest part of the correlation. Doing it properly
+requires the stochastic layer deferred in DL-06, which is precisely why the model→optimiser contract
+carries variance from day one even though the current solver only approximates its use.
+
+#### Simulation re-rank — most of the stochastic layer, for a fraction of the cost
+
+There is a cheap intermediate step between "linear proxy" and "full stochastic optimisation", and it
+needs no solver change at all:
+
+1. Extract the **top-k solutions** from the MILP (or the top scenario from each chip branch) — most
+   solvers can return a solution pool, and the enumeration approach produces one naturally.
+2. **Simulate** each one: sample player outcomes many times, with draws **correlated within a match**
+   so that a clean sheet is shared and a heavy defeat is shared.
+3. **Re-rank** on whatever the risk dial actually asks for — expected points at the safe end, upside
+   percentiles at the aggressive end.
+
+This matters most exactly where the MILP is weakest. **Bench Boost and Triple Captain are variance
+plays**, and an expectation-maximiser will systematically mistime them: it cannot see that a Triple
+Captain on a 6.0-xP explosive forward and one on a 6.0-xP metronomic midfielder are entirely different
+bets. Roughly a day of work, no change to the solver, and it converts the risk dial from a heuristic
+penalty term into something with a defensible meaning.
 
 ---
 
@@ -644,6 +731,34 @@ Per DL-07, the objective carries a risk term `R[w]` scaled by a user-facing dial
 **Effective ownership** `EO[p] = selected_by% + captained_by%` — approximately the share of the field's
 points a player represents. What moves rank is not points scored but points scored *relative to the
 field*: `Δrank ∝ Σ_p (my_multiplier[p] − EO[p]) · points[p]`.
+
+### 7.1 Effective ownership is not directly observable (CON-12, OD-06)
+
+That formula is correct and standard. **It is also not computable from public FPL data**, and the whole
+risk dial rests on it, so the gap is recorded here rather than discovered in E4.
+
+| Term | Availability |
+| --- | --- |
+| `selected_by%` | ✅ Public — `selected_by_percent` in `bootstrap-static` |
+| `captained_by%` | ❌ **Not exposed by any FPL endpoint.** `bootstrap-static` events carry `most_captained` as a *single element id*, not a distribution |
+
+There is a second, quieter problem. `selected_by_percent` is ownership across the **entire** player
+base of roughly eleven million managers. The charter's tier-1 target is top-100k, and the top-100k
+template diverges materially from the overall one — the field you are actually competing with owns
+different players. Optimising rank against the wrong cohort's ownership is a systematically wrong risk
+model, not merely an imprecise one.
+
+**Three candidate routes, to be chosen at E4-S4 (OD-06):**
+
+| Route | Method | Trade-off |
+| --- | --- | --- |
+| **Estimate** *(likely default)* | Model captaincy share as a function of ownership, expected points and fixture, calibrated against the observed `most_captained` id as a weak check | Cheap, available pre-deadline, roughly right. Honest only if labelled as modelled rather than measured |
+| **Sample** | After each deadline, pull picks from a few large public classic leagues and compute empirical captaincy share and cohort ownership | Genuinely measured, and can be cohort-scoped by choosing leagues. But it is *post*-deadline, so it informs next week, not this one. Costs requests |
+| **Redefine** | Drop `captained_by%`; use ownership alone plus an explicit captain-risk callout for the single most-captained player | Loses precision, gains honesty. Never wrong about what it knows |
+
+Whichever is chosen, **the UI states which one is in use.** A risk dial driven by an estimated quantity
+presented as a measured one is worse than no risk dial, because it invites confidence the number
+cannot carry.
 
 | Dial position | Objective behaviour | When it is right |
 | --- | --- | --- |
@@ -926,12 +1041,16 @@ accident.
 
 | ID | Question | Bears on | Resolve by |
 | --- | --- | --- | --- |
-| Q-01 | Optimal planning horizon — 5, 6 or 8 gameweeks. Longer sees further but forecasts decay; measure the trade-off in backtest rather than guess | Phase 3 | Backtest |
-| Q-02 | Correct discount factor `γ`. Should be derived from measured forecast decay, not assumed | Phase 2/3 | Backtest |
-| Q-03 | Bench weight `β` under normal rules — the true value depends on auto-substitution probability, which is measurable from history | Phase 3 | Historical analysis |
-| Q-04 | Whether one blended expected-points model beats the component chain. The chain wins on explainability, which is a product requirement; if a monolith is materially more accurate, that trade needs an explicit decision | Phase 2 | Backtest |
-| Q-05 | How to weight the 25/26 season in training given the BPS revision and the introduction of Defensive Contribution — earlier seasons come from a different scoring regime | Phase 2 | Model design |
-| Q-06 | Whether DuckDB-WASM payload size is acceptable on mobile, or whether the scout falls back to pre-aggregated JSON | Phase 4 | Prototype measurement |
-| Q-07 | Price-change prediction — whether to model it, given FPL now publishes its own price-change predictor this season | Phase 2 | Assess the official tool first |
-| Q-08 | How aggressively to model rotation for European competitors, where minutes uncertainty is highest and matters most | Phase 2 | Backtest |
-| Q-09 | Whether mini-league rival modelling should feed the risk objective, rather than only being displayed | Phase 6 | In-season |
+| Q-01 | Optimal planning horizon — 5, 6 or 8 gameweeks. Longer sees further but forecasts decay; measure the trade-off in backtest rather than guess | E4 | Backtest |
+| Q-02 | Correct discount factor `γ`. Should be derived from measured forecast decay, not assumed | E3/E4 | Backtest |
+| Q-03 | Bench weight `β` under normal rules — the true value depends on auto-substitution probability, which is measurable from history | E4 | Historical analysis |
+| Q-04 | Whether one blended expected-points model beats the component chain. The chain wins on explainability, which is a product requirement; if a monolith is materially more accurate, that trade needs an explicit decision | E3 | Backtest |
+| Q-05 | How to weight the 25/26 season in training given the BPS revision and the introduction of Defensive Contribution — earlier seasons come from a different scoring regime | E3 | Model design |
+| ~~Q-06~~ | ~~Whether DuckDB-WASM payload size is acceptable on mobile~~ — **provisionally resolved 2026-08-09 by scoping rather than choosing.** The scout table is ~700 rows and needs no query engine: plain JSON plus client-side filtering is smaller and faster. DuckDB-WASM is lazy-loaded, route-scoped, and used only for the multi-season history views where the data is genuinely large | E6 | Resolved — confirm by measurement on a phone at E6-S2 |
+| Q-07 | Price-change prediction — whether to model it, given FPL now publishes its own price-change predictor this season | E3 | Assess the official tool first |
+| Q-08 | How aggressively to model rotation for European competitors, where minutes uncertainty is highest and matters most | E3 | Backtest |
+| Q-09 | Whether mini-league rival modelling should feed the risk objective, rather than only being displayed | E8 | In-season |
+| Q-10 | **Size of `ε`, the incumbency tie-break** (§6.2). Too small and solutions still churn; too large and the optimiser holds a squad past the point it should move. Should be expressed as a points threshold a transfer must clear, and measured | E4 | Backtest — measure churn rate against points forgone |
+| Q-11 | **How to weight the top-k simulation re-rank** (§6.4) against the MILP objective at each risk-dial position. At the safe end they agree; at the aggressive end they should not, and the question is how much | E4 | Backtest |
+| Q-12 | **Whether the same-club XI cap (C16) should be 2 or 3.** Two is the right default for correlation, but a premium defence in a good fixture run is a real strategy the cap forbids | E4 | Backtest, then expose as config |
+| Q-13 | **Whether DefCon can be reconstructed for seasons before 2025/26** from the underlying action counts, which FPL recorded in BPS long before it scored them. If so, the M4 training window widens from one season to several — see Q-05 | E3 | Data investigation during E2-S3 backfill |

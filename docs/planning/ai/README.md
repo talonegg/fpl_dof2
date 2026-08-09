@@ -82,18 +82,20 @@ because they describe external realities (the FPL rules and the FPL API) rather 
 
 ## Build sequence
 
-Aligned to the project phases in the [plan](../02-project-plan-and-blueprint.md#3-phase-plan).
+Aligned to the [epic register](../epics/README.md#2-epic-register), which replaced the phase plan
+under [DL-10](../00-decision-log.md#dl-10--build-a-steel-thread-to-gw1-rather-than-deferring-the-build).
 
-| Project phase | AI assets to create | Why then |
+| Epic | AI assets to create | Why then |
 | --- | --- | --- |
-| **Now (pre-code)** | `fpl-rules` skill · `fpl-api` skill · root `CLAUDE.md` (skeleton) | All three describe external facts or fixed decisions. None depend on code existing |
-| **P0 Foundations** | Complete `CLAUDE.md` commands section · format-on-write hook · permissions allowlist | Commands only become real once there is something to run |
-| **P1 Data platform** | `rules/sources.md` · `add-data-source` skill · import-lint hook · `pipeline-triage` agent | The adapter framework is the first thing that gets repeated, and the first invariant worth enforcing |
-| **P2 Expected points** | `rules/models.md` · `rules/rules-engine.md` · `add-model-component` skill · `run-backtest` skill · `backtest-analyst` agent · `leakage-auditor` agent | Leakage becomes possible the moment features exist |
-| **P3 Decision engine** | `rules/optimise.md` · `milp-patterns` skill · `add-optimiser-constraint` skill | MILP conventions are worth writing down after the first constraint set works, not before |
-| **P4 Web app** | `rules/web.md` · `rules/contracts.md` · `change-data-contract` skill · `new-app-view` skill | Frontend conventions emerge from the first two screens |
-| **P5 Automation** | `rules/workflows.md` · `deadline-run` skill · deadline guard hook | Operational skills need the operation to exist |
-| **P6 In-season** | `gameweek-review` skill | The weekly ritual, written down once it has been done a few times |
+| **Now (pre-code)** | `fpl-rules` skill · `fpl-api` skill · root `CLAUDE.md` (skeleton) · secret-scan hook | All describe external facts or fixed decisions; none depend on code existing. The secret-scan hook is brought forward because [DL-12](../00-decision-log.md#dl-12--public-repository) made the repository public — every push is world-readable from the first commit |
+| **[E0](../epics/E0-steel-thread-gw1.md) Steel thread** | Complete `CLAUDE.md` commands section · `rules/sources.md` · format-on-write hook · permissions allowlist | Commands become real once there is something to run. `rules/sources.md` lands here rather than later because E0 ships **two** sources (FPL plus the 2025/26 archive), so the adapter pattern is already a pattern |
+| **[E1](../epics/E1-weekly-operating-loop.md) Weekly loop** | `rules/rules-engine.md` · import-lint hook | The rules module is load-bearing from E0-S4 onward, and the dependency rule is worth enforcing before a third source arrives |
+| **[E2](../epics/E2-data-platform.md) Data platform** | `add-data-source` skill · `pipeline-triage` agent | Onboarding a source is the first genuinely repeated procedure |
+| **[E7](../epics/E7-automation-and-hosting.md) Automation** | `rules/workflows.md` · `deadline-run` skill · deadline guard hook | Operational skills need the operation to exist |
+| **[E3](../epics/E3-expected-points-engine.md) Expected points** | `rules/models.md` · `add-model-component` skill · `run-backtest` skill · `backtest-analyst` agent · **`leakage-auditor` agent** | Leakage becomes possible the moment features exist — and E3-S2 builds the feature store, so the auditor must exist by then, not after |
+| **[E4](../epics/E4-decision-engine.md) Decision engine** | `rules/optimise.md` · `milp-patterns` skill · `add-optimiser-constraint` skill | MILP conventions are worth writing down after the first constraint set works, not before |
+| **[E6](../epics/E6-web-application.md) Web app** | `rules/web.md` · `rules/contracts.md` · `change-data-contract` skill · `new-app-view` skill | Frontend conventions emerge from the first two screens. `rules/contracts.md` must cover the **cross-language rules conformance test** ([DL-14](../00-decision-log.md#dl-14--the-web-data-contract-carries-the-rules-configuration)) — two validators, one definition |
+| **[E8](../epics/E8-in-season-operations.md) In-season** | `gameweek-review` skill | The weekly ritual, written down once it has been done a few times |
 
 **Rule of thumb applied throughout:** write the instruction the *second* time you find yourself
 explaining something, not the first. The first time is an observation; the second is a pattern.

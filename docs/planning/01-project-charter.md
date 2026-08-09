@@ -2,7 +2,7 @@
 
 **Project:** FPL DOF — a decision-support platform for Fantasy Premier League
 **Season in scope:** 2026/27 (21 August 2026 – 30 May 2027)
-**Document status:** Baselined 2026-08-09
+**Document status:** Baselined 2026-08-09 · **Version 1.1**, amended 2026-08-09 per [DL-13](00-decision-log.md#dl-13--charter-amendments-following-the-2026-08-09-architecture-and-plan-audit)
 **Owner / sole stakeholder:** Repository owner (also the FPL manager whose team it serves)
 
 ---
@@ -29,7 +29,7 @@ The human makes the final call at the deadline.
 | Driver | Detail |
 | --- | --- |
 | **Value** | Better rank and total points across a 38-gameweek season, and materially less time spent each week on manual research |
-| **Cost** | £0 per month of running cost is a hard requirement (see NFR-1). Investment is the owner's build time |
+| **Cost** | £0 per month of running cost is a hard requirement (see NFR-01). Investment is the owner's build time |
 | **Alternative considered** | Subscribing to an existing FPL analytics service. Rejected: recurring cost, no control over the model, no bespoke constraints, and no learning value |
 | **Secondary benefit** | The repository is a genuine end-to-end data platform — ingestion, modelling, optimisation, delivery, observability — with real deadlines and a measurable outcome |
 
@@ -110,19 +110,43 @@ system is doing its job.
 | **Target** | Finish inside the **top 100k** overall rank |
 | **Stretch** | Finish inside the **top 10k** overall rank |
 
+This settles the rank *ambition*. It does not settle how aggressively the risk dial should default —
+that is OD-05, and it is a temperament question rather than a target one.
+
 ### Tier 2 — Model quality (OBJ-7)
 
-Measured on walk-forward backtests and, in-season, on rolling out-of-sample gameweeks. Initial values
-are **provisional targets to be recalibrated after the first backtest** — FPL points are extremely
-noisy at player-gameweek granularity and over-tight targets would be self-deceiving.
+Measured on walk-forward backtests and, in-season, on rolling out-of-sample gameweeks.
 
-| Metric | Threshold | Target |
-| --- | --- | --- |
-| Spearman rank correlation of predicted vs actual points, per gameweek, all players with >0 minutes | ≥ 0.30 | ≥ 0.40 |
-| Mean absolute error of expected points, per player-gameweek | ≤ 2.1 | ≤ 1.8 |
-| Calibration slope of predicted vs realised (regression of actual on predicted) | 0.85 – 1.15 | 0.95 – 1.05 |
-| Captaincy hit rate — chosen captain is in the top 3 scorers of the owner's squad | ≥ 45% | ≥ 55% |
-| Backtested season score vs template-team benchmark | Beats it | Beats it by ≥ 100 pts |
+**Every threshold here is expressed relative to a stated baseline, deliberately.** FPL points are
+extremely noisy at player-gameweek granularity, and absolute thresholds on that noise are worse than
+useless — they look rigorous while passing a model with no edge. Two examples from the original
+version 1.0 of this charter, both corrected below:
+
+- An absolute `MAE ≤ 2.1` sits in the range a **constant predictor** achieves on players who played.
+- An absolute `Spearman ≥ 0.30` across all positions is plausibly reachable by a model knowing
+  nothing but **price and position**, because price is FPL's own expected-value estimate and position
+  explains much of the scoring rate.
+
+#### The baseline
+
+**B0** — a model whose only inputs are the player's position and current price, fitted on the same
+training window as the real model. B0 is computed and reported by the backtest harness (E3-S1) on
+every run. It costs almost nothing and it is the number that makes every other number mean something.
+
+| Metric | Threshold | Target | Notes |
+| --- | --- | --- | --- |
+| Spearman rank correlation, **within position and price band**, predicted vs actual, per gameweek | ≥ B0 + 0.05 | ≥ B0 + 0.12 | Banding removes the trivially-learnable structure that forwards outscore defenders |
+| **Skill score** — % reduction in MAE versus B0, per player-gameweek | ≥ 5% | ≥ 12% | Replaces the absolute MAE threshold. Absolute MAE is still *reported*, as a diagnostic, never as a gate |
+| **Top-20 precision** — of the model's top 20 by expected points, how many finish in the actual top 20 | ≥ B0 + 2 players | ≥ B0 + 4 players | The decision-relevant measure: the optimiser only ever acts on the top of the ranking |
+| Calibration slope of predicted vs realised (regression of actual on predicted) | 0.85 – 1.15 | 0.95 – 1.05 | Absolute, and correctly so — calibration is a property of the model, not a comparison |
+| Minutes-model calibration — Brier score over the `{0, 1–59, 60+}` bands | ≥ 10% better than a "last-3-appearances" rule | ≥ 20% better | Promoted into tier 2 because minutes uncertainty is the largest single source of expected-points error |
+| Captaincy hit rate — chosen captain is in the top 3 scorers of the owner's squad | ≥ 45% | ≥ 55% | **Backtest gate only.** Over a single season n = 38, so the standard error on a 50% rate is roughly 8 points — 45% and 55% are not distinguishable in-season and must not be reacted to as though they were |
+| Backtested season score vs template-team benchmark | Beats it | Beats it by ≥ 100 pts | |
+| Backtested season score vs a **model-free** benchmark — highest trailing-6-gameweek points, one transfer per week | Beats it | Beats it by ≥ 60 pts | The bar an unaided manager actually clears. A benchmark built on this project's own forecast cannot measure whether the forecast is any good |
+
+These remain **provisional and expected to be recalibrated after the first backtest**, with the
+recalibration recorded in the decision log. What is *not* negotiable is the form: relative to B0, not
+absolute.
 
 ### Tier 3 — System quality (OBJ-6, and the non-functionals)
 
@@ -216,7 +240,7 @@ Requirements are numbered for traceability. `MoSCoW` column: **M**ust / **S**hou
 | NFR-03 | **Multi-device access.** Usable on a laptop browser and a mobile browser, and reachable on the local network during development | Manual verification on both form factors |
 | NFR-04 | **Performance.** p95 first contentful paint < 2.5 s on simulated mobile 4G; scout table interactions < 150 ms; initial data payload ≤ 3 MB with per-player detail lazy-loaded | Lighthouse and manual measurement |
 | NFR-05 | **Freshness.** Player prices, status flags and ownership no more than 3 hours stale at deadline minus 2 hours | Freshness assertion in the quality gate |
-| NFR-06 | **Reproducibility.** Any published output can be regenerated byte-for-byte from its recorded raw snapshots, code commit and configuration | Replay test in CI |
+| NFR-06 | **Reproducibility, logically.** Replaying a run from its recorded raw snapshots, code commit and configuration reproduces (a) a **byte-identical silver layer**, (b) the **same objective value** within solver tolerance, and (c) the **same published decisions** — squad, transfers, captain, chip. Byte-identical gold and web artefacts are *not* claimed: a MILP over a degenerate problem does not return a deterministic optimum, and threaded gradient boosting is not bitwise stable. Determinism of the *decision* is delivered by an explicit tie-break in the optimiser objective, not by hoping the solver is stable | Replay test in CI asserting (a), (b) and (c) |
 | NFR-07 | **Observability.** Every run emits structured logs, a machine-readable manifest, quality-gate results and model metrics; all are queryable and surfaced in the app | Data health page renders from the manifest |
 | NFR-08 | **Testability.** Scoring rules, price mechanics, transfer accounting and optimiser constraints are pure, unit-tested functions. Optimiser outputs are property-tested for FPL rule legality | Coverage ≥ 80% on the pipeline package; 100% on rules and constraint modules |
 | NFR-09 | **Local/CI parity.** The same commands and code run locally and in CI; no CI-only code paths | Documented single-command local run |
@@ -243,6 +267,8 @@ Requirements are numbered for traceability. `MoSCoW` column: **M**ust / **S**hou
 | CON-8 | Single part-time maintainer | Scope must be ruthlessly phased; automation over manual process |
 | CON-9 | Windows development host, no Docker installed | Tooling must work natively on Windows or via CI |
 | CON-10 | Pre-deadline squad state is not publicly exposed by the FPL API | Requires reconstruction plus a manual override (FR-25) |
+| CON-11 | **The maintainer is in Australia (AEST/AEDT); every FPL deadline is in UK time.** Friday-night and midweek deadlines fall around 03:30 local, standard Saturday ones around 20:00 local. The offset moves from +9 to +11 within a few weeks each October, as the UK leaves BST and Australia enters AEDT | Automation is a requirement, not a convenience — the owner is asleep for a large share of deadlines. All scheduling arithmetic is UTC. FR-26 shows both zones. See [DL-11](00-decision-log.md#dl-11--store-and-compute-in-utc-render-in-local-time-only-at-the-ui-edge) |
+| CON-12 | **Effective ownership is not directly computable.** `selected_by_percent` is public; captaincy share is exposed by no FPL endpoint, and overall ownership is a poor proxy for the top-100k template the tier-1 target implies | FR-16 and FR-21 rest on an estimated or redefined EO. See OD-06 |
 
 ## 8. Assumptions
 
@@ -255,6 +281,7 @@ Requirements are numbered for traceability. `MoSCoW` column: **M**ust / **S**hou
 | ASM-5 | Historical per-gameweek data for prior seasons is obtainable for training and backtesting | Model starts from priors only; backtest scope narrows |
 | ASM-6 | The owner reviews recommendations and submits the team manually before each deadline | OBJ-1 is not achievable; the system produces advice nobody acts on |
 | ASM-7 | Free CI and static hosting tiers remain sufficient for this workload | Fall back to running the pipeline locally on a schedule |
+| ASM-8 | **The maintainer sustains 3–4 focused build days per week** from mid-August to ~GW30, on top of the ~0.5 day/week operating loop. This is what the epic target gameweeks assume, and it has no slack — the sequence to GW15 is ~60 focused days in 15 calendar weeks | The epic targets are wrong and must be re-baselined rather than quietly missed. The **chip calendar is the exposure that matters**, because GW19 expiry is irreversible — which is why a minimal chip-expiry tracker ships in E2, ahead of the real optimiser. See [plan §8](02-project-plan-and-blueprint.md#the-availability-assumption--asm-8) |
 
 ---
 
@@ -327,13 +354,40 @@ An increment is done when all of the following hold.
 7. Any decision it embodies is in the decision log.
 8. The user-visible result has been checked on both a laptop and a mobile viewport.
 
+### The one dated exception — E0
+
+**Item 3 does not apply to [epic E0](epics/E0-steel-thread-gw1.md), the steel thread to GW1.** E0 runs
+entirely locally and deliberately has no CI, because standing up workflows, hosting and secrets before
+21 August would put OD-03 and the hosting decision on the critical path of a fixed deadline for no
+gain in squad quality.
+
+This exception is **narrow, dated and single-use**:
+
+- It covers E0 only, and expires when E0 does — 22 August 2026.
+- Items 1, 2 and 4–8 still apply to E0 in full. Item 8 is satisfied by E0-S7 unless that story is cut
+  under the emergency-cut plan, in which case it is waived with the cut.
+- **[E7](epics/E7-automation-and-hosting.md) repays it**, tracked as debt item D-08. The first CI
+  workflow must run the E0 code path unchanged; any E0 code that turns out not to run in CI is a
+  defect against the debt register, not a new requirement.
+
+Recorded so that the first increment does not break the quality bar silently, which is how a quality
+bar stops being one. No further exceptions without a decision-log entry.
+
 ---
 
 ## 14. Approval
 
 | Item | Value |
 | --- | --- |
-| Charter version | 1.0 |
-| Baselined | 2026-08-09 |
+| Charter version | **1.1** |
+| Baselined | 2026-08-09 (v1.0) |
+| Amended | 2026-08-09 (v1.1) — see [DL-13](00-decision-log.md#dl-13--charter-amendments-following-the-2026-08-09-architecture-and-plan-audit) |
 | Approved by | Repository owner |
 | Next review | At GW1 outcome, or on any change to §4 |
+
+### Change history
+
+| Version | Date | What changed |
+| --- | --- | --- |
+| 1.0 | 2026-08-09 | Initial baseline |
+| 1.1 | 2026-08-09 | §5 tier-2 metrics made baseline-relative and given a defined baseline B0, with top-20 precision, a minutes-calibration gate and a model-free season benchmark added; NFR-06 downgraded from byte-for-byte to logical reproducibility; CON-11 (maintainer timezone) and CON-12 (effective ownership not computable) added; §13 given a dated pre-CI carve-out for E0; §5 tier 1 reconciled with OD-05; `NFR-1` typo in §2 corrected. No requirement removed; no scope added |

@@ -1,7 +1,7 @@
 # E1 — Weekly Operating Loop
 
 **Objective:** OBJ-3, minimum viable — a defensible transfer recommendation before every deadline
-**Target:** GW2 deadline, ~28 Aug 2026 · **Estimate:** 3–4 days
+**Target:** GW2 deadline, ~28 Aug 2026 · **Estimate:** 3.5–4.5 days
 **Depends on:** E0
 
 ---
@@ -100,6 +100,31 @@ The awkward one, because of the API gap documented in the `fpl-api` skill.
 - Availability changes on owned players are surfaced without being looked for
 - Deadline shown in both zones, with an explicit "decide by" time in local evening
 
+---
+
+### E1-S5 — Post-deadline reconciliation
+**0.5 day · closes the loop that lineage only promises**
+
+[Design §12.4](../04-conceptual-design.md#124-lineage) sets the practical test for lineage: *"for any
+recommendation the system ever made, it must be possible to reconstruct exactly what it knew at the
+time and why it advised that."* That records what was **advised**. Nothing yet records what was
+actually **played** — and the two diverge, because the human overrules (correctly, per ASM-6), and
+occasionally because of a mis-click at 03:00 local.
+
+Without this, [E8](E8-in-season-operations.md)'s decision log grades the model against a memory of
+what you did, which is rationalisation rather than evidence.
+
+- After each deadline passes, fetch `entry/{team_id}/event/{gw}/picks/` — now public — and diff it
+  against the recommendation plus the recorded overrides
+- Classify every difference: **intentional override** (with its logged reason), or **unexplained**
+- Persist the diff to gold alongside the recommendation, so the season-long comparison of
+  model-versus-intuition has a real dataset behind it
+
+**Acceptance**
+- Every gameweek has a stored triple: what was advised, what was played, why they differ
+- An unexplained divergence is surfaced, not silently absorbed — it usually means a submission error,
+  which is worth catching in GW3 rather than in May
+
 ## 4. Definition of done
 
 - [ ] Your real squad loads correctly from your team ID
@@ -108,6 +133,7 @@ The awkward one, because of the API gap documented in the `fpl-api` skill.
 - [ ] Hit arithmetic correct and never recommended below break-even
 - [ ] One command produces the full weekly recommendation
 - [ ] Deadline visible in both UK and local time
+- [ ] Advised-versus-played reconciliation running from GW2 onward
 - [ ] The whole loop takes under 15 minutes of your attention
 
 ## 5. The real success test

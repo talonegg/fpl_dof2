@@ -1,7 +1,7 @@
 ---
 name: fpl-api
 description: Reference for the official Fantasy Premier League API — endpoint catalogue, response shapes, field meanings, rate-limiting expectations, and known quirks including the pre-deadline squad visibility gap. Load when writing or debugging FPL ingestion code, or when deciding which endpoint provides a given field.
-user-invocable: true
+user-invokable: true
 ---
 
 # FPL API — reference
@@ -51,6 +51,32 @@ be *reconstructed*, not fetched directly:
 
 This is a known, permanent gap in the API, not a bug to work around cleverly. Treat any code that
 assumes `picks/` is live pre-deadline as incorrect.
+
+### Reconstructing the free-transfer count — use `history`, not just `transfers`
+
+The cleanest input is **`entry/{team_id}/history/`**, whose `current` array carries one row per
+finished gameweek including:
+
+| Field | Use |
+| --- | --- |
+| `event_transfers` | How many transfers were made that gameweek |
+| `event_transfers_cost` | The points hit taken — from which how many were *free* is directly derivable, rather than inferred |
+| `value`, `bank` | Squad value and bank at that gameweek, so they need not be reconstructed from price history |
+| Chip usage | Which chip, if any, was played |
+
+Diffing the raw `transfers/` feed alone is more error-prone: it does not tell you which transfers were
+free, and it will mislead you on any gameweek where a chip was played.
+
+**Three traps in the free-transfer arithmetic**, all silent:
+
+1. **Wildcard and Free Hit do not consume free transfers.** The balance carries forward untouched.
+   Deducting for them under-counts, sometimes by five.
+2. **The cap is 5 and it is a cap, not a wrap.** Banking a sixth is not possible; the count sits at 5.
+3. A transfer made and then reversed within the same gameweek may still appear in the feed.
+
+Cross-check the reconstruction against `event_transfers_cost`: if the recomputed hit does not match
+FPL's own figure for a finished gameweek, the reconstruction is wrong and should say so loudly rather
+than proceed. That check is cheap and it is the only ground truth available.
 
 ## Field notes
 

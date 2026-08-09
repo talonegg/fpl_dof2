@@ -169,7 +169,8 @@ degrading the product.
 | Tables | TanStack Table + virtualisation | ~700 players × many columns; virtualisation is required for NFR-04 | Ready-made grids — heavier, less controllable |
 | Charts | Recharts, or visx where custom marks are needed | Trend lines, distributions, comparison charts | D3 direct — more control, more time |
 | Styling | Tailwind CSS with CSS custom properties for theming | Fast, consistent, light/dark via tokens | CSS-in-JS — runtime cost |
-| Client analytics | **DuckDB-WASM** | Runs SQL over the published Parquet in the browser: T2 interactivity without a server | Shipping pre-aggregated JSON for every filter combination — combinatorially impossible |
+| Client analytics | **DuckDB-WASM, lazy-loaded and route-scoped** | SQL over published Parquet in the browser for the *history* views, where the data is genuinely large. **Never in the app shell** — the WASM payload is multiple megabytes against a 3 MB first-load budget (NFR-04). The scout table is ~700 rows and needs no query engine at all; plain JSON plus client-side filtering is faster and smaller. This provisionally resolves Q-06 by scoping rather than choosing | Loading DuckDB eagerly (blows the payload budget); shipping pre-aggregated JSON for every filter combination (combinatorially impossible) |
+| Client rules | Generated from `rules.json` in the web contract | Legality checking only, parameterised from the published rules config ([DL-14](00-decision-log.md#dl-14--the-web-data-contract-carries-the-rules-configuration)) | Hand-writing FPL's rules a second time in TypeScript — two implementations, guaranteed drift |
 | Client solver | `highs-js` (WASM) or a greedy heuristic | Small T2 re-optimisations only | Reimplementing the MILP in TS — no |
 | PWA | `vite-plugin-pwa` | Offline access to last-published data (FR-34) | — |
 | Testing | Vitest, React Testing Library, Playwright | Unit, component and a deployed-site smoke test | — |
@@ -178,16 +179,34 @@ degrading the product.
 
 | Concern | Choice | Rationale |
 | --- | --- | --- |
+| Repository visibility | **Public** ([DL-12](00-decision-log.md#dl-12--public-repository)) | Unlimited Actions minutes and free Pages. See below — this is architecturally significant |
 | Orchestration | GitHub Actions | Free, already integrated with the repo, cron and manual dispatch built in, secret storage included |
-| Artefact storage | A dedicated `data` branch (or a sibling repo) plus CI artefacts | Free, versioned, diffable, no external service. Keeps the main branch history clean of large binaries |
-| Hosting | GitHub Pages, or Cloudflare Pages (OD-02) | Both free. Pages is simpler; Cloudflare has a better CDN and higher limits |
+| Artefact storage | A dedicated orphan `data` branch plus a small append-only `snapshots` branch; CI artefacts for logs only | Free, versioned, no external service. Keeps the main branch history clean of large binaries. Retention mechanics in §7.3 |
+| Hosting | **GitHub Pages** | Free on a public repository. OD-02 closed by DL-12; no Cloudflare account needed |
 | Secrets | GitHub Actions encrypted secrets | Never in the repo, never in the client bundle (NFR-13) |
 | Alerting | Actions failure notification, plus auto-created issues | Free, no third party |
 
-**Repository visibility (OD-01) is architecturally significant.** A public repository gets unlimited
-Actions minutes and free Pages. A private repository on the Free plan gets 2,000 minutes/month and
-cannot use Pages without a paid plan. The architecture assumes a **public repository with no secrets
-committed**; if privacy is required, Cloudflare Pages plus a minutes budget becomes mandatory.
+### Repository visibility is architecturally significant
+
+A **public** repository gets unlimited Actions minutes and free Pages. A private one on the Free plan
+gets 2,000 minutes/month and cannot use Pages without a paid plan.
+
+The project briefly resolved OD-01 as *private*, then reversed it ([DL-12](00-decision-log.md#dl-12--public-repository))
+once the cadences in §9 were costed at roughly **1,800–3,400 minutes/month** — at or over the cap,
+with no headroom for the deadline-day reruns that must never be rationed. The privacy was also mostly
+illusory: the published artefacts are served from a public CDN regardless, so a private repository
+protected the code, not the decisions.
+
+**The consequence that matters day to day: NFR-13 is now load-bearing.** Every commit is world-readable
+the moment it is pushed. There is no window in which a leaked key is only "internally" exposed. The
+`ODDS_API_KEY` (E5) lives only in Actions secrets, the secret-scan hook in `.claude/hooks/` is the
+primary guard rather than a backstop, and nothing personal beyond a public FPL team ID is ever
+committed.
+
+Minutes are no longer a hard constraint, but the corrected estimates in §9 stay as an operational
+sanity check. An unbounded budget is not a licence for a wasteful pipeline, and a run that takes six
+minutes because it re-fetches 700 endpoints it already has is a design defect whether or not anyone
+is billed for it.
 
 ---
 
@@ -251,24 +270,68 @@ The single most important interface in the system: the boundary between DL-04's 
 
 - **Versioned.** `/data/v1/...`. A breaking change bumps to `v2` and both are published during the
   transition, so a stale cached client never breaks.
-- **Typed on both sides.** Python Pandera schemas and TypeScript types generated from one shared JSON
-  Schema definition. Drift between the two is a build failure, not a runtime surprise.
+- **Typed on both sides.** Python Pandera schemas and TypeScript types generated from one shared
+  definition. Drift between the two is a build failure, not a runtime surprise. **Two schema
+  languages are needed, not one:** JSON Schema describes the JSON files, and an Arrow schema
+  describes the Parquet ones. `contracts/` holds both, and both generate into both languages. JSON
+  Schema cannot describe a Parquet file, and pretending otherwise defers the problem to whoever
+  writes the first `.parquet` reader.
 - **Split by access pattern:**
   - `bootstrap.json` — small, always loaded: teams, gameweeks, metadata, manifest pointer
-  - `players.parquet` — the scout dataset, queried in-browser with DuckDB-WASM
+  - `rules.json` — **the rules configuration** (see below), always loaded, tiny
+  - `players.json` — the scout dataset. JSON, not Parquet: ~700 rows is trivial for the browser, and
+    it avoids putting a multi-megabyte WASM download on the first-paint path
   - `player/{id}.json` — per-player detail and history, lazy-loaded
+  - `history.parquet` — per-player per-gameweek history across seasons, lazy-loaded and queried with
+    DuckDB-WASM *only* on the routes that need it. This is the dataset that actually justifies a
+    query engine; the scout table never did
   - `xp.parquet` — expected points per player per upcoming gameweek, with decomposition and variance
   - `recommendation.json` — the current squad, plan, chip calendar and explanations
   - `fixtures.json`, `metrics.json`, `manifest.json`
 - **Budgeted.** Initial load ≤ 3 MB (NFR-04); everything else lazy.
 
-### 7.3 Storage volume
+#### `rules.json` — why the contract carries the rules ([DL-14](00-decision-log.md#dl-14--the-web-data-contract-carries-the-rules-configuration))
+
+§4 assigns live legality checking, formation changes and lock-and-re-pick to **T2 — client-side
+compute**. Those need the squad rules *in the browser*. There are only two ways to get them there,
+and only one is acceptable:
+
+| Option | Outcome |
+| --- | --- |
+| Hand-write the rules in TypeScript | Two implementations of FPL's rules, guaranteed to drift. A hardcoded `3` for the club limit in a `.tsx` file is precisely the bug Invariant 2 exists to prevent — the fact that it is in the other language does not make it a different bug |
+| Move legality checking to T3 | Breaks the design rule in §4 that nothing on the deadline path is job-triggered |
+| **Publish the rules config** ✔ | One definition, generated into the contract from the same YAML the Python rules module reads |
+
+The TypeScript validator is **parameterised from `rules.json` and checks legality only** — it never
+computes points, which stay precomputed at T1. A **cross-language conformance test** runs the same
+squad fixtures through both validators and fails the build on any divergence.
+
+### 7.3 Storage volume and retention mechanics
 
 Roughly 700 players × 38 gameweeks × ~60 columns per season is under 2 million cells — a few MB of
 Parquet per season. Bronze snapshots dominate: full JSON several times daily, gzipped, in the low
-hundreds of MB per season if retained naively. Hence the retention policy in 7.1 and phase 5.7:
-**full snapshots in a rolling window, one permanent snapshot per gameweek.** Volume is not a
-technical problem here, but unbounded growth in a Git branch would eventually become one.
+hundreds of MB per season if retained naively.
+
+**The retention policy is easy; the mechanism is the part that gets got wrong.** Deleting a file from
+the tip of a Git branch does not reclaim anything — the blob stays in history and in every clone,
+forever. A `data` branch that receives six commits a day of gzipped JSON grows monotonically no matter
+how diligently old files are removed from the working tree. "Prune old snapshots" is a null operation
+against a Git backend unless history is rewritten. This is why R-13 is rated High.
+
+Three stores, with different mechanics, because they have genuinely different needs:
+
+| Store | Branch | Mechanism | Rationale |
+| --- | --- | --- | --- |
+| **Rolling bronze** | `data` — **orphan branch, force-pushed** | Retain a rolling window (~30 days). The publish job rebuilds the branch from the retained set and force-pushes, so history is truncated rather than accumulated | The only way a Git-backed store stays bounded. Losing the history is intended — these snapshots exist to debug the recent past, not to be an archive |
+| **Permanent snapshots** | `snapshots` — append-only | One snapshot per source per gameweek, never rewritten | This is the NFR-06 evidence trail. ~38 gameweeks × a handful of sources × a few MB is small enough to keep forever, which is exactly why it is separated from the churning store |
+| **Published web contract** | `gh-pages` (or the Pages build output) | Replaced per publish, plus a small rolling window of prior versions | Serving surface, not an archive |
+
+**CI artefacts hold logs only, never bronze.** Actions artefacts expire (90 days by default) and count
+against storage quota. Anything NFR-06 depends on must live in a branch, not an artefact — otherwise
+reproducibility silently expires one quarter after the run it was meant to protect.
+
+Volume is not a technical problem at this scale. Unbounded growth in a Git branch would become one,
+and the fix has to be structural rather than a cleanup script.
 
 ---
 
@@ -313,16 +376,32 @@ schedule.
 
 ## 9. Orchestration topology
 
-Five workflows. Cadence escalates as a deadline approaches, and every one is manually dispatchable.
+Six workflows. Cadence escalates as a deadline approaches, and every one is manually dispatchable.
 
-| Workflow | Trigger | Does |
-| --- | --- | --- |
-| `ci.yml` | Push, pull request | Lint, type-check, unit and property tests, contract tests |
-| `ingest-fast.yml` | Every 4h; hourly within 24h of a deadline; dispatch | FPL API only — prices, status, ownership. Cheap and frequent |
-| `ingest-slow.yml` | Daily; odds on a credit budget; dispatch | Understat, FBref, odds. Expensive and rate-limited |
-| `pipeline.yml` | After ingest; nightly; T−3h and T−45m before each deadline; dispatch | Transform → gates → model → optimise → publish |
-| `deploy.yml` | On publish; on push to main; dispatch | Build the SPA, deploy site and data |
-| `backtest.yml` | Weekly; dispatch | Walk-forward regression; writes model metrics |
+| Workflow | Trigger | Does | Cost profile |
+| --- | --- | --- | --- |
+| `ci.yml` | Push, pull request | Lint, type-check, unit and property tests, contract tests | ~3 min |
+| `ingest-fast.yml` | Every 4h; hourly within 24h of a deadline; dispatch | **`bootstrap-static` and `fixtures` only** — prices, status, ownership. Two requests | **Seconds** |
+| `ingest-slow.yml` | Daily; odds on a credit budget; dispatch | `element-summary` for all players, Understat, FBref, odds. Rate-limited and therefore slow | ~8–10 min |
+| `pipeline.yml` | **Nightly; T−3h and T−45m before each deadline; after `ingest-slow`; dispatch** — *not* after every fast ingest | Transform → gates → model → optimise → publish | ~4–6 min |
+| `deploy.yml` | On publish; on push to main; dispatch | Build the SPA, deploy site and data | ~2 min |
+| `backtest.yml` | Weekly; dispatch | Walk-forward regression; writes model metrics | ~10–20 min |
+
+### Two cadence rules that are easy to get wrong
+
+**1. `element-summary` never runs on the fast path.** It is ~700 requests; at a polite 2/second that
+is six minutes. Putting it in a 4-hourly workflow costs ~1,650 minutes a month to re-fetch data that
+changes daily at most. The fast workflow exists to keep *prices, status and ownership* inside the
+NFR-05 freshness window, and those all live in `bootstrap-static` — two requests, seconds.
+
+**2. The pipeline does not run after every fast ingest.** Re-solving a MILP because a price moved by
+£0.1 is waste. The fast ingest keeps the data fresh; the pipeline turns fresh data into a
+recommendation on its own, deadline-aware schedule.
+
+Before [DL-12](00-decision-log.md#dl-12--public-repository) made minutes unlimited, these two rules
+were the difference between ~3,400 min/month and ~700. They are retained because they were always the
+right design, and because a wasteful pipeline is a slow one — and slowness on the deadline path costs
+more than money.
 
 **Scheduling caveat (R-09):** scheduled CI runs are best-effort and can be delayed under platform
 load. Nothing is scheduled close to a deadline — the last automatic run is T−45m, and manual dispatch
@@ -437,7 +516,7 @@ Two things are load-bearing in this layout:
 | **Availability** | CDN-served static files. Pipeline downtime degrades freshness, never availability |
 | **Performance** | Precomputation moves all heavy work off the request path; virtualised tables and DuckDB-WASM keep interaction local; lazy-loaded detail keeps first load small |
 | **Scalability** | Not a requirement — one user, ~700 players. The design is bounded by CI wall-clock, addressed by candidate pruning |
-| **Reproducibility** | Immutable bronze + pinned dependencies + recorded config + git SHA in every manifest ⇒ any output is regenerable (NFR-06) |
+| **Reproducibility** | Immutable bronze + pinned dependencies + recorded config + git SHA in every manifest ⇒ any output is regenerable *logically* (NFR-06). Byte-identical silver and identical published decisions, **not** byte-identical gold — a degenerate MILP has no deterministic optimum, so determinism of the decision comes from an explicit tie-break in the objective (§6.2 of the design), never from assuming the solver is stable |
 | **Evolvability** | Adapter plug-ins for sources; a typed contract between prediction and optimisation for models; a versioned web contract for the UI. The three axes most likely to change are the three that are abstracted |
 | **Testability** | Rules and constraints are pure functions; adapters are contract-tested against recordings; optimiser output is property-tested for legality |
 | **Operability** | One maintainer, so the manifest and data health page carry the operational load |
