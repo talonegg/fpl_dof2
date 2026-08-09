@@ -2,9 +2,26 @@
 
 **Companion to:** [01-project-charter.md](01-project-charter.md) · **Baselined:** 2026-08-09
 
-This document covers *how the thing gets built*: the blueprint that shapes every phase, the phase
-plan itself, the season operating calendar, and the RAID log. Architecture and component design live
-in documents 03 and 04.
+This document covers *how the thing gets built*: the blueprint that shapes the work, the season
+operating calendar, and the RAID log. Architecture and component design live in documents 03 and 04.
+
+> ### ⚠️ Which parts of this document are still current
+>
+> [DL-10](00-decision-log.md#dl-10--build-a-steel-thread-to-gw1-rather-than-deferring-the-build)
+> replaced the phase plan with a steel thread plus eight epics. The **plan of record is now
+> [docs/planning/epics/](epics/README.md)**.
+>
+> | Section | Status |
+> | --- | --- |
+> | §1 Blueprint (B1–B7) | **Current.** These principles govern the epics unchanged |
+> | §2 Delivery strategy | **Current** in principle; the three workstreams now map onto epics rather than phases |
+> | **§3 Phase plan (P0–P6)** | **Superseded** by the [epic register](epics/README.md#2-epic-register). Retained for the deliverable checklists inside each phase, which the epics reference but do not repeat |
+> | **§4 Milestones (M0–M7)** | **Superseded.** Milestones are now epic exit criteria |
+> | §5 Season operating calendar | **Current** |
+> | §6 RAID log | **Current** — this is the live register |
+> | **§7 The GW1 decision** | **Closed.** Resolved by DL-10 in favour of building. Rewritten below as a record of the choice |
+> | **§8 Estimation summary** | **Superseded** by the epic register's 43–61 days |
+> | §9 What good looks like | **Current** |
 
 ---
 
@@ -96,6 +113,9 @@ graph LR
 ```
 
 ---
+
+> **Superseded — read [epics/](epics/README.md) for the plan of record.** The phase deliverables below
+> remain a useful checklist of *what has to exist eventually*; the epics decide *when*.
 
 ### Phase 0 — Foundations · 2–3 days
 
@@ -261,16 +281,19 @@ available before the deadline.
 
 ## 4. Milestones
 
-| ID | Milestone | Depends on | Definition of achieved |
+> **Superseded.** Milestones are now the exit criteria of each epic. The mapping below is kept only so
+> that references to M0–M7 elsewhere remain resolvable.
+
+| ID | Milestone | Now delivered by | Definition of achieved |
 | --- | --- | --- | --- |
-| **M0** | Planning baselined | — | ✅ Documents 00–04 complete and reviewed |
-| **M1** | Walking skeleton | P0 | Live FPL data ingested and rendered in the app |
-| **M2** | Trusted data | P1 | Validated conformed dataset, all adapters contract-tested |
-| **M3** | Forecast validated | P2 | Backtest meets tier-2 thresholds or targets consciously reset |
-| **M4** | First real recommendation | P3 | A legal squad and transfer plan for a live gameweek, with explanation |
-| **M5** | Product usable | P4 | Scout, dashboard and planner working on laptop and mobile |
-| **M6** | Hands-off | P5 | One full week with no manual intervention |
-| **M7** | Season complete | P6 | 38 gameweeks played; retrospective written |
+| **M0** | Planning baselined | — | ✅ Documents 00–04, the epic set and the AI tooling plan complete and reviewed |
+| **M1** | Walking skeleton | [E0](epics/E0-steel-thread-gw1.md) S1–S3 | Live FPL data ingested and rendered in the app |
+| **M2** | Trusted data | [E2](epics/E2-data-platform.md) | Validated conformed dataset, all adapters contract-tested |
+| **M3** | Forecast validated | [E3](epics/E3-expected-points-engine.md) | Backtest clears the tier-2 thresholds over baseline B0, or the targets are consciously reset with evidence |
+| **M4** | First real recommendation | [E1](epics/E1-weekly-operating-loop.md), then [E4](epics/E4-decision-engine.md) in full | A legal squad and transfer plan for a live gameweek, with explanation |
+| **M5** | Product usable | [E6](epics/E6-web-application.md) | Scout, dashboard and planner working on laptop and mobile |
+| **M6** | Hands-off | [E7](epics/E7-automation-and-hosting.md) | One full week with no manual intervention |
+| **M7** | Season complete | [E8](epics/E8-in-season-operations.md) | 38 gameweeks played; retrospective written |
 
 ---
 
@@ -304,27 +327,33 @@ available before the deadline.
 | R-04 | Overfitting produces confident wrong forecasts | Medium | High | Walk-forward validation; held-out season; in-season calibration monitoring | Owner |
 | R-05 | Build stalls mid-season, leaving a half-built system | Medium | Medium | B2 — every phase exits usable | Owner |
 | R-06 | Scraped sources break on a layout change | Medium | High | Contract tests catch it; NFR-15 keeps the pipeline running; cached data covers the gap | Owner |
-| R-07 | Optimiser solve time exceeds the CI budget | Medium | Medium | Candidate pruning; time limits; warm starts; greedy fallback | Owner |
+| R-07 | Optimiser solve time exceeds the CI budget | Medium | **High** *(raised 2026-08-09)* | Candidate pruning; time limits; warm starts; greedy fallback. **Re-rated because the E0 de-risking exercise validated CBC on the *single-gameweek* problem only.** The E4 multi-gameweek model with transfers, hits and chips is ~10–20k binaries with a weak relaxation. Mitigated structurally by [DL-15](00-decision-log.md#dl-15--chip-timing-by-scenario-enumeration-highs-as-the-solver-from-e4): HiGHS instead of CBC, and chip timing by scenario enumeration instead of MILP variables | Owner |
 | R-08 | Odds free-tier credits exhausted mid-month | Low | Medium | Credit budgeting in the adapter; cache aggressively; degrade to xG-only team strength | Owner |
 | R-09 | Scheduled jobs fire late and miss a deadline | Medium | Medium | Never schedule close to a deadline; run at T−3h and T−45m; manual dispatch always available | Owner |
 | R-10 | Entity resolution silently mismatches players across sources | High | Medium | Curated override file; assertion that unmatched rate stays below a threshold; unmatched report in data health | Owner |
 | R-11 | Free tiers change terms or limits | Medium | Low | No lock-in: static output is portable; local execution is always a fallback | Owner |
 | R-12 | Motivation decays once the novelty fades | Medium | Medium | Weekly loop is deliberately small — one improvement per week; the system must be useful even if development stops | Owner |
-| R-13 | Published artefacts grow past free-tier limits | Low | Medium | Retention and pruning policy (5.7); partitioned Parquet; lazy-loaded detail | Owner |
+| R-13 | Published artefacts grow past free-tier limits | Medium *(raised)* | **High** *(raised 2026-08-09)* | **Re-rated because "pruning" was under-specified.** Deleting files from a Git branch tip does not shrink the pack — history retains every blob. Requires a concrete mechanism: an orphan `data` branch force-pushed with truncated history, plus a separate small append-only branch for the per-gameweek permanent snapshots. See [03-solution-architecture.md §7.3](03-solution-architecture.md#73-storage-volume-and-retention-mechanics) | Owner |
+| R-14 | **Cold-start coverage** — roughly a quarter to a third of the GW1 player pool (three promoted clubs plus overseas signings) has no Premier League history, so their expected points come entirely from positional and price-tier priors | Medium | **High** — it is a certainty, the only question is the size | Confidence tier published per player; deliberately wide uncertainty on prior-less players; the E0-S8 human gate weights these hardest; an early Wildcard corrects most of the damage once real minutes arrive | Owner |
+| R-15 | **Expected points collapses onto price** — because FPL's own initial price is a signal in the cold-start stack, xP may end up largely a function of price, leaving the optimiser maximising a nearly flat objective and selecting on residual noise | High — it would make the whole engine decorative | Medium | Explicit diagnostic in [E0-S5](epics/E0-steel-thread-gw1.md#e0-s5--expected-points-v0-cold-start): report R² of xP on `(price, position)` and within-tier spread. If R² > 0.9, say so before submitting rather than after | Owner |
+| R-16 | **Solution churn between runs** — a degenerate MILP returns a different but equally optimal squad on each run, destroying trust faster than a wrong recommendation would | Medium | High without mitigation | Deterministic incumbency tie-break in the objective ([Design §6.2](04-conceptual-design.md#62-milp-formulation)); a transfer must clear a stated margin, not merely tie | Owner |
+| R-17 | **In-season overfitting** — monthly retraining on ~10 gameweeks of live data is a small, noisy sample, and "improving" the model mid-season is where a working system most easily gets worse | Medium | Medium | Shadow mode by default; a stated evidence bar for promotion ([E8 §5](epics/E8-in-season-operations.md)); prefer shrinkage toward the preseason model over refitting | Owner |
 
 ### Assumptions
 
 Tracked in charter §8 (ASM-1 … ASM-7). ASM-1 and ASM-6 are the load-bearing ones: no public API and
 no human acting on the advice both invalidate the project outright.
 
-### Issues (open now)
+### Issues
 
-| ID | Issue | Impact | Next step |
+| ID | Issue | Impact | Status |
 | --- | --- | --- | --- |
-| I-01 | Only 12 days to the GW1 deadline, and no code exists | OBJ-2 at risk | §7 decision |
-| I-02 | Pre-deadline squad state is not publicly exposed (CON-10) | FR-25 partially blocked | Design the reconstruction plus manual override in phase 1 |
-| I-03 | Repo visibility undecided (OD-01) — gates free CI minutes and Pages | Blocks phase 0 completion | Decide before first CI run |
-| I-04 | Odds provider and credit budget undecided (OD-03) | Blocks 1.5 | Decide in phase 1 |
+| I-01 | Only 12 days to the GW1 deadline, and no code exists | OBJ-2 at risk | **Closed** — resolved by [DL-10](00-decision-log.md#dl-10--build-a-steel-thread-to-gw1-rather-than-deferring-the-build). Building the steel thread; [E0](epics/E0-steel-thread-gw1.md) carries the schedule |
+| I-02 | Pre-deadline squad state is not publicly exposed (CON-10) | FR-25 partially blocked | **Open** — designed for in [E1-S1](epics/E1-weekly-operating-loop.md#e1-s1--squad-state-service) |
+| I-03 | Repo visibility undecided (OD-01) | Gated free CI minutes and Pages | **Closed** — [DL-12](00-decision-log.md#dl-12--public-repository): public repository. Unlimited Actions minutes, free Pages, OD-02 closed with it |
+| I-04 | Odds provider and credit budget undecided (OD-03) | Blocks E5-S4 | **Open** — decide by ~GW10 |
+| I-05 | **Effective ownership is not computable from public FPL data** (CON-12) | FR-16, FR-21 and the whole risk dial rest on it | **Open** — OD-06, candidate routes in [Design §7](04-conceptual-design.md#7-risk-and-ownership-model). Must resolve before E4-S4 |
+| I-06 | **DL-11 (UTC storage, dual-timezone display) is still `Proposed`** | Changes FR-26 and the E7 scheduling design; CON-11 already records the underlying constraint | **Open** — needs one confirmation from the owner. Costs nothing; blocking nothing yet; will block E1-S4 |
 
 ### Dependencies
 
@@ -340,10 +369,24 @@ no human acting on the advice both invalidate the project outright.
 
 ---
 
-## 7. The GW1 decision
+## 7. The GW1 decision — **closed**
 
-**This is the one live decision in the plan.** The owner has chosen documentation only for now
-(DL-02). Twelve days remain before the GW1 deadline. Two tracks, stated honestly.
+> **Resolved 2026-08-09 by [DL-10](00-decision-log.md#dl-10--build-a-steel-thread-to-gw1-rather-than-deferring-the-build):
+> build a steel thread to GW1.** Neither Track A nor Track B below was taken. The chosen route is a
+> third option that emerged from this analysis — a thin but *complete* path through every
+> architectural layer, in which nothing is thrown away. It costs roughly a day more than Track B and
+> produces no disposable code. The plan is [epics/E0](epics/E0-steel-thread-gw1.md).
+>
+> **What was traded away:** blueprint B7, *validate before you believe*, cannot be honoured before
+> GW1 — there is no time to backtest and preseason has no current-season data. Mitigations are named
+> in [epics/README §5](epics/README.md#5-guardrails-carried-from-the-planning-set) and the breach is
+> logged as debt item D-01, repaid as the *first* deliverable of E3.
+>
+> The two tracks are retained below because the reasoning is what justifies the third option, and
+> because Track A's honest assessment — that a hand-picked GW1 squad costs less than it feels like it
+> should — remains the correct fallback if E0 overruns.
+
+The situation as it stood: twelve days to the GW1 deadline, no code. Two tracks, stated honestly.
 
 ### Track A — Full build, GW1 handled manually
 
@@ -379,16 +422,25 @@ A deliberately narrow slice, targeting a usable GW1 squad by 19 August with two 
   not optional. There is also real risk of the throwaway shortcuts hardening into the codebase; every
   fast-lane shortcut must be logged as explicit technical debt on day 7.
 
-### Recommendation
+### Recommendation as written at the time
 
 **Track A**, unless the owner specifically wants the GW1 squad to come from the tool as a matter of
 principle. The season is won across 37 remaining deadlines, and the cost of a hurried, unvalidated
-model plus its technical debt outweighs the marginal gain on one squad. If Track B is chosen, treat
-day 6 as a hard gate: if the model's squad looks eccentric against consensus, the human overrules it.
+model plus its technical debt outweighs the marginal gain on one squad.
+
+**The owner chose to build** (DL-10), and the steel-thread framing removes most of the objection: the
+technical debt argument was against *throwaway* shortcuts, and the steel thread has none. The B7
+breach stands, and the day-6 gate the recommendation insisted on survives as
+[E0-S8](epics/E0-steel-thread-gw1.md#e0-s8--human-verification-gate), a mandatory story with its own
+acceptance criteria. If the model's squad looks eccentric against consensus, the human overrules it.
 
 ---
 
 ## 8. Estimation summary
+
+> **Superseded** by the [epic register](epics/README.md#2-epic-register) — **43–61 focused days**. The
+> phase figures below are retained for comparison; the increase is honest rather than scope creep, and
+> the reasons are given there.
 
 | Phase | Focused days | Cumulative |
 | --- | --- | --- |
@@ -404,6 +456,33 @@ day 6 as a hard gate: if the model's squad looks eccentric against consensus, th
 Estimates assume AI-assisted development, no team coordination overhead, and a maintainer already
 fluent in the FPL domain. Phases 2 and 3 have the widest ranges because model quality is discovered,
 not scheduled — the backtest tells you when you are done, and it may take more than one attempt.
+
+### The availability assumption — ASM-8
+
+Every estimate in this project is in **focused build days**, which says nothing about elapsed time.
+The epic target gameweeks only mean something against an assumed rate, and until 2026-08-09 that rate
+was never written down. It is now:
+
+> **ASM-8 — the maintainer sustains 3–4 focused build days per week** from mid-August through
+> approximately GW30, *in addition to* the ~0.5 day/week operating loop (E8).
+
+This is what the epic register's target gameweeks already implicitly assume. Making it explicit
+matters because it is **demanding and has no slack**: the epic sequence to GW15 totals roughly 60
+focused days across 15 calendar weeks. There is no allowance for illness, travel, a work crunch, or
+an E3 that needs a second attempt — which [§8 above](#8-estimation-summary) explicitly warns is
+likely.
+
+**If the rate drops below ~3 days/week for more than a fortnight, the targets are wrong and must be
+re-baselined rather than quietly missed.** The tell is not a missed epic date; it is the
+[weekly question](epics/README.md#the-weekly-question) starting to return the same answer several
+weeks running.
+
+**The one thing that must not absorb the slippage is chip planning.** Chip set 1 expires at the GW19
+deadline and cannot be recovered. E4 is last in the sequence and depends on E3, so it is structurally
+the most exposed. That exposure is de-coupled deliberately: a minimal
+[chip-expiry tracker](epics/E2-data-platform.md#e2-s7--chip-expiry-tracker--05-day--obj-4) ships in
+E2, long before the real chip optimiser, purely so that a dated irreversible loss never depends on
+two large epics both landing on time.
 
 ---
 

@@ -1,7 +1,7 @@
 ---
 name: fpl-rules
 description: Authoritative Fantasy Premier League 2026/27 rules — scoring values, the revised Bonus Points System, Defensive Contribution thresholds, squad composition, budget, transfer and price mechanics, and chip rules with expiry dates. Load before writing or reviewing any code that computes points, prices, selling values, transfer costs, squad legality or chip eligibility, and before answering any question about how FPL scoring works.
-user-invocable: true
+user-invokable: true
 ---
 
 # FPL 2026/27 rules — reference

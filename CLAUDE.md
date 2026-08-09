@@ -7,6 +7,10 @@ artefacts; a React SPA reads them. No server, no database, no runtime backend.
 Planning documents are in `docs/planning/`. Read `docs/planning/README.md` first when you need
 context beyond this file. AI tooling design is in `docs/planning/ai/README.md`.
 
+**The build plan of record is `docs/planning/epics/`** — a steel thread to the GW1 deadline, then
+eight incremental epics. `docs/planning/02-project-plan-and-blueprint.md` still contains an older
+phase plan (P0–P6); its §3, §4 and §8 are superseded and marked as such. Do not plan work from them.
+
 ## Commands
 
 <!-- TODO Phase 0: fill in once the toolchain exists. -->
@@ -48,6 +52,14 @@ These are not style preferences. Breaking one causes silent, expensive wrongness
    on it even where the current solver only approximates its use.
 7. **A failing quality gate blocks publication.** Never work around a gate to get a run to complete.
    Stale and honest beats fresh and wrong.
+8. **The browser never calls an external API.** The web app reads published static artefacts and
+   nothing else. There is no request path from the client to any code this project operates (DL-03).
+9. **Invariant 2 does not stop at the language boundary.** The TypeScript legality validator is
+   generated from `rules.json` in the web contract, which comes from the same config the Python rules
+   module reads (DL-14). A hardcoded `3` for the club limit in a `.tsx` file is the same bug as a
+   hardcoded `4` for a forward goal in a `.py` file.
+10. **This repository is public.** No secret reaches it, ever — not in a commit, not in a test
+    fixture, not in a client bundle. API keys live only in GitHub Actions secrets (NFR-13, DL-12).
 
 ## Conventions
 

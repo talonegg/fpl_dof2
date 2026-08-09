@@ -48,23 +48,47 @@ created your 2026/27 team — which is itself the output of E0.
 | 4.1 | **Odds provider account and API key** (OD-03) | Bookmaker odds are the strongest short-horizon team-level signal. The Odds API free tier is the current candidate | Free tier, credit-capped. **Requires you to sign up** |
 | 4.2 | **Explicit sign-off on the scraping approach** for Understat and FBref | These are scraped, not licensed APIs. Personal non-commercial use, `robots.txt` respected, crawl-delayed, cached hard (NFR-10). You should be comfortable with that posture before it is built | None |
 
-## 5. Needed for E7 (automation and hosting), around GW6–8
+## 5. Hosting — **settled, nothing needed from you**
 
-These are the decisions currently open as OD-01 and OD-02, now with the private-repo constraint known.
+OD-01 and OD-02 are both closed by [DL-12](../00-decision-log.md#dl-12--public-repository): **the
+repository is public, and the site is hosted on GitHub Pages.** No Cloudflare account to create, no
+minutes budget to approve, no decision waiting at ~GW6.
 
-| # | Input | Why it matters now |
+### Why this reversed
+
+The project briefly resolved OD-01 as *private*. Costing the workflow cadences afterwards showed that
+the original estimate here — *"~6 scheduled runs/day × ~3 min ≈ 540 min/month, comfortably inside
+2,000"* — counted only the fast ingest. It omitted the pipeline, deploy, backtest and CI workflows
+entirely, and it missed that GitHub rounds every job up to a whole minute.
+
+| Workflow | Runs/month | Min/run | Total |
+| --- | --- | --- | --- |
+| `ingest-fast` 4-hourly, hourly near deadlines | ~275 | 2–3 | 550–825 |
+| `pipeline` after each ingest + nightly + T−3h + T−45m | ~290 | 3–6 | 870–1,740 |
+| `deploy` on publish | ~290 | 1–2 | 290–580 |
+| `ingest-slow`, `backtest`, `ci` | ~50 | 2–5 | 100–250 |
+| | | **Total** | **1,810–3,395** |
+
+Against a hard 2,000-minute cap, with no headroom for deadline-day reruns — which are exactly the
+runs that must never be rationed.
+
+The privacy was also mostly illusory. The published artefacts — your squad, your transfer plan, your
+differentials — are served from a public CDN regardless (DL-03). A private repository protected the
+code, not the decisions, while costing the compute budget the decisions depend on.
+
+### What this asks of you instead
+
+| # | Now required | Why |
 | --- | --- | --- |
-| 5.1 | **Hosting choice** (OD-02) | The repo is **private**, which means GitHub Pages is unavailable without a paid plan and Actions is capped at 2,000 minutes/month. Three viable paths — see the table below |
-| 5.2 | **Cloudflare account**, if that path is chosen | Free tier, but requires you to create the account |
-| 5.3 | **Confirm the Actions minutes budget is acceptable** | Rough estimate: ~6 scheduled runs/day × ~3 min ≈ 540 min/month, comfortably inside 2,000 — but only while runs stay short |
+| 5.1 | **Nothing to set up** | Pages is free on a public repo; it enables in repository settings |
+| 5.2 | **Awareness that every push is world-readable** | NFR-13 stops being precautionary. There is no window in which a leaked key is only "internally" exposed. The `ODDS_API_KEY` (E5) goes in Actions secrets and nowhere else; the secret-scan hook in `.claude/hooks/` is now the primary guard rather than a backstop |
+| 5.3 | **A quick look at the repo before it goes public** | Nothing personal beyond a public FPL team ID should be committed — which NFR-11 already required, but it is worth one deliberate check rather than an assumption |
 
-### Hosting options, given a private repo
-
-| Option | Cost | Trade-off |
-| --- | --- | --- |
-| **Cloudflare Pages + private repo** *(recommended)* | £0 | Keeps the repo private, better CDN than Pages, no minute implications. Needs a Cloudflare account |
-| **Make the repo public** | £0 | Unlimited Actions minutes and free Pages. But the repo would be world-readable — fine for this project's content, your call |
-| **Local-only, LAN access** | £0 | Zero setup. Works on your phone at home via `vite --host`, but not away from home, and nothing runs while the machine is off |
+Two cadence rules survive from the recount and are now in
+[Architecture §9](../03-solution-architecture.md#two-cadence-rules-that-are-easy-to-get-wrong), because
+they were always the right design: `element-summary` never runs on the fast path, and the pipeline
+does not re-solve after every fast ingest. An unbounded minutes budget is not a licence for a
+wasteful pipeline, and slowness on the deadline path costs more than money.
 
 ## 6. Preferences worth settling before E4
 

@@ -22,13 +22,36 @@ simple thing it replaced.
 Walk-forward replay with strict no-look-ahead, enforced by feature knowability stamps.
 
 - Train on everything knowable before each historical deadline; predict; compare to actual
-- Metrics against [charter §5 tier 2](../01-project-charter.md#tier-2--model-quality-obj-7): rank
-  correlation, MAE, calibration slope, captaincy hit rate
-- Benchmarks: template team, overall average, and a naive "highest xP, one transfer per week" strategy
+- Metrics against [charter §5 tier 2](../01-project-charter.md#tier-2--model-quality-obj-7), which
+  were made **baseline-relative** by [DL-13](../00-decision-log.md#dl-13--charter-amendments-following-the-2026-08-09-architecture-and-plan-audit):
+  Spearman within position and price band, MAE **skill score**, top-20 precision, calibration slope,
+  minutes Brier score, captaincy hit rate
 - Breakdowns by position, price tier and minutes band
 
-**Acceptance:** the E0 v0 model is scored honestly against benchmarks. **If it does not beat naive,
-that is the headline finding, reported as such.**
+#### Build B0 first — it is the reason every other number means anything
+
+**B0** is a model whose only inputs are **position and current price**, fitted on the same training
+window as the real model. It is an afternoon's work and every tier-2 threshold is now expressed
+relative to it.
+
+The reason is uncomfortable and worth stating plainly: charter v1.0's absolute thresholds would have
+passed a model with no edge. `MAE ≤ 2.1` sits in the range a *constant predictor* achieves on players
+who played, and `Spearman ≥ 0.30` across all positions is plausibly reachable knowing nothing but
+price and position — because price *is* FPL's own expected-value estimate. Without B0 you cannot tell
+a working forecast from an expensive restatement of `now_cost`.
+
+#### Benchmarks — one of the three was circular
+
+| Benchmark | Status |
+| --- | --- |
+| Template team | Keep |
+| Overall average | Keep |
+| ~~"Highest xP, one transfer per week"~~ | **Circular — demoted to a diagnostic.** It runs on *this project's own forecast*. If the forecast is poor, both sides of the comparison are poor, and better optimisation beats it while both remain worse than guessing. It measures the optimiser, not the model, and must be labelled as such |
+| **Model-free: highest trailing-6-gameweek points, one transfer per week** | **New, and the one that matters.** Computable from FPL data alone, with no dependence on anything this project predicts. It is roughly what an unaided manager does, which makes it the honest bar |
+
+**Acceptance:** B0 built and reported on every backtest run. The E0 v0 model is scored against B0 and
+against both season benchmarks. **If it does not beat the model-free benchmark, that is the headline
+finding, reported as such** — not a number to tune until it looks better.
 
 ### E3-S2 — Feature store · 1 day · Design §3.5
 Shared, cached, tested feature definitions used identically by training and inference — which is what
@@ -73,14 +96,21 @@ Propagate component variance including the large binary contribution from the mi
 ## 3. Definition of done
 
 - [ ] Backtest harness runs walk-forward with no look-ahead, proven by the leakage audit
+- [ ] **B0 baseline built, and every tier-2 metric reported relative to it**
 - [ ] Tier-2 thresholds met — **or consciously recalibrated with evidence and a decision-log entry**
-- [ ] Model beats the naive benchmark, or that finding is stated plainly and acted on
+- [ ] Model beats the **model-free** benchmark, or that finding is stated plainly and acted on
 - [ ] All eight component models registered with both aggregator and explanation decomposition
 - [ ] Model cards for each component: inputs, method, measured accuracy, known failure modes
-- [ ] D-01, D-02, D-05 and D-09 closed in the E0 debt register
+- [ ] Per-component training windows honour the scoring-regime table in [E2-S3](E2-data-platform.md) —
+      M4 on 25/26 only unless Q-13 succeeded, M8 structural rather than learned from historical bonus
+- [ ] D-01, D-02, D-05, D-09 and D-12 closed in the E0 debt register
 
 ## 4. The honest question
 
 **"Does this beat doing something simple?"** If after E3 the answer is no, that is a finding to act
 on, not a bug to tune away — and the right response is to trust the tool less and your own judgement
 more, while keeping the scout UI, which has standalone value regardless.
+
+B0 and the model-free benchmark exist so that this question has an *answer* rather than an
+impression. A project like this one fails most often not by building a bad model but by never
+constructing the comparison that would have revealed it.

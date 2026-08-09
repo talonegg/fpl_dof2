@@ -3,7 +3,7 @@
 **Objective:** OBJ-2 — produce an optimal, rule-legal 15-player squad for GW1 within £100.0m
 **Hard deadline:** Fri 21 Aug 2026 18:30 BST = **Sat 22 Aug 03:30 AEST**
 **Practical cut-off:** Friday evening 21 Aug, local time
-**Estimate:** 9–11 focused days · **Available:** 12 days
+**Estimate:** 9.5–11.5 focused days · **Available:** 12 days · **Buffer:** 1 day
 
 ---
 
@@ -28,6 +28,8 @@ removes OD-01, OD-02 and OD-03 from the critical path completely.
 ### In scope
 
 - FPL API adapter behind the real adapter interface, with rate limiting, caching and bronze snapshots
+- A second, static source — the 2025/26 per-gameweek archive — purely to obtain Defensive
+  Contribution rates, which `history_past` does not carry. See [E0-S3](#e0-s3--minimal-silver-layer-and-the-202526-archive)
 - Minimal conformed silver layer: players, teams, fixtures, prior-season history
 - Config-driven rules module with a squad legality validator
 - Cold-start expected-points model (v0) with explicit, wide uncertainty
@@ -39,9 +41,10 @@ removes OD-01, OD-02 and OD-03 from the critical path completely.
 ### Deliberately out of scope
 
 Everything else. Named explicitly so it is a decision, not an oversight: no Understat, FBref or odds;
-no entity resolution (single source, so unnecessary); no minutes model; no multi-gameweek horizon;
-no transfers; no chips; no risk dial; no backtesting; no automation; no quality gates beyond schema
-validation; no data health page.
+**no entity resolution** — the 2025/26 archive is keyed on FPL element IDs, so both sources already
+share a key, which is precisely why that second source is safe to admit here when no other would be;
+no minutes model; no multi-gameweek horizon; no transfers; no chips; no risk dial; no backtesting;
+no automation; no CI; no quality gates beyond schema validation; no data health page.
 
 ## 3. Stories
 
@@ -88,18 +91,50 @@ The real adapter, not a fetch script. This is the layer most expensive to retrof
 
 ---
 
-### E0-S3 — Minimal silver layer
-**Target: Thu 13 Aug · 1 day**
+### E0-S3 — Minimal silver layer, and the 2025/26 archive
+**Target: Thu 13 Aug · 1.5 days**
 
 - Conform bronze into four canonical tables: `player`, `team`, `fixture`, `player_season_history`
 - Parquet output, partitioned by season
 - Pandera schemas asserting types, ranges and referential integrity
 - Prices converted from tenths at the ingestion boundary, once, never downstream
 
+#### The Defensive Contribution problem — why this story grew by half a day
+
+The cold-start model (E0-S5) is built on `element-summary/{id}/history_past`, which gives **season
+totals**: minutes, goals, assists, clean sheets, saves, bonus, BPS. Per-90 rates come out of that
+fine, so goals and assists are covered.
+
+**Defensive Contribution is not in there** — and the design calls DefCon *"the best signal-to-noise
+ratio in the whole model, and the place where a model most easily beats intuition, because most
+managers still price players as if the component did not exist"*
+([Design §5 M4](../04-conceptual-design.md#m4--defensive-contribution)). A GW1 squad built without it
+prices defenders and defensive midfielders in exactly the way the design says is wrong. For a squad
+that is 5 defenders and 5 midfielders out of 15, that is not a rounding error.
+
+**Route, in order — take the first that works:**
+
+1. **Check `history_past` for a season-total DefCon field.** FPL added `defensive_contribution` to
+   per-gameweek element data in 25/26; if it also reached the season-totals shape, this is free.
+2. **Otherwise ingest the 2025/26 per-gameweek community archive** as a second source: a static,
+   already-published CSV set keyed on **FPL element IDs**, so it needs no entity resolution (which is
+   why it is safe to admit into E0 when nothing else is). Snapshot it to bronze once, conform to a
+   `player_gameweek_history` silver table, treat as static thereafter.
+3. **Otherwise fall back** to a role-based positional prior with deliberately wide uncertainty, say so
+   loudly in the model card, and tell the E0-S8 review gate to weight defender selection on judgement.
+
+This is a genuine bonus beyond the DefCon fix: it is **the first real test of the adapter registry**
+(a second source, four days into the build), and it is [E2-S3](E2-data-platform.md) work brought
+forward rather than throwaway effort.
+
 **Acceptance**
-- `fpl-dof transform` produces four validated Parquet tables
-- Schema violations fail the run rather than passing bad data through
+- `fpl-dof transform` produces validated Parquet tables; schema violations fail the run rather than
+  passing bad data through
 - Row counts logged to the manifest
+- **A per-90 Defensive Contribution rate exists for every player with 2025/26 minutes, or route 3 is
+  taken and recorded as a debt item**
+- **The second source went in through the registry, and nothing outside `sources/` changed** — if it
+  did, the abstraction has already leaked and fixing it is part of this story
 
 ---
 
@@ -133,12 +168,15 @@ Signal stack, in descending weight:
 
 1. **Prior-season per-90 rates** from `history_past` — goals, assists, clean sheets, minutes — for
    players with Premier League history
-2. **FPL's own initial price** as a market-implied prior on role and expected value. This is a
+2. **Per-90 Defensive Contribution rate** from the 2025/26 archive ingested in E0-S3. Rate-driven and
+   far more stable week to week than goal involvement, so it earns high weight despite one season of
+   evidence
+3. **FPL's own initial price** as a market-implied prior on role and expected value. This is a
    genuinely strong signal: FPL prices players on expected returns
-3. **Position and price-tier baselines** for players with no top-flight history — new signings from
+4. **Position and price-tier baselines** for players with no top-flight history — new signings from
    abroad, promoted-club players
-4. **Availability haircut** from `status` and `chance_of_playing_next_round`
-5. **Fixture difficulty** over GW1–6, from team strength ratings in `bootstrap-static`
+5. **Availability haircut** from `status` and `chance_of_playing_next_round`
+6. **Fixture difficulty** over GW1–6, from team strength ratings in `bootstrap-static`
 
 Method: compute per-90 rates, shrink toward the position-and-price-tier prior in inverse proportion
 to prior-season minutes, scale by expected minutes and fixture difficulty, convert to expected points
@@ -148,12 +186,35 @@ via the rules module.
 uncertainty band** (Invariant 6) and a per-player confidence tier reflecting how much real evidence
 sits behind it.
 
+#### The diagnostic that decides whether any of this is worth anything
+
+Signal 3 is FPL's own price. The optimiser then maximises expected points *subject to a budget*. If
+expected points turns out to be largely a function of price, the objective is nearly flat across every
+affordable squad and the solver is selecting on residual noise — **an expensive random number
+generator with a budget constraint**. This is R-15, and it costs an hour to check:
+
+> Regress xP on `(price, position)`. **Report the R² and the within-price-tier spread of xP in the
+> model card, and read them before submitting.**
+
+Interpretation, decided now rather than in the moment:
+
+| R² | Meaning | Response |
+| --- | --- | --- |
+| < 0.7 | The model is adding real information beyond price | Proceed |
+| 0.7 – 0.9 | Thin, but there is signal in the residuals | Proceed, and weight the E0-S8 review more heavily |
+| **> 0.9** | The forecast is a repricing of FPL's prices | **Say so.** The squad is then a budget-allocation exercise, not a forecast, and should be reviewed as one. This is a finding to report, not a number to tune until it looks better |
+
 **Acceptance**
-- xP table for every player, with decomposition by scoring component
+- xP table for every player, with decomposition by scoring component **including Defensive Contribution**
 - Every value carries an uncertainty estimate and a confidence tier
 - Method documented in a model card, including its known weaknesses
+- **R² of xP on `(price, position)` reported in the model card, with the response above applied**
 - Sanity check: the top 20 by xP are recognisably plausible premium players
 - Newly promoted and newly signed players are not systematically absurd in either direction
+- **No player enters the starting XI with a modelled start probability below 60% unless explicitly
+  overridden.** With no minutes model (D-02) and preseason `status` flags almost universally `a`, the
+  availability haircut does almost nothing — a crude starts-per-appearance prior from last season is
+  the only thing standing between the optimiser and a bench full of players who will never play
 
 **This is the story most likely to overrun.** If it does, ship the crude version and spend the saved
 time on E0-S8 review instead. A cruder forecast reviewed carefully beats a better forecast trusted blindly.
@@ -231,18 +292,20 @@ story is the only thing standing between an unvalidated forecast and a submitted
 | Sun 9 Aug | — | Planning complete |
 | Mon 10 Aug | E0-S1 | Scaffolding |
 | Tue 11 – Wed 12 Aug | E0-S2 | FPL adapter |
-| Thu 13 Aug | E0-S3 | Silver layer |
-| Fri 14 Aug | E0-S4 | Rules + validator |
-| Sat 15 – Sun 16 Aug | E0-S5 | **xP v0 — the risk story** |
+| Thu 13 Aug + ½ Fri | E0-S3 | Silver layer **+ 2025/26 archive** (1.5 d) |
+| ½ Fri 14 – ½ Sat 15 Aug | E0-S4 | Rules + validator |
+| ½ Sat 15 – Sun 16 Aug | E0-S5 | **xP v0 — the risk story** |
 | Mon 17 – Tue 18 Aug | E0-S6 | Optimiser |
 | Wed 19 Aug | E0-S7 | Publish + web view |
 | Thu 20 Aug | E0-S8 | **Review gate** |
 | Fri 21 Aug | Buffer | Final data refresh, re-run, submit |
 | **Sat 22 Aug 03:30** | **DEADLINE** | Team must be in before this |
 
-Two full buffer days are deliberate. Preseason FPL data changes right up to the deadline — price
-changes, injury news, late transfers — so a final refresh and re-run on Friday is expected, not
-exceptional.
+The 2025/26 archive added half a day to E0-S3, taken from the front of the buffer rather than from
+E0-S5 or E0-S8 — the two stories that must not be compressed. **One full buffer day remains**, which
+is still deliberate: preseason FPL data changes right up to the deadline (price changes, injury news,
+late transfers), so a final refresh and re-run on Friday is expected, not exceptional. If E0-S3 runs
+long, the archive is the first thing to cut — see below.
 
 ## 5. Emergency cut
 
@@ -253,10 +316,12 @@ are not.
 | --- | --- | --- |
 | 1st to drop | **E0-S7 web view** | Read the squad from console output or a CSV. The squad is the deliverable; the UI is not |
 | 2nd | **Contract test in E0-S2** | Accept the risk for one run; add it in E1 |
-| 3rd | **Fixture-difficulty adjustment in E0-S5** | Use GW1 only rather than a GW1–6 horizon. Weaker, but not wrong |
-| 4th | **Bench optimisation** | Fill the bench with the cheapest legal playing options |
+| 3rd | **The 2025/26 archive in E0-S3** | Fall back to route 3 — a role-based positional DefCon prior with wide uncertainty. Defender and defensive-midfielder pricing gets materially worse, so tell the E0-S8 gate to scrutinise those ten squad places by hand. Recoverable, and E2-S3 repays it |
+| 4th | **Fixture-difficulty adjustment in E0-S5** | Use GW1 only rather than a GW1–6 horizon. Weaker, but not wrong |
+| 5th | **Bench optimisation** | Fill the bench with the cheapest legal playing options |
 | ——— | ——— | ——— |
 | **Never drop** | **E0-S4 rules + validator** | Without it you cannot know the squad is legal |
+| **Never drop** | **The R² diagnostic in E0-S5** | One hour. It is the only thing that tells you whether the forecast is a forecast or a repricing of FPL's prices |
 | **Never drop** | **E0-S8 review gate** | This is the only validation the model gets |
 
 ## 6. Technical debt register
@@ -274,6 +339,9 @@ Every shortcut, with the epic that repays it. Reviewed at the end of E0 and agai
 | D-07 | No entity resolution | Harmless now — one source. Becomes critical the moment E5 lands | E5 |
 | D-08 | No automation; every run is manual | Not viable across 38 deadlines, especially given AEST timings | E7 |
 | D-09 | Uncertainty is a heuristic band, not a modelled variance | The eventual risk dial needs real variance | E3 |
+| D-10 | **No CI.** E0 runs entirely locally, so charter §13.3 is knowingly unmet | Nothing proves the code runs anywhere but this machine. Covered by the dated carve-out in [charter §13](../01-project-charter.md#the-one-dated-exception--e0), which expires 22 Aug | E7 — the first workflow must run the E0 code path unchanged |
+| D-11 | **Defensive Contribution rests on one season** (2025/26), or on a positional prior if the archive was cut | The highest signal-to-noise component has the thinnest evidence behind it. See [Q-13](../04-conceptual-design.md#15-open-design-questions) — whether earlier seasons can be reconstructed from action counts | E2-S3 backfill, then E3-S5 |
+| D-12 | **Start probability is a crude prior, not a model** | Related to D-02 but distinct: D-02 is about rotation and injury *risk*; this is about whether a player is a starter at all. In preseason the FPL status flags say almost nothing, so ~£17–20m of cheap squad places rest on a heuristic | E3 (M1) |
 
 **Rule:** a debt item may be deferred but never deleted. Deleting one requires a decision-log entry
 saying why it stopped mattering.
@@ -287,7 +355,8 @@ saying why it stopped mattering.
 - [ ] No source-specific code outside `sources/`
 - [ ] No FPL constant hardcoded outside config
 - [ ] Every xP value carries an uncertainty estimate
-- [ ] Model card written, including known weaknesses
+- [ ] Model card written, including known weaknesses **and the R² of xP on `(price, position)`**
+- [ ] Defensive Contribution is in the xP decomposition, or its absence is recorded as debt D-11
 - [ ] Debt register complete and committed
 - [ ] E0-S8 review completed and overrides recorded
 - [ ] **Team submitted before Sat 22 Aug 03:30 AEST**

@@ -41,20 +41,44 @@ graph LR
 
 | ID | Epic | Objective served | Target | Est. |
 | --- | --- | --- | --- | --- |
-| **[E0](E0-steel-thread-gw1.md)** | **Steel thread — GW1 squad** | **OBJ-2** | **21 Aug 2026** | **9–11 d** |
-| [E1](E1-weekly-operating-loop.md) | Weekly operating loop | OBJ-3 (minimum viable) | GW2, ~28 Aug | 3–4 d |
-| [E2](E2-data-platform.md) | Data platform hardening | OBJ-1, NFR-06/07 | GW6 | 4–6 d |
-| [E3](E3-expected-points-engine.md) | Expected points engine | OBJ-1, OBJ-7 | GW10 | 7–10 d |
-| [E4](E4-decision-engine.md) | Decision engine | OBJ-3, OBJ-4 | GW15 (chips by GW19) | 6–9 d |
-| [E5](E5-external-sources.md) | External data sources | OBJ-1 | GW12 | 4–6 d |
-| [E6](E6-web-application.md) | Web application | OBJ-5 | GW14 | 7–10 d |
+| **[E0](E0-steel-thread-gw1.md)** | **Steel thread — GW1 squad** | **OBJ-2** | **21 Aug 2026** | **9.5–11.5 d** |
+| [E1](E1-weekly-operating-loop.md) | Weekly operating loop | OBJ-3 (minimum viable) | GW2, ~28 Aug | 3.5–4.5 d |
+| [E2](E2-data-platform.md) | Data platform hardening | OBJ-1, OBJ-4, NFR-06/07 | GW6 | 4.5–6.5 d |
 | [E7](E7-automation-and-hosting.md) | Automation and hosting | OBJ-6, NFR-01/05 | GW8 | 3–5 d |
+| [E3](E3-expected-points-engine.md) | Expected points engine | OBJ-1, OBJ-7 | GW10 | 7–10 d |
+| [E5](E5-external-sources.md) | External data sources | OBJ-1 | GW12 | 4–6 d |
+| [E4](E4-decision-engine.md) | Decision engine | OBJ-3, OBJ-4 | GW15 (chips expire GW19) | 7–10 d |
+| [E6](E6-web-application.md) | Web application | OBJ-5 | GW16 | 7–10 d |
 | [E8](E8-in-season-operations.md) | In-season operations | OBJ-1 | Continuous | ~0.5 d/wk |
 
-**Total build: 43–61 focused days**, against the [plan's original 29–44](../02-project-plan-and-blueprint.md#8-estimation-summary).
+**Total build: 46–64 focused days**, against the [plan's original 29–44](../02-project-plan-and-blueprint.md#8-estimation-summary).
 The increase is honest, not scope creep: the original estimate assumed a clean sequential build with
 no deadline pressure, and this plan adds the steel thread's end-to-end plumbing plus the weekly
 operating overhead of running a live season while still building.
+
+**E6 moved from GW14 to GW16.** It was previously targeted *before* E4, one of its own dependencies.
+
+### What these targets assume — and it is demanding
+
+The dates only mean something against a rate, which until 2026-08-09 was never written down. It now
+is, as **[ASM-8](../01-project-charter.md#8-assumptions): 3–4 focused build days per week**, on top of
+the ~0.5 day/week operating loop.
+
+Do the arithmetic before trusting the table: the sequence to GW15 totals roughly **60 focused days
+across 15 calendar weeks**. That is four days a week, every week, with no allowance for illness,
+travel, a work crunch, or an E3 that needs a second attempt — which the estimation notes explicitly
+warn is likely, because model quality is discovered rather than scheduled.
+
+**If the rate drops below ~3 days/week for more than a fortnight, these targets are wrong and should
+be re-baselined rather than quietly missed.** The tell is not a missed date; it is
+[the weekly question](#the-weekly-question) returning the same answer several weeks running.
+
+**One thing must not absorb the slippage.** Chip set 1 expires at the GW19 deadline and cannot be
+recovered. E4 is last and depends on E3, making it structurally the most exposed item in the plan —
+so that exposure is decoupled deliberately: a blunt
+[chip-expiry tracker](E2-data-platform.md#e2-s7--chip-expiry-tracker--05-day--obj-4) ships in **E2**,
+around GW6, months before the real optimiser. Half a day of insurance against a dated, irreversible
+loss that would otherwise depend on two large epics both landing on time.
 
 ## 3. Sequencing rationale
 
@@ -143,6 +167,10 @@ These are not renegotiated by the deadline pressure:
    model is unvalidated.
 5. **Every steel-thread shortcut is logged as debt** with a named epic that repays it. See
    [E0 §6](E0-steel-thread-gw1.md#6-technical-debt-register).
+6. **Exceptions to the definition of done are dated and written down.** E0 runs without CI, which
+   charter §13.3 requires — covered by a
+   [single-use carve-out](../01-project-charter.md#the-one-dated-exception--e0) expiring 22 August,
+   logged as debt D-10 and repaid by E7. No further exceptions without a decision-log entry.
 
 ### The one principle E0 knowingly breaks
 
@@ -165,3 +193,8 @@ See **[INPUTS-REQUIRED.md](INPUTS-REQUIRED.md)** for the full list with dates, i
 variables, credentials and the decisions still open. The headline: **the steel thread needs almost
 nothing from you** — no API keys, no hosting accounts, no CI setup. It runs locally. The first real
 input is your FPL team ID, and that cannot exist until you have created your team.
+
+Hosting is no longer among the open questions: [DL-12](../00-decision-log.md#dl-12--public-repository)
+made the repository public, which closes both OD-01 and OD-02 and puts the site on GitHub Pages for
+free. The one thing it asks in return is vigilance — every push is world-readable, so NFR-13 stops
+being precautionary.

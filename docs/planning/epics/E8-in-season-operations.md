@@ -44,7 +44,7 @@ rationalisation.
 
 | When | Activity |
 | --- | --- |
-| Monthly | Retrain on accumulated current-season data; re-run backtest regression |
+| Monthly | Re-run the backtest regression. Retrain **into shadow mode**, never straight into production — promotion needs the three conditions in §5 |
 | **GW4** | **Decision point:** is the model beating your intuition? If not, E3 takes priority over E6 |
 | **GW8** | **Decision point:** is manual operation sustainable? If not, E7 jumps immediately |
 | GW10–12 | First honest read on live out-of-sample accuracy |
@@ -55,7 +55,32 @@ rationalisation.
 | **~GW30** | **Stop building. Operate only.** Remaining gameweeks no longer repay build time |
 | End of season | Retrospective against charter §5; decide whether 2027/28 is worth it |
 
-## 5. Anti-patterns to watch for
+## 5. The bar for changing the model mid-season
+
+"Retrain monthly on accumulated current-season data" sounds like diligence. By GW10 that is **ten
+gameweeks** of the noisiest target in the project, and fitting to it is how a working system quietly
+gets worse. R-17.
+
+The mechanism already exists — **shadow mode** ([Design §13](../04-conceptual-design.md#13-configuration-and-feature-flags)),
+which publishes a candidate model's predictions for comparison without letting them influence
+anything. What was missing is the bar for coming out of it. Three conditions, all of them:
+
+| # | Condition |
+| --- | --- |
+| 1 | **Backtest regression improves** on the held-out season — not just on the current one |
+| 2 | **Live rolling accuracy does not degrade** over a minimum of **six** shadow gameweeks. Fewer than six and you are reading noise |
+| 3 | The change is **explicable** — you can say why it should work, in advance. A change that only improves the metric is a change that found a pattern in this season's noise |
+
+**Prefer shrinkage to refitting.** Blending the preseason model toward current-season evidence in
+proportion to how much evidence there is will beat a fresh fit on ten gameweeks nearly every time,
+and it degrades gracefully rather than lurching.
+
+**One exception, deliberately:** a *bug fix* is not a model change and does not wait for six
+gameweeks. A miscomputed clean-sheet probability gets fixed on discovery. The bar is for changes that
+are improvements in intent rather than corrections in fact — and the distinction is usually obvious,
+so if it is being argued about, it is a model change.
+
+## 6. Anti-patterns to watch for
 
 | Pattern | Why it is dangerous | Response |
 | --- | --- | --- |
@@ -64,13 +89,16 @@ rationalisation.
 | Overriding a blocked quality gate | Normalises publishing data you know is suspect | Stop. Fix the gate or the data |
 | Chasing last week's points | The classic FPL error, and a model does not immunise you | Trust the horizon, not the last result |
 | Building instead of playing | Late-season build time has almost no payoff | Honour the GW30 stop |
+| Retuning the model after a bad gameweek | One gameweek is noise. This is chasing last week's points wearing a lab coat | Shadow mode and the six-gameweek bar in §5 |
+| Reacting to the captaincy hit rate in-season | n = 38 over a whole season, so the standard error on a 50% rate is ~8 points. 45% and 55% are indistinguishable | Backtest gate only. Charter §5 now says so |
 
-## 6. Definition of done
+## 7. Definition of done
 
 The season ends with:
 
 - [ ] 38 gameweeks played, every deadline met
-- [ ] A decision log covering every gameweek
-- [ ] An honest assessment against charter §5, including whether the model added edge
+- [ ] A decision log covering every gameweek, with **advised-versus-played reconciled** (E1-S5)
+- [ ] An honest assessment against charter §5, including whether the model added edge over B0 and
+      over the model-free benchmark
 - [ ] Chips used within their sets, none expired unused
 - [ ] A retrospective, and a decision on 2027/28
