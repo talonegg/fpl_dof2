@@ -147,14 +147,62 @@ numbered and traceable.
 
 ---
 
+## DL-10 — Build a steel thread to GW1 rather than deferring the build
+
+**Status:** Accepted · **Date:** 2026-08-09 · **Decided by:** Owner · **Supersedes DL-02**
+
+Implementation starts immediately, targeting a working end-to-end system that produces the GW1 squad
+before the deadline of **Fri 21 Aug 2026 18:30 BST (Sat 22 Aug 03:30 AEST)**. This resolves the open
+choice in [02-project-plan-and-blueprint.md §7](02-project-plan-and-blueprint.md#7-the-gw1-decision)
+in favour of building for GW1.
+
+The approach is a **steel thread**, not the "fast lane" described in Plan §7 Track B: a thin but
+complete and working path through every architectural layer, where every line written is kept. The
+expensive structural parts — adapter isolation, medallion layers, config-driven rules, versioned
+contracts — are built in from the start because they are cheap now and expensive to retrofit.
+
+**Rejected alternative:** Track A (build properly, pick GW1 by hand). Sound reasoning, but the owner
+wants the GW1 squad to come from the tool.
+
+**Consequence:** [Blueprint B7](02-project-plan-and-blueprint.md#b7--validate-before-you-believe) —
+*validate before you believe* — is knowingly breached for GW1, because there is no time to backtest
+and preseason has no current-season data. Mitigations are specified in
+[epics/README §5](epics/README.md#5-guardrails-carried-from-the-planning-set): wide uncertainty
+labelling, a mandatory human review gate, consensus sanity-checking, and backtesting as the first
+deliverable of E3. The full plan is in [docs/planning/epics/](epics/README.md).
+
+---
+
+## DL-11 — Store and compute in UTC; render in local time only at the UI edge
+
+**Status:** Proposed · **Date:** 2026-08-09 · **Awaiting:** Owner confirmation
+
+The owner is in Australia (AEST, UTC+10). FPL expresses all deadlines in UK time, so deadlines land
+at roughly 03:30 local for Friday-night and midweek gameweeks, and around 20:00 local for standard
+Saturday ones.
+
+**Decision:** all storage, scheduling arithmetic and model reasoning use UTC. Local time appears only
+at the presentation edge. Deadline displays show **both** UK and local time, plus an explicit
+"decide by" time in the local evening.
+
+**Why it matters beyond display:** the UK leaves BST in late October (to UTC+0) while Australia enters
+AEDT in early October (to UTC+11). The offset moves from +9 to +11 within a few weeks. Any code
+reasoning in local time breaks during that window.
+
+**Consequences:** changes FR-26 (dashboard countdown) to require dual-timezone display; makes E7
+automation a requirement rather than a convenience, since the owner will be asleep for many
+deadlines, moving it earlier in the epic sequence.
+
+---
+
 ## Open decisions
 
 Decisions deliberately deferred, with the point at which each must be resolved.
 
 | ID | Question | Must resolve by |
 | --- | --- | --- |
-| OD-01 | Public or private GitHub repository — public gives unlimited Actions minutes and free Pages; private costs minutes and needs a paid plan for Pages | Phase 0, before first CI run |
-| OD-02 | GitHub Pages or Cloudflare Pages for hosting | Phase 5 |
-| OD-03 | Which odds provider and free-tier credit budget | Phase 1 |
-| OD-04 | Whether to add injury/press-conference feeds as a fourth source | Phase 6, in-season |
-| OD-05 | Target overall rank — determines how aggressively the risk dial should default | Before GW1 squad is locked |
+| ~~OD-01~~ | ~~Public or private GitHub repository~~ — **Resolved 2026-08-09: private.** Consequence: GitHub Pages needs a paid plan, and Actions is capped at 2,000 min/month, which raises the stakes on OD-02 | Resolved |
+| OD-02 | Hosting: Cloudflare Pages, make the repo public, or local-only. See [epics/INPUTS-REQUIRED §5](epics/INPUTS-REQUIRED.md#5-needed-for-e7-automation-and-hosting-around-gw6-8) | E7, ~GW6 |
+| OD-03 | Which odds provider and free-tier credit budget | E5, ~GW10 |
+| OD-04 | Whether to add injury/press-conference feeds as a fourth source | E8, in-season |
+| OD-05 | Target overall rank — determines how aggressively the risk dial should default | E4, before the risk dial ships |
