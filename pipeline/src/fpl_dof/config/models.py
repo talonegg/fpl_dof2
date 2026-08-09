@@ -44,8 +44,8 @@ class RateLimitConfig(_Section):
         default=2.0,
         gt=0,
         description=(
-            "Sustained request rate against a single host. 2/s puts the ~700-call "
-            "element-summary sweep at roughly six minutes, which is acceptable and polite."
+            "Sustained request rate against a single host. 2/s puts the largest per-player "
+            "sweep any adapter declares at roughly six minutes, which is acceptable and polite."
         ),
     )
     max_concurrency: int = Field(
@@ -94,8 +94,27 @@ class HttpConfig(_Section):
     )
 
 
+class SourceOverride(_Section):
+    """Per-source configuration, keyed by source name.
+
+    Generic on purpose. No source's name appears as a field anywhere in this file, because a named
+    field is a downstream module knowing that source exists (Invariant 1).
+    """
+
+    enabled: bool | None = None
+    cache_ttl_seconds: dict[str, int] = Field(
+        default_factory=dict,
+        description="Per-resource TTL overrides, keyed by the resource name the adapter declares.",
+    )
+
+
+class SourcesConfig(_Section):
+    overrides: dict[str, SourceOverride] = Field(default_factory=dict)
+
+
 class Config(_Section):
     """The whole configuration, as one immutable object threaded through every stage."""
 
     runtime: RuntimeConfig = RuntimeConfig()
     http: HttpConfig = HttpConfig()
+    sources: SourcesConfig = SourcesConfig()

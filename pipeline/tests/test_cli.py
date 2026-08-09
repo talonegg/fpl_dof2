@@ -1,12 +1,35 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
 from fpl_dof.cli import EXIT_BAD_USAGE, EXIT_OK, build_parser, main
 from fpl_dof.pipeline import STAGE_NAMES
+from fpl_dof.sources.base import IngestReport, IngestRequest, Resource, SourceAdapter
+from fpl_dof.sources.registry import temporary_registry
+
+
+class _StubSource(SourceAdapter):
+    """A source that does nothing, so CLI tests exercise wiring rather than the FPL API."""
+
+    name: ClassVar[str] = "stub"
+    version: ClassVar[str] = "1"
+    summary: ClassVar[str] = "stub source for CLI tests"
+    base_url: ClassVar[str] = "https://stub.invalid"
+    resources: ClassVar[tuple[Resource, ...]] = (Resource(name="nothing", summary="nothing"),)
+
+    def ingest(self, request: IngestRequest) -> IngestReport:
+        return IngestReport(source=self.name, resources={"nothing": 0})
+
+
+@pytest.fixture(autouse=True)
+def stub_sources() -> Iterator[None]:
+    with temporary_registry((_StubSource,)):
+        yield
 
 
 def test_help_lists_every_stage(capsys: pytest.CaptureFixture[str]) -> None:
