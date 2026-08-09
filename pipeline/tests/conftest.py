@@ -1,14 +1,21 @@
 from __future__ import annotations
 
+import json
 import socket
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
+import respx
 
 from fpl_dof.config import Config, load_config
+from fpl_dof.config.models import RulesConfig
 from fpl_dof.paths import DataLayout
+from fpl_dof.rules.build import build_game_rules
+from fpl_dof.rules.models import ApiRules, GameRules
+from fpl_dof.sources.fpl.adapter import FplApiAdapter
 
 
 @pytest.fixture(autouse=True)
@@ -40,6 +47,49 @@ def no_accidental_network(request: pytest.FixtureRequest) -> Iterator[None]:
         yield
     finally:
         socket.socket.connect = original  # type: ignore[method-assign]
+
+
+FIXTURES = Path(__file__).parent / "fixtures"
+
+
+@pytest.fixture
+def recorded_fpl_api() -> Iterator[respx.MockRouter]:
+    """Serve the recorded API responses for the whole of a test.
+
+    Shared so that end-to-end tests exercise the real adapter and the real transform rather than a
+    stub — a stub source proves the wiring compiles, not that the pipeline works.
+    """
+    bootstrap = json.loads((FIXTURES / "bootstrap_static.json").read_text(encoding="utf-8"))
+    fixtures = json.loads((FIXTURES / "fixtures.json").read_text(encoding="utf-8"))
+    summaries = json.loads((FIXTURES / "element_summary.json").read_text(encoding="utf-8"))
+    base = FplApiAdapter.base_url
+
+    with respx.mock(assert_all_called=False) as mock:
+        mock.get(f"{base}/bootstrap-static/").mock(return_value=httpx.Response(200, json=bootstrap))
+        mock.get(f"{base}/fixtures/").mock(return_value=httpx.Response(200, json=fixtures))
+        for element_id, summary in summaries.items():
+            mock.get(f"{base}/element-summary/{element_id}/").mock(
+                return_value=httpx.Response(200, json=summary)
+            )
+        yield mock
+
+
+@pytest.fixture(scope="session")
+def api_rules() -> ApiRules:
+    """The real published 2026/27 rules, read from the recorded bootstrap fixture.
+
+    Tests assert against what the game actually says, not against a hand-written imitation of it.
+    """
+    bootstrap = json.loads(
+        (Path(__file__).parent / "fixtures" / "bootstrap_static.json").read_text(encoding="utf-8")
+    )
+    adapter = FplApiAdapter.__new__(FplApiAdapter)  # no fetcher needed for pure extraction
+    return adapter.extract_rules(bootstrap)
+
+
+@pytest.fixture(scope="session")
+def game_rules(api_rules: ApiRules) -> GameRules:
+    return build_game_rules(api_rules, RulesConfig())
 
 
 @pytest.fixture

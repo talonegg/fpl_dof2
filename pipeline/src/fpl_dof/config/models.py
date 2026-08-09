@@ -112,9 +112,35 @@ class SourcesConfig(_Section):
     overrides: dict[str, SourceOverride] = Field(default_factory=dict)
 
 
+class SupplementaryScoring(_Section):
+    """Scoring values FPL does not publish. See config/defaults/rules.yaml for why each is here."""
+
+    long_play_minutes: int = 60
+    saves_per_point: int = Field(default=3, gt=0)
+    goals_conceded_per_point: int = Field(default=2, gt=0)
+    defensive_contribution_threshold: dict[str, int] = Field(
+        default_factory=lambda: {"GKP": 0, "DEF": 10, "MID": 12, "FWD": 12}
+    )
+    bonus_points: tuple[int, ...] = (3, 2, 1)
+
+
+class SupplementaryTransfers(_Section):
+    max_free_transfers: int = Field(default=5, gt=0)
+    extra_transfer_cost: int = -4
+
+
+class RulesConfig(_Section):
+    """The supplementary half of the rules. The rest is seeded from the source snapshot."""
+
+    season: str = "2026/27"
+    scoring: SupplementaryScoring = SupplementaryScoring()
+    transfers: SupplementaryTransfers = SupplementaryTransfers()
+
+
 class Config(_Section):
     """The whole configuration, as one immutable object threaded through every stage."""
 
     runtime: RuntimeConfig = RuntimeConfig()
     http: HttpConfig = HttpConfig()
     sources: SourcesConfig = SourcesConfig()
+    rules: RulesConfig = RulesConfig()

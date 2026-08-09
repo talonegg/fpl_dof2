@@ -7,7 +7,13 @@ from typing import ClassVar
 import pytest
 
 from fpl_dof.config.models import SourceOverride, SourcesConfig
-from fpl_dof.sources.base import IngestReport, IngestRequest, Resource, SourceAdapter
+from fpl_dof.sources.base import (
+    Conformed,
+    IngestReport,
+    IngestRequest,
+    Resource,
+    SourceAdapter,
+)
 from fpl_dof.sources.bronze import BronzeStore
 from fpl_dof.sources.fetch import Fetcher
 from fpl_dof.sources.registry import (
@@ -29,6 +35,9 @@ class _Alpha(SourceAdapter):
 
     def ingest(self, request: IngestRequest) -> IngestReport:
         return IngestReport(source=self.name, resources={"things": 1})
+
+    def conform(self, request: IngestRequest) -> Conformed:
+        return Conformed()
 
 
 class _Beta(_Alpha):

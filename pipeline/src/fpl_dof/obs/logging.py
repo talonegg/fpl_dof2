@@ -55,6 +55,11 @@ def configure_logging(level: str = "INFO", *, stream: Any | None = None) -> None
     root.addHandler(handler)
     root.setLevel(level)
 
+    # httpx logs every request at INFO. A ~570-request sweep then buries our own events under
+    # its own transcript; the run manifest already records the call counts that matter.
+    for noisy in ("httpx", "httpcore"):
+        logging.getLogger(noisy).setLevel(logging.WARNING)
+
 
 def get_logger(name: str) -> logging.Logger:
     return logging.getLogger(name)

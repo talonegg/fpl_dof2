@@ -17,6 +17,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar
 
+import pandas as pd
+
+from fpl_dof.rules.models import ApiRules
 from fpl_dof.sources.fetch import Fetcher
 
 
@@ -60,6 +63,23 @@ class IngestReport:
     warnings: list[str] = field(default_factory=list)
 
 
+@dataclass
+class Conformed:
+    """What a source contributes to the canonical model.
+
+    Conformance lives in the source package, not in the transform stage: mapping *this* source's
+    shape onto the canonical one is the one thing that is irreducibly source-specific, and putting
+    it anywhere else is how the abstraction leaks (Invariant 1).
+    """
+
+    tables: dict[str, pd.DataFrame] = field(default_factory=dict)
+    rules: ApiRules | None = None
+    """Rules the source publishes, if it publishes any. Merged with configuration downstream."""
+
+    rules_snapshot_sha256: str | None = None
+    warnings: list[str] = field(default_factory=list)
+
+
 class SourceAdapter(ABC):
     """Base class for every source.
 
@@ -90,6 +110,14 @@ class SourceAdapter(ABC):
     @abstractmethod
     def ingest(self, request: IngestRequest) -> IngestReport:
         """Fetch every resource this source provides, writing snapshots to bronze."""
+
+    @abstractmethod
+    def conform(self, request: IngestRequest) -> Conformed:
+        """Map this source's bronze snapshots onto the canonical silver model.
+
+        Abstract rather than defaulting to empty: a source that contributes no canonical table is
+        a decision worth making explicitly, not one worth inheriting by accident.
+        """
 
     def __repr__(self) -> str:
         return f"<{type(self).__name__} name={self.name!r} version={self.version!r}>"
