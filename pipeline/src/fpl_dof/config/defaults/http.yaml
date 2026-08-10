@@ -1,0 +1,15 @@
+# Outbound HTTP behaviour, shared by every source adapter.
+# These are politeness settings (NFR-10), not performance settings. Raising them is a decision.
+http:
+  user_agent_template: "fpl-dof/{version} (+{contact})"
+  user_agent_contact: "https://github.com/talonegg/fpl_dof2"
+  timeout_seconds: 30.0
+  default_cache_ttl_seconds: 3600
+  rate_limit:
+    requests_per_second: 2.0
+    max_concurrency: 1
+  retry:
+    max_attempts: 4
+    backoff_base_seconds: 0.5
+    backoff_max_seconds: 30.0
+    jitter_fraction: 0.25

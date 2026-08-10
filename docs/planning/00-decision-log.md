@@ -335,6 +335,64 @@ changes it.
 
 ---
 
+## DL-17 — Game rules are read from the API, not transcribed
+
+**Date:** 2026-08-10 · **Status:** Accepted · **Supersedes:** nothing · **Arose in:** E0-S3/E0-S4
+
+**Decision.** The rules module is **seeded at runtime from the source snapshot**. `game_config.scoring`
+supplies the entire scoring table; `game_settings` supplies squad size, starting size, budget, club
+limit and the sell-on fee; `element_types` supplies per-position squad allocation and formation
+bounds. Only what FPL genuinely does not publish is configured: the saves and goals-conceded
+divisors, the Defensive Contribution match thresholds, the bonus 3/2/1 split, the 60-minute
+appearance boundary, and the transfer rules. Each configured value carries a comment stating why it
+cannot be derived. Provenance is recorded per field group and published in the web contract.
+
+**Why.** Invariant 2 says never hardcode FPL scoring, price or squad values. Transcribing them into
+YAML satisfies the letter of that and not its purpose: a transcribed value is still a value someone
+typed from memory, and it goes stale silently.
+
+**The evidence that this was not theoretical.** The `fpl-rules` skill — written carefully, with
+sources cited — stated that a goalkeeper goal is worth 6. **The API says 10 for 2026/27.** The skill
+also did not record that Defensive Contribution now extends to forwards. A pipeline that transcribed
+from the skill would have mispriced every goalkeeper in the game and nothing would have complained,
+because the number was plausible and the code was consistent. The skill has been corrected and now
+points at the API as authoritative.
+
+**Consequence.** `rules.json` is published with the web contract (see [DL-14](#dl-14--the-web-contract-carries-rulesjson)),
+so the browser and the solver demonstrably use the same numbers. The rules module holds 100%
+statement and branch coverage. Adding a source that publishes rules is now a conflict the transform
+stage refuses rather than resolves by iteration order.
+
+---
+
+## DL-18 — The 2025/26 community archive is not needed; E0-S3 took route 1
+
+**Date:** 2026-08-10 · **Status:** Accepted · **Arose in:** E0-S3
+
+**Decision.** No second data source is admitted in E0. Defensive Contribution comes from the official
+API.
+
+**Why.** [E0-S3](epics/E0-steel-thread-gw1.md#e0-s3--minimal-silver-layer-and-the-202526-archive) set
+out three routes in order and said to take the first that works. Route 1 — check whether
+`history_past` carries a season-total DefCon field — **works**. It carries `defensive_contribution`
+alongside `tackles`, `recoveries`, `clearances_blocks_interceptions` and `starts`. The archive
+ingestion planned as route 2 is unnecessary.
+
+**Consequence.** The half-day E0-S3 borrowed from the buffer is returned, and E0 ships with a single
+source, which keeps entity resolution (D-07) genuinely out of scope. Debt **D-11 stands unchanged**:
+DefCon still rests on one season of evidence, because 2025/26 is the only season in which it was
+recorded. The adapter registry consequently loses its first real test — the second source was going
+to be that test — so the isolation guarantee rests on `tests/test_source_isolation.py` alone until
+E2. That test has already caught two real leaks, so this is a live guard rather than a hopeful one.
+
+**A trap this exposed, now handled explicitly.** Fields that did not exist in a past season read as
+**zero**, not null: DefCon before 2025/26, and `starts` before 2022/23. Read naively, that is
+"this defender did no defending", and it would systematically underrate exactly the players the
+design says the model should beat intuition on. The forecast restricts each such field to the
+seasons in which it was actually measured, and the seasons are configuration, not literals.
+
+---
+
 ## Open decisions
 
 Decisions deliberately deferred, with the point at which each must be resolved.

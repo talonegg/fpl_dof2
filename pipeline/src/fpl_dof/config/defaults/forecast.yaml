@@ -1,0 +1,74 @@
+# Expected-points v0 (cold start) and the squad optimiser.
+#
+# Every number here is a modelling choice, not a game rule. Game rules come from the API and live
+# in the rules module; nothing in this file is an FPL constant.
+#
+# The values are priors chosen before any backtest exists (debt D-01). They are meant to be tuned
+# once E3 can measure whether tuning helps. Changing one without evidence is a decision, and
+# should be recorded as one.
+forecast:
+  horizon_gameweeks: 6
+  horizon_discount: 0.92
+
+  # Defensive Contribution was introduced in 2025/26. Earlier seasons report zero because the
+  # metric did not exist. Reading that as "did not defend" would systematically underrate
+  # defenders and defensive midfielders — the exact group the design says the model should beat
+  # intuition on.
+  defensive_contribution_seasons: ["2025/26"]
+  # Same trap, different field: starts are not recorded before 2022/23.
+  starts_recorded_from_season: "2022/23"
+
+  max_history_seasons: 3
+  season_recency_decay: 0.6
+
+  confidence_minutes_high: 1800
+  confidence_minutes_medium: 600
+  price_tiers: 4
+
+  # E0-S5 acceptance criterion, not a preference.
+  minimum_start_probability_for_xi: 0.60
+
+  status_multiplier:
+    a: 1.0 # available
+    d: 0.5 # doubtful
+    i: 0.0 # injured
+    s: 0.0 # suspended
+    u: 0.0 # unavailable
+    n: 0.0 # not in squad
+
+  minutes:
+    full_match: 90
+    team_games_per_season: 38
+    starter_minutes: 82.0
+    substitute_minutes: 20.0
+    appearance_rate_if_not_starting: 0.35
+
+  shrinkage:
+    rate_prior_minutes: 900.0
+    start_prior_games: 10.0
+
+  # FPL's own 1-5 fixture difficulty. Defence swings harder than attack because a clean sheet is a
+  # threshold event. Replaced by an xG-based model in E3 (debt D-05).
+  fixture_difficulty:
+    attack: { 1: 1.15, 2: 1.08, 3: 1.00, 4: 0.92, 5: 0.85 }
+    defence: { 1: 1.30, 2: 1.14, 3: 1.00, 4: 0.86, 5: 0.72 }
+
+  # Wide on purpose (Invariant 6). A heuristic band, not a modelled variance (debt D-09).
+  uncertainty:
+    coefficient_of_variation:
+      high: 0.45
+      medium: 0.60
+      low: 0.80
+      none: 1.00
+    floor: 0.5
+
+optimiser:
+  bench_weight: 0.15
+  captain_multiplier: 2
+  solve_time_limit_seconds: 60
+  solver: CBC
+  enforce_start_probability_floor: true
+  # Overrides from the E0-S8 review gate go in config/local.yaml, never by editing the output.
+  locked_player_ids: []
+  banned_player_ids: []
+  excluded_team_ids: []

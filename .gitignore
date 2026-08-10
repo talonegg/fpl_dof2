@@ -7,11 +7,18 @@ venv/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
 
 # Node / web
 node_modules/
 dist/
 .vite/
+# Published artefacts copied into the app for local serving; regenerate with `fpl-dof publish`.
+web/public/data/
+# Browser verification output — regenerate with `npm run verify:browser`.
+web/verify/screenshots/
 
 # Data (local working data, not committed)
 data/
@@ -21,7 +28,11 @@ data/
 # Environment / secrets
 .env
 .env.*
+!.env.example
 *.local
+
+# Local configuration override (layer 2 of the config loader)
+config/local.yaml
 
 # OS / editor
 .DS_Store

@@ -7,6 +7,47 @@
 
 ---
 
+## 0. Build outcome — as at 2026-08-10
+
+**E0-S1 to E0-S7 are built, tested and verified.** [E0-S8](#e0-s8--human-verification-gate), the
+human review gate, is the only remaining story and is yours, not the pipeline's.
+
+The full pipeline runs end to end in **~16 seconds**: `fpl-dof run` → ingest, transform, forecast,
+optimise, publish. 260 Python tests, 6 web unit tests, `ruff`, `mypy --strict` and a real-Chromium
+browser check at three viewports all pass.
+
+**The squad it currently produces:** 3-5-2, **exactly £100.0m**, solved optimally in 0.5s.
+B.Fernandes captain, Watkins vice. Verified legal by the E0-S4 validator, not by inspection.
+
+### What the plan got right
+
+- The MILP was never the risk. It solves in half a second.
+- The R-15 diagnostic was worth its hour: **R² of xP on (price, position) = 0.494**, verdict
+  *informative*. The forecast is adding real information beyond FPL's own prices. Had it come back
+  above 0.9 the squad would still exist, but it would have been a budget-allocation exercise, and
+  the review gate would need to know that. It is in the model card either way.
+- The start-probability floor earns its place. 423 of 573 players fall below it; without it the
+  optimiser fills the XI with cheap players who will never take the pitch.
+
+### What the plan got wrong, and what changed
+
+| Finding | Consequence |
+| --- | --- |
+| **`history_past` carries `defensive_contribution`** | E0-S3 route 1 works. The 2025/26 community archive and its half-day are not needed ([DL-18](../00-decision-log.md#dl-18--the-202526-community-archive-is-not-needed-e0-s3-took-route-1)). Debt D-11 stands: DefCon still rests on one season |
+| **`game_config.scoring` publishes the whole scoring table** | Invariant 2 is satisfied by reading the rules, not transcribing them ([DL-17](../00-decision-log.md#dl-17--game-rules-are-read-from-the-api-not-transcribed)) |
+| **A goalkeeper goal is worth 10, not 6** | The `fpl-rules` skill said 6. Transcribing it would have mispriced every goalkeeper silently. The skill is corrected and now points at the API |
+| **Defensive Contribution now includes forwards** | Another 2026/27 change the skill missed |
+| **Preseason team strength fields are all zero** | Fixture difficulty comes from the fixture's own 1–5 rating, not from team strength |
+| **Fields absent in a past season read as zero, not null** | DefCon before 2025/26 and `starts` before 2022/23. Read naively this says "did no defending". Both are now restricted to the seasons in which they were measured |
+
+### Debts confirmed against the register in §6
+
+D-01 through D-10 and D-12 all stand as written. D-11 stands but for a better reason than expected:
+not because the archive was cut, but because 2025/26 is genuinely the only season in which DefCon
+was recorded.
+
+---
+
 ## 1. What this epic is
 
 A complete, working path through every architectural layer, carrying the minimum viable
@@ -348,18 +389,18 @@ saying why it stopped mattering.
 
 ## 7. Definition of done
 
-- [ ] A legal 15-player squad exists, verified by the validator, within £100.0m
-- [ ] The full pipeline runs end-to-end from a clean checkout with one command
-- [ ] Squad and player table viewable on laptop and phone
-- [ ] Rules module at 100% coverage; optimiser legality property tests pass
-- [ ] No source-specific code outside `sources/`
-- [ ] No FPL constant hardcoded outside config
-- [ ] Every xP value carries an uncertainty estimate
-- [ ] Model card written, including known weaknesses **and the R² of xP on `(price, position)`**
-- [ ] Defensive Contribution is in the xP decomposition, or its absence is recorded as debt D-11
-- [ ] Debt register complete and committed
-- [ ] E0-S8 review completed and overrides recorded
-- [ ] **Team submitted before Sat 22 Aug 03:30 AEST**
+- [x] A legal 15-player squad exists, verified by the validator, within £100.0m — 3-5-2, exactly £100.0m
+- [x] The full pipeline runs end-to-end from a clean checkout with one command — `fpl-dof run`, ~16s
+- [x] Squad and player table viewable on laptop and phone — verified in Chromium at 390/820/1440 px
+- [x] Rules module at 100% coverage; optimiser legality property tests pass — 100% statement *and* branch
+- [x] No source-specific code outside `sources/` — enforced by `tests/test_source_isolation.py`
+- [x] No FPL constant hardcoded outside config — and most are read from the API (DL-17)
+- [x] Every xP value carries an uncertainty estimate — enforced by the contract schema
+- [x] Model card written, including known weaknesses **and the R² of xP on `(price, position)`** — 0.494, *informative*
+- [x] Defensive Contribution is in the xP decomposition — modelled as a Poisson threshold event
+- [x] Debt register complete and committed — see §0
+- [ ] E0-S8 review completed and overrides recorded — **yours to do**
+- [ ] **Team submitted before Sat 22 Aug 03:30 AEST** — **yours to do**
 
 ## 8. Success criteria beyond the deadline
 
