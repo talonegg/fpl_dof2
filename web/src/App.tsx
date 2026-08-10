@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { fetchMeta, fetchPlayers, fetchRules, fetchSquad } from "./api";
-import type { Meta, Players, Rules, Squad } from "./contract/types";
+import { fetchMeta, fetchPlayers, fetchRules, fetchSquad, fetchWeek } from "./api";
+import type { Meta, Players, Rules, Squad, Week } from "./contract/types";
 import { Header } from "./components/Header";
 import { SquadPitch } from "./components/SquadPitch";
 import { Bench } from "./components/Bench";
+import { WeekPanel } from "./components/WeekPanel";
 import { PlayerTable } from "./components/PlayerTable";
 import "./App.css";
 
@@ -12,6 +13,7 @@ interface LoadedData {
   rules: Rules;
   players: Players;
   squad: Squad;
+  week: Week | null;
 }
 
 export function App() {
@@ -20,9 +22,9 @@ export function App() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([fetchMeta(), fetchRules(), fetchPlayers(), fetchSquad()])
-      .then(([meta, rules, players, squad]) => {
-        if (!cancelled) setData({ meta, rules, players, squad });
+    Promise.all([fetchMeta(), fetchRules(), fetchPlayers(), fetchSquad(), fetchWeek()])
+      .then(([meta, rules, players, squad, week]) => {
+        if (!cancelled) setData({ meta, rules, players, squad, week });
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err));
@@ -48,6 +50,7 @@ export function App() {
     <div className="app">
       <Header meta={data.meta} />
       <main>
+        {data.week && <WeekPanel week={data.week} />}
         <SquadPitch squad={data.squad} rules={data.rules} />
         <Bench squad={data.squad} />
         <PlayerTable players={data.players.players} />

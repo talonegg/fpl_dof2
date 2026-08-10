@@ -1,4 +1,4 @@
-import type { Meta, Players, Rules, Squad } from "../contract/types";
+import type { Meta, Players, Rules, Squad, Week } from "../contract/types";
 
 export const meta: Meta = {
   contract_version: 1,
@@ -187,4 +187,96 @@ export const squad: Squad = {
       components: components(),
     },
   ],
+};
+
+/**
+ * A week where one transfer is worth making.
+ *
+ * Deliberately includes a *losing* two-transfer option: the whole point of the panel is that every
+ * option is shown with its own arithmetic, so a fixture with only the winner in it would let the
+ * component drop the rest without a test noticing.
+ */
+export const week: Week = {
+  contract_version: 1,
+  run_id: "20260810T101557Z-d705a43f",
+  skipped: false,
+  deadline: {
+    gameweek: 2,
+    name: "Gameweek 2",
+    // 18:30 BST on a Friday, which is 03:30 Saturday in Sydney — the case that motivated
+    // rendering both zones at all.
+    deadline_utc: "2026-08-28T17:30:00Z",
+    decide_by_utc: "2026-08-28T05:30:00Z",
+    local_zone: "Australia/Sydney",
+    uk_zone: "Europe/London",
+  },
+  squad_state: {
+    provenance: "declared",
+    entry_id: 1234567,
+    as_of_gameweek: null,
+    bank: 0.5,
+    sell_value: 99.5,
+    budget: 100.0,
+    free_transfers: 1,
+    chips_used: [],
+    warnings: ["squad declared by hand: no published picks are available"],
+  },
+  recommendation: {
+    rationale: "1 free transfer(s) gain 2.40 expected points",
+    is_roll: false,
+    transfers: 1,
+    hit_points: 0,
+    net_expected_points: 52.4,
+    gain_over_roll: 2.4,
+    bank_after: 0.2,
+    moves: [
+      {
+        out: { player_id: 1, web_name: "Salah", price: 14.5 },
+        in: { player_id: 2, web_name: "Saka", price: 14.8 },
+      },
+    ],
+    options: [
+      { transfers: 0, hit_points: 0, net_expected_points: 50.0, gain_over_roll: 0, moves: [] },
+      { transfers: 1, hit_points: 0, net_expected_points: 52.4, gain_over_roll: 2.4, moves: [] },
+      { transfers: 2, hit_points: -4, net_expected_points: 49.1, gain_over_roll: -0.9, moves: [] },
+    ],
+    warnings: [],
+  },
+  advised: {
+    gameweek: 2,
+    squad: [1, 2, 3],
+    starting: [1, 2],
+    bench_order: [3],
+    reserve_goalkeeper: null,
+    captain: 2,
+    vice_captain: 1,
+    formation: "1-4-4-2",
+    expected_points: 52.4,
+  },
+  alerts: [
+    {
+      severity: "urgent",
+      category: "availability",
+      message: "Salah is unavailable (injured): Hamstring",
+      player_id: 1,
+      detail: {},
+    },
+    {
+      severity: "info",
+      category: "price",
+      message: "Saka is under pressure to rise",
+      player_id: 2,
+      detail: {},
+    },
+  ],
+  reconciliation: null,
+};
+
+/** Preseason: no squad exists yet, which is normal rather than broken (DL-20). */
+export const skippedWeek: Week = {
+  contract_version: 1,
+  run_id: "run-1",
+  skipped: true,
+  skipped_reason: "no published picks are available, and no squad is declared in configuration",
+  deadline: week.deadline,
 };

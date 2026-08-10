@@ -416,3 +416,160 @@ td {
     font-size: 0.72rem;
   }
 }
+
+/* --- This week ------------------------------------------------------------------------------
+   The panel is deliberately the first thing on the page: on a Thursday evening the question is
+   "what am I doing this week", not "what does the whole squad look like".
+
+   The options table is the only element here that can exceed a narrow viewport, so it gets its own
+   scroller. That is the intended pattern rather than a workaround — the page body must never
+   scroll horizontally, but a wide table inside a bounded box is fine and is how the player table
+   already behaves. */
+
+.week {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.week h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.05rem;
+}
+
+.week-deadline {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.2rem 0.75rem;
+  font-size: 0.9rem;
+  margin-bottom: 0.85rem;
+}
+
+.week-deadline-row {
+  display: contents;
+}
+
+.week-zone-label {
+  color: var(--text-muted);
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.04em;
+}
+
+.week-countdown span:last-child {
+  font-weight: 600;
+}
+
+.week-decide-by time {
+  color: var(--accent);
+}
+
+.week-state {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: baseline;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  margin: 0 0 0.75rem;
+}
+
+.week-provenance {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+  font-size: 0.78rem;
+}
+
+/* A declared squad is a first-class input (DL-20), but the reader should still be able to see at a
+   glance how much of this was read and how much was stated by hand. */
+.week-provenance-declared {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.week-rationale {
+  margin: 0 0 0.6rem;
+  font-weight: 600;
+}
+
+.week-moves {
+  list-style: none;
+  margin: 0 0 0.85rem;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+}
+
+.week-move-out {
+  color: var(--text-muted);
+}
+
+.week-move-in {
+  font-weight: 600;
+}
+
+.week-options-scroll {
+  overflow-x: auto;
+}
+
+.week-options-caption {
+  margin: 0 0 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.week-options {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  min-width: 22rem;
+}
+
+.week-options th,
+.week-options td {
+  text-align: right;
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.week-options th[scope="row"],
+.week-options thead th:first-child {
+  text-align: left;
+  font-weight: 500;
+}
+
+.week-option-chosen {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.week-chosen-badge {
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-left: 0.35rem;
+}
+
+.week-alerts {
+  list-style: none;
+  margin: 0.85rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.week-alert-urgent {
+  border-left: 3px solid var(--danger-border);
+  padding-left: 0.6rem;
+  font-size: 0.88rem;
+}
+
+.week-reconciliation,
+.week-skipped-reason {
+  margin: 0.85rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
