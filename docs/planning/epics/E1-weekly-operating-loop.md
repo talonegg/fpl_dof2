@@ -6,6 +6,36 @@
 
 ---
 
+## 0. Build outcome — 2026-08-11
+
+**E1-S1 through E1-S5 are built.** `fpl-dof week` runs as a pipeline stage and writes one artefact
+that answers the whole question; the web app renders it as a "This week" panel.
+
+**The API gap was total, not partial.** E1-S1 anticipated a manual override "when confidence is
+low". Probing the live endpoints showed that before GW1 is scored there is *no* reconstructible
+state at all — `picks` 404s, `bank` and `value` are null, `transfers` is empty. So a declared squad
+is a first-class input rather than a degraded mode, and the service reports provenance
+(`from_picks` / `reconstructed` / `declared`) instead of hiding it. Recorded as
+[DL-20](../00-decision-log.md#dl-20).
+
+**Purchase prices are not public.** Only the authenticated `my-team` endpoint carries them, and this
+project will never authenticate (Invariant 4). They are reconstructed from the transfer log plus
+per-gameweek prices, and where neither is available the run says so rather than quietly using the
+current price — which would overstate what the squad can raise for anyone who has risen.
+
+**What the plan got right.** Extending the MILP was indeed a modest change. Solving each transfer
+count as a separate model — rather than penalising transfers inside one — cost a few extra solves
+and produced the thing the weekly output actually needed: a ranked list where every option carries
+its own number, including the roll.
+
+**What was harder than it looked.** The free-transfer count is path-dependent and a wildcard week
+does not consume the allowance; reading it off the transfer count alone concludes the manager is
+deep in the red and then refuses every sensible hit for weeks. The timezone work is also not a
+display concern: the UK and Australian clock changes do not coincide, so the offset moves from +9
+to +11 for several weeks and any code reasoning in local time is wrong exactly then.
+
+---
+
 ## 1. Why this is next
 
 The moment GW1 is submitted, the problem changes. Building stops being the risk; *operating* becomes
@@ -127,14 +157,16 @@ what you did, which is rationalisation rather than evidence.
 
 ## 4. Definition of done
 
-- [ ] Your real squad loads correctly from your team ID
-- [ ] A transfer recommendation, with alternatives and the roll option, before the GW2 deadline
-- [ ] Recommended squad is legal, verified programmatically
-- [ ] Hit arithmetic correct and never recommended below break-even
-- [ ] One command produces the full weekly recommendation
-- [ ] Deadline visible in both UK and local time
-- [ ] Advised-versus-played reconciliation running from GW2 onward
-- [ ] The whole loop takes under 15 minutes of your attention
+- [ ] **Your real squad loads correctly from your team ID** — *yours to confirm.* The loader and
+      its reconstruction are built and tested, but no entry has published picks yet, so this cannot
+      be verified against your team until GW1 is scored (DL-20)
+- [x] A transfer recommendation, with alternatives and the roll option
+- [x] Recommended squad is legal, verified programmatically against the E0-S4 validator
+- [x] Hit arithmetic correct and never recommended below break-even
+- [x] One command produces the full weekly recommendation (`fpl-dof week`, inside `run`)
+- [x] Deadline visible in both UK and local time, with a decide-by time
+- [x] Advised-versus-played reconciliation, ready to run from the first scored gameweek
+- [ ] **The whole loop takes under 15 minutes of your attention** — measurable only in use
 
 ## 5. The real success test
 

@@ -393,6 +393,136 @@ seasons in which it was actually measured, and the seasons are configuration, no
 
 ---
 
+## DL-19 — Prior-season per-gameweek data comes from a community archive, because the API has none
+
+**Date:** 2026-08-10 · **Status:** Accepted · **Arose in:** E2-S3, blocking E3-S1
+
+**Decision.** A second source adapter, `fplarchive`, ingests per-gameweek player data for prior
+seasons from the community mirror at `vaastav/Fantasy-Premier-League`. It is registered like any
+other source and is subject to Invariant 1 in full.
+
+**Why.** [E2-S3](epics/E2-data-platform.md#e2-s3--historical-backfill--1-day--fr-06--repays-d-11)
+assumed it would *extend* an archive already ingested in E0-S3. [DL-18](#dl-18) removed that archive,
+so the story's premise no longer held and the gap had to be re-checked directly against the API. The
+result is worse than the plan assumed:
+
+**The official API exposes no per-gameweek data for any prior season, at all.** `element-summary`
+returns `history` for the *current* season only, and `history_past` as **season totals**. In
+preseason `history` is empty, so today the API supplies **zero** per-gameweek observations.
+
+[E3-S1](epics/E3-expected-points-engine.md#e3-s1--backtest-harness--2-days--fr-37--do-this-first)
+requires walk-forward replay against historical deadlines. Without per-gameweek history there is
+nothing to walk forward *over*, so E3 cannot start — which makes this a dependency, not a nicety.
+The archive supplies 2022/23–2025/26 with `kickoff_time` per row, which is what makes the
+knowability stamps enforceable rather than nominal.
+
+**Licence posture, stated rather than assumed.** The archive repository declares no licence
+(`NOASSERTION`). The underlying data is FPL's own public data, which this project already ingests
+directly under NFR-10; the archive is a convenience mirror of it, not a new data right. Use is
+personal and non-commercial, requests are cached hard, and the ingest runs **once per season** and is
+then treated as static. If the mirror disappears, the pipeline degrades to current-season data
+(DP-15) rather than failing — but the backtest loses its evidence base, and that is recorded as
+debt rather than papered over.
+
+**Consequence.** The registry finally gets the second source DL-18 said it had lost, so Invariant 1
+is now tested by construction and not only by `test_source_isolation.py`. Cross-season identity uses
+the stable `code`, never the season-local `id` — `players_raw.csv` supplies the mapping, and joining
+on `element` across seasons would silently attribute one player's history to another. **D-11 is
+re-scoped, not closed:** the archive widens minutes, goals, assists, clean sheets, saves and cards to
+four seasons, but `defensive_contribution` still exists in 2025/26 alone, exactly as E2-S3's
+usability table predicted.
+
+---
+
+## DL-20 — Preseason squad state has no API to read, so the manual path is the primary path
+
+**Date:** 2026-08-10 · **Status:** Accepted · **Arose in:** E1-S1
+
+**Decision.** The squad state service treats a manually declared squad as a first-class input of
+equal standing to a reconstructed one, not as a fallback for when reconstruction fails.
+
+**Why.** [E1-S1](epics/E1-weekly-operating-loop.md#e1-s1--squad-state-service) anticipated an "API
+gap" and specified a manual override "when confidence is low". Probing the live endpoints shows the
+gap is total rather than partial before GW1 is scored:
+
+| Endpoint | Preseason behaviour |
+| --- | --- |
+| `entry/{id}/` | 200, but `current_event`, `last_deadline_bank` and `last_deadline_value` are all `null` and `entered_events` is empty |
+| `entry/{id}/event/1/picks/` | **404** |
+| `entry/{id}/transfers/` | 200, empty |
+| `event/1/live/` | 200, `elements` empty |
+
+There is therefore **no reconstructible state for the GW1→GW2 decision**, which is the exact decision
+E1 exists to make. Treating the manual path as a degraded mode would mean the first real use of the
+system runs in a degraded mode, which is the wrong default and would suppress its own warnings.
+
+**Consequence.** Confidence is reported as an explicit enumeration —
+`from_picks` / `reconstructed` / `declared` — and a declared squad is validated by the E0-S4 legality
+validator on entry, so a typo in a manual squad is caught immediately rather than becoming an
+illegal recommendation. Purchase prices must be declared with it: selling value depends on what was
+paid, and no endpoint reveals that until picks exist. From GW2 onward, `picks` becomes available and
+the service prefers it automatically, so this resolves itself without a code change.
+
+---
+
+## DL-21 — The v1 forecast beats price, and loses to recent form. Reported, not tuned
+
+**Date:** 2026-08-11 · **Status:** Accepted · **Arose in:** E3-S1
+
+**The finding.** The first walk-forward backtest — 72 gameweek deadlines, 54,045 player-gameweek
+observations across 2024/25 and 2025/26 — says this:
+
+| Model | MAE | Spearman | MAE skill vs B0 | Top-20 precision | Calibration slope |
+| --- | --- | --- | --- | --- | --- |
+| **xp_v1** (components) | **1.936** | 0.244 | +0.015 | **0.00** | 0.71 |
+| B0 — price + position | 1.965 | 0.214 | — | 0.05 | 0.61 |
+| **Model-free — trailing 6 gameweeks** | 2.115 | **0.291** | −0.076 | 0.05 | 0.39 |
+| Mean — a constant | 1.985 | −0.040 | −0.010 | 0.00 | −3.60 |
+
+**It beats B0 and it loses to the model-free benchmark.** Per
+[E3](epics/E3-expected-points-engine.md#4-the-honest-question), that is a finding to act on, not a
+number to tune away, and this entry exists so it cannot quietly stop being true.
+
+**Read the two columns together, because they disagree and the disagreement is the point.** The
+model has the *best MAE of anything measured* and the *worst top-20 precision of anything
+measured*. Those are consistent, not contradictory: shrinking every thin estimate toward a position
+prior is an excellent way to avoid being badly wrong about anyone, and an excellent way to avoid
+distinguishing anyone. The calibration slope of 0.71 says the same thing from the other side —
+predictions are compressed relative to reality.
+
+That trade is exactly backwards for how this tool is used. **Nobody acts on the whole ranking; they
+act on the head of it**, and at the head the model currently adds nothing over price.
+
+**Why not simply adopt the model-free benchmark.** Because "beats it on rank correlation" is not
+the same as "is better to own". Trailing form has a calibration slope of 0.39 and the worst MAE in
+the table: it is a momentum signal that chases whoever just scored, which is a known way to buy at
+the top of a price rise. The right conclusion is not "use form instead" — it is **that the current
+component model has not earned trust for expensive decisions**, and that E4's hits, chips and
+wildcards must not be justified by it until this changes.
+
+**Caveats that make this a floor rather than a verdict.** Each of these would, if fixed, move the
+number in the model's favour, and none of them is an excuse:
+
+- **Defensive Contribution exists in 2025/26 only** (D-11). M4 is the component with the best
+  signal-to-noise in the design, and it is absent from roughly half the evaluation window.
+- **The harness carries no fixture table**, so M2 contributes league-average opposition throughout.
+  Fixture difficulty is a real part of the live forecast and is untested here.
+- **No season used the 2026/27 BPS matrix**, so M8 is measured against a scoring regime that no
+  longer exists.
+
+**Consequences, decided now rather than when it is inconvenient:**
+
+1. **D-01 is closed** — the model is no longer unvalidated. **A new debt, D-13, replaces it:** the
+   forecast does not beat a model-free benchmark at the head of the ranking.
+2. The published model card and the web contract must carry this, not only the backtest report.
+   A forecast that is losing to recent form should not be presented as though it were not.
+3. E4's risk dial and chip planner inherit an explicit constraint: **no −8 hit, chip or wildcard is
+   justified by xp_v1 alone** until top-20 precision beats B0.
+4. The next model change is aimed at **discrimination at the head**, not at MAE. MAE is already the
+   best in the table and is measuring the wrong thing.
+
+---
+
 ## Open decisions
 
 Decisions deliberately deferred, with the point at which each must be resolved.

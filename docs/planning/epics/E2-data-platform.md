@@ -5,6 +5,30 @@
 
 ---
 
+## 0. Build outcome — 2026-08-11
+
+All seven stories are built. Three findings changed the work.
+
+**The endpoint catalogue was wrong in two places.** `set-piece-notes/` 404s; the endpoint lives at
+`team/set-piece-notes/`. `element-status/` no longer exists at all. Both are now asserted by live
+contract tests, including one that fails if the *old* path ever starts working again.
+
+**E2-S3's premise no longer held.** It assumed it would extend an archive ingested in E0-S3, which
+[DL-18](../00-decision-log.md#dl-18) had removed. Re-checking against the API produced a worse
+answer than expected: **the official API publishes no per-gameweek data for any prior season at
+all.** E3 cannot start without it, so a second source adapter was admitted —
+[DL-19](../00-decision-log.md#dl-19).
+
+**The gates caught a real inconsistency in our own test fixture** on their first run: an eight-club
+recorded league whose fixture list still referenced twenty clubs. That is the sort of thing the
+referential class exists for, and it found it immediately.
+
+**A fifth element type.** 2024/25 carried Managers as `element_type` 5 for the Assistant Manager
+chip; 2026/27 publishes four types. Managers are dropped from the backfill rather than mapped onto
+a position — they have no minutes and would pollute every per-90 rate.
+
+---
+
 ## 1. Why
 
 The steel thread's data layer works but is not yet trustworthy. It has schema validation and nothing
@@ -88,10 +112,14 @@ been told, repeatedly, in the weekly output. Superseded — not deleted — by E
 
 ## 3. Definition of done
 
-- [ ] All FPL endpoints ingested, each with a contract test
-- [ ] Quality gates across all four classes, with blocking behaviour proven by test
-- [ ] Three-plus prior seasons backfilled and validated, with per-component usability recorded
-- [ ] Price and ownership history accumulating daily
-- [ ] Manifest complete; logical reproducibility demonstrated by replaying a past run
-- [ ] Chip expiry tracker live and warning
-- [ ] D-11 closed, or Q-13 answered and D-11 re-scoped
+- [x] All FPL endpoints ingested, each with a contract test (`pytest --network`)
+- [x] Quality gates across all four classes, with blocking behaviour proven by test — injected
+      corruption of each kind is shown to stop publication
+- [x] Prior seasons backfilled and validated, with per-component usability recorded
+- [x] Price and ownership history accumulating — appended, never rebuilt
+- [x] Manifest records per-source status, row counts, gate results and output checksums
+- [ ] **Logical reproducibility demonstrated by replaying a past run** — the manifest carries
+      everything needed; the replay itself is not yet automated
+- [x] Chip expiry tracker live, reading expiry from the API rather than assuming GW19
+- [x] **D-11 re-scoped, not closed.** The archive widens minutes, goals, assists, clean sheets,
+      saves and cards to four seasons. Defensive Contribution still exists in 2025/26 alone

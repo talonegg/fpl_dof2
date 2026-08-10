@@ -37,7 +37,9 @@ Python lives in `.venv` at the repo root, created with `uv`. `uv` is installed a
 | --- | --- |
 | First-time setup | `python -m uv venv .venv --python 3.14` then `python -m uv pip install --python .venv\Scripts\python.exe -e "pipeline[dev]"` |
 | Full local pipeline run | `.venv\Scripts\fpl-dof run` |
-| Single pipeline stage | `.venv\Scripts\fpl-dof ingest\|transform\|forecast\|optimise\|publish` |
+| Single pipeline stage | `.venv\Scripts\fpl-dof ingest\|transform\|quality\|forecast\|optimise\|week\|publish` |
+| This week's decision only | `.venv\Scripts\fpl-dof week` |
+| Walk-forward backtest — **not** part of `run` | `.venv\Scripts\fpl-dof backtest`. Needs the archive source enabled and `sources.backfill_seasons` set in `config/local.yaml` |
 | Re-run ignoring caches | `.venv\Scripts\fpl-dof run --force-refresh` |
 | Python tests | `cd pipeline && ..\.venv\Scripts\python -m pytest -q` |
 | Live-API drift tests | `cd pipeline && ..\.venv\Scripts\python -m pytest -q --network` |
@@ -48,8 +50,10 @@ Python lives in `.venv` at the repo root, created with `uv`. `uv` is installed a
 | Web type check + build | `cd web && npm run typecheck && npm run build` |
 | Browser verification (3 viewports) | Serve a build, then `cd web && npm run verify:browser -- http://127.0.0.1:4173` — see `web/verify/README.md` |
 
-Reading the current squad without the web app: `data/gold/season=2026-27/squad.json`, and the model
-card next to it at `model-card.md`.
+Reading the current squad without the web app: `data/gold/season=2026-27/squad.json`, this week's
+decision at `week.json`, the gate report at `quality.json`, and the model card next to them at
+`model-card.md`. **The model card carries the backtest verdict** — read it before acting on a
+ranking (DL-21).
 
 ## Layout
 
@@ -58,8 +62,13 @@ card next to it at `model-card.md`.
   - `silver/` — the conformed canonical model and its Pandera schemas.
   - `rules/` — the game's rules as data, seeded from the API (Invariant 2), plus scoring and the
     squad legality validator.
-  - `forecast/` — expected points and the model card. Prediction only.
-  - `optimise/` — the squad MILP. Decision only (DP-02).
+  - `forecast/` — expected points, the feature store, the component models, the backtest harness
+    and the model card. Prediction only.
+  - `optimise/` — the squad MILP and the weekly transfer MILP. Decision only (DP-02).
+  - `squad/` — the owner's squad: what it is now, and how to set it up this week. Pure core.
+  - `week/` — deadlines in both zones, alerts, and advised-versus-played reconciliation.
+  - `quality/` — the data quality gates. A blocking failure stops the run before anything is built
+    on the data, which is how Invariant 7 is enforced by ordering rather than by remembering.
   - `publish/` — the web contract writer and the TypeScript generator.
   - `stages/` — the five pipeline stages; the effectful edge (DP-03).
 - `web/` — TypeScript/React. Everything after it. `src/contract/types.ts` is **generated** — never
@@ -88,7 +97,8 @@ These are not style preferences. Breaking one causes silent, expensive wrongness
 6. **Expected-points outputs always carry variance, not just a mean.** The optimiser contract depends
    on it even where the current solver only approximates its use.
 7. **A failing quality gate blocks publication.** Never work around a gate to get a run to complete.
-   Stale and honest beats fresh and wrong.
+   Stale and honest beats fresh and wrong. Thresholds are configuration; loosening one so a run
+   passes is working around the gate.
 8. **The browser never calls an external API.** The web app reads published static artefacts and
    nothing else. There is no request path from the client to any code this project operates (DL-03).
 9. **Invariant 2 does not stop at the language boundary.** The TypeScript legality validator is
