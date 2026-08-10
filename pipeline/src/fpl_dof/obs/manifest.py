@@ -91,7 +91,15 @@ class Artefact(BaseModel):
 
     @classmethod
     def of(cls, path: Path, *, root: Path | None = None, rows: int | None = None) -> Artefact:
-        relative = str(path.relative_to(root)) if root is not None else str(path)
+        # Most artefacts live under the data root and are recorded relative to it. Some do not —
+        # generated source, for one — and an artefact outside the root is recorded absolutely
+        # rather than refused. The manifest exists to record what happened, not to police layout.
+        relative = str(path)
+        if root is not None:
+            try:
+                relative = str(path.relative_to(root))
+            except ValueError:
+                relative = str(path)
         return cls(
             path=relative.replace("\\", "/"),
             sha256=sha256_file(path),

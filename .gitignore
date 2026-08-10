@@ -15,6 +15,10 @@ htmlcov/
 node_modules/
 dist/
 .vite/
+# Published artefacts copied into the app for local serving; regenerate with `fpl-dof publish`.
+web/public/data/
+# Browser verification output — regenerate with `npm run verify:browser`.
+web/verify/screenshots/
 
 # Data (local working data, not committed)
 data/
