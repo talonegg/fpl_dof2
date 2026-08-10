@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from fpl_dof.silver.tables import Table, validate
+from fpl_dof.silver.tables import SCHEMAS, Table, validate
 
 
 def table_path(root: Path, season: str, table: Table) -> Path:
@@ -30,6 +30,36 @@ def write_table(root: Path, season: str, table: Table, frame: pd.DataFrame) -> P
     path.parent.mkdir(parents=True, exist_ok=True)
     validated.to_parquet(path, index=False, engine="pyarrow", compression="snappy")
     return path
+
+
+def append_table(root: Path, season: str, table: Table, frame: pd.DataFrame) -> Path:
+    """Append rows, keeping the last occurrence of each unique key.
+
+    Used by tables that accumulate rather than being rebuilt — price and ownership history most of
+    all, where the whole point is the days that have already gone by. Overwriting would silently
+    destroy the only copy of them.
+    """
+    if frame.empty:
+        return table_path(root, season, table)
+    path = table_path(root, season, table)
+    combined = frame
+    if path.exists():
+        combined = pd.concat([read_table(root, season, table), frame], ignore_index=True)
+        keys = getattr(SCHEMAS[table].Config, "unique", None)
+        if keys:
+            combined = combined.drop_duplicates(subset=list(keys), keep="last")
+    return write_table(root, season, table, combined)
+
+
+def read_table_optional(root: Path, season: str, table: Table) -> pd.DataFrame | None:
+    """``None`` when the table has never been written.
+
+    Distinct from an empty frame on purpose: "no team ID is configured" and "the team has no picks"
+    are different situations, and only the caller knows which of them is a problem.
+    """
+    if not table_path(root, season, table).exists():
+        return None
+    return read_table(root, season, table)
 
 
 def read_table(root: Path, season: str, table: Table) -> pd.DataFrame:

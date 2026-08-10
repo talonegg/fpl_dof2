@@ -19,8 +19,8 @@ from fpl_dof.obs.logging import get_logger
 from fpl_dof.pipeline import Output, StageContext, StageResult
 from fpl_dof.rules.build import build_game_rules
 from fpl_dof.rules.models import ApiRules, GameRules
-from fpl_dof.silver.store import write_table
-from fpl_dof.silver.tables import Table
+from fpl_dof.silver.store import append_table, write_table
+from fpl_dof.silver.tables import OPTIONAL_TABLES, Table
 from fpl_dof.sources import BronzeStore, Fetcher, IngestRequest, OfflineWithoutSnapshotError, build
 
 log = get_logger(__name__)
@@ -34,7 +34,19 @@ KEYS: dict[Table, list[str]] = {
     Table.FIXTURE: ["fixture_id"],
     Table.GAMEWEEK: ["gameweek"],
     Table.PLAYER_SEASON_HISTORY: ["player_id", "season_name"],
+    Table.PLAYER_GAMEWEEK: ["season", "gameweek", "player_code", "fixture_id"],
+    Table.CHIP: ["chip_id"],
+    Table.SET_PIECE_NOTE: ["team_id", "info_message"],
+    Table.PRICE_HISTORY: ["observed_at", "player_id"],
+    Table.ENTRY: ["entry_id"],
+    Table.ENTRY_PICK: ["entry_id", "gameweek", "slot"],
+    Table.ENTRY_TRANSFER: ["entry_id", "gameweek", "player_in_id", "player_out_id"],
+    Table.ENTRY_CHIP: ["entry_id", "name", "gameweek"],
 }
+
+#: Tables that accumulate across runs instead of being rebuilt from the current snapshot.
+#: Rebuilding these would destroy the only record of every day that has already passed.
+APPENDED: frozenset[Table] = frozenset({Table.PRICE_HISTORY, Table.PLAYER_GAMEWEEK})
 
 
 class NoBronzeError(RuntimeError):
@@ -47,7 +59,12 @@ def run(ctx: StageContext) -> StageResult:
 
     with Fetcher(config=ctx.config.http, bronze=bronze, run_id=ctx.run_id) as fetcher:
         adapters = build(ctx.config.sources, fetcher)
-        request = IngestRequest(run_id=ctx.run_id, offline=True)
+        request = IngestRequest(
+            run_id=ctx.run_id,
+            offline=True,
+            entry_id=ctx.config.entry.team_id,
+            seasons=ctx.config.sources.backfill_seasons,
+        )
 
         collected: dict[Table, list[pd.DataFrame]] = {table: [] for table in Table}
         api_rules: ApiRules | None = None
@@ -89,6 +106,11 @@ def run(ctx: StageContext) -> StageResult:
 
     for table, frames in collected.items():
         if not frames:
+            if table in OPTIONAL_TABLES:
+                # Normal: no team ID configured, a season not yet started, a club with no notes.
+                # Degrading here is what lets the weekly loop run at all in preseason (DP-15).
+                log.info("transform.table_absent", extra={"table": table.value})
+                continue
             raise NoBronzeError(f"no source produced the {table.value!r} table")
         merged = pd.concat(frames, ignore_index=True)
         before = len(merged)
@@ -98,7 +120,8 @@ def run(ctx: StageContext) -> StageResult:
                 "transform.duplicates_dropped",
                 extra={"table": table.value, "dropped": before - len(merged)},
             )
-        path = write_table(ctx.layout.silver, season, table, merged)
+        writer = append_table if table in APPENDED else write_table
+        path = writer(ctx.layout.silver, season, table, merged)
         result.metrics[f"rows.{table.value}"] = len(merged)
         result.outputs.append(Output(path=path, rows=len(merged)))
         log.info("transform.table", extra={"table": table.value, "rows": len(merged)})

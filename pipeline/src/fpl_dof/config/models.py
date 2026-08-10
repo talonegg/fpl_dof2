@@ -110,6 +110,14 @@ class SourceOverride(_Section):
 
 class SourcesConfig(_Section):
     overrides: dict[str, SourceOverride] = Field(default_factory=dict)
+    backfill_seasons: tuple[str, ...] = Field(
+        default=(),
+        description=(
+            "Historical seasons any source capable of supplying them should backfill, as "
+            "'2024/25'. Generic on purpose: a source that cannot answer ignores it. Empty means "
+            "the source's own default."
+        ),
+    )
 
 
 class SupplementaryScoring(_Section):
@@ -215,6 +223,39 @@ class UncertaintyConfig(_Section):
     )
 
 
+class FeatureConfig(_Section):
+    """The feature store. Windows are configuration because the right length is an empirical
+    question the backtest is supposed to answer, not a constant to be asserted."""
+
+    rolling_windows: tuple[int, ...] = Field(
+        default=(3, 6, 12),
+        description=(
+            "Match counts for rolling rates. Three is form, twelve is closer to true rate, six is "
+            "the compromise; carrying all three lets the model weigh them rather than being told."
+        ),
+    )
+    rolling_statistics: tuple[str, ...] = Field(
+        default=(
+            "goals_scored",
+            "assists",
+            "clean_sheets",
+            "saves",
+            "bonus",
+            "bps",
+            "defensive_contribution",
+            "expected_goals",
+            "expected_assists",
+            "total_points",
+        ),
+        description="Per-90 rates to compute over each window. Absent columns become null.",
+    )
+    minimum_minutes_for_rate: int = Field(
+        default=90,
+        ge=0,
+        description="Below this, a per-90 rate is noise dressed as evidence and is shrunk hard.",
+    )
+
+
 class ForecastConfig(_Section):
     """The v0 expected-points model. Every tunable is here; none is in code (DP-06)."""
 
@@ -271,6 +312,43 @@ class ForecastConfig(_Section):
     shrinkage: ShrinkageConfig = ShrinkageConfig()
     fixture_difficulty: FixtureDifficultyConfig = FixtureDifficultyConfig()
     uncertainty: UncertaintyConfig = UncertaintyConfig()
+    features: FeatureConfig = FeatureConfig()
+
+
+class BacktestConfig(_Section):
+    """Walk-forward replay. The measurement that makes every later change evaluable (FR-37)."""
+
+    training_seasons: tuple[str, ...] = Field(
+        default=("2022/23", "2023/24", "2024/25", "2025/26"),
+        description="Seasons available to the harness. Which of them a component may use is a "
+        "per-component question — see the scoring-regime table in E2-S3.",
+    )
+    minimum_training_matches: int = Field(
+        default=4,
+        ge=1,
+        description=(
+            "Gameweeks of history required before a deadline is scored. Predicting gameweek 1 "
+            "from nothing measures the prior, not the model."
+        ),
+    )
+    top_n_precision: int = Field(
+        default=20,
+        gt=0,
+        description="Charter tier-2 metric: precision within the top N predicted scorers.",
+    )
+    minimum_minutes_for_scoring: int = Field(
+        default=1,
+        ge=0,
+        description=(
+            "Players below this are excluded from accuracy metrics. Scoring against players who "
+            "did not feature measures the minutes model twice and flatters both."
+        ),
+    )
+    captaincy_pool: int = Field(
+        default=1,
+        gt=0,
+        description="How many top picks count as a captaincy hit. One is the honest test.",
+    )
 
 
 class OptimiserConfig(_Section):
@@ -305,6 +383,197 @@ class OptimiserConfig(_Section):
     )
 
 
+class DeclaredPick(_Section):
+    """One player in a manually declared squad.
+
+    ``purchase_price`` is not optional and cannot be inferred: selling value depends on what was
+    paid (the 50% sell-on fee), and no public endpoint reveals a purchase price until picks exist.
+    Guessing it would quietly misprice every transfer the optimiser costs.
+    """
+
+    player_id: int = Field(gt=0)
+    purchase_price: float = Field(gt=0, le=25.0, description="What you paid, in £m.")
+    selling_price: float | None = Field(
+        default=None,
+        gt=0,
+        le=25.0,
+        description=(
+            "Override for the computed selling price. Normally left unset — the sell-on fee is "
+            "derived from purchase price and current price by the rules module."
+        ),
+    )
+
+
+class EntryConfig(_Section):
+    """The owner's own team.
+
+    Nothing here names a data source. ``team_id`` is an FPL *game* concept — the entry ID — and the
+    adapter that knows which URL exposes it lives in ``sources/`` (Invariant 1).
+    """
+
+    team_id: int | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "Your FPL entry ID, from the URL /entry/{id}/event/1. Overridable via FPL_DOF_TEAM_ID. "
+            "Public, not a secret (NFR-11). Unset means the weekly loop runs on a declared squad."
+        ),
+    )
+    declared_squad: tuple[DeclaredPick, ...] = Field(
+        default=(),
+        description=(
+            "A manually stated squad. Before GW1 is scored there is no picks endpoint to read "
+            "(DL-20), so this is the primary input for the first weekly run, not a fallback."
+        ),
+    )
+    declared_bank: float = Field(
+        default=0.0, ge=0, description="Money in the bank, in £m, for a declared squad."
+    )
+    declared_free_transfers: int = Field(
+        default=1, ge=0, description="Free transfers available, for a declared squad."
+    )
+    declared_chips_used: tuple[str, ...] = Field(
+        default=(), description="Chip names already played, for a declared squad."
+    )
+    prefer_declared: bool = Field(
+        default=False,
+        description=(
+            "Force the declared squad even when picks are available. The escape hatch for a "
+            "reconstruction that disagrees with reality; normally false."
+        ),
+    )
+
+
+class TransferConfig(_Section):
+    """The weekly transfer decision. Separate from the squad optimiser: a different question."""
+
+    max_transfers: int = Field(
+        default=2,
+        ge=0,
+        le=15,
+        description=(
+            "How many transfers to evaluate. E1 scope is 0, 1 or 2 — beyond that is multi-week "
+            "planning, which is E4."
+        ),
+    )
+    min_gain_over_hit: float = Field(
+        default=0.0,
+        ge=0,
+        description=(
+            "Expected points a hit must gain *beyond* its 4-point cost before it is recommended. "
+            "Zero means break-even is enough; raise it to demand a margin against forecast error."
+        ),
+    )
+    horizon_gameweeks: int = Field(
+        default=1,
+        ge=1,
+        le=38,
+        description=(
+            "Gameweeks the transfer decision is judged over. E1 is single-gameweek by scope; the "
+            "multi-gameweek version is E4."
+        ),
+    )
+
+
+class AlertsConfig(_Section):
+    """What the weekly output should shout about without being asked."""
+
+    decide_by_hours_before_deadline: float = Field(
+        default=12.0,
+        gt=0,
+        description=(
+            "The 'decide by' time is this far before the deadline. It exists because most UK "
+            "deadlines land between 02:30 and 05:00 local (DL-11), so the practical rule is to "
+            "decide the evening before rather than to be awake for it."
+        ),
+    )
+    price_change_ownership_threshold: float = Field(
+        default=0.4,
+        ge=0,
+        description=(
+            "Net transfers in a day, as a percentage of all managers, above which a price change "
+            "is called likely. A rule of thumb, not a model — the real price algorithm is not "
+            "published."
+        ),
+    )
+    doubtful_chance_threshold: int = Field(
+        default=75,
+        ge=0,
+        le=100,
+        description="Chance of playing at or below which an owned player raises an alert.",
+    )
+    chip_warning_gameweek: int = Field(
+        default=12,
+        ge=1,
+        le=38,
+        description="Gameweek from which unused set-1 chips start warning (E2-S7).",
+    )
+    chip_urgent_gameweek: int = Field(
+        default=16,
+        ge=1,
+        le=38,
+        description="Gameweek from which the warning becomes unmissable.",
+    )
+
+
+class QualityConfig(_Section):
+    """Thresholds for the data quality gates.
+
+    Here rather than in the gate definitions because a threshold is exactly the sort of thing that
+    needs changing at 03:00 when the league expands or a source behaves oddly, and a code change
+    under deadline pressure is how gates get disabled instead of adjusted (DP-06, Invariant 7).
+    """
+
+    minimum_players: int = Field(
+        default=400,
+        gt=0,
+        description=(
+            "A full Premier League season carries roughly 700 registered players. 400 is a floor "
+            "well below any legitimate value and well above a partial-outage response."
+        ),
+    )
+    minimum_volume_ratio: float = Field(
+        default=0.8,
+        gt=0,
+        le=1,
+        description=(
+            "Row count as a fraction of the previous run. Catches a table that halves while "
+            "staying above the absolute floor, which an absolute floor alone cannot see."
+        ),
+    )
+    expected_teams: int = Field(default=20, gt=0)
+    expected_fixtures: int = Field(
+        default=380,
+        gt=0,
+        description="20 clubs playing each other home and away. Warn, not error: postponements "
+        "and rearrangements are normal and do not make the data wrong.",
+    )
+    maximum_snapshot_age_hours: float = Field(
+        default=48.0,
+        gt=0,
+        description=(
+            "Beyond this the run is flagged as stale. A warning, not a block: a stale but honest "
+            "recommendation still beats no recommendation before a deadline (DP-15)."
+        ),
+    )
+    minimum_price: float = Field(default=3.0, gt=0)
+    maximum_price: float = Field(
+        default=20.0,
+        gt=0,
+        description=(
+            "Bounds that catch the tenths-versus-millions unit error, which is the most likely "
+            "silent unit bug in this pipeline and produces a squad nobody can afford."
+        ),
+    )
+    fail_on_warnings: bool = Field(
+        default=False,
+        description=(
+            "Promote every warning to a blocking error. Off by default; useful in CI, where "
+            "publishing nothing is cheap and a surprise is expensive."
+        ),
+    )
+
+
 class Config(_Section):
     """The whole configuration, as one immutable object threaded through every stage."""
 
@@ -314,3 +583,8 @@ class Config(_Section):
     rules: RulesConfig = RulesConfig()
     forecast: ForecastConfig = ForecastConfig()
     optimiser: OptimiserConfig = OptimiserConfig()
+    entry: EntryConfig = EntryConfig()
+    transfers: TransferConfig = TransferConfig()
+    alerts: AlertsConfig = AlertsConfig()
+    quality: QualityConfig = QualityConfig()
+    backtest: BacktestConfig = BacktestConfig()

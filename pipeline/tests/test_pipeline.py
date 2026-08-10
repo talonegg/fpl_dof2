@@ -32,7 +32,27 @@ def _writer(layout: DataLayout) -> ManifestWriter:
 
 
 def test_stage_registry_is_the_documented_pipeline() -> None:
-    assert STAGE_NAMES == ("ingest", "transform", "forecast", "optimise", "publish")
+    assert STAGE_NAMES == (
+        "ingest",
+        "transform",
+        "quality",
+        "forecast",
+        "optimise",
+        "week",
+        "publish",
+    )
+
+
+def test_the_quality_gate_runs_before_anything_is_built_on_the_data() -> None:
+    """Invariant 7 is enforced by ordering, not by a check inside the publisher.
+
+    A blocking failure stops the run before a forecast or a squad exists, so there is nothing new
+    to publish and the last good artefact stays live by default rather than by remembering to.
+    """
+    order = list(STAGE_NAMES)
+    assert order.index("quality") > order.index("transform")
+    assert order.index("quality") < order.index("forecast")
+    assert order.index("quality") < order.index("publish")
     assert len({stage.name for stage in STAGES}) == len(STAGES)
 
 

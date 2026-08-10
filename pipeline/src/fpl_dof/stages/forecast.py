@@ -5,6 +5,8 @@ Reads silver, writes gold. Pure computation between the two: no network, no sour
 
 from __future__ import annotations
 
+import json
+
 from fpl_dof.forecast.diagnostics import PriceDependence, regress_xp_on_price
 from fpl_dof.forecast.model_card import write_model_card
 from fpl_dof.forecast.xp_v0 import ForecastInputs, build_forecast
@@ -55,6 +57,7 @@ def run(ctx: StageContext) -> StageResult:
         config=ctx.config.forecast,
         rules=rules,
         run_id=ctx.run_id,
+        backtest=_previous_backtest(ctx, season),
     )
 
     below_floor = int(
@@ -71,3 +74,24 @@ def run(ctx: StageContext) -> StageResult:
         },
         outputs=[Output(path=xp_path, rows=len(forecast)), Output(path=card_path)],
     )
+
+
+def _previous_backtest(ctx: StageContext, season: str) -> dict[str, object] | None:
+    """The most recent backtest report, if one has ever been run.
+
+    Read rather than recomputed: the backtest is deliberately not part of ``run`` (it is slow and
+    needs the historical backfill), but its verdict has to reach the card a human reads before a
+    deadline. A stale verdict is still the last thing that was actually measured; no verdict at all
+    is how an unvalidated model gets presented as a validated one.
+    """
+    from fpl_dof.stages.backtest import REPORT_FILENAME
+
+    path = ctx.layout.gold / f"season={season.replace('/', '-')}" / REPORT_FILENAME
+    if not path.exists():
+        return None
+    try:
+        loaded = json.loads(path.read_text(encoding="utf-8"))
+    except OSError, json.JSONDecodeError:
+        log.warning("forecast.backtest_unreadable", extra={"path": str(path)})
+        return None
+    return loaded if isinstance(loaded, dict) else None

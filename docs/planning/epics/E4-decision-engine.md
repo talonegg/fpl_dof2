@@ -9,6 +9,23 @@ depends on this epic landing on time
 
 ---
 
+## 0. Gate carried in from E3 — read before starting
+
+**[DL-21](../00-decision-log.md#dl-21--the-v1-forecast-beats-price-and-loses-to-recent-form-reported-not-tuned)
+found the forecast loses to a model-free benchmark on top-20 precision (0.00 vs 0.05) — the exact
+part of the ranking this epic's decisions act on. That finding opened debt
+[D-13](E0-steel-thread-gw1.md#6-technical-debt-register), and its consequence is a hard constraint on
+this epic, not a footnote:**
+
+> No −8 hit, chip, or wildcard may be justified by `xp_v1` alone until top-20 precision beats B0.
+
+**What this means concretely for the stories below:** E4-S2's MILP and E4-S3's chip modelling may be
+built and tested against the current forecast — the machinery does not need to wait — but **the
+squad/transfer engine must expose that its recommendations are running on an unvalidated-at-the-head
+forecast**, and any UI or explanation surfacing a hit/chip/wildcard call (E4-S6) must carry that
+caveat rather than present the recommendation as settled. Closing D-13 is not part of this epic's
+scope; not silently proceeding as though it were already closed is.
+
 ## 1. Why, and why the timing is not negotiable
 
 E1 gave a single-gameweek transfer recommendation. That is structurally short-sighted: it churns
@@ -149,3 +166,5 @@ price exposure, and the assumptions — "this assumes he starts, which the model
 - [ ] Property tests cover the full constraint set including chips and the full horizon
 - [ ] Solve time inside budget on HiGHS, with greedy fallback proven
 - [ ] D-03 and D-04 closed
+- [ ] **D-13's caveat is visible wherever a hit, chip or wildcard is recommended** — not resolved by
+      this epic, but not silently dropped either (see §0)

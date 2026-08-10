@@ -148,3 +148,98 @@ export interface Squad {
     components?: Record<string, number>;
   }[];
 }
+
+export interface MoveSide {
+  player_id: number;
+  web_name: string;
+  price: number;
+}
+
+/** This week's decision: the deadline, the squad as it stands, what to do, and why. Times are UTC on the wire; the browser renders local zones itself (DL-11). */
+export interface Week {
+  contract_version: 1;
+  run_id: string;
+  /** True when no squad could be established. Before the first gameweek is scored there is no picks endpoint to read (DL-20), so this is a normal state and not a failure. */
+  skipped: boolean;
+  skipped_reason?: string;
+  deadline: {
+    gameweek: number;
+    name: string;
+    /** UTC. The offset between UK and local time changes twice a season and not on the same dates, so anything that reasons in local time is wrong for part of the year. */
+    deadline_utc: string;
+    /** Deliberately earlier than the deadline. Most deadlines land between 02:30 and 05:00 local, so the practical rule is to decide the evening before. */
+    decide_by_utc: string;
+    local_zone: string;
+    uk_zone: string;
+  };
+  squad_state?: {
+    /** How much was read versus inferred. Reported, never hidden. */
+    provenance: "from_picks" | "reconstructed" | "declared";
+    entry_id?: number | null;
+    as_of_gameweek?: number | null;
+    bank: number;
+    /** What the squad would raise, after the sell-on fee. Not the same as its value at current prices. */
+    sell_value: number;
+    budget: number;
+    free_transfers: number;
+    chips_used?: string[];
+    warnings?: string[];
+  };
+  recommendation?: {
+    rationale: string;
+    /** Doing nothing is a first-class option with a number attached, not the absence of a recommendation (FR-24). */
+    is_roll: boolean;
+    transfers: number;
+    hit_points: number;
+    net_expected_points: number;
+    gain_over_roll?: number;
+    bank_after?: number;
+    moves?: {
+      out: MoveSide;
+      in: MoveSide;
+    }[];
+    /** Every course of action considered, including the roll, each with its own arithmetic. */
+    options?: {
+      transfers: number;
+      hit_points: number;
+      net_expected_points: number;
+      gain_over_roll: number;
+      moves?: string[];
+    }[];
+    warnings?: string[];
+  };
+  advised?: {
+    gameweek: number;
+    squad: number[];
+    starting: number[];
+    bench_order?: number[];
+    reserve_goalkeeper?: number | null;
+    captain: number;
+    vice_captain: number;
+    formation?: string;
+    expected_points?: number;
+  };
+  alerts?: {
+    severity: "info" | "warning" | "urgent";
+    category: string;
+    message: string;
+    player_id?: number | null;
+    detail?: Record<string, unknown>;
+  }[];
+  /** What was advised against what was actually played, for the previous gameweek. An unexplained difference usually means a submission error (E1-S5). */
+  reconciliation?: {
+    gameweek: number;
+    entry_id: number;
+    followed: boolean;
+    advised?: Record<string, unknown>;
+    played?: Record<string, unknown>;
+    divergences?: {
+      kind: "squad" | "starting" | "captain" | "vice_captain" | "bench_order";
+      status: "override" | "unexplained";
+      message: string;
+      advised?: number[];
+      played?: number[];
+      reason?: string;
+    }[];
+  } | null;
+}

@@ -174,8 +174,84 @@ def _diagnose_infeasibility(
             )
 
     if not reasons:
+        # Every constraint is satisfiable on its own, so the cause is an interaction. The one that
+        # actually happens is budget against the start-probability floor: the players who clear the
+        # floor are the ones who play, who are the expensive ones, so a squad can be affordable and
+        # a squad can be able to field an XI without any squad being both.
+        #
+        # Answered by re-solving for the *cheapest* squad that could field a legal XI. That costs
+        # one more solve, only ever on the failure path, and it produces a number to act on rather
+        # than a restatement that something is wrong.
+        fieldable_cost = _cheapest_fieldable_squad_cost(players, rules, config)
+        if fieldable_cost is None:
+            reasons.append(
+                "no squad can field a legal starting XI under these constraints, even ignoring "
+                "the budget entirely"
+            )
+        elif fieldable_cost > squad_rules.budget:
+            reasons.append(
+                f"the cheapest squad that could field a legal starting XI costs "
+                f"£{fieldable_cost:.1f}m, over the £{squad_rules.budget:.1f}m budget — affordable "
+                "squads exist and startable squads exist, but no squad is both; lower the "
+                "start-probability floor, lock a player to exempt them, or widen the pool"
+            )
+
+    if not reasons:
         reasons.append("the constraints are jointly unsatisfiable, but no single cause stands out")
     return reasons
+
+
+def _cheapest_fieldable_squad_cost(
+    players: pd.DataFrame, rules: GameRules, config: OptimiserConfig
+) -> float | None:
+    """The least a squad can cost while still fielding a legal XI. ``None`` if none exists.
+
+    Same constraints as the real solve, minus the budget, with cost as the objective. Deliberately
+    a separate model rather than a relaxation of the first: reading a bound off an infeasible model
+    is not something CBC will tell you, and a second small solve is cheap on a path that has
+    already failed.
+    """
+    squad_rules = rules.squad
+    pool = players.reset_index(drop=True)
+    ids = [as_int(value) for value in pool["player_id"]]
+    by_id = {as_int(row.player_id): row for row in pool.itertuples()}
+    locked = set(config.locked_player_ids)
+    banned = set(config.banned_player_ids)
+    excluded = set(config.excluded_team_ids)
+
+    problem = pulp.LpProblem("fpl_cheapest_fieldable", pulp.LpMinimize)
+    select = pulp.LpVariable.dicts("select", ids, cat="Binary")
+    start = pulp.LpVariable.dicts("start", ids, cat="Binary")
+
+    problem += pulp.lpSum(round(as_float(by_id[i].price) * 10) * select[i] for i in ids)
+
+    problem += pulp.lpSum(select[i] for i in ids) == squad_rules.size
+    problem += pulp.lpSum(start[i] for i in ids) == squad_rules.starting_size
+    for position in Position:
+        members = [i for i in ids if by_id[i].position == position.value]
+        problem += pulp.lpSum(select[i] for i in members) == squad_rules.composition[position]
+        problem += pulp.lpSum(start[i] for i in members) >= squad_rules.formation_min[position]
+        problem += pulp.lpSum(start[i] for i in members) <= squad_rules.formation_max[position]
+    for i in ids:
+        problem += start[i] <= select[i]
+    for team_id in sorted({as_int(by_id[i].team_id) for i in ids}):
+        members = [i for i in ids if as_int(by_id[i].team_id) == team_id]
+        problem += pulp.lpSum(select[i] for i in members) <= squad_rules.club_limit
+    for i in ids:
+        if i in locked:
+            problem += select[i] == 1
+        elif i in banned or as_int(by_id[i].team_id) in excluded:
+            problem += select[i] == 0
+    if config.enforce_start_probability_floor:
+        floor = _start_floor(pool)
+        for i in ids:
+            if i not in locked and as_float(by_id[i].start_probability) < floor:
+                problem += start[i] == 0
+
+    problem.solve(pulp.PULP_CBC_CMD(msg=False, timeLimit=config.solve_time_limit_seconds))
+    if pulp.LpStatus[problem.status] != "Optimal":
+        return None
+    return float(pulp.value(problem.objective)) / 10
 
 
 def optimise_squad(

@@ -9,6 +9,7 @@ from typing import Any
 import httpx
 import pytest
 import respx
+import yaml
 
 from fpl_dof.config import Config, load_config
 from fpl_dof.config.models import RulesConfig
@@ -52,25 +53,67 @@ def no_accidental_network(request: pytest.FixtureRequest) -> Iterator[None]:
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
+#: A made-up entry. The entry endpoints return a real manager's name and region, and this
+#: repository is public (Invariant 10) — recording a third party's details as a test fixture is not
+#: something to do casually, and nothing about these tests needs a real one.
+TEST_ENTRY_ID = 9_999_999
+
+
 @pytest.fixture
 def recorded_fpl_api() -> Iterator[respx.MockRouter]:
     """Serve the recorded API responses for the whole of a test.
 
     Shared so that end-to-end tests exercise the real adapter and the real transform rather than a
     stub — a stub source proves the wiring compiles, not that the pipeline works.
+
+    Endpoints that are empty in preseason are mocked as empty rather than left unrouted: an
+    unrouted request reaches the socket guard and fails as "unmocked network call", which hides
+    what is actually being tested.
     """
     bootstrap = json.loads((FIXTURES / "bootstrap_static.json").read_text(encoding="utf-8"))
     fixtures = json.loads((FIXTURES / "fixtures.json").read_text(encoding="utf-8"))
     summaries = json.loads((FIXTURES / "element_summary.json").read_text(encoding="utf-8"))
+    set_piece = json.loads((FIXTURES / "set_piece_notes.json").read_text(encoding="utf-8"))
     base = FplApiAdapter.base_url
 
     with respx.mock(assert_all_called=False) as mock:
         mock.get(f"{base}/bootstrap-static/").mock(return_value=httpx.Response(200, json=bootstrap))
         mock.get(f"{base}/fixtures/").mock(return_value=httpx.Response(200, json=fixtures))
+        mock.get(f"{base}/team/set-piece-notes/").mock(
+            return_value=httpx.Response(200, json=set_piece)
+        )
         for element_id, summary in summaries.items():
             mock.get(f"{base}/element-summary/{element_id}/").mock(
                 return_value=httpx.Response(200, json=summary)
             )
+        mock.get(url__regex=rf"{base}/event/\d+/live/").mock(
+            return_value=httpx.Response(200, json={"elements": []})
+        )
+        mock.get(url__regex=rf"{base}/entry/\d+/event/\d+/picks/").mock(
+            return_value=httpx.Response(404, json={"detail": "Not found."})
+        )
+        mock.get(url__regex=rf"{base}/entry/\d+/transfers/").mock(
+            return_value=httpx.Response(200, json=[])
+        )
+        mock.get(url__regex=rf"{base}/entry/\d+/history/").mock(
+            return_value=httpx.Response(200, json={"current": [], "past": [], "chips": []})
+        )
+        mock.get(url__regex=rf"{base}/entry/\d+/$").mock(
+            return_value=httpx.Response(
+                200,
+                json={
+                    "id": TEST_ENTRY_ID,
+                    "name": "Test Entry",
+                    "started_event": 1,
+                    "current_event": None,
+                    "last_deadline_bank": None,
+                    "last_deadline_value": None,
+                    "last_deadline_total_transfers": 0,
+                    "summary_overall_points": None,
+                    "summary_overall_rank": None,
+                },
+            )
+        )
         yield mock
 
 
@@ -92,10 +135,30 @@ def game_rules(api_rules: ApiRules) -> GameRules:
     return build_game_rules(api_rules, RulesConfig())
 
 
+#: The recorded fixtures are a deliberately trimmed league: 8 clubs, 92 players, 12 fixtures. That
+#: keeps the test suite fast, and it means the production quality thresholds — which exist to catch
+#: a partial outage of the *real* API — would reject it, correctly.
+#:
+#: Overriding them here rather than lowering the real ones is the point: a threshold loose enough
+#: for a 92-player fixture is a threshold that would not notice the FPL API returning 92 players.
+FIXTURE_QUALITY = {
+    "quality": {
+        "minimum_players": 50,
+        "expected_teams": 8,
+        "expected_fixtures": 12,
+    }
+}
+
+
 @pytest.fixture
 def isolated_env(tmp_path: Path) -> dict[str, str]:
-    """An environment that pins the data root inside tmp_path and nothing else."""
-    return {"FPL_DOF_DATA_DIR": str(tmp_path / "data")}
+    """Data root inside tmp_path, plus gate thresholds sized for the recorded fixture."""
+    override = tmp_path / "test-config.yaml"
+    override.write_text(yaml.safe_dump(FIXTURE_QUALITY), encoding="utf-8")
+    return {
+        "FPL_DOF_DATA_DIR": str(tmp_path / "data"),
+        "FPL_DOF_CONFIG_FILE": str(override),
+    }
 
 
 @pytest.fixture

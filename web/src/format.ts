@@ -23,3 +23,8 @@ export function formatLocalDateTime(iso: string): string {
     timeStyle: "short",
   });
 }
+
+/** Points, to two places. Separate from formatXp because an option's net xP carries no band. */
+export function formatPoints(value: number): string {
+  return value.toFixed(2);
+}

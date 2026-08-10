@@ -92,6 +92,11 @@ STAGES: tuple[Stage, ...] = (
         target="fpl_dof.stages.transform:run",
     ),
     Stage(
+        name="quality",
+        summary="Check the silver layer; a blocking failure stops the run before anything is built",
+        target="fpl_dof.stages.quality:run",
+    ),
+    Stage(
         name="forecast",
         summary="Produce expected points per player, with uncertainty",
         target="fpl_dof.stages.forecast:run",
@@ -102,14 +107,34 @@ STAGES: tuple[Stage, ...] = (
         target="fpl_dof.stages.optimise:run",
     ),
     Stage(
+        name="week",
+        summary="Produce the weekly transfer, lineup and alert recommendation",
+        target="fpl_dof.stages.week:run",
+    ),
+    Stage(
         name="publish",
         summary="Write the versioned web contract",
         target="fpl_dof.stages.publish:run",
     ),
 )
 
+#: Stages that exist as commands but are **not** part of ``run``.
+#:
+#: The backtest is slow, needs the historical backfill, and produces a finding rather than an
+#: artefact the weekly pipeline consumes. Keeping it out of ``run`` keeps the deadline path fast —
+#: and keeps the backtest honest, because nobody is tempted to skip it for making Friday late.
+AUXILIARY_STAGES: tuple[Stage, ...] = (
+    Stage(
+        name="backtest",
+        summary="Walk-forward replay against history, with baselines. Not part of `run`",
+        target="fpl_dof.stages.backtest:run",
+    ),
+)
+
 STAGE_NAMES: tuple[str, ...] = tuple(stage.name for stage in STAGES)
-_BY_NAME = {stage.name: stage for stage in STAGES}
+ALL_STAGES: tuple[Stage, ...] = (*STAGES, *AUXILIARY_STAGES)
+ALL_STAGE_NAMES: tuple[str, ...] = tuple(stage.name for stage in ALL_STAGES)
+_BY_NAME = {stage.name: stage for stage in ALL_STAGES}
 
 
 class UnknownStageError(KeyError):
@@ -121,7 +146,7 @@ def get_stage(name: str) -> Stage:
         return _BY_NAME[name]
     except KeyError as exc:
         raise UnknownStageError(
-            f"unknown stage {name!r}; known stages are {', '.join(STAGE_NAMES)}"
+            f"unknown stage {name!r}; known stages are {', '.join(ALL_STAGE_NAMES)}"
         ) from exc
 
 

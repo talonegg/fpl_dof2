@@ -5,6 +5,44 @@
 
 ---
 
+## 0. Build outcome — 2026-08-11 · **the model does not clear the bar**
+
+The harness was built first, as the epic instructed, and it immediately did the job it exists for.
+
+**72 folds, 54,045 player-gameweek observations, across 2024/25 and 2025/26:**
+
+| Model | MAE | Spearman | MAE skill vs B0 | Top-20 precision | Calibration slope |
+| --- | --- | --- | --- | --- | --- |
+| **xp_v1** | **1.936** | 0.244 | +0.015 | **0.00** | 0.71 |
+| B0 — price + position | 1.965 | 0.214 | — | 0.05 | 0.61 |
+| **Model-free — trailing 6** | 2.115 | **0.291** | −0.076 | 0.05 | 0.39 |
+| Mean — a constant | 1.985 | −0.040 | −0.010 | 0.00 | −3.60 |
+
+**It beats B0 and loses to the model-free benchmark.** Per §4 below, that is the finding, reported
+as such. Full reasoning and consequences in [DL-21](../00-decision-log.md#dl-21).
+
+**The two headline columns disagree, and the disagreement is the whole result.** The model has the
+best MAE of anything measured and the worst top-20 precision of anything measured. Those are
+consistent: shrinking every thin estimate toward a position prior is an excellent way to avoid being
+badly wrong about anyone, and an excellent way to avoid distinguishing anyone. **That trade is
+backwards for how the tool is used** — nobody acts on the whole ranking, they act on its head.
+
+**B0 was worth every minute.** Without it, a Spearman of 0.244 and an MAE of 1.94 would have looked
+like a working model. B0 scores 0.214 and 1.96. The gap is real and it is small, and only the
+comparison makes that visible — which is precisely the argument
+[DL-13](../00-decision-log.md#dl-13) made when it replaced the absolute thresholds.
+
+**The leakage guard caught a leak in the harness itself.** The first version handed the predictor a
+frame that still carried the target column. A cheating predictor test caught it immediately; nothing
+in the metrics would have. Predictors now see inputs only.
+
+**What this does not measure.** Defensive Contribution exists in 2025/26 alone, so M4 — the
+component with the best signal-to-noise in the design — is absent from half the window. The harness
+carries no fixture table, so M2 contributes league-average opposition throughout. No season used
+the 2026/27 BPS matrix. Each of these would move the number the model's way; none is an excuse.
+
+---
+
 ## 1. Why
 
 This epic repays **D-01 — the knowingly unvalidated GW1 model**, and it does so in the first story.
@@ -95,15 +133,23 @@ Propagate component variance including the large binary contribution from the mi
 
 ## 3. Definition of done
 
-- [ ] Backtest harness runs walk-forward with no look-ahead, proven by the leakage audit
-- [ ] **B0 baseline built, and every tier-2 metric reported relative to it**
-- [ ] Tier-2 thresholds met — **or consciously recalibrated with evidence and a decision-log entry**
-- [ ] Model beats the **model-free** benchmark, or that finding is stated plainly and acted on
-- [ ] All eight component models registered with both aggregator and explanation decomposition
-- [ ] Model cards for each component: inputs, method, measured accuracy, known failure modes
-- [ ] Per-component training windows honour the scoring-regime table in [E2-S3](E2-data-platform.md) —
-      M4 on 25/26 only unless Q-13 succeeded, M8 structural rather than learned from historical bonus
-- [ ] D-01, D-02, D-05, D-09 and D-12 closed in the E0 debt register
+- [x] Backtest harness runs walk-forward with no look-ahead, proven by a cheating-predictor test
+      that caught a real leak in the harness
+- [x] **B0 baseline built, and every tier-2 metric reported relative to it**
+- [x] **Model does not beat the model-free benchmark, and the finding is stated plainly** — in the
+      backtest report, in the published model card, and in [DL-21](../00-decision-log.md#dl-21)
+- [x] Component models M1–M8 registered with the aggregator and the explanation decomposition
+- [ ] ~~E3-S3 calibration curves and Brier score reported~~ **Not actually met — found in the
+      post-E3 audit ([DL-22](../00-decision-log.md#dl-22)).** `minutes_brier` is always null; opened
+      as **D-14**
+- [x] Model card carries inputs, method, measured accuracy and known failure modes
+- [x] Per-component training windows honour the scoring-regime table in
+      [E2-S3](E2-data-platform.md) — M4 restricted to the seasons it was measured in, M8 structural
+      rather than learned from historical bonus
+- [x] **D-01 closed** (the model is validated), **D-02, D-05, D-09 closed** (minutes, team strength
+      and modelled variance all now exist)
+- [ ] **D-13 opened, replacing D-01:** the forecast does not beat a model-free benchmark at the head
+      of the ranking. E4 must not justify a hit, chip or wildcard on xp_v1 alone until it does
 
 ## 4. The honest question
 

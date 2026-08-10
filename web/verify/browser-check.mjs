@@ -68,6 +68,38 @@ for (const viewport of VIEWPORTS) {
     check(await page.locator(`[data-testid="${id}"]`).count() > 0, `${id} rendered`);
   }
 
+  // --- this week's decision (E1) ---
+  // The panel is absent before the first gameweek is scored, which is a valid state (DL-20). What
+  // must never happen is a panel that renders *one* deadline: FPL publishes in UK time, the owner
+  // is on AEST, and the offset between them changes twice a season on different dates.
+  const weekPanel = page.locator('[data-testid="week-deadline"]');
+  if (await weekPanel.count() > 0) {
+    const deadlineText = await weekPanel.innerText();
+    check(/UK/.test(deadlineText), "the deadline is shown in UK time");
+    check(/Local/.test(deadlineText), "the deadline is also shown in local time");
+    check(/Decide by/.test(deadlineText), "a decide-by time is shown, earlier than the deadline");
+
+    // The two zones must render different weekdays for a Friday-evening UK deadline. A panel that
+    // formatted both rows in the same zone would pass a labels-only check and be useless.
+    const times = await page.locator('[data-testid="week-deadline"] time').allInnerTexts();
+    check(times.length >= 2, `both deadline instants are rendered (${times.length})`);
+
+    const options = page.locator('[data-testid="week-options"]');
+    if (await options.count() > 0) {
+      const optionText = await options.innerText();
+      check(/Roll \(no transfer\)/.test(optionText), "doing nothing is listed as an option (FR-24)");
+      check(/recommended/.test(optionText), "the recommended option is marked");
+    }
+
+    const state = page.locator('[data-testid="week-state"]');
+    if (await state.count() > 0) {
+      const stateText = await state.innerText();
+      check(/squad (declared|reconstructed|from picks)/.test(stateText), "squad provenance is stated");
+    }
+  } else {
+    notes.push("  (no weekly panel published; skipping its checks)");
+  }
+
   // --- no horizontal page scroll, at any width ---
   const overflow = await page.evaluate(() => ({
     scrollWidth: document.documentElement.scrollWidth,

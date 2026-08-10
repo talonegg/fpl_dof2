@@ -3,8 +3,6 @@
 Public endpoints only. There is no authentication in this project and there never will be
 (NFR-11, Invariant 4).
 
-Three resources:
-
 ``bootstrap_static``
     Players, teams, gameweeks, chips, and — importantly — ``game_settings`` and ``game_config``,
     which carry FPL's own squad rules and the complete scoring table. Those are the seed for the
@@ -20,7 +18,21 @@ Three resources:
     history for — including ``defensive_contribution``, ``tackles``, ``recoveries``,
     ``clearances_blocks_interceptions`` and ``starts``. This is the whole evidence base for the
     cold-start model, and it is ~570 requests, so it never runs on the fast path
-    (Architecture §9).
+    (Architecture §9). ``history`` carries the current season per gameweek and is empty until the
+    season starts. No prior season is available at that granularity from this source at all —
+    see DL-19.
+
+``event_live``, ``set_piece_notes``, ``league_standings``
+    Added in E2-S1. All three are empty or trivial in preseason, which is normal.
+
+``entry``, ``entry_history``, ``entry_picks``, ``entry_transfers``
+    The owner's own team, fetched only when a team ID is configured. Public endpoints, like
+    everything else here — the authenticated ``my-team`` endpoint carries purchase prices and is
+    deliberately not used (Invariant 4), so purchase prices are reconstructed instead.
+
+**Two paths in this file are not where the catalogue said they were.** Set-piece notes live at
+``team/set-piece-notes/``; a bare ``set-piece-notes/`` returns 404. ``element-status/`` no longer
+exists at all.
 """
 
 from __future__ import annotations
@@ -31,8 +43,9 @@ from typing import Any, ClassVar
 import pandas as pd
 
 from fpl_dof.obs.logging import get_logger
+from fpl_dof.obs.manifest import utcnow
 from fpl_dof.rules.models import ApiRules, ApiScoring, ApiSquad, Position
-from fpl_dof.silver.tables import Table
+from fpl_dof.silver.tables import Table, columns_for
 from fpl_dof.sources.base import (
     Conformed,
     IngestReport,
@@ -94,6 +107,50 @@ class FplApiAdapter(SourceAdapter):
             # ~570 requests on every re-run.
             cache_ttl_seconds=_WEEK,
             fast_path=False,
+        ),
+        Resource(
+            name="event_live",
+            summary="Per-gameweek actuals for every player, including BPS",
+            # A finished gameweek never changes. An in-progress one changes constantly, which the
+            # fetcher handles by TTL rather than by the adapter guessing which state it is in.
+            cache_ttl_seconds=_HOUR,
+            fast_path=False,
+        ),
+        Resource(
+            name="set_piece_notes",
+            summary="Editorial notes on penalty, free-kick and corner takers, per club",
+            cache_ttl_seconds=6 * _HOUR,
+            fast_path=True,
+        ),
+        Resource(
+            name="league_standings",
+            summary="Classic league standings, for rival analysis",
+            cache_ttl_seconds=_HOUR,
+            fast_path=False,
+        ),
+        Resource(
+            name="entry",
+            summary="The owner's team: bank, value, chips and league memberships",
+            cache_ttl_seconds=_HOUR,
+            fast_path=True,
+        ),
+        Resource(
+            name="entry_history",
+            summary="The owner's per-gameweek history and chips played",
+            cache_ttl_seconds=_HOUR,
+            fast_path=True,
+        ),
+        Resource(
+            name="entry_picks",
+            summary="The owner's picks for a finished gameweek, with purchase and selling prices",
+            cache_ttl_seconds=_HOUR,
+            fast_path=True,
+        ),
+        Resource(
+            name="entry_transfers",
+            summary="Every transfer the owner has made, with the prices they were made at",
+            cache_ttl_seconds=_HOUR,
+            fast_path=True,
         ),
     )
 
@@ -200,6 +257,130 @@ class FplApiAdapter(SourceAdapter):
                 source=self.name,
                 resource=resource.name,
                 key=str(element_id),
+            )
+        return data
+
+    def _fetch_resource(
+        self, resource_name: str, path: str, key: str, request: IngestRequest
+    ) -> Any:
+        """Fetch, snapshot and parse one resource. The shape is not checked here.
+
+        Every endpoint added in E2-S1 is optional in a way the original three are not: a gameweek
+        that has not been played, a club with no set-piece notes and a team ID that is not
+        configured are all normal. Contract checking therefore happens at conformance, where the
+        caller knows whether emptiness is expected.
+        """
+        resource = self.resource(resource_name)
+        fetched = self.fetcher.fetch(
+            self.url_for(path),
+            source=self.name,
+            source_version=self.version,
+            resource=resource.name,
+            key=key,
+            cache_ttl_seconds=resource.cache_ttl_seconds,
+            force_refresh=request.force_refresh,
+            offline=request.offline,
+            now=request.now,
+        )
+        return self._json(fetched.payload, resource=resource.name, key=key)
+
+    def fetch_event_live(self, gameweek: int, request: IngestRequest) -> dict[str, Any]:
+        data = self._fetch_resource("event_live", f"event/{gameweek}/live/", str(gameweek), request)
+        if not isinstance(data, dict) or "elements" not in data:
+            raise SourceContractError(
+                f"event/{gameweek}/live has no elements key",
+                source=self.name,
+                resource="event_live",
+                key=str(gameweek),
+            )
+        return data
+
+    def fetch_set_piece_notes(self, request: IngestRequest) -> dict[str, Any]:
+        # The path is `team/set-piece-notes/`. A bare `set-piece-notes/` returns 404 — it is the
+        # path the endpoint catalogue carried, and it has moved.
+        data = self._fetch_resource("set_piece_notes", "team/set-piece-notes/", "all", request)
+        if not isinstance(data, dict) or "teams" not in data:
+            raise SourceContractError(
+                "set-piece-notes has no teams key",
+                source=self.name,
+                resource="set_piece_notes",
+                key="all",
+            )
+        return data
+
+    def fetch_league_standings(self, league_id: int, request: IngestRequest) -> dict[str, Any]:
+        data = self._fetch_resource(
+            "league_standings", f"leagues-classic/{league_id}/standings/", str(league_id), request
+        )
+        if not isinstance(data, dict) or "standings" not in data:
+            raise SourceContractError(
+                f"leagues-classic/{league_id} has no standings key",
+                source=self.name,
+                resource="league_standings",
+                key=str(league_id),
+            )
+        return data
+
+    def fetch_entry(self, entry_id: int, request: IngestRequest) -> dict[str, Any]:
+        data = self._fetch_resource("entry", f"entry/{entry_id}/", str(entry_id), request)
+        if not isinstance(data, dict) or "id" not in data:
+            raise SourceContractError(
+                f"entry/{entry_id} did not return an entry",
+                source=self.name,
+                resource="entry",
+                key=str(entry_id),
+            )
+        return data
+
+    def fetch_entry_history(self, entry_id: int, request: IngestRequest) -> dict[str, Any]:
+        data = self._fetch_resource(
+            "entry_history", f"entry/{entry_id}/history/", str(entry_id), request
+        )
+        if not isinstance(data, dict) or "chips" not in data:
+            raise SourceContractError(
+                f"entry/{entry_id}/history has no chips key",
+                source=self.name,
+                resource="entry_history",
+                key=str(entry_id),
+            )
+        return data
+
+    def fetch_entry_picks(
+        self, entry_id: int, gameweek: int, request: IngestRequest
+    ) -> dict[str, Any] | None:
+        """``None`` when the gameweek has no picks yet.
+
+        Before a gameweek's deadline passes the endpoint 404s, which is the normal state of the
+        world for most of the week and is not an error (DL-20).
+        """
+        try:
+            data = self._fetch_resource(
+                "entry_picks",
+                f"entry/{entry_id}/event/{gameweek}/picks/",
+                f"{entry_id}-{gameweek}",
+                request,
+            )
+        except SourceNotFoundError:
+            return None
+        if not isinstance(data, dict) or "picks" not in data:
+            raise SourceContractError(
+                f"entry/{entry_id}/event/{gameweek}/picks has no picks key",
+                source=self.name,
+                resource="entry_picks",
+                key=f"{entry_id}-{gameweek}",
+            )
+        return data
+
+    def fetch_entry_transfers(self, entry_id: int, request: IngestRequest) -> list[dict[str, Any]]:
+        data = self._fetch_resource(
+            "entry_transfers", f"entry/{entry_id}/transfers/", str(entry_id), request
+        )
+        if not isinstance(data, list):
+            raise SourceContractError(
+                f"entry/{entry_id}/transfers did not return a list",
+                source=self.name,
+                resource="entry_transfers",
+                key=str(entry_id),
             )
         return data
 
@@ -429,26 +610,332 @@ class FplApiAdapter(SourceAdapter):
             frame["end_cost"] = frame["end_cost"] / divisor
         return frame
 
+    def _chips(self, bootstrap: dict[str, Any]) -> pd.DataFrame:
+        """Chip windows as published. The GW19 expiry is read, not written down (Invariant 2)."""
+        return pd.DataFrame(
+            [
+                {
+                    "chip_id": int(chip["id"]),
+                    "name": str(chip["name"]),
+                    "chip_type": str(chip.get("chip_type") or "unknown"),
+                    "start_event": int(chip["start_event"]),
+                    "stop_event": int(chip["stop_event"]),
+                }
+                for chip in bootstrap.get("chips") or []
+            ],
+            columns=["chip_id", "name", "chip_type", "start_event", "stop_event"],
+        )
+
+    def _set_piece_notes(self, payload: dict[str, Any]) -> pd.DataFrame:
+        rows = [
+            {
+                "team_id": int(team["id"]),
+                "info_message": str(note.get("info_message") or ""),
+                "source_link": str(note.get("source_link") or ""),
+                "external_link": bool(note.get("external_link")),
+            }
+            for team in payload.get("teams") or []
+            for note in team.get("notes") or []
+        ]
+        return pd.DataFrame(
+            rows, columns=["team_id", "info_message", "source_link", "external_link"]
+        )
+
+    def _price_history(self, bootstrap: dict[str, Any], now: pd.Timestamp) -> pd.DataFrame:
+        """One observation of every player's price and ownership, stamped now.
+
+        The API publishes only the present. This row is the only record that will ever exist of
+        what today looked like, which is why the store appends rather than overwrites.
+        """
+        divisor = self._currency_divisor(bootstrap)
+        rows = [
+            {
+                "observed_at": now,
+                "player_id": int(element["id"]),
+                "player_code": int(element["code"]),
+                "price": float(element["now_cost"]) / divisor,
+                "selected_by_percent": float(element.get("selected_by_percent") or 0.0),
+                "transfers_in_event": int(element.get("transfers_in_event") or 0),
+                "transfers_out_event": int(element.get("transfers_out_event") or 0),
+                "cost_change_event": float(element.get("cost_change_event") or 0) / divisor,
+                "cost_change_start": float(element.get("cost_change_start") or 0) / divisor,
+            }
+            for element in bootstrap["elements"]
+            if not element.get("removed")
+        ]
+        return pd.DataFrame(rows)
+
+    def _entry(self, entry: dict[str, Any], bootstrap: dict[str, Any]) -> pd.DataFrame:
+        divisor = self._currency_divisor(bootstrap)
+
+        def money(value: Any) -> float | None:
+            return None if value is None else float(value) / divisor
+
+        return pd.DataFrame(
+            [
+                {
+                    "entry_id": int(entry["id"]),
+                    "name": str(entry.get("name") or ""),
+                    "started_event": entry.get("started_event"),
+                    "current_event": entry.get("current_event"),
+                    "bank": money(entry.get("last_deadline_bank")),
+                    "squad_value": money(entry.get("last_deadline_value")),
+                    "total_transfers": int(entry.get("last_deadline_total_transfers") or 0),
+                    "summary_overall_points": entry.get("summary_overall_points"),
+                    "summary_overall_rank": entry.get("summary_overall_rank"),
+                }
+            ]
+        )
+
+    def _entry_picks(
+        self, entry_id: int, picks_by_gameweek: dict[int, dict[str, Any]]
+    ) -> pd.DataFrame:
+        """Picks as published.
+
+        ``purchase_price`` and ``selling_price`` are left null here on purpose: the public picks
+        endpoint does not carry them — only the authenticated ``my-team`` endpoint does, and this
+        project will never authenticate (Invariant 4). They are reconstructed downstream from
+        transfer history and gameweek prices, which is lossless for anything actually observable.
+        """
+        rows = [
+            {
+                "entry_id": entry_id,
+                "gameweek": gameweek,
+                "player_id": int(pick["element"]),
+                "slot": int(pick["position"]),
+                "multiplier": int(pick["multiplier"]),
+                "is_captain": bool(pick.get("is_captain")),
+                "is_vice_captain": bool(pick.get("is_vice_captain")),
+                "purchase_price": pick.get("purchase_price"),
+                "selling_price": pick.get("selling_price"),
+            }
+            for gameweek, payload in sorted(picks_by_gameweek.items())
+            for pick in payload.get("picks") or []
+        ]
+        return pd.DataFrame(
+            rows,
+            columns=[
+                "entry_id",
+                "gameweek",
+                "player_id",
+                "slot",
+                "multiplier",
+                "is_captain",
+                "is_vice_captain",
+                "purchase_price",
+                "selling_price",
+            ],
+        )
+
+    def _entry_transfers(
+        self, entry_id: int, transfers: list[dict[str, Any]], bootstrap: dict[str, Any]
+    ) -> pd.DataFrame:
+        divisor = self._currency_divisor(bootstrap)
+        rows = [
+            {
+                "entry_id": entry_id,
+                "gameweek": int(transfer["event"]),
+                "player_in_id": int(transfer["element_in"]),
+                "player_in_cost": float(transfer["element_in_cost"]) / divisor,
+                "player_out_id": int(transfer["element_out"]),
+                "player_out_cost": float(transfer["element_out_cost"]) / divisor,
+                "made_at": pd.Timestamp(transfer["time"]).tz_convert("UTC")
+                if transfer.get("time")
+                else pd.NaT,
+            }
+            for transfer in transfers
+        ]
+        frame = pd.DataFrame(
+            rows,
+            columns=[
+                "entry_id",
+                "gameweek",
+                "player_in_id",
+                "player_in_cost",
+                "player_out_id",
+                "player_out_cost",
+                "made_at",
+            ],
+        )
+        frame["made_at"] = pd.to_datetime(frame["made_at"], utc=True)
+        return frame
+
+    def _entry_chips(self, entry_id: int, history: dict[str, Any]) -> pd.DataFrame:
+        rows = [
+            {
+                "entry_id": entry_id,
+                "name": str(chip["name"]),
+                "gameweek": int(chip["event"]),
+            }
+            for chip in history.get("chips") or []
+        ]
+        return pd.DataFrame(rows, columns=["entry_id", "name", "gameweek"])
+
+    def _player_gameweek(
+        self, bootstrap: dict[str, Any], request: IngestRequest, warnings: list[str]
+    ) -> pd.DataFrame:
+        """Current-season per-gameweek rows, from each player's own history.
+
+        Empty until the season starts, which is the normal preseason state and not a fault. Prior
+        seasons are not available here at any granularity finer than a season total — that gap is
+        what DL-19 exists to fill.
+        """
+        divisor = self._currency_divisor(bootstrap)
+        positions = self._position_by_element_type(bootstrap)
+        season = str(self.season_name(bootstrap))
+        rows = []
+        for element in bootstrap["elements"]:
+            if element.get("removed"):
+                continue
+            player_id = int(element["id"])
+            try:
+                summary = self.fetch_element_summary(player_id, request)
+            except SourceNotFoundError, OfflineWithoutSnapshotError:
+                continue
+            for row in summary.get("history") or []:
+                rows.append(
+                    {
+                        "season": season,
+                        "gameweek": int(row["round"]),
+                        "player_code": int(element["code"]),
+                        "player_id": player_id,
+                        "web_name": str(element["web_name"]),
+                        "position": positions[int(element["element_type"])],
+                        "team_id": int(element["team"]),
+                        "opponent_team_id": int(row["opponent_team"]),
+                        "fixture_id": int(row["fixture"]),
+                        "kickoff_time": pd.Timestamp(row["kickoff_time"]).tz_convert("UTC")
+                        if row.get("kickoff_time")
+                        else pd.NaT,
+                        "was_home": bool(row["was_home"]),
+                        "minutes": int(row["minutes"]),
+                        "starts": row.get("starts"),
+                        "goals_scored": int(row["goals_scored"]),
+                        "assists": int(row["assists"]),
+                        "clean_sheets": int(row["clean_sheets"]),
+                        "goals_conceded": int(row["goals_conceded"]),
+                        "own_goals": int(row["own_goals"]),
+                        "penalties_saved": int(row["penalties_saved"]),
+                        "penalties_missed": int(row["penalties_missed"]),
+                        "yellow_cards": int(row["yellow_cards"]),
+                        "red_cards": int(row["red_cards"]),
+                        "saves": int(row["saves"]),
+                        "bonus": int(row["bonus"]),
+                        "bps": int(row["bps"]),
+                        "defensive_contribution": row.get("defensive_contribution"),
+                        "tackles": row.get("tackles"),
+                        "recoveries": row.get("recoveries"),
+                        "clearances_blocks_interceptions": row.get(
+                            "clearances_blocks_interceptions"
+                        ),
+                        "expected_goals": row.get("expected_goals"),
+                        "expected_assists": row.get("expected_assists"),
+                        "expected_goals_conceded": row.get("expected_goals_conceded"),
+                        "price": float(row["value"]) / divisor,
+                        "selected_by": row.get("selected"),
+                        "total_points": int(row["total_points"]),
+                    }
+                )
+        if not rows:
+            warnings.append("no per-gameweek rows yet; the season has not started")
+        return pd.DataFrame(rows, columns=columns_for(Table.PLAYER_GAMEWEEK))
+
+    def season_name(self, bootstrap: dict[str, Any]) -> str:
+        """Derive the season label from the first deadline. Never hardcoded.
+
+        A season that starts in August 2026 is 2026/27. Reading it from the events means a
+        pipeline left running into next season labels its data correctly rather than confidently
+        mislabelling it.
+        """
+        events = bootstrap.get("events") or []
+        if not events:
+            raise SourceContractError(
+                "bootstrap-static has no events, so the season cannot be identified",
+                source=self.name,
+                resource="bootstrap_static",
+                key="all",
+            )
+        start = pd.Timestamp(events[0]["deadline_time"]).tz_convert("UTC")
+        year = int(start.year) if int(start.month) >= 7 else int(start.year) - 1
+        return f"{year}/{str(year + 1)[-2:]}"
+
     def conform(self, request: IngestRequest) -> Conformed:
         warnings: list[str] = []
         bootstrap = self.fetch_bootstrap(request)
         fixtures = self.fetch_fixtures(request)
+        now = pd.Timestamp(request.now or utcnow()).tz_convert("UTC")
+
+        tables: dict[str, pd.DataFrame] = {
+            Table.PLAYER.value: self._players(bootstrap),
+            Table.TEAM.value: self._teams(bootstrap),
+            Table.FIXTURE.value: self._fixtures(fixtures),
+            Table.GAMEWEEK.value: self._gameweeks(bootstrap),
+            Table.CHIP.value: self._chips(bootstrap),
+            Table.PRICE_HISTORY.value: self._price_history(bootstrap, now),
+            Table.PLAYER_SEASON_HISTORY.value: self._season_history(bootstrap, request, warnings),
+            Table.PLAYER_GAMEWEEK.value: self._player_gameweek(bootstrap, request, warnings),
+        }
+
+        try:
+            tables[Table.SET_PIECE_NOTE.value] = self._set_piece_notes(
+                self.fetch_set_piece_notes(request)
+            )
+        except SourceNotFoundError, OfflineWithoutSnapshotError:
+            warnings.append("no set-piece notes snapshot; continuing without them")
+
+        if request.entry_id is not None:
+            tables.update(self._conform_entry(request.entry_id, bootstrap, request, warnings))
 
         snapshot = self.fetcher.bronze.latest(self.name, "bootstrap_static", "all")
         return Conformed(
-            tables={
-                Table.PLAYER.value: self._players(bootstrap),
-                Table.TEAM.value: self._teams(bootstrap),
-                Table.FIXTURE.value: self._fixtures(fixtures),
-                Table.GAMEWEEK.value: self._gameweeks(bootstrap),
-                Table.PLAYER_SEASON_HISTORY.value: self._season_history(
-                    bootstrap, request, warnings
-                ),
-            },
+            tables=tables,
             rules=self.extract_rules(bootstrap),
             rules_snapshot_sha256=snapshot.meta.sha256 if snapshot else None,
             warnings=warnings,
         )
+
+    def _conform_entry(
+        self,
+        entry_id: int,
+        bootstrap: dict[str, Any],
+        request: IngestRequest,
+        warnings: list[str],
+    ) -> dict[str, pd.DataFrame]:
+        """Everything about the owner's team, or nothing, with a reason.
+
+        A configured team ID that the API cannot answer for is a warning rather than a failure:
+        before GW1 is scored there is genuinely nothing to read (DL-20), and failing the run would
+        make the pipeline unusable in exactly the week it is needed most.
+        """
+        try:
+            entry = self.fetch_entry(entry_id, request)
+            history = self.fetch_entry_history(entry_id, request)
+            transfers = self.fetch_entry_transfers(entry_id, request)
+        except SourceNotFoundError:
+            warnings.append(f"entry {entry_id} was not found; check the configured team ID")
+            return {}
+        except OfflineWithoutSnapshotError:
+            warnings.append(f"no snapshot for entry {entry_id}; running without squad state")
+            return {}
+
+        picks: dict[int, dict[str, Any]] = {}
+        for event in bootstrap["events"]:
+            if not event.get("finished"):
+                continue
+            payload = self.fetch_entry_picks(entry_id, int(event["id"]), request)
+            if payload is not None:
+                picks[int(event["id"])] = payload
+        if not picks:
+            warnings.append(
+                f"entry {entry_id} has no published picks yet; squad state must be declared"
+            )
+
+        return {
+            Table.ENTRY.value: self._entry(entry, bootstrap),
+            Table.ENTRY_PICK.value: self._entry_picks(entry_id, picks),
+            Table.ENTRY_TRANSFER.value: self._entry_transfers(entry_id, transfers, bootstrap),
+            Table.ENTRY_CHIP.value: self._entry_chips(entry_id, history),
+        }
 
     # --- ingest --------------------------------------------------------------------------
 
@@ -499,6 +986,38 @@ class FplApiAdapter(SourceAdapter):
                 checked_contract = True
 
         report.resources["element_summary"] = fetched
+
+        try:
+            self.fetch_set_piece_notes(request)
+            report.resources["set_piece_notes"] = 1
+        except SourceNotFoundError, OfflineWithoutSnapshotError:
+            report.warnings.append("set-piece notes unavailable")
+
+        # Only gameweeks that have actually been played. Asking for a future one returns an empty
+        # payload that would then be cached as if it meant something.
+        live = 0
+        for event in bootstrap["events"]:
+            if not event.get("finished"):
+                continue
+            try:
+                self.fetch_event_live(int(event["id"]), request)
+                live += 1
+            except SourceNotFoundError, OfflineWithoutSnapshotError:
+                report.warnings.append(f"no live data for gameweek {event['id']}")
+        report.resources["event_live"] = live
+
+        if request.league_id is not None:
+            try:
+                self.fetch_league_standings(request.league_id, request)
+                report.resources["league_standings"] = 1
+            except SourceNotFoundError, OfflineWithoutSnapshotError:
+                report.warnings.append(f"league {request.league_id} unavailable")
+
+        if request.entry_id is not None:
+            report.resources.update(
+                self._ingest_entry(request.entry_id, bootstrap, request, report)
+            )
+
         report.network_calls = self.fetcher.network_calls - before_calls
         report.cache_hits = self.fetcher.cache_hits - before_hits
         log.info(
@@ -510,3 +1029,37 @@ class FplApiAdapter(SourceAdapter):
             },
         )
         return report
+
+    def _ingest_entry(
+        self,
+        entry_id: int,
+        bootstrap: dict[str, Any],
+        request: IngestRequest,
+        report: IngestReport,
+    ) -> dict[str, int]:
+        counts: dict[str, int] = {}
+        try:
+            self.fetch_entry(entry_id, request)
+            counts["entry"] = 1
+            self.fetch_entry_history(entry_id, request)
+            counts["entry_history"] = 1
+            self.fetch_entry_transfers(entry_id, request)
+            counts["entry_transfers"] = 1
+        except SourceNotFoundError:
+            report.warnings.append(f"entry {entry_id} not found; check the configured team ID")
+            return counts
+        except OfflineWithoutSnapshotError:
+            report.warnings.append(f"no snapshot for entry {entry_id}")
+            return counts
+
+        picks = 0
+        for event in bootstrap["events"]:
+            if not event.get("finished"):
+                continue
+            try:
+                if self.fetch_entry_picks(entry_id, int(event["id"]), request) is not None:
+                    picks += 1
+            except OfflineWithoutSnapshotError:
+                report.warnings.append(f"no picks snapshot for gameweek {event['id']}")
+        counts["entry_picks"] = picks
+        return counts
