@@ -288,6 +288,21 @@ class OptimiserConfig(_Section):
     captain_multiplier: int = Field(default=2, ge=1)
     solve_time_limit_seconds: int = Field(default=60, gt=0)
     solver: str = Field(default="CBC", description="PuLP's bundled solver. HiGHS arrives in E4.")
+    enforce_start_probability_floor: bool = Field(
+        default=True,
+        description=(
+            "Bar players below the forecast's start-probability floor from the starting XI. "
+            "A locked player is exempt: an explicit human override outranks the heuristic."
+        ),
+    )
+    locked_player_ids: tuple[int, ...] = Field(
+        default=(),
+        description="Must be in the squad. The E0-S8 review applies overrides through here.",
+    )
+    banned_player_ids: tuple[int, ...] = Field(default=(), description="Must not be selected.")
+    excluded_team_ids: tuple[int, ...] = Field(
+        default=(), description="No player from these clubs may be selected."
+    )
 
 
 class Config(_Section):

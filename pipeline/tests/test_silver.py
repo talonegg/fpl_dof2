@@ -168,8 +168,8 @@ def test_transform_without_bronze_says_to_ingest_first(config: Config, layout: D
 def test_transform_produces_every_table(config: Config, populated_bronze: DataLayout) -> None:
     result = transform.run(_ctx(config, populated_bronze))
 
-    assert result.metrics["rows.player"] == 32
-    assert result.metrics["rows.team"] == 3
+    assert result.metrics["rows.player"] == 92
+    assert result.metrics["rows.team"] == 8
     assert result.metrics["season"] == "2026/27"
     for table in Table:
         frame = read_table(populated_bronze.silver, "2026/27", table)

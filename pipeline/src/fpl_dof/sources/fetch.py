@@ -167,6 +167,11 @@ class Fetcher:
             http_status=response.status_code,
             run_id=self.run_id,
             content_encoding=response.headers.get("content-encoding"),
+            # The same clock that decided the snapshot was stale must stamp its replacement.
+            # Stamping with the wall clock while judging age against an injected one makes the
+            # cache non-deterministic — and it only misbehaves at certain times of day, which is
+            # the worst possible way to find out.
+            now=moment,
         )
         return Fetched(payload=response.content, snapshot=snapshot, from_cache=False)
 

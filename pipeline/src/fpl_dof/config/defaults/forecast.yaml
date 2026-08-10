@@ -67,3 +67,8 @@ optimiser:
   captain_multiplier: 2
   solve_time_limit_seconds: 60
   solver: CBC
+  enforce_start_probability_floor: true
+  # Overrides from the E0-S8 review gate go in config/local.yaml, never by editing the output.
+  locked_player_ids: []
+  banned_player_ids: []
+  excluded_team_ids: []

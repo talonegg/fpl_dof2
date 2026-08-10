@@ -147,17 +147,17 @@ def test_ingest_snapshots_everything_and_reuses_the_cache(
     assert report.source == "fpl"
     assert report.resources["bootstrap_static"] == 1
     assert report.resources["fixtures"] == 1
-    assert report.resources["element_summary"] == 32
-    assert report.network_calls == 34
+    assert report.resources["element_summary"] == 92
+    assert report.network_calls == 94
     assert report.cache_hits == 0
 
     snapshots = list((tmp_path / "bronze").rglob("*.json.gz"))
-    assert len(snapshots) == 34
+    assert len(snapshots) == 94
     assert all(path.with_name(path.name + ".meta.json").exists() for path in snapshots)
 
     second = adapter.ingest(REQUEST)
     assert second.network_calls == 0, "a re-run inside the cache window must not touch the network"
-    assert second.cache_hits == 34
+    assert second.cache_hits == 94
 
 
 def test_player_limit_is_honoured_and_warned_about(
@@ -177,7 +177,7 @@ def test_a_removed_player_is_survivable(
     recorded_api.get(f"{BASE}/element-summary/{missing_id}/").mock(return_value=httpx.Response(404))
 
     report = adapter.ingest(REQUEST)
-    assert report.resources["element_summary"] == 31
+    assert report.resources["element_summary"] == 91
     assert any(str(missing_id) in warning for warning in report.warnings)
 
 
