@@ -7,6 +7,7 @@ force, the R-15 diagnostic result, and — at least as importantly — the known
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 
 import pandas as pd
@@ -68,6 +69,7 @@ def write_model_card(
     config: ForecastConfig,
     rules: GameRules,
     run_id: str,
+    backtest: Mapping[str, object] | None = None,
 ) -> Path:
     lines: list[str] = []
     add = lines.append
@@ -80,6 +82,40 @@ def write_model_card(
         f"**Horizon:** {as_int(forecast['horizon_gameweeks'].iloc[0])} gameweeks"
     )
     add("")
+    if backtest is not None:
+        add("")
+        add("## Measured accuracy")
+        add("")
+        # The card is what a human actually reads before a deadline. A backtest finding that lives
+        # only in backtest.json is a finding nobody sees at the moment it matters (DL-21).
+        add(str(backtest.get("verdict", "")))
+        add("")
+        model = backtest.get("model") or {}
+        b0 = backtest.get("b0") or {}
+        free = backtest.get("model_free") or {}
+        if isinstance(model, Mapping) and isinstance(b0, Mapping) and isinstance(free, Mapping):
+            add("| Model | MAE | Spearman | Top-20 precision |")
+            add("| --- | --- | --- | --- |")
+            for label, metrics in (
+                ("This forecast", model),
+                ("B0 — price + position", b0),
+                ("Model-free — trailing 6", free),
+            ):
+                add(
+                    f"| {label} | {metrics.get('mae')} | {metrics.get('spearman')} | "
+                    f"{metrics.get('top_n_precision')} |"
+                )
+            add("")
+            if not backtest.get("beats_model_free", True):
+                add(
+                    "**The head of the ranking is where this is weakest, and the head is where the "
+                    "tool is used.** Top-20 precision is what matters for a captaincy or transfer "
+                    "decision, and on that measure the forecast currently does not beat picking "
+                    "recent form. Treat its ordering as a prompt to look, not as a reason to act "
+                    "(DL-21)."
+                )
+                add("")
+
     add("## What this model is")
     add("")
     add(

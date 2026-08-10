@@ -22,12 +22,13 @@ import jsonschema
 
 CONTRACT_VERSION = 1
 
-#: Artefact name -> schema filename. The published directory is exactly these four files.
+#: Artefact name -> schema filename. The published directory is exactly these files.
 ARTEFACTS: dict[str, str] = {
     "meta": "meta.schema.json",
     "rules": "rules.schema.json",
     "players": "players.schema.json",
     "squad": "squad.schema.json",
+    "week": "week.schema.json",
 }
 
 

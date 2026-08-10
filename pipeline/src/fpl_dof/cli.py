@@ -17,6 +17,7 @@ from fpl_dof.obs import ManifestWriter, StageStatus, configure_logging, get_logg
 from fpl_dof.obs.logging import run_context
 from fpl_dof.paths import find_repo_root
 from fpl_dof.pipeline import (
+    ALL_STAGES,
     STAGES,
     StageContext,
     StageFailedError,
@@ -72,7 +73,7 @@ def build_parser() -> argparse.ArgumentParser:
             help="Cap per-player fetches. For development only; never for a real run.",
         )
 
-    for stage in STAGES:
+    for stage in ALL_STAGES:
         sub = subparsers.add_parser(stage.name, help=stage.summary, description=stage.summary)
         add_common(sub)
 

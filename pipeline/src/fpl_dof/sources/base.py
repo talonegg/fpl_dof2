@@ -49,6 +49,13 @@ class IngestRequest:
     offline: bool = False
     player_limit: int | None = None
     now: dt.datetime | None = None
+    entry_id: int | None = None
+    """The owner's team, when one is configured. A game concept, not a source concept — an adapter
+    that cannot expose it simply ignores the field."""
+
+    league_id: int | None = None
+    seasons: tuple[str, ...] = ()
+    """Historical seasons to backfill. Empty means current season only."""
 
 
 @dataclass

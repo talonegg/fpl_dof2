@@ -19,7 +19,7 @@ from fpl_dof import __version__
 from fpl_dof.config.models import HttpConfig
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.obs.manifest import utcnow
-from fpl_dof.sources.bronze import BronzeStore, Snapshot
+from fpl_dof.sources.bronze import SNAPSHOT_SUFFIX, BronzeStore, Snapshot
 from fpl_dof.sources.errors import (
     OfflineWithoutSnapshotError,
     SourceNotFoundError,
@@ -125,6 +125,7 @@ class Fetcher:
         offline: bool = False,
         params: Mapping[str, str] | None = None,
         now: dt.datetime | None = None,
+        suffix: str = SNAPSHOT_SUFFIX,
     ) -> Fetched:
         moment = now or utcnow()
         ttl = (
@@ -132,7 +133,7 @@ class Fetcher:
             if cache_ttl_seconds is None
             else cache_ttl_seconds
         )
-        cached = self.bronze.latest(source, resource, key)
+        cached = self.bronze.latest(source, resource, key, suffix=suffix)
 
         if cached is not None and not force_refresh and cached.age_seconds(moment) < ttl:
             self.cache_hits += 1
@@ -172,6 +173,7 @@ class Fetcher:
             # cache non-deterministic — and it only misbehaves at certain times of day, which is
             # the worst possible way to find out.
             now=moment,
+            suffix=suffix,
         )
         return Fetched(payload=response.content, snapshot=snapshot, from_cache=False)
 

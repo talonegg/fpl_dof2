@@ -32,6 +32,8 @@ def run(ctx: StageContext) -> StageResult:
             force_refresh=ctx.options.force_refresh,
             offline=ctx.options.offline,
             player_limit=ctx.options.player_limit,
+            entry_id=ctx.config.entry.team_id,
+            seasons=ctx.config.sources.backfill_seasons,
         )
 
         for adapter in adapters:

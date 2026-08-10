@@ -12,6 +12,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import shutil
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -29,6 +30,7 @@ from fpl_dof.silver.tables import Table
 from fpl_dof.stages.forecast import XP_FILENAME
 from fpl_dof.stages.optimise import SQUAD_FILENAME
 from fpl_dof.stages.transform import read_rules
+from fpl_dof.stages.week import WEEK_FILENAME
 
 log = get_logger(__name__)
 
@@ -61,6 +63,18 @@ def run(ctx: StageContext) -> StageResult:
         Output(path=contract.write("squad", squad_payload, destination)),
     ]
 
+    # The weekly decision, when there is one. Its absence is normal before the season starts
+    # (DL-20), so a missing file is not an error — but a *stale* one would be a lie, and is
+    # therefore removed rather than left behind.
+    week_source = gold / WEEK_FILENAME
+    week_target = destination / "week.json"
+    if week_source.exists():
+        week = json.loads(week_source.read_text(encoding="utf-8"))
+        week["contract_version"] = CONTRACT_VERSION
+        outputs.append(Output(path=contract.write("week", week, destination)))
+    elif week_target.exists():
+        week_target.unlink()
+
     root = find_repo_root()
     if root is not None:
         types = write_types(contract, root.joinpath(*TYPES_PATH))
@@ -69,8 +83,13 @@ def run(ctx: StageContext) -> StageResult:
         # The app is a static site: it reads these files from its own origin and never calls an
         # API (Invariant 8). Copying them into the app's public directory is what makes
         # `vite dev` and a built bundle serve identical data.
+        #
+        # **Only when this run's data root is the repository's own.** A run pointed at a temporary
+        # directory — every test, and any experiment run with `--data-dir` — must not overwrite
+        # what the app is serving. It did, and the result was a browser check quietly verifying an
+        # 8-club test fixture while reporting success.
         public = root.joinpath(*WEB_PUBLIC_PATH)
-        if public.parent.parent.is_dir():
+        if _is_repo_data_root(ctx, root) and public.parent.parent.is_dir():
             public.mkdir(parents=True, exist_ok=True)
             for output in list(outputs):
                 if output.path.suffix == ".json":
@@ -89,6 +108,14 @@ def run(ctx: StageContext) -> StageResult:
         },
         outputs=outputs,
     )
+
+
+def _is_repo_data_root(ctx: StageContext, root: Path) -> bool:
+    """Whether this run is writing to the repository's own ``data/`` directory."""
+    try:
+        return ctx.layout.root.resolve() == (root / "data").resolve()
+    except OSError:
+        return False
 
 
 def _meta(

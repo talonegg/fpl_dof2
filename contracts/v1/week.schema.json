@@ -1,0 +1,184 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/talonegg/fpl_dof2/contracts/v1/week.schema.json",
+  "title": "Week",
+  "description": "This week's decision: the deadline, the squad as it stands, what to do, and why. Times are UTC on the wire; the browser renders local zones itself (DL-11).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "run_id", "skipped", "deadline"],
+  "properties": {
+    "contract_version": { "type": "integer", "const": 1 },
+    "run_id": { "type": "string" },
+    "skipped": {
+      "type": "boolean",
+      "description": "True when no squad could be established. Before the first gameweek is scored there is no picks endpoint to read (DL-20), so this is a normal state and not a failure."
+    },
+    "skipped_reason": { "type": "string" },
+    "deadline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gameweek", "name", "deadline_utc", "decide_by_utc", "local_zone", "uk_zone"],
+      "properties": {
+        "gameweek": { "type": "integer", "minimum": 1, "maximum": 38 },
+        "name": { "type": "string" },
+        "deadline_utc": {
+          "type": "string",
+          "format": "date-time",
+          "description": "UTC. The offset between UK and local time changes twice a season and not on the same dates, so anything that reasons in local time is wrong for part of the year."
+        },
+        "decide_by_utc": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Deliberately earlier than the deadline. Most deadlines land between 02:30 and 05:00 local, so the practical rule is to decide the evening before."
+        },
+        "local_zone": { "type": "string" },
+        "uk_zone": { "type": "string" }
+      }
+    },
+    "squad_state": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provenance", "bank", "sell_value", "budget", "free_transfers"],
+      "properties": {
+        "provenance": {
+          "type": "string",
+          "enum": ["from_picks", "reconstructed", "declared"],
+          "description": "How much was read versus inferred. Reported, never hidden."
+        },
+        "entry_id": { "type": ["integer", "null"] },
+        "as_of_gameweek": { "type": ["integer", "null"] },
+        "bank": { "type": "number", "minimum": 0 },
+        "sell_value": {
+          "type": "number",
+          "minimum": 0,
+          "description": "What the squad would raise, after the sell-on fee. Not the same as its value at current prices."
+        },
+        "budget": { "type": "number", "minimum": 0 },
+        "free_transfers": { "type": "integer", "minimum": 0 },
+        "chips_used": { "type": "array", "items": { "type": "string" } },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "recommendation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rationale", "is_roll", "transfers", "hit_points", "net_expected_points"],
+      "properties": {
+        "rationale": { "type": "string" },
+        "is_roll": {
+          "type": "boolean",
+          "description": "Doing nothing is a first-class option with a number attached, not the absence of a recommendation (FR-24)."
+        },
+        "transfers": { "type": "integer", "minimum": 0 },
+        "hit_points": { "type": "integer", "maximum": 0 },
+        "net_expected_points": { "type": "number" },
+        "gain_over_roll": { "type": "number" },
+        "bank_after": { "type": "number" },
+        "moves": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["out", "in"],
+            "properties": {
+              "out": { "$ref": "#/$defs/move_side" },
+              "in": { "$ref": "#/$defs/move_side" }
+            }
+          }
+        },
+        "options": {
+          "type": "array",
+          "description": "Every course of action considered, including the roll, each with its own arithmetic.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["transfers", "hit_points", "net_expected_points", "gain_over_roll"],
+            "properties": {
+              "transfers": { "type": "integer", "minimum": 0 },
+              "hit_points": { "type": "integer", "maximum": 0 },
+              "net_expected_points": { "type": "number" },
+              "gain_over_roll": { "type": "number" },
+              "moves": { "type": "array", "items": { "type": "string" } }
+            }
+          }
+        },
+        "warnings": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "advised": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gameweek", "squad", "starting", "captain", "vice_captain"],
+      "properties": {
+        "gameweek": { "type": "integer", "minimum": 1, "maximum": 38 },
+        "squad": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+        "starting": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+        "bench_order": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+        "reserve_goalkeeper": { "type": ["integer", "null"] },
+        "captain": { "type": "integer", "minimum": 1 },
+        "vice_captain": { "type": "integer", "minimum": 1 },
+        "formation": { "type": "string" },
+        "expected_points": { "type": "number" }
+      }
+    },
+    "alerts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["severity", "category", "message"],
+        "properties": {
+          "severity": { "type": "string", "enum": ["info", "warning", "urgent"] },
+          "category": { "type": "string" },
+          "message": { "type": "string" },
+          "player_id": { "type": ["integer", "null"] },
+          "detail": { "type": "object" }
+        }
+      }
+    },
+    "reconciliation": {
+      "type": ["object", "null"],
+      "description": "What was advised against what was actually played, for the previous gameweek. An unexplained difference usually means a submission error (E1-S5).",
+      "additionalProperties": false,
+      "required": ["gameweek", "entry_id", "followed"],
+      "properties": {
+        "gameweek": { "type": "integer", "minimum": 1, "maximum": 38 },
+        "entry_id": { "type": "integer", "minimum": 1 },
+        "followed": { "type": "boolean" },
+        "advised": { "type": "object" },
+        "played": { "type": "object" },
+        "divergences": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "status", "message"],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": ["squad", "starting", "captain", "vice_captain", "bench_order"]
+              },
+              "status": { "type": "string", "enum": ["override", "unexplained"] },
+              "message": { "type": "string" },
+              "advised": { "type": "array", "items": { "type": "integer" } },
+              "played": { "type": "array", "items": { "type": "integer" } },
+              "reason": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "move_side": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["player_id", "web_name", "price"],
+      "properties": {
+        "player_id": { "type": "integer", "minimum": 1 },
+        "web_name": { "type": "string" },
+        "price": { "type": "number", "exclusiveMinimum": 0 }
+      }
+    }
+  }
+}
