@@ -19,19 +19,27 @@ automatically — re-check against the official rules and the conformance test b
   **The rules-engine conformance test (recomputing historical gameweek points from raw stats and
   reconciling against FPL's published totals) is the actual source of truth — not this file.**
 
-Last verified: 2026-08-09. Season: 2026/27 (starts 21 Aug 2026).
+Last verified: **2026-08-10**, against the live `bootstrap-static` response. Season: 2026/27
+(GW1 deadline 2026-08-21T17:30:00Z, confirmed from `events[0].deadline_time`).
 
 ---
 
-## Scoring table ✅ verified
+## Scoring table ✅ verified — **read from the API, not from here**
 
-Stable across many seasons; not part of the 2026/27 changes.
+> **Corrected 2026-08-10.** This table previously said a goalkeeper goal was worth 6. **It is 10 in
+> 2026/27.** The error was caught only because the pipeline seeds its scoring values from the API's
+> own `game_config.scoring` rather than transcribing them from this file. Had it transcribed, every
+> goalkeeper would have been mispriced and nothing would have complained.
+>
+> **The lesson generalises: `bootstrap-static` → `game_config.scoring` is the authoritative source
+> for the whole scoring table, and `game_settings` + `element_types` for squad size, budget, club
+> limit, formation bounds and the sell-on fee.** Read them. This file is orientation, not truth.
 
 | Event | GK | DEF | MID | FWD |
 | --- | --- | --- | --- | --- |
 | Playing 1–59 minutes | 1 | 1 | 1 | 1 |
 | Playing 60+ minutes | 2 | 2 | 2 | 2 |
-| Goal scored | 6 | 6 | 5 | 4 |
+| Goal scored | **10** | 6 | 5 | 4 |
 | Assist | 3 | 3 | 3 | 3 |
 | Clean sheet (60+ min) | 4 | 4 | 1 | 0 |
 | Every 3 saves | 1 | — | — | — |
@@ -45,14 +53,22 @@ Stable across many seasons; not part of the 2026/27 changes.
 
 ## Defensive Contribution ✅ verified
 
-Introduced 2025/26, unchanged in 2026/27.
+Introduced 2025/26. **Extended to forwards for 2026/27** — confirmed by
+`game_config.scoring.defensive_contribution`, which now reads `{GKP: 0, DEF: 2, MID: 2, FWD: 2}`.
 
-| Position | Threshold | Points |
+| Position | Threshold ⚠️ | Points ✅ |
 | --- | --- | --- |
 | Defender | 10+ combined clearances, blocks, interceptions, tackles (**CBIT**) in a match | 2 |
 | Midfielder | 12+ combined clearances, blocks, interceptions, tackles, **and ball recoveries** (**CBIRT**) in a match | 2 |
 | Forward | Same as midfielder — 12+ CBIRT | 2 |
-| Goalkeeper | Not eligible | — |
+| Goalkeeper | Not eligible | 0 |
+
+The **points** come from the API. The **thresholds do not** — FPL does not publish them, so they
+live in `pipeline/src/fpl_dof/config/defaults/rules.yaml` with a comment saying exactly that. Treat
+them as a strong prior, not ground truth.
+
+**`history_past` carries `defensive_contribution` as a season total**, alongside `tackles`,
+`recoveries` and `clearances_blocks_interceptions`. No community archive is needed to model it.
 
 Capped at 2 points per match — reaching double the threshold does not score 4.
 
