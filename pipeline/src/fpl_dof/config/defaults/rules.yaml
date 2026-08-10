@@ -1,0 +1,40 @@
+# Supplementary game rules — the values FPL does NOT publish in a machine-readable form.
+#
+# Everything else in the rules module is seeded from the API's own game_config.scoring,
+# game_settings and element_types (Invariant 2). If a value can be read from the API, it does not
+# belong in this file. Each entry below says why it cannot be.
+#
+# The rules-engine conformance test is the arbiter, not this file: when a real gameweek's points
+# can be recomputed from raw stats and reconciled against FPL's published totals, these are right.
+# Until then they are a strong prior. See the `fpl-rules` skill, which flags the same uncertainty.
+rules:
+  # The API publishes the season only as part of a static-content URL, so it is stated here.
+  season: "2026/27"
+
+  scoring:
+    # The API gives long_play/short_play point values but not the boundary between them.
+    long_play_minutes: 60
+
+    # The API publishes `saves: 1` and `goals_conceded: -1`, which are per-unit values. The unit
+    # itself — 3 saves, 2 goals conceded — is not exposed anywhere.
+    saves_per_point: 3
+    goals_conceded_per_point: 2
+
+    # The API publishes the DefCon award (2 points for DEF/MID/FWD, 0 for GKP) but not the count
+    # of defensive actions needed to earn it. Defenders are measured on clearances, blocks,
+    # interceptions and tackles; midfielders and forwards additionally on ball recoveries.
+    # Community-inferred, not officially published — treat as a prior, not ground truth.
+    defensive_contribution_threshold:
+      GKP: 0
+      DEF: 10
+      MID: 12
+      FWD: 12
+
+    # Awarded to the top three BPS scorers in each match, in rank order.
+    bonus_points: [3, 2, 1]
+
+  transfers:
+    # `transfers_cap` in game_settings is a different quantity (the per-gameweek transfer ceiling),
+    # so neither of these can be read from the API.
+    max_free_transfers: 5
+    extra_transfer_cost: -4

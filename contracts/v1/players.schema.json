@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/talonegg/fpl_dof2/contracts/v1/players.schema.json",
+  "title": "Players",
+  "description": "Every player, with the forecast and its decomposition. This is the scouting table's data.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "players"],
+  "properties": {
+    "contract_version": { "type": "integer", "const": 1 },
+    "players": { "type": "array", "items": { "$ref": "#/$defs/player" } }
+  },
+  "$defs": {
+    "player": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "position",
+        "team",
+        "team_id",
+        "price",
+        "xp_next",
+        "xp_next_sd",
+        "xp_horizon",
+        "xp_horizon_sd",
+        "start_probability",
+        "confidence",
+        "status",
+        "components"
+      ],
+      "properties": {
+        "id": { "type": "integer", "minimum": 1 },
+        "name": { "type": "string" },
+        "full_name": { "type": "string" },
+        "position": { "type": "string", "enum": ["GKP", "DEF", "MID", "FWD"] },
+        "team": { "type": "string", "description": "Short club name, e.g. ARS." },
+        "team_id": { "type": "integer", "minimum": 1 },
+        "price": { "type": "number", "exclusiveMinimum": 0, "description": "In £m." },
+        "xp_next": { "type": "number", "description": "Expected points, next gameweek." },
+        "xp_next_sd": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Invariant 6: a mean is never published without its uncertainty."
+        },
+        "xp_horizon": { "type": "number" },
+        "xp_horizon_sd": { "type": "number", "minimum": 0 },
+        "start_probability": { "type": "number", "minimum": 0, "maximum": 1 },
+        "confidence": { "type": "string", "enum": ["high", "medium", "low", "none"] },
+        "selected_by_percent": { "type": "number", "minimum": 0, "maximum": 100 },
+        "status": { "type": "string", "description": "FPL availability flag." },
+        "news": { "type": "string" },
+        "components": {
+          "$ref": "#/$defs/components",
+          "description": "DP-09: every number carries its derivation. These sum to xp_next."
+        }
+      }
+    },
+    "components": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "appearance",
+        "goals",
+        "assists",
+        "clean_sheet",
+        "goals_conceded",
+        "saves",
+        "defensive_contribution",
+        "bonus",
+        "cards"
+      ],
+      "properties": {
+        "appearance": { "type": "number" },
+        "goals": { "type": "number" },
+        "assists": { "type": "number" },
+        "clean_sheet": { "type": "number" },
+        "goals_conceded": { "type": "number" },
+        "saves": { "type": "number" },
+        "defensive_contribution": { "type": "number" },
+        "bonus": { "type": "number" },
+        "cards": { "type": "number" }
+      }
+    }
+  }
+}

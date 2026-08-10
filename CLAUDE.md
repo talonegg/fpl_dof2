@@ -30,20 +30,41 @@ short always-loaded subset; that document is the full reasoned set and is author
 ## Commands
 
 <!-- TODO Phase 0: fill in once the toolchain exists. -->
+Python lives in `.venv` at the repo root, created with `uv`. `uv` is installed as a module, so it is
+`python -m uv`, not `uv`.
+
 | Task | Command |
 | --- | --- |
-| Full local pipeline run | `TODO` |
-| Single pipeline stage | `TODO` |
-| Python tests | `TODO` |
-| Lint + type check | `TODO` |
-| Web dev server (LAN-accessible for mobile testing) | `TODO` |
-| Web tests | `TODO` |
+| First-time setup | `python -m uv venv .venv --python 3.14` then `python -m uv pip install --python .venv\Scripts\python.exe -e "pipeline[dev]"` |
+| Full local pipeline run | `.venv\Scripts\fpl-dof run` |
+| Single pipeline stage | `.venv\Scripts\fpl-dof ingest\|transform\|forecast\|optimise\|publish` |
+| Re-run ignoring caches | `.venv\Scripts\fpl-dof run --force-refresh` |
+| Python tests | `cd pipeline && ..\.venv\Scripts\python -m pytest -q` |
+| Live-API drift tests | `cd pipeline && ..\.venv\Scripts\python -m pytest -q --network` |
+| Rules coverage gate (must be 100%) | `cd pipeline && ..\.venv\Scripts\python -m pytest --cov=fpl_dof.rules --cov-fail-under=100 tests/test_rules_build.py tests/test_rules_scoring.py tests/test_rules_legality.py` |
+| Lint + format + type check | `cd pipeline && ..\.venv\Scripts\python -m ruff check . && ..\.venv\Scripts\python -m ruff format --check . && ..\.venv\Scripts\python -m mypy` |
+| Web dev server (LAN-accessible for mobile testing) | `cd web && npm run dev` — `vite.config.ts` sets `host: true` |
+| Web tests | `cd web && npm run test -- --run` |
+| Web type check + build | `cd web && npm run typecheck && npm run build` |
+| Browser verification (3 viewports) | Serve a build, then `cd web && npm run verify:browser -- http://127.0.0.1:4173` — see `web/verify/README.md` |
+
+Reading the current squad without the web app: `data/gold/season=2026-27/squad.json`, and the model
+card next to it at `model-card.md`.
 
 ## Layout
 
-- `pipeline/` — Python. Everything before the web data contract. *(not yet created)*
-- `web/` — TypeScript/React. Everything after it. *(not yet created)*
-- `contracts/` — shared JSON Schema. The single definition of the boundary between the two. *(not yet created)*
+- `pipeline/` — Python. Everything before the web data contract.
+  - `sources/` — the only package allowed to know a data source exists (Invariant 1).
+  - `silver/` — the conformed canonical model and its Pandera schemas.
+  - `rules/` — the game's rules as data, seeded from the API (Invariant 2), plus scoring and the
+    squad legality validator.
+  - `forecast/` — expected points and the model card. Prediction only.
+  - `optimise/` — the squad MILP. Decision only (DP-02).
+  - `publish/` — the web contract writer and the TypeScript generator.
+  - `stages/` — the five pipeline stages; the effectful edge (DP-03).
+- `web/` — TypeScript/React. Everything after it. `src/contract/types.ts` is **generated** — never
+  edit it by hand; `fpl-dof publish` rewrites it from the JSON Schemas.
+- `contracts/` — shared JSON Schema. The single definition of the boundary between the two.
 - `docs/planning/` — charter, plan, architecture, conceptual design, AI tooling plan.
 - `data/` — local working data. Gitignored. Never commit it.
 

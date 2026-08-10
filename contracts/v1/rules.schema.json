@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/talonegg/fpl_dof2/contracts/v1/rules.schema.json",
+  "title": "Rules",
+  "description": "The game rules the pipeline actually used, published so the browser obeys the same numbers (DL-14, Invariant 9). A hardcoded 3 for the club limit in a .tsx file is the same bug as a hardcoded 4 for a forward goal in a .py file — this file is why neither is necessary.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "season", "squad", "scoring", "transfers", "derived"],
+  "properties": {
+    "contract_version": { "type": "integer", "const": 1 },
+    "season": { "type": "string" },
+    "source_snapshot_sha256": { "type": ["string", "null"] },
+    "derived": {
+      "type": "object",
+      "additionalProperties": { "type": "string", "enum": ["api", "config"] },
+      "description": "Provenance per field group: which numbers the game published, and which we configured."
+    },
+    "squad": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "size",
+        "starting_size",
+        "budget",
+        "club_limit",
+        "composition",
+        "formation_min",
+        "formation_max",
+        "sell_on_fee",
+        "sell_at_purchase_price"
+      ],
+      "properties": {
+        "size": { "type": "integer" },
+        "starting_size": { "type": "integer" },
+        "budget": { "type": "number" },
+        "club_limit": { "type": "integer" },
+        "composition": { "$ref": "#/$defs/positionMap" },
+        "formation_min": { "$ref": "#/$defs/positionMap" },
+        "formation_max": { "$ref": "#/$defs/positionMap" },
+        "sell_on_fee": { "type": "number" },
+        "sell_at_purchase_price": { "type": "boolean" }
+      }
+    },
+    "scoring": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["goals_scored", "assists", "clean_sheets", "defensive_contribution"],
+      "properties": {
+        "goals_scored": { "$ref": "#/$defs/positionMap" },
+        "assists": { "type": "integer" },
+        "clean_sheets": { "$ref": "#/$defs/positionMap" },
+        "defensive_contribution": { "$ref": "#/$defs/positionMap" }
+      }
+    },
+    "transfers": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_free_transfers", "extra_transfer_cost"],
+      "properties": {
+        "max_free_transfers": { "type": "integer" },
+        "extra_transfer_cost": { "type": "integer" }
+      }
+    }
+  },
+  "$defs": {
+    "positionMap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["GKP", "DEF", "MID", "FWD"],
+      "properties": {
+        "GKP": { "type": "integer" },
+        "DEF": { "type": "integer" },
+        "MID": { "type": "integer" },
+        "FWD": { "type": "integer" }
+      }
+    }
+  }
+}

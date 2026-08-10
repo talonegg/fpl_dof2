@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/talonegg/fpl_dof2/contracts/v1/meta.schema.json",
+  "title": "Meta",
+  "description": "What this publication is, when it was made, and what produced it. The browser reads this first and can render an honest 'as at' line without trusting anything else.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contract_version",
+    "generated_at",
+    "run_id",
+    "season",
+    "next_gameweek",
+    "horizon_gameweeks",
+    "model",
+    "counts"
+  ],
+  "properties": {
+    "contract_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Bumped only for a breaking change. The app refuses to render a version it does not know."
+    },
+    "generated_at": { "type": "string", "format": "date-time", "description": "UTC (DL-11)." },
+    "run_id": { "type": "string", "minLength": 1, "description": "Traces back to the run manifest." },
+    "git_sha": { "type": ["string", "null"] },
+    "season": { "type": "string", "pattern": "^[0-9]{4}/[0-9]{2}$" },
+    "next_gameweek": { "type": "integer", "minimum": 1, "maximum": 38 },
+    "deadline_utc": { "type": ["string", "null"], "format": "date-time" },
+    "horizon_gameweeks": { "type": "integer", "minimum": 1, "maximum": 38 },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "r_squared_on_price", "price_dependence"],
+      "properties": {
+        "name": { "type": "string" },
+        "r_squared_on_price": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "R-15: how much of xP is explained by price and position alone."
+        },
+        "price_dependence": {
+          "type": "string",
+          "enum": ["informative", "thin", "repricing"],
+          "description": "The app surfaces this: a 'repricing' forecast must not be read as a forecast."
+        }
+      }
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["players", "teams"],
+      "properties": {
+        "players": { "type": "integer", "minimum": 0 },
+        "teams": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}
