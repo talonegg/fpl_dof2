@@ -139,6 +139,9 @@ Propagate component variance including the large binary contribution from the mi
 - [x] **Model does not beat the model-free benchmark, and the finding is stated plainly** — in the
       backtest report, in the published model card, and in [DL-21](../00-decision-log.md#dl-21)
 - [x] Component models M1–M8 registered with the aggregator and the explanation decomposition
+- [ ] ~~E3-S3 calibration curves and Brier score reported~~ **Not actually met — found in the
+      post-E3 audit ([DL-22](../00-decision-log.md#dl-22)).** `minutes_brier` is always null; opened
+      as **D-14**
 - [x] Model card carries inputs, method, measured accuracy and known failure modes
 - [x] Per-component training windows honour the scoring-regime table in
       [E2-S3](E2-data-platform.md) — M4 restricted to the seasons it was measured in, M8 structural

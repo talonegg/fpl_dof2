@@ -523,6 +523,74 @@ number in the model's favour, and none of them is an excuse:
 
 ---
 
+## DL-22 — Post-E3 audit found a DoD item ticked without its acceptance criterion being met
+
+**Date:** 2026-08-11 · **Status:** Accepted · **Arose in:** planning audit of `dev_stg` @ `8faa590`
+
+E3-S3's own acceptance criterion is explicit: "calibration curves and Brier score reported." The
+Brier-score function exists (`forecast.metrics.brier_score`) and is wired into `evaluate_metrics`,
+but the backtest harness (`forecast/backtest.py`) never passes minutes probabilities through it —
+`minutes_brier` is `null` in every fold of `backtest.json`, published and unremarked. E3's own
+definition-of-done nonetheless ticked "Component models M1–M8 registered" as covering this, which it
+does not: registration is not calibration.
+
+**Also found:** the model card's `KNOWN_WEAKNESSES` list was static — "No backtesting" (D-01)
+continued to render after E3 closed D-01 and opened D-13, directly contradicting the "Measured
+accuracy" section three headings above it in the same document. A human reading the published card
+at a review gate would have hit a self-contradicting artefact.
+
+**Fixed in this audit, not deferred:**
+
+- `model_card.py` now renders the cold-start weaknesses only when no backtest is supplied, and a new,
+  accurate weakness (citing D-14) when one is. Covered by a new test,
+  `test_the_model_card_drops_the_stale_no_backtesting_claim_once_backtested`.
+- **D-14 opened** in [E0 §6](epics/E0-steel-thread-gw1.md#6-technical-debt-register): the minutes
+  model's calibration is unmeasured, not merely crude. E3-S3's DoD line in
+  [E3](epics/E3-expected-points-engine.md#3-definition-of-done) is corrected to show this unmet
+  rather than silently folded into an adjacent line.
+
+**Why this matters beyond the one bug.** A DoD checkbox is only as trustworthy as the thing verifying
+it, and here nothing did — the acceptance criterion was prose, not a test. **The general lesson:**
+where an epic's acceptance criterion names a specific published number (a score, a curve, a metric),
+the DoD item should point at the artefact and the value, not at a proxy activity ("registered",
+"built") that can be true while the criterion is false. Worth applying retroactively the next time an
+epic outcome is reviewed — this is unlikely to be the only instance.
+
+---
+
+## DL-23 — Build pace is roughly an order of magnitude faster than ASM-8 assumed
+
+**Date:** 2026-08-11 · **Status:** Accepted · **Arose in:** planning audit of `dev_stg` @ `8faa590`
+
+[ASM-8](01-project-charter.md#8-assumptions) assumed 3–4 focused human build days per week, and
+[epics/README.md §2](epics/README.md#2-epic-register) dated every epic against that rate — E0 through
+E3, an estimated 25–32.5 focused days of scoped work, landed across **three calendar days**
+(2026-08-09 to 2026-08-11). The building is agent-driven, not paced by a human's available evenings,
+and the epic target dates (E4→GW15, E5→GW12, E6→GW16, chip expiry GW19) were never load-bearing on
+build time under this mode — they were load-bearing on the *season clock*: fixtures being played,
+data accumulating, and evidence about model quality only existing after real gameweeks happen.
+
+**This does not make E4's gate (D-13, per DL-21) go away** — a faster build cannot manufacture the
+top-20 discrimination the model is currently missing; that requires either better signal or more
+in-season evidence, neither of which compresses with build speed.
+
+**Consequences:**
+
+1. **epics/README.md §4's reprioritisation framework is stale as a *pacing* mechanism** — it assumes
+   weekly human cadence ("ask this every week"); at this build rate the relevant cadence is closer to
+   "before starting the next epic," not weekly. The framework's *content* (the weekly question, the
+   scoring formula, the triggers) still holds and is not being replaced — only the assumption that a
+   calendar week is the natural unit of reprioritisation is corrected.
+2. **The remaining schedule risk shifts from "will it be built in time" to "will there be enough
+   in-season evidence in time."** E4 in particular should not start until D-13 is closed or explicitly
+   scoped around (see D-13's consequence #4 in [DL-21](#dl-21--the-v1-forecast-beats-price-and-loses-to-recent-form-reported-not-tuned)),
+   and closing D-13 well may require watching real gameweeks resolve, which cannot be accelerated.
+3. **epics/README.md's target dates are retained as ceilings, not as the binding constraint.** No
+   epic should be rushed to hit a stale date; equally, no epic should be started before its
+   dependencies' findings (like D-13) are addressed, regardless of how much calendar time is left.
+
+---
+
 ## Open decisions
 
 Decisions deliberately deferred, with the point at which each must be resolved.

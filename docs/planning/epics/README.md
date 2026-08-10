@@ -60,18 +60,29 @@ operating overhead of running a live season while still building.
 
 ### What these targets assume — and it is demanding
 
-The dates only mean something against a rate, which until 2026-08-09 was never written down. It now
-is, as **[ASM-8](../01-project-charter.md#8-assumptions): 3–4 focused build days per week**, on top of
-the ~0.5 day/week operating loop.
+The dates only mean something against a rate, which until 2026-08-09 was never written down. It was
+originally set as **[ASM-8](../01-project-charter.md#8-assumptions): 3–4 focused build days per
+week**, on top of the ~0.5 day/week operating loop.
 
-Do the arithmetic before trusting the table: the sequence to GW15 totals roughly **60 focused days
+Do the arithmetic against that assumption: the sequence to GW15 totals roughly **60 focused days
 across 15 calendar weeks**. That is four days a week, every week, with no allowance for illness,
-travel, a work crunch, or an E3 that needs a second attempt — which the estimation notes explicitly
-warn is likely, because model quality is discovered rather than scheduled.
+travel, a work crunch, or an E3 that needs a second attempt.
 
-**If the rate drops below ~3 days/week for more than a fortnight, these targets are wrong and should
-be re-baselined rather than quietly missed.** The tell is not a missed date; it is
-[the weekly question](#the-weekly-question) returning the same answer several weeks running.
+**[DL-23](../00-decision-log.md#dl-23--build-pace-is-roughly-an-order-of-magnitude-faster-than-asm-8-assumed)
+found this assumption was wrong in the favourable direction.** E0 through E3 — an estimated
+25–32.5 focused days of scoped work — landed across three calendar days (2026-08-09 to 08-11). The
+targets below are retained as **ceilings, not the binding constraint**: at this pace, build time is
+not what paces the remaining epics. What paces them now is the **season clock and evidence** — E3's
+model quality finding ([DL-21](../00-decision-log.md#dl-21--the-v1-forecast-beats-price-and-loses-to-recent-form-reported-not-tuned))
+can only be resolved by watching real gameweeks resolve, which does not compress with build speed.
+**No epic should be rushed to hit a stale date, and none should start before its dependencies'
+findings are addressed, regardless of how much calendar time is left** (see D-13 in
+[E0 §6](E0-steel-thread-gw1.md#6-technical-debt-register), and the gate now written into
+[E4 §0](E4-decision-engine.md#0-gate-carried-in-from-e3--read-before-starting)).
+
+**If a human build pace ever becomes the operative constraint again** (this tooling changes, or the
+work shifts back to manual effort), ASM-8's original 3–4 days/week arithmetic above is still the
+number to re-apply.
 
 **One thing must not absorb the slippage.** Chip set 1 expires at the GW19 deadline and cannot be
 recovered. E4 is last and depends on E3, making it structurally the most exposed item in the plan —
@@ -104,6 +115,11 @@ forecast.
 ## 4. Prioritisation framework
 
 The sequence above is the *starting* rank, not a commitment. It gets re-sorted deliberately.
+
+**The cadence below assumes weekly human review.** [DL-23](../00-decision-log.md#dl-23--build-pace-is-roughly-an-order-of-magnitude-faster-than-asm-8-assumed)
+found the actual build rate makes "weekly" the wrong unit — re-read this section **before starting
+each epic**, not on a calendar timer. The content (the question, the scoring formula, the triggers)
+is unchanged and still holds.
 
 ### The weekly question
 

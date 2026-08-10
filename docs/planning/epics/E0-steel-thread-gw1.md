@@ -371,8 +371,8 @@ Every shortcut, with the epic that repays it. Reviewed at the end of E0 and agai
 
 | # | Debt | Consequence | Repaid by |
 | --- | --- | --- | --- |
-| D-01 | **No backtesting — B7 knowingly breached** | The forecast is unvalidated. Do not trust it for expensive decisions (hits, chips) until repaid | **E3** — first deliverable |
-| D-02 | No minutes model; availability is a crude haircut | Rotation risk and injury returns mispriced | E3 (M1) |
+| D-01 | ~~No backtesting — B7 knowingly breached~~ **Closed by E3.** Replaced by D-13 | The forecast is now measured, not merely unvalidated — and measurement is unflattering | **E3** — first deliverable |
+| D-02 | No minutes model; availability is a crude haircut | Rotation risk and injury returns mispriced | E3 (M1) — **see D-14**: the calibration half of this acceptance criterion is still unmet |
 | D-03 | Single-gameweek objective with a fixed horizon weight | No transfer planning, no rollover logic | E1, then E4 |
 | D-04 | No chips modelled | Chip set 1 expires at the GW19 deadline | E4 |
 | D-05 | FPL's own team strength used for fixture difficulty | Weaker than an xG-based model | E3 (M2) |
@@ -383,6 +383,8 @@ Every shortcut, with the epic that repays it. Reviewed at the end of E0 and agai
 | D-10 | **No CI.** E0 runs entirely locally, so charter §13.3 is knowingly unmet | Nothing proves the code runs anywhere but this machine. Covered by the dated carve-out in [charter §13](../01-project-charter.md#the-one-dated-exception--e0), which expires 22 Aug | E7 — the first workflow must run the E0 code path unchanged |
 | D-11 | **Defensive Contribution rests on one season** (2025/26), or on a positional prior if the archive was cut | The highest signal-to-noise component has the thinnest evidence behind it. See [Q-13](../04-conceptual-design.md#15-open-design-questions) — whether earlier seasons can be reconstructed from action counts | E2-S3 backfill, then E3-S5 |
 | D-12 | **Start probability is a crude prior, not a model** | Related to D-02 but distinct: D-02 is about rotation and injury *risk*; this is about whether a player is a starter at all. In preseason the FPL status flags say almost nothing, so ~£17–20m of cheap squad places rest on a heuristic | E3 (M1) |
+| D-13 | **The forecast does not beat the model-free benchmark at the head of the ranking** (top-20 precision 0.00 vs 0.05) — replaces D-01. See [E3 build outcome](E3-expected-points-engine.md#0-build-outcome--2026-08-11--the-model-does-not-clear-the-bar) and [DL-21](../00-decision-log.md#dl-21) | No −8 hit, chip or wildcard may be justified on xp_v1 alone until this closes | E4 must gate on it; a dedicated model-improvement pass may be needed before E4 starts |
+| D-14 | **Minutes-model calibration is unmeasured** — `minutes_brier` is always null because the backtest harness never passes minutes probabilities through the (already-built) Brier-score function. Found in the post-E3 audit, not by E3 itself — E3-S3's DoD checkbox was ticked without this acceptance criterion actually being checked | E3-S3's own stated acceptance criterion ("calibration curves and Brier score reported") is not met; the minutes model's reliability is unknown, not just crude | E3 follow-up, before E4 leans on start-probability output for anything expensive |
 
 **Rule:** a debt item may be deferred but never deleted. Deleting one requires a decision-log entry
 saying why it stopped mattering.
