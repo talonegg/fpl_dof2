@@ -15,6 +15,7 @@ from fpl_dof.sources.base import (
     SourceAdapter,
 )
 from fpl_dof.sources.bronze import BronzeStore, Snapshot, SnapshotMeta
+from fpl_dof.sources.enrich import canonicalise
 from fpl_dof.sources.errors import (
     OfflineWithoutSnapshotError,
     SourceContractError,
@@ -44,6 +45,7 @@ __all__ = [
     "SourceRateLimitedError",
     "SourceUnavailableError",
     "build",
+    "canonicalise",
     "known",
     "register",
 ]

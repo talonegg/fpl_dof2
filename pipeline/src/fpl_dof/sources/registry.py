@@ -72,7 +72,7 @@ def build(config: SourcesConfig, fetcher: Fetcher) -> list[SourceAdapter]:
             f"known sources are {', '.join(sorted(known()))}"
         )
     adapters = [
-        adapter_cls(fetcher)
+        adapter_cls(fetcher, config.overrides.get(name))
         for name, adapter_cls in sorted(known().items())
         if is_enabled(name, adapter_cls, config)
     ]

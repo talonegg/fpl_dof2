@@ -39,6 +39,45 @@ class Table(StrEnum):
     ENTRY_PICK = "entry_pick"
     ENTRY_TRANSFER = "entry_transfer"
     ENTRY_CHIP = "entry_chip"
+    PLAYER_CROSSWALK = "player_crosswalk"
+    PLAYER_ADVANCED = "player_advanced"
+    PLAYER_METRIC = "player_metric"
+    TEAM_MATCH_EXPECTATION = "team_match_expectation"
+
+
+#: Advanced per-player measures a source may contribute, in canonical names and canonical units.
+#: They are declared once here because two tables carry them — the per-source ledger and the
+#: precedence-merged canonical view — and a column that existed in only one of them would be a
+#: measurement that silently never reached a model.
+ADVANCED_METRICS: tuple[str, ...] = (
+    "minutes_played",
+    "matches",
+    "expected_goals",
+    "non_penalty_expected_goals",
+    "expected_assists",
+    "shots",
+    "shots_on_target",
+    "key_passes",
+    "shot_creating_actions",
+    "goal_creating_actions",
+    "progressive_carries",
+    "progressive_passes",
+    "touches_attacking_penalty_area",
+    "tackles",
+    "interceptions",
+    "blocks",
+    "clearances",
+    "recoveries",
+)
+
+#: How a crosswalk row came to exist. ``unmatched`` is a first-class value, not an absence: a row
+#: that resolution failed on must stay visible, because a silently dropped player is exactly the
+#: failure R-10 describes.
+MATCH_METHODS: tuple[str, ...] = ("deterministic", "fuzzy", "override", "unmatched")
+
+#: Whether an advanced row describes one fixture or a season to date. Sources differ, and pretending
+#: a season aggregate is a gameweek observation would leak the future into every backtest.
+METRIC_SCOPES: tuple[str, ...] = ("gameweek", "season")
 
 
 class TeamSchema(pa.DataFrameModel):
@@ -318,6 +357,148 @@ class EntryChipSchema(pa.DataFrameModel):
         coerce = True
 
 
+class _AdvancedMetrics(pa.DataFrameModel):
+    """The metric columns, as nullable floats, shared by the two tables that carry them.
+
+    Nullable and never zero-filled: a source that does not measure something has not observed a
+    zero, and the two are not the same claim (DL-18). Inherited rather than repeated so the
+    per-source ledger and the merged canonical view cannot drift apart.
+    """
+
+    minutes_played: Series[float] = pa.Field(ge=0, nullable=True)
+    matches: Series[float] = pa.Field(ge=0, nullable=True)
+    expected_goals: Series[float] = pa.Field(ge=0, nullable=True)
+    non_penalty_expected_goals: Series[float] = pa.Field(ge=0, nullable=True)
+    expected_assists: Series[float] = pa.Field(ge=0, nullable=True)
+    shots: Series[float] = pa.Field(ge=0, nullable=True)
+    shots_on_target: Series[float] = pa.Field(ge=0, nullable=True)
+    key_passes: Series[float] = pa.Field(ge=0, nullable=True)
+    shot_creating_actions: Series[float] = pa.Field(ge=0, nullable=True)
+    goal_creating_actions: Series[float] = pa.Field(ge=0, nullable=True)
+    progressive_carries: Series[float] = pa.Field(ge=0, nullable=True)
+    progressive_passes: Series[float] = pa.Field(ge=0, nullable=True)
+    touches_attacking_penalty_area: Series[float] = pa.Field(ge=0, nullable=True)
+    tackles: Series[float] = pa.Field(ge=0, nullable=True)
+    interceptions: Series[float] = pa.Field(ge=0, nullable=True)
+    blocks: Series[float] = pa.Field(ge=0, nullable=True)
+    clearances: Series[float] = pa.Field(ge=0, nullable=True)
+    recoveries: Series[float] = pa.Field(ge=0, nullable=True)
+
+    class Config:
+        strict = True
+        coerce = True
+
+
+class PlayerCrosswalkSchema(pa.DataFrameModel):
+    """The identity map between a source's own player ids and the canonical ones (FR-07).
+
+    One row per (season, source, source player). ``player_id`` is null exactly when resolution
+    failed, and such rows are kept rather than dropped so the unmatched rate is measurable and the
+    quality gate has something to measure it on.
+
+    Keyed on season because resolution is re-run from scratch every season: club-based matching is
+    invalidated by transfers, so last season's answer is evidence, not truth.
+    """
+
+    season: Series[str]
+    source: Series[str]
+    source_player_id: Series[str]
+    source_name: Series[str]
+    source_team: Series[str] = pa.Field(nullable=True)
+    source_position: Series[str] = pa.Field(nullable=True)
+    player_id: Series[int] = pa.Field(ge=1, nullable=True)
+    player_code: Series[int] = pa.Field(ge=1, nullable=True)
+    match_method: Series[str] = pa.Field(isin=MATCH_METHODS)
+    confidence: Series[float] = pa.Field(ge=0, le=1)
+    verified: Series[bool]
+    """True only for a human-reviewed override. A fuzzy match at 0.97 is still a guess."""
+
+    class Config:
+        strict = True
+        coerce = True
+        unique = ["season", "source", "source_player_id"]  # noqa: RUF012 - pandera Config
+
+
+class PlayerAdvancedSchema(_AdvancedMetrics):
+    """Advanced measures as each source reports them, before precedence is applied.
+
+    Kept per source rather than merged on arrival, because "two providers disagree about this
+    player's expected goals" is information, and a table that has already picked a winner cannot
+    show it.
+    """
+
+    season: Series[str]
+    source: Series[str]
+    source_player_id: Series[str]
+    player_id: Series[int] = pa.Field(ge=1, nullable=True)
+    player_code: Series[int] = pa.Field(ge=1, nullable=True)
+    scope: Series[str] = pa.Field(isin=METRIC_SCOPES)
+    gameweek: Series[int] = pa.Field(ge=1, le=38, nullable=True)
+    """Null when ``scope`` is ``season``: the row is a running total, not a fixture."""
+
+    class Config:
+        strict = True
+        coerce = True
+        unique = [  # noqa: RUF012 - pandera Config
+            "season",
+            "source",
+            "source_player_id",
+            "scope",
+            "gameweek",
+        ]
+
+
+class PlayerMetricSchema(_AdvancedMetrics):
+    """The canonical advanced view, after per-field source precedence (NFR-15).
+
+    ``sources`` records which sources actually contributed to this row, because a number whose
+    origin cannot be recovered is a number nobody can argue with (DP-09).
+    """
+
+    season: Series[str]
+    player_id: Series[int] = pa.Field(ge=1, nullable=True)
+    player_code: Series[int] = pa.Field(ge=1)
+    scope: Series[str] = pa.Field(isin=METRIC_SCOPES)
+    gameweek: Series[int] = pa.Field(ge=1, le=38, nullable=True)
+    sources: Series[str]
+
+    class Config:
+        strict = True
+        coerce = True
+        unique = ["season", "player_code", "scope", "gameweek"]  # noqa: RUF012 - pandera Config
+
+
+class TeamMatchExpectationSchema(pa.DataFrameModel):
+    """Team-level goal expectations, however they were derived (FR-03).
+
+    The market's view and a model's view have the same shape on purpose: the consumer asks for an
+    expectation, not for a bookmaker.
+    """
+
+    season: Series[str]
+    source: Series[str]
+    captured_at: Series[pd.DatetimeTZDtype] = pa.Field(dtype_kwargs={"unit": "ns", "tz": "UTC"})
+    kickoff_time: Series[pd.DatetimeTZDtype] = pa.Field(
+        dtype_kwargs={"unit": "ns", "tz": "UTC"}, nullable=True
+    )
+    home_team: Series[str]
+    away_team: Series[str]
+    home_team_id: Series[int] = pa.Field(ge=1, nullable=True)
+    away_team_id: Series[int] = pa.Field(ge=1, nullable=True)
+    expected_goals_home: Series[float] = pa.Field(ge=0, le=10)
+    expected_goals_away: Series[float] = pa.Field(ge=0, le=10)
+    clean_sheet_probability_home: Series[float] = pa.Field(ge=0, le=1)
+    clean_sheet_probability_away: Series[float] = pa.Field(ge=0, le=1)
+    home_win_probability: Series[float] = pa.Field(ge=0, le=1)
+    draw_probability: Series[float] = pa.Field(ge=0, le=1)
+    away_win_probability: Series[float] = pa.Field(ge=0, le=1)
+    total_goals: Series[float] = pa.Field(ge=0, le=20)
+
+    class Config:
+        strict = True
+        coerce = True
+
+
 SCHEMAS: dict[Table, type[pa.DataFrameModel]] = {
     Table.PLAYER: PlayerSchema,
     Table.TEAM: TeamSchema,
@@ -332,6 +513,10 @@ SCHEMAS: dict[Table, type[pa.DataFrameModel]] = {
     Table.ENTRY_PICK: EntryPickSchema,
     Table.ENTRY_TRANSFER: EntryTransferSchema,
     Table.ENTRY_CHIP: EntryChipSchema,
+    Table.PLAYER_CROSSWALK: PlayerCrosswalkSchema,
+    Table.PLAYER_ADVANCED: PlayerAdvancedSchema,
+    Table.PLAYER_METRIC: PlayerMetricSchema,
+    Table.TEAM_MATCH_EXPECTATION: TeamMatchExpectationSchema,
 }
 
 #: Tables that only exist when the owner has configured a team ID, or when the season has started.
@@ -345,6 +530,12 @@ OPTIONAL_TABLES: frozenset[Table] = frozenset(
         Table.ENTRY_PICK,
         Table.ENTRY_TRANSFER,
         Table.ENTRY_CHIP,
+        # Everything an external source contributes. Losing one of those sources removes the
+        # fields it fed and nothing else, which is what DP-15 asks for in table form.
+        Table.PLAYER_CROSSWALK,
+        Table.PLAYER_ADVANCED,
+        Table.PLAYER_METRIC,
+        Table.TEAM_MATCH_EXPECTATION,
     }
 )
 

@@ -34,10 +34,23 @@ def run(ctx: StageContext) -> StageResult:
             player_limit=ctx.options.player_limit,
             entry_id=ctx.config.entry.team_id,
             seasons=ctx.config.sources.backfill_seasons,
+            season=ctx.config.rules.season,
         )
 
         for adapter in adapters:
-            report = adapter.ingest(request)
+            try:
+                report = adapter.ingest(request)
+            except Exception as exc:
+                # An enriching source that cannot be reached costs its own fields. Only a source
+                # that declares itself essential can stop the run (NFR-15, DP-15).
+                if adapter.essential:
+                    raise
+                result.metrics[f"degraded.{adapter.name}"] = type(exc).__name__
+                log.warning(
+                    "ingest.source_degraded",
+                    extra={"source": adapter.name, "detail": f"{type(exc).__name__}: {exc}"},
+                )
+                continue
             for resource, count in report.resources.items():
                 result.metrics[f"{report.source}.{resource}"] = count
             result.metrics[f"{report.source}.network_calls"] = report.network_calls

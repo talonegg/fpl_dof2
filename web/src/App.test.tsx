@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { App } from "./App";
-import { meta, players, rules, squad, week } from "./test/fixtures";
+import { meta, plan, players, rules, squad, week } from "./test/fixtures";
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -21,6 +21,7 @@ describe("App", () => {
         if (url.endsWith("players.json")) return Promise.resolve(jsonResponse(players));
         if (url.endsWith("squad.json")) return Promise.resolve(jsonResponse(squad));
         if (url.endsWith("week.json")) return Promise.resolve(jsonResponse(week));
+        if (url.endsWith("plan.json")) return Promise.resolve(jsonResponse(plan));
         return Promise.reject(new Error(`Unexpected fetch: ${url}`));
       }),
     );
@@ -57,6 +58,7 @@ describe("App without a weekly recommendation", () => {
         if (url.endsWith("squad.json")) return Promise.resolve(jsonResponse(squad));
         // 404 is the normal preseason answer, not a failure (DL-20).
         if (url.endsWith("week.json")) return Promise.resolve(new Response(null, { status: 404 }));
+        if (url.endsWith("plan.json")) return Promise.resolve(new Response(null, { status: 404 }));
         return Promise.reject(new Error(`Unexpected fetch: ${url}`));
       }),
     );

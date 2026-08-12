@@ -12,6 +12,7 @@ import random
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import httpx
 
@@ -60,6 +61,29 @@ class Fetched:
     def stale(self) -> bool:
         """True when this came from bronze in offline mode, past its TTL."""
         return self.from_cache and self.snapshot.meta.http_status == 0
+
+
+REDACTED = "REDACTED"
+
+
+def redact(url: str, names: tuple[str, ...]) -> str:
+    """Remove named query parameter values from a URL before it is written down.
+
+    A credentialled provider carries its key in the query string, and every request this project
+    makes is snapshotted with the URL that produced it. Without this, the one secret in the project
+    would be written to disk on every run (Invariant 10, NFR-13). Redaction happens here, once, so
+    no adapter has to remember it.
+    """
+    if not names:
+        return url
+    parsed = urlsplit(url)
+    if not parsed.query:
+        return url
+    pairs = [
+        (key, REDACTED if key in names else value)
+        for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+    ]
+    return urlunsplit(parsed._replace(query=urlencode(pairs)))
 
 
 def user_agent(config: HttpConfig) -> str:
@@ -126,6 +150,7 @@ class Fetcher:
         params: Mapping[str, str] | None = None,
         now: dt.datetime | None = None,
         suffix: str = SNAPSHOT_SUFFIX,
+        redact_params: tuple[str, ...] = (),
     ) -> Fetched:
         moment = now or utcnow()
         ttl = (
@@ -164,7 +189,7 @@ class Fetcher:
             source_version=source_version,
             resource=resource,
             key=key,
-            url=str(response.request.url),
+            url=redact(str(response.request.url), redact_params),
             http_status=response.status_code,
             run_id=self.run_id,
             content_encoding=response.headers.get("content-encoding"),

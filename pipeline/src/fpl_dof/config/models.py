@@ -106,6 +106,55 @@ class SourceOverride(_Section):
         default_factory=dict,
         description="Per-resource TTL overrides, keyed by the resource name the adapter declares.",
     )
+    credit_budget: int | None = Field(
+        default=None,
+        ge=0,
+        description=(
+            "Requests this source may make per calendar month, enforced inside the adapter rather "
+            "than by scheduling discipline (CON-7, R-08). Generic because metering is a property "
+            "some providers have, not a property of one named provider. None means unmetered, or "
+            "the adapter's own default where it has one."
+        ),
+    )
+
+
+class EntityResolutionConfig(_Section):
+    """Matching players across sources (FR-07, R-10).
+
+    The highest-risk silent failure in the system: a bad match attributes one footballer's expected
+    goals to another and nothing visibly breaks. Every number here is a threshold on how much
+    guessing is tolerated, which is precisely the sort of thing that must be adjustable without a
+    code change (DP-06).
+    """
+
+    fuzzy_threshold: float = Field(
+        default=0.90,
+        ge=0,
+        le=1,
+        description=(
+            "Token-set similarity a fuzzy match must reach. High on purpose: an unmatched player "
+            "is a visible gap, a wrongly matched one is an invisible error, so the asymmetry "
+            "should be paid for in misses."
+        ),
+    )
+    fuzzy_margin: float = Field(
+        default=0.05,
+        ge=0,
+        le=1,
+        description=(
+            "How far the best candidate within a club must beat the runner-up before a fuzzy "
+            "match is accepted. Design §3.2 requires the match to be unambiguous, and two players "
+            "at 0.93 and 0.92 is not."
+        ),
+    )
+    match_on_position: bool = Field(
+        default=True,
+        description=(
+            "Require position agreement in the deterministic tier. Sources disagree about where a "
+            "wing-back plays; when that becomes noisier than it is useful, turn it off here "
+            "rather than in code."
+        ),
+    )
 
 
 class SourcesConfig(_Section):
@@ -116,6 +165,17 @@ class SourcesConfig(_Section):
             "Historical seasons any source capable of supplying them should backfill, as "
             "'2024/25'. Generic on purpose: a source that cannot answer ignores it. Empty means "
             "the source's own default."
+        ),
+    )
+    resolution: EntityResolutionConfig = EntityResolutionConfig()
+    field_precedence: dict[str, tuple[str, ...]] = Field(
+        default_factory=dict,
+        description=(
+            "Canonical field name -> source names to try, in order (NFR-15). Precedence is "
+            "configuration, not code (DP-01): where two sources supply the same field, this is the "
+            "only place that decides. Empty means the source layer's declared default, which is "
+            "where the source *names* live so that no module outside it has to know them "
+            "(Invariant 1). A field named here overrides that default outright."
         ),
     )
 
@@ -383,6 +443,273 @@ class OptimiserConfig(_Section):
     )
 
 
+class CandidateConfig(_Section):
+    """E4-S1 candidate pruning. Roughly 700 players reduced to a tractable pool, without bias.
+
+    Every number here widens or narrows the pool. None of them may *bias* it: the owned squad, any
+    locked player and the cheap enablers are included unconditionally, because a pure
+    expected-points ranking drops the enablers and a squad that cannot afford a premium is worse
+    than one that can.
+    """
+
+    top_n_per_position_by_points: int = Field(
+        default=30,
+        gt=0,
+        description="Best per position on horizon expected points. The obvious half of the pool.",
+    )
+    top_n_per_position_by_value: int = Field(
+        default=20,
+        gt=0,
+        description="Best per position on expected points per £m. Overlaps the above by design.",
+    )
+    cheap_enablers_per_position: int = Field(
+        default=10,
+        ge=0,
+        description=(
+            "Cheapest credible players per position, taken on expected points *within* the cheap "
+            "band. Structurally necessary to afford premiums, and invisible to any xP ranking."
+        ),
+    )
+    cheap_enabler_price_quantile: float = Field(
+        default=0.25,
+        gt=0,
+        le=1,
+        description="Price quantile, within position, defining the cheap band.",
+    )
+    minimum_expected_points: float = Field(
+        default=0.0,
+        ge=0,
+        description="Floor on horizon expected points before a player can enter on merit.",
+    )
+    target_pool_size: int = Field(
+        default=250,
+        gt=0,
+        description=(
+            "Advisory, not enforced: the pruning rule is composed of the rules above, and this is "
+            "the size they are tuned to produce. Reported so drift is visible rather than assumed."
+        ),
+    )
+
+
+class HorizonConfig(_Section):
+    """E4-S2 multi-gameweek MILP. FR-18."""
+
+    gameweeks: int = Field(
+        default=5,
+        ge=1,
+        le=8,
+        description=(
+            "Rolling horizon length. Design §6.2 calls for 5-8; five is the short end because the "
+            "forecast is unvalidated at the head of the ranking (DL-21) and a longer horizon "
+            "compounds that, not the solver's difficulty."
+        ),
+    )
+    discount: float = Field(
+        default=0.85,
+        gt=0,
+        le=1,
+        description="Per-gameweek discount on future expected points. Design §6.2's gamma.",
+    )
+    max_transfers_per_gameweek: int = Field(
+        default=2,
+        ge=0,
+        le=15,
+        description=(
+            "Cap on transfers in any one non-chip gameweek. Not a rule of the game — a bound that "
+            "keeps the model honest about how much churn is plausible, and keeps it tractable."
+        ),
+    )
+    solver: Literal["HiGHS", "CBC"] = Field(
+        default="HiGHS",
+        description=(
+            "DL-15: HiGHS from E4 onward. The single-gameweek E1 and E0 models stay on CBC, which "
+            "E0 validated against them; this is the model CBC was never validated for."
+        ),
+    )
+    solve_time_limit_seconds: int = Field(
+        default=120,
+        gt=0,
+        description="Wall clock per scenario solve. Exceeding it falls back to greedy (DP-15).",
+    )
+    scenario_time_budget_seconds: int = Field(
+        default=600,
+        gt=0,
+        description="Total budget across every chip scenario. R-07 is rated High; this bounds it.",
+    )
+    incumbency_bonus: float = Field(
+        default=0.01,
+        ge=0,
+        description=(
+            "Design §6.2's ε. Added per gameweek for every player already held. Small enough never "
+            "to overturn a genuine expected-points difference, large enough to break the massive "
+            "degeneracy of the squad problem so the same inputs return the same squad (R-16)."
+        ),
+    )
+    transfer_margin: float = Field(
+        default=0.5,
+        ge=0,
+        description=(
+            "Expected points a plan must beat the roll-everything plan by before a transfer is "
+            "recommended. The tie-break's other half: a transfer clears a margin, never merely "
+            "ties. Zero would restore the churn the tie-break exists to stop."
+        ),
+    )
+    bench_weight: float = Field(
+        default=0.15,
+        ge=0,
+        le=1,
+        description="Design §6.2's β. Exactly 1 in a Bench Boost gameweek, which is the chip.",
+    )
+
+
+class ChipConfig(_Section):
+    """E4-S3 chip modelling, by scenario enumeration rather than decision variables (DL-15)."""
+
+    max_scenarios: int = Field(
+        default=24,
+        gt=0,
+        description=(
+            "Ceiling on (chip, gameweek) assignments solved. Enumeration is only tractable while "
+            "the set stays small; beyond this the pruning below is doing too little."
+        ),
+    )
+    runners_up: int = Field(
+        default=3,
+        ge=0,
+        description="Scenarios kept beside the winner. They are what the explanation needs.",
+    )
+    calendar_gameweeks: int = Field(
+        default=38,
+        ge=1,
+        le=38,
+        description="How far the long-range chip calendar projects. The season, by default.",
+    )
+    bench_boost_minimum_fixtures: float = Field(
+        default=1.0,
+        ge=0,
+        description=(
+            "Mean fixtures per squad club below which Bench Boost is not even enumerated. A Bench "
+            "Boost in a blank gameweek is not a candidate."
+        ),
+    )
+    captain_multiplier_by_chip: dict[str, int] = Field(
+        default_factory=lambda: {"3xc": 3},
+        description=(
+            "Captain multiplier a chip imposes, overriding the ordinary one. Configuration rather "
+            "than a literal 3 in the solver (Invariant 2). The game exposes this as "
+            "`overrides.pick_multiplier` on each chip; until the silver chip table carries that "
+            "field (D-15) this is the seeded value, and it is here so it is one line to correct."
+        ),
+    )
+    force_chip_gameweek: dict[str, int] = Field(
+        default_factory=dict,
+        description="E4-S5 override: chip name -> gameweek it must be played in.",
+    )
+    forbid_chip_gameweeks: dict[str, tuple[int, ...]] = Field(
+        default_factory=dict,
+        description="E4-S5 override: chip name -> gameweeks it must not be played in.",
+    )
+
+
+class RiskConfig(_Section):
+    """E4-S4 risk dial and ownership. FR-21, FR-16, DL-07, DL-24.
+
+    **Ownership is `selected_by_percent` and nothing else** (DL-24, resolving OD-06). There is no
+    captaincy term, because captaincy share is exposed by no public endpoint and modelling it would
+    be presenting an estimate as a measurement. Every figure this produces is labelled "selected
+    by"; the single most-captained player is surfaced separately as a plain callout.
+    """
+
+    dial: Literal["safe", "balanced", "aggressive"] = Field(
+        default="balanced",
+        description=(
+            "OD-05, resolved at DL-25: Balanced by default, in the absence of a stated target "
+            "rank. Design §7.1's own table names Balanced the default posture — a small penalty "
+            "that broadly follows expected points and avoids only the most extreme template gaps."
+        ),
+    )
+    ownership_weight: dict[str, float] = Field(
+        default_factory=lambda: {"safe": 0.020, "balanced": 0.005, "aggressive": -0.010},
+        description=(
+            "Expected points added per percentage point of `selected_by_percent`, per starter, per "
+            "gameweek. Positive pulls toward the template; negative rewards differentials. A "
+            "linear proxy for a quadratic quantity, and the UI says so."
+        ),
+    )
+    same_club_starting_limit: int = Field(
+        default=2,
+        ge=1,
+        le=11,
+        description=(
+            "Design §6.2 C16. Two players from one club in the starting XI, aimed squarely at the "
+            "dominant correlation a MILP cannot represent. Q-12 asks whether 2 or 3 is better; 2 "
+            "is the documented default."
+        ),
+    )
+    relax_club_cap_team_ids: tuple[int, ...] = Field(
+        default=(),
+        description="E4-S5 override: clubs exempt from C16, for a deliberate triple-up.",
+    )
+
+
+class SimulationConfig(_Section):
+    """E4-S4a simulation re-rank. Most of the stochastic layer, none of the solver work."""
+
+    enabled: bool = True
+    draws: int = Field(
+        default=4000,
+        gt=0,
+        description="Samples per candidate plan. Enough to separate plans a point or two apart.",
+    )
+    seed: int = Field(
+        default=20262027,
+        description="Fixed, because a recommendation that changes on refresh is not one (R-16).",
+    )
+    match_variance_share: float = Field(
+        default=0.45,
+        ge=0,
+        le=1,
+        description=(
+            "Fraction of a player's variance that is shared with everyone else in his match. This "
+            "is the whole point: two defenders from one club share a clean sheet, and a re-rank "
+            "that samples players independently is not modelling the thing it exists to model."
+        ),
+    )
+    percentile_by_dial: dict[str, float] = Field(
+        default_factory=lambda: {"safe": 0.30, "balanced": 0.50, "aggressive": 0.75},
+        description=(
+            "Which point of the simulated distribution each dial position is scored on. "
+            "Deliberately a percentile rather than the mean even at Balanced: the mean is what the "
+            "MILP already "
+            "maximised, so re-ranking on it could only ever reproduce the MILP's own ordering, and "
+            "Bench Boost and Triple Captain are exactly the decisions the mean cannot see."
+        ),
+    )
+
+
+class DecisionConfig(_Section):
+    """E4's decision engine: pruning, the multi-gameweek plan, chips, risk and simulation."""
+
+    candidates: CandidateConfig = CandidateConfig()
+    horizon: HorizonConfig = HorizonConfig()
+    chips: ChipConfig = ChipConfig()
+    risk: RiskConfig = RiskConfig()
+    simulation: SimulationConfig = SimulationConfig()
+    maximum_spend: float | None = Field(
+        default=None,
+        gt=0,
+        description="E4-S5 override: cap total squad spend below the budget, in £m. None means no "
+        "cap beyond the budget itself.",
+    )
+    forced_formation: dict[str, int] | None = Field(
+        default=None,
+        description=(
+            "E4-S5 override: an exact starting formation, as position -> count. None means any "
+            "legal formation. An illegal one is rejected with a reason rather than solved around."
+        ),
+    )
+
+
 class DeclaredPick(_Section):
     """One player in a manually declared squad.
 
@@ -565,6 +892,17 @@ class QualityConfig(_Section):
             "silent unit bug in this pipeline and produces a squad nobody can afford."
         ),
     )
+    maximum_unmatched_player_rate: float = Field(
+        default=0.10,
+        ge=0,
+        le=1,
+        description=(
+            "Fraction of a source's players that entity resolution may fail to match before the "
+            "run is blocked (FR-07). Not zero: reserve and youth players appear on scraped pages "
+            "and never in the game, so a few percent unmatched is the healthy state. A tenth "
+            "unmatched means the matcher, not the tail, is what changed."
+        ),
+    )
     fail_on_warnings: bool = Field(
         default=False,
         description=(
@@ -588,3 +926,4 @@ class Config(_Section):
     alerts: AlertsConfig = AlertsConfig()
     quality: QualityConfig = QualityConfig()
     backtest: BacktestConfig = BacktestConfig()
+    decision: DecisionConfig = DecisionConfig()

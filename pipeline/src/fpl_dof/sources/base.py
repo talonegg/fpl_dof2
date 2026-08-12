@@ -19,6 +19,7 @@ from typing import ClassVar
 
 import pandas as pd
 
+from fpl_dof.config.models import SourceOverride
 from fpl_dof.rules.models import ApiRules
 from fpl_dof.sources.fetch import Fetcher
 
@@ -56,6 +57,11 @@ class IngestRequest:
     league_id: int | None = None
     seasons: tuple[str, ...] = ()
     """Historical seasons to backfill. Empty means current season only."""
+
+    season: str | None = None
+    """The season being run, as ``2026/27``. A source that derives its own from the data it fetches
+    ignores this; a source whose URLs are season-shaped needs to be told, and guessing from the
+    wall clock would quietly fetch the wrong year through every August."""
 
 
 @dataclass
@@ -102,8 +108,29 @@ class SourceAdapter(ABC):
     resources: ClassVar[tuple[Resource, ...]] = ()
     enabled_by_default: ClassVar[bool] = True
 
-    def __init__(self, fetcher: Fetcher) -> None:
+    essential: ClassVar[bool] = True
+    """Whether the pipeline can produce a recommendation without this source.
+
+    Exactly one source supplies the game itself; everything else enriches it. A non-essential
+    source that fails is logged, recorded and skipped, because a slightly worse recommendation
+    comfortably beats no recommendation at 03:30 (NFR-15, DP-15). Marking a source essential is a
+    statement that its absence makes the output *wrong* rather than *poorer*.
+    """
+
+    attribution: ClassVar[str] = ""
+    """How this source must be credited where its data is shown (NFR-10).
+
+    Declared by the source because only the source knows its own terms, and carried downstream as
+    data so no module outside this package has to name a provider to render the credit.
+    """
+
+    contributes: ClassVar[tuple[str, ...]] = ()
+    """Canonical field names this source can supply. The input to per-field precedence (NFR-15),
+    and the reason losing a source removes known fields rather than unknown ones."""
+
+    def __init__(self, fetcher: Fetcher, options: SourceOverride | None = None) -> None:
         self.fetcher = fetcher
+        self.options = options or SourceOverride()
 
     def url_for(self, path: str) -> str:
         return f"{self.base_url.rstrip('/')}/{path.lstrip('/')}"

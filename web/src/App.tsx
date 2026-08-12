@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { fetchMeta, fetchPlayers, fetchRules, fetchSquad, fetchWeek } from "./api";
-import type { Meta, Players, Rules, Squad, Week } from "./contract/types";
+import { fetchMeta, fetchPlan, fetchPlayers, fetchRules, fetchSquad, fetchWeek } from "./api";
+import type { Meta, Plan, Players, Rules, Squad, Week } from "./contract/types";
 import { Header } from "./components/Header";
 import { SquadPitch } from "./components/SquadPitch";
 import { Bench } from "./components/Bench";
 import { WeekPanel } from "./components/WeekPanel";
+import { PlanPanel } from "./components/PlanPanel";
 import { PlayerTable } from "./components/PlayerTable";
 import "./App.css";
 
@@ -14,6 +15,7 @@ interface LoadedData {
   players: Players;
   squad: Squad;
   week: Week | null;
+  plan: Plan | null;
 }
 
 export function App() {
@@ -22,9 +24,16 @@ export function App() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([fetchMeta(), fetchRules(), fetchPlayers(), fetchSquad(), fetchWeek()])
-      .then(([meta, rules, players, squad, week]) => {
-        if (!cancelled) setData({ meta, rules, players, squad, week });
+    Promise.all([
+      fetchMeta(),
+      fetchRules(),
+      fetchPlayers(),
+      fetchSquad(),
+      fetchWeek(),
+      fetchPlan(),
+    ])
+      .then(([meta, rules, players, squad, week, plan]) => {
+        if (!cancelled) setData({ meta, rules, players, squad, week, plan });
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : String(err));
@@ -51,6 +60,7 @@ export function App() {
       <Header meta={data.meta} />
       <main>
         {data.week && <WeekPanel week={data.week} />}
+        {data.plan && <PlanPanel plan={data.plan} />}
         <SquadPitch squad={data.squad} rules={data.rules} />
         <Bench squad={data.squad} />
         <PlayerTable players={data.players.players} />

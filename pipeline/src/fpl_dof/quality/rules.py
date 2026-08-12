@@ -238,6 +238,76 @@ def _history_belongs_to_known_players(
     )
 
 
+def _crosswalk_is_mostly_matched(frame: pd.DataFrame, context: Mapping[str, object]) -> CheckResult:
+    """How many of each source's players resolution failed to identify (FR-07).
+
+    The gate that stands between this project and R-10. A matcher that quietly stops working does
+    not raise: it produces a crosswalk with fewer rows in it, every one of which is still perfectly
+    valid, and a forecast that has simply lost a source's signal for half the league. Only the rate
+    sees that.
+
+    Per source rather than overall, because one broken source averaged against three working ones
+    is exactly the failure an aggregate hides.
+    """
+    limit = _config(context).maximum_unmatched_player_rate
+    worst_source, worst_rate, counts = "", 0.0, {}
+    for source, group in frame.groupby("source"):
+        unmatched = int((group["match_method"] == "unmatched").sum())
+        rate = unmatched / len(group) if len(group) else 0.0
+        counts[str(source)] = {"unmatched": unmatched, "total": len(group)}
+        if rate > worst_rate:
+            worst_source, worst_rate = str(source), rate
+    return (
+        worst_rate <= limit,
+        f"worst unmatched rate is {worst_rate:.1%}"
+        + (f" for {worst_source}" if worst_source else "")
+        + f", limit is {limit:.0%}",
+        {"rate": round(worst_rate, 4), "limit": limit, "by_source": counts},
+    )
+
+
+def _crosswalk_identities_are_one_to_one(
+    frame: pd.DataFrame, context: Mapping[str, object]
+) -> CheckResult:
+    """No canonical player is claimed twice by one source.
+
+    Resolution already fails hard on this, and the gate exists anyway: a guardrail that has only
+    ever been enforced at the point of writing stops being enforced the moment somebody writes the
+    table another way. This one checks the artefact rather than the process.
+    """
+    matched = frame[frame["player_id"].notna()]
+    duplicated = matched.duplicated(subset=["season", "source", "player_id"], keep=False)
+    offenders = (
+        matched.loc[duplicated, ["source", "player_id"]].astype(str).agg("/".join, axis=1).tolist()
+    )
+    return (
+        not offenders,
+        f"{len(offenders)} crosswalk row(s) map two source players onto one footballer: "
+        f"{offenders[:5]}",
+        {"offenders": offenders[:20]},
+    )
+
+
+def _crosswalk_is_for_this_season(
+    frame: pd.DataFrame, context: Mapping[str, object]
+) -> CheckResult:
+    """Every crosswalk row belongs to the season being run.
+
+    Resolution is re-run from scratch each season because transfers invalidate club-based matching
+    (Design §3.2). A row carried over from last season is last season's answer wearing this
+    season's clothes.
+    """
+    expected = context.get("season")
+    if not isinstance(expected, str):
+        return True, "no season in context to check against", {}
+    stale = sorted({str(value) for value in frame["season"].unique()} - {expected})
+    return (
+        not stale,
+        f"crosswalk carries {len(stale)} season(s) other than {expected}: {stale[:3]}",
+        {"stale_seasons": stale[:10], "expected": expected},
+    )
+
+
 # --- schema ------------------------------------------------------------------------------------
 
 
@@ -359,6 +429,33 @@ GATES: tuple[Gate, ...] = (
         requirement="FR-06",
         summary="History rows reference players that exist",
         check=_history_belongs_to_known_players,
+    ),
+    Gate(
+        name="crosswalk_unmatched_rate",
+        gate_class=GateClass.REFERENTIAL,
+        severity=GateSeverity.ERROR,
+        table=Table.PLAYER_CROSSWALK.value,
+        requirement="FR-07",
+        summary="Each source's players are mostly resolved to canonical ones",
+        check=_crosswalk_is_mostly_matched,
+    ),
+    Gate(
+        name="crosswalk_identity_uniqueness",
+        gate_class=GateClass.REFERENTIAL,
+        severity=GateSeverity.ERROR,
+        table=Table.PLAYER_CROSSWALK.value,
+        requirement="FR-07",
+        summary="No source maps two of its players onto one canonical player",
+        check=_crosswalk_identities_are_one_to_one,
+    ),
+    Gate(
+        name="crosswalk_season",
+        gate_class=GateClass.REFERENTIAL,
+        severity=GateSeverity.ERROR,
+        table=Table.PLAYER_CROSSWALK.value,
+        requirement="FR-07",
+        summary="The crosswalk was resolved for the season being run",
+        check=_crosswalk_is_for_this_season,
     ),
     Gate(
         name="player_position_present",

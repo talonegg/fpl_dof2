@@ -6,6 +6,9 @@ requires-python = ">=3.14"
 license = { text = "MIT" }
 
 dependencies = [
+    # The multi-gameweek solver from E4 onward (DL-15, DL-26). Not optional: the horizon model
+    # refuses to fall back to CBC silently, so an environment without this cannot plan.
+    "highspy>=1.15",
     "httpx>=0.28",
     "jsonschema>=4.23",
     "numpy>=2.2",

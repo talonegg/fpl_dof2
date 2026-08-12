@@ -591,6 +591,147 @@ in-season evidence, neither of which compresses with build speed.
 
 ---
 
+## DL-24 — OD-06 resolved: effective ownership redefined without a captaincy term
+
+**Date:** 2026-08-11 · **Status:** Accepted · **Decided by:** Agent, ahead of E4-S4, recorded here
+before code so the choice is auditable rather than discovered in the risk-dial implementation
+
+Of the three routes set out in [04-conceptual-design.md §7.1](04-conceptual-design.md#71-effective-ownership-is-not-directly-observable-con-12-od-06),
+**Redefine** is adopted: `EO[p] = selected_by_percent[p]`, with no modelled captaincy term. The risk
+dial's objective penalises deviation from `selected_by_percent` alone.
+
+**Why, over the other two.** *Estimate* requires a captaincy-share model calibrated against
+`most_captained` (a single id per gameweek, not a distribution) — buildable, but its accuracy is
+itself unmeasured, and DL-21 already found this project shipping an unvalidated model presented as
+more certain than it is once before. *Sample* is genuinely measured but is post-deadline by
+construction — it informs next week, not the week it is needed for — and spends request budget
+pulling picks from public leagues, a cost with no E4 story funding it. **Redefine is never wrong
+about what it knows**: `selected_by_percent` is exact, public, and requires no additional model.
+
+**What is lost:** the risk dial cannot see captaincy concentration, so it cannot distinguish "60%
+own him, 40% of those captain him" from "60% own him, 5% captain him" — a real gap, most visible
+exactly at the players the dial exists to reason about. E4-S6's explanation layer must say so
+explicitly wherever ownership is shown, not just here.
+
+**What the UI states, per Design §7.1's own requirement:** every ownership figure is labelled
+"selected by" and never "effective ownership" or "captaincy share", and the single most-captained
+player (`most_captained` from `bootstrap-static` events, when published) is surfaced as a plain
+callout — "N% own him, and he is this gameweek's most-captained pick" — rather than folded into a
+number that implies more precision than the data supports.
+
+**Consequence:** the tier-1 cohort mismatch in CON-12 (top-100k template vs all ~11m managers) is
+not fixed by this — `selected_by_percent` is still whole-field ownership. That gap remains open and
+is not this decision's to close; it is a limitation the UI states alongside the EO source label.
+
+---
+
+## DL-25 — OD-05 resolved: the risk dial defaults to Balanced
+
+**Date:** 2026-08-11 · **Status:** Accepted · **Decided by:** Agent, during E4-S4, recorded before
+the dial shipped so the default is a decision rather than an accident of implementation
+
+**The dial defaults to `balanced`**, and it is a configuration field (`decision.risk.dial`) the owner
+can change at any time without a code change.
+
+**Why, and why it is not a strong claim.** OD-05 was narrowed by [DL-13](#dl-13--charter-amendments-following-the-2026-08-09-architecture-and-plan-audit)
+to a question of *temperament*, not of target: the rank ambition is already settled in charter §5
+(top-100k target, top-10k stretch). Temperament is the owner's to state, and the owner has not stated
+it — [INPUTS-REQUIRED §6.1](epics/INPUTS-REQUIRED.md) is still empty. Two things follow:
+
+1. **The design already names a default.** [04-conceptual-design.md §7.1](04-conceptual-design.md#71-effective-ownership-is-not-directly-observable-con-12-od-06)'s
+   own table gives Balanced as "Default" — "small penalty, broadly follows expected points, avoiding
+   only the most extreme template gaps". Adopting a different one would be inventing a preference
+   nobody expressed.
+2. **Balanced is the position that assumes least.** Safe assumes a rank worth protecting; Aggressive
+   assumes a rank worth chasing and conviction in an edge. Neither is knowable before a season has
+   been played, and [DL-21](#dl-21--the-v1-forecast-beats-price-and-loses-to-recent-form-reported-not-tuned)
+   makes the case against Aggressive sharper: a dial that rewards differentials is a dial that leans
+   harder on the model's discrimination at the head of the ranking, which is the one thing the
+   backtest says the model does not have.
+
+**Concretely:** `RiskConfig.ownership_weight` is `{safe: +0.020, balanced: +0.005, aggressive:
+-0.010}` expected points per percentage point of `selected_by_percent` per starter per gameweek.
+Balanced is deliberately an order of magnitude smaller than Safe rather than zero — a zero weight
+would make the dial's middle position mean "the dial is off", and the design asks for a small pull
+toward the template, not for none.
+
+**Consequence:** **OD-05 is closed.** It reopens on one trigger and one only — the owner stating a
+target rank or a temperament, at which point this becomes a one-line configuration change with no
+code behind it.
+
+---
+
+## DL-26 — HiGHS is installed and is the solver for the multi-gameweek model; CBC stays on the single-gameweek one
+
+**Date:** 2026-08-11 · **Status:** Accepted · **Arose in:** E4-S2
+
+[DL-15](#dl-15--chip-timing-by-scenario-enumeration-highs-as-the-solver-from-e4) committed to HiGHS
+from E4 without confirming it would install. It does: `highspy 1.15.1` installs from PyPI on Python
+3.14/Windows, PuLP 3.3.2 exposes it as `pulp.HiGHS`, and it solves the multi-gameweek model. It is
+open-source and carries no licence cost, so Invariant 3 is untouched. **This entry exists to record
+that the claim was tested rather than assumed**, and to state the split that was not in DL-15.
+
+**The split.** HiGHS is used for the **multi-gameweek** model only
+(`decision.horizon.solver`, default `HiGHS`). The single-gameweek E0 squad MILP and the E1 transfer
+MILP stay on **CBC**, which E0 validated against them. DL-15's argument was that CBC was never
+validated against a problem of E4's size — that argument says nothing about the problems it *was*
+validated against, and moving them would discard a validation to gain nothing.
+
+**A refusal, deliberately.** When `decision.horizon.solver` is `HiGHS` and `highspy` is absent, the
+run **fails with an explanation** rather than falling back to CBC. "Solved on HiGHS" is a claim about
+how much an answer can be trusted at this size; silently substituting a weaker solver while the
+configuration still says HiGHS would make that claim false in exactly the place nobody would look.
+CBC remains reachable by setting the field, which is an informed choice rather than a silent one.
+
+**Measured, on the real problem.** A full local run against the live snapshot — 577 players pruned
+to a 159-player pool, a five-gameweek horizon, twenty chip scenarios — solved every scenario to
+optimality in **92.7 seconds**, inside the 600-second `scenario_time_budget_seconds`. Individual
+scenarios ranged from 0.3 to about 5 seconds. So the budget is met, and DL-15's bet on HiGHS is
+vindicated on the problem it was made about rather than on a proxy.
+
+**What this still does not settle.** R-07 stays rated High, for two reasons the number above does not
+touch. It is a *preseason* run: no gameweek has been played, there are no double or blank gameweeks
+in the fixture list yet, and the second half of the season is where the chip calendar gets
+interesting and the model gets harder. And it is one developer machine, not CI, where the runner is
+slower and shared. The greedy fallback stays not-optional, and
+`decision.horizon.scenario_time_budget_seconds` bounds the enumeration so that a slow scenario set
+degrades to fewer scenarios rather than to a missed deadline (DP-15).
+
+---
+
+## DL-27 — E5 built without an odds key or a fresh scraping sign-off; both were already answered
+
+**Date:** 2026-08-12 · **Status:** Accepted · **Arose in:** E5
+
+Two inputs [INPUTS-REQUIRED.md §4](epics/INPUTS-REQUIRED.md#4-needed-for-e5-external-sources-around-gw10-12)
+lists as owner-supplied were not obtained before this epic was built. Neither blocked the build, and
+this entry records why rather than leaving the gap silent.
+
+**No `ODDS_API_KEY` exists.** The odds adapter (`sources/oddsapi/adapter.py`) is built in full —
+request shape, de-vig conversion, credit-budget ledger enforced in the adapter per CON-7/R-08 — and
+contract-tested against a recorded fixture (`tests/fixtures/odds_epl.json`), never against the live
+provider. With no key configured, `enabled_by_default = False` and the adapter contributes nothing;
+this is the epic's own required degraded state (E5-S4/S5), not a shortfall. **It has never been
+verified against a real response from The Odds API**, and cannot be until the owner obtains a key
+per INPUTS-REQUIRED §4.1 — at that point the contract test should be re-run with `--network` style
+verification against the live endpoint before the adapter is trusted with a real credit spend.
+
+**Understat and FBref were built without a fresh sign-off request.** INPUTS-REQUIRED §4.2 asks for
+"explicit sign-off on the scraping approach" before building — but the posture it asks for sign-off
+on is the same posture the epic doc and [04-conceptual-design.md §3.2](04-conceptual-design.md#32-entity-resolution-fr-07-r-10)
+already specify: personal non-commercial use, `robots.txt` checked programmatically before every
+crawl (not merely asserted), crawl-delayed via the existing `RateLimitConfig`, cached hard, weekly
+cadence at most, attributed in the UI. Treating an already-documented design decision as a second
+open question would have stalled the epic on a input that was, in substance, already given. Built to
+that spec; the owner retains the option to object and have it withdrawn, which is materially
+different from building without any recorded posture at all.
+
+**Consequence:** no debt opened for the odds key (E5-S4 is complete on its own terms; the live
+verification is a follow-up action, not unfinished code). See D-20 for the related and larger gap —
+none of the three sources backfills history, so none of them can move a backtest metric yet.
+
+---
+
 ## Open decisions
 
 Decisions deliberately deferred, with the point at which each must be resolved.
@@ -601,5 +742,5 @@ Decisions deliberately deferred, with the point at which each must be resolved.
 | ~~OD-02~~ | ~~Hosting: Cloudflare Pages, public repo, or local-only~~ — **Closed by DL-12.** GitHub Pages is free on a public repository; no Cloudflare account needed | Resolved |
 | OD-03 | Which odds provider and free-tier credit budget | E5, ~GW10 |
 | OD-04 | Whether to add injury/press-conference feeds as a fourth source | E8, in-season |
-| OD-05 | **Default risk-dial posture.** Narrowed by [DL-13](#dl-13--charter-amendments-following-the-2026-08-09-architecture-and-plan-audit): the rank *ambition* is settled in charter §5 (top-100k target, top-10k stretch). What remains open is how aggressively the dial should default, which is a temperament question, not a target question | E4, before the risk dial ships |
-| OD-06 | **How effective ownership is obtained.** `selected_by_percent` is public; captaincy share is not exposed by any FPL endpoint, so `EO = selected_by% + captained_by%` is not directly computable. Three candidate routes are set out in [04-conceptual-design.md §7](04-conceptual-design.md#7-risk-and-ownership-model) | E4, with the risk dial |
+| ~~OD-05~~ | ~~Default risk-dial posture~~ — **Closed: Balanced, as a configuration field the owner can change at any time.** Reopens only if the owner states a target rank or a temperament. See [DL-25](#dl-25--od-05-resolved-the-risk-dial-defaults-to-balanced) | Resolved |
+| ~~OD-06~~ | ~~How effective ownership is obtained~~ — **Closed: redefined without a captaincy term.** See [DL-24](#dl-24--od-06-resolved-effective-ownership-redefined-without-a-captaincy-term) | Resolved |

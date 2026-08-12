@@ -92,6 +92,8 @@ byte-for-byte claim the charter carried at v1.0.
 
 ### E2-S7 — Chip expiry tracker · 0.5 day · OBJ-4
 
+> **Superseded by [E4-S3](E4-decision-engine.md#e4-s3--chip-modelling--2-days--fr-20--repays-d-04), and deliberately not deleted.** E4 shipped the real chip planner and a season-long calendar. This tracker still runs, still raises its escalating alert from the configured gameweek, and still reads its expiry from the game's own chip windows. It is the insurance policy: it depends on nothing but the chip table, so it keeps working on a run where the forecast is stale, the solver falls back, or the decision stage is skipped for want of a squad. Removing it would trade a guaranteed warning for a conditional one, on the single loss in this project that cannot be undone.
+
 Not an optimiser. A **deliberately dumb insurance policy** against a dated, irreversible loss.
 
 Chip set 1 expires at the **GW19 deadline, 13:30 GMT Sat 2 Jan 2027**, and unused chips are simply

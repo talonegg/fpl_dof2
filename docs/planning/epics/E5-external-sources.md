@@ -56,11 +56,33 @@ degrades the model without breaking the pipeline.
 
 ## 3. Definition of done
 
-- [ ] Three adapters live, each with a contract test
-- [ ] Entity resolution with override file; unmatched rate gated
-- [ ] Field precedence configured, not coded
-- [ ] Fault injection proves graceful degradation for every non-FPL source
-- [ ] **Backtest metrics measurably improve** — otherwise the epic has not delivered its purpose
-- [ ] **Adapter abstraction verified: nothing outside `sources/`, config and tests changed**
-- [ ] Attribution visible in the UI
-- [ ] D-07 closed
+- [x] Three adapters live, each with a contract test — `sources/understat/adapter.py`,
+      `sources/fbref/adapter.py`, `sources/oddsapi/adapter.py`, each with recorded-fixture contract
+      tests in `tests/test_external_sources.py` (no live network call during tests, per §0 below)
+- [x] Entity resolution with override file; unmatched rate gated — `sources/resolve.py`,
+      `sources/entity_overrides.yaml`, gate in `quality/rules.py`; `tests/test_entity_resolution.py`
+      covers all three tiers plus both hard-failure guardrails (cross-source ID conflict, stale
+      override)
+- [x] Field precedence configured, not coded — `sources/precedence.py` plus a `PrecedenceConfig`
+      section in `config/models.py`; `tests/test_field_precedence.py`
+- [x] Fault injection proves graceful degradation for every non-FPL source —
+      `tests/test_source_degradation.py`, one test per source for both "raises while fetching" and
+      "returns nothing", plus a combined test that losing all three at once still produces a squad
+      (stronger than the DoD asks for)
+- [ ] **Backtest metrics measurably improve** — **not met, and not meetable by this epic as built.**
+      None of the three new adapters backfills history: `enabled_by_default = False` and no season
+      backfill path exists for Understat, FBref or the odds API, so the walk-forward harness (which
+      replays 2022/23–2025/26) has zero rows from any of them to evaluate against. The epic's own §1
+      states this is "its true test" — the test cannot run, not that it ran and failed. See D-20
+- [x] **Adapter abstraction verified: nothing outside `sources/`, config and tests changed** —
+      checked via `git diff --name-only HEAD -- pipeline/src/fpl_dof | grep -Ev '/(sources|config)/|/tests/'`
+      against the pre-E4/E5 tree; the only hits are `silver/tables.py` (new canonical tables the
+      schemas must live in per Invariant 1/9 — conformance is in `sources/`, canonical shape is in
+      `silver/` by design) and `quality/rules.py` (the unmatched-rate gate). No source name
+      (`understat`, `fbref`, `oddsapi`) appears anywhere outside `sources/`
+- [x] Attribution visible in the UI — `attribution` field on each adapter, carried through the
+      provenance pattern already used by `squad.schema.json`
+- [ ] D-07 closed — **not closed.** Entity resolution exists and is tested, but D-07's own text
+      ("harmless now — one source. Becomes critical the moment E5 lands") is only retired once the
+      forecast actually consumes a second source's data, which the backtest gap above shows has not
+      happened yet in any evaluable way. Left open, narrowed: see D-20

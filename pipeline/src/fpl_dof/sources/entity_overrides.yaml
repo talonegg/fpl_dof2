@@ -1,0 +1,20 @@
+# Manual player crosswalk overrides — the third and final tier of entity resolution (FR-07).
+#
+# Committed and reviewed on purpose: every manual identity decision in this project is auditable,
+# and a mapping nobody can see is a mapping nobody can question (Design §3.2).
+#
+# Format:
+#
+#   <source name>:
+#     "<the source's own player id>": <FPL player code>   # player name, why it needed a hand
+#
+# The FPL *code*, not the element id. Element ids are reassigned every season; the code is stable
+# for a player's career, and a mapping keyed on the id would silently point at a different
+# footballer next August.
+#
+# An override always wins, is recorded with match_method "override" and confidence 1.0, and is the
+# only tier that sets verified = true. Add one only after checking the player by hand.
+#
+# Empty is the correct state until resolution actually fails on somebody. An override added
+# speculatively is a guess with a human's authority attached to it.
+{}

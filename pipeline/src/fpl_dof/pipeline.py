@@ -112,6 +112,11 @@ STAGES: tuple[Stage, ...] = (
         target="fpl_dof.stages.week:run",
     ),
     Stage(
+        name="decision",
+        summary="Plan the next few gameweeks and the chip calendar (E4)",
+        target="fpl_dof.stages.decision:run",
+    ),
+    Stage(
         name="publish",
         summary="Write the versioned web contract",
         target="fpl_dof.stages.publish:run",

@@ -33,3 +33,34 @@ def cell(frame: pd.DataFrame, row: int, column: str) -> float:
 def series_map(result: Any) -> pd.Series:
     """Treat a groupby-apply result as the Series it is."""
     return cast(pd.Series, result)
+
+
+GAMEWEEK_COLUMN_PREFIX = "xp_gw_"
+GAMEWEEK_SD_COLUMN_SUFFIX = "_sd"
+
+
+def gameweek_column(gameweek: int) -> str:
+    """Column carrying expected points for one gameweek: ``μ[p,w]`` in Design §6.2.
+
+    Named in one place because the forecast writes it and the multi-gameweek optimiser reads it,
+    and a string literal agreed by coincidence in two packages is a contract nobody can see.
+    """
+    return f"{GAMEWEEK_COLUMN_PREFIX}{gameweek}"
+
+
+def gameweek_sd_column(gameweek: int) -> str:
+    """Column carrying the standard deviation for one gameweek: ``sigma[p,w]`` (Invariant 6)."""
+    return f"{gameweek_column(gameweek)}{GAMEWEEK_SD_COLUMN_SUFFIX}"
+
+
+def horizon_gameweeks(frame: pd.DataFrame) -> tuple[int, ...]:
+    """Gameweeks the frame carries per-gameweek expected points for, in order."""
+    found = []
+    for column in frame.columns:
+        name = str(column)
+        if not name.startswith(GAMEWEEK_COLUMN_PREFIX) or name.endswith(GAMEWEEK_SD_COLUMN_SUFFIX):
+            continue
+        suffix = name.removeprefix(GAMEWEEK_COLUMN_PREFIX)
+        if suffix.isdigit():
+            found.append(int(suffix))
+    return tuple(sorted(found))
