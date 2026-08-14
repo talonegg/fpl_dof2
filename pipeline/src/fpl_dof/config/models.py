@@ -375,9 +375,66 @@ class ForecastConfig(_Section):
     features: FeatureConfig = FeatureConfig()
 
 
+class ChipReplayConfig(_Section):
+    """D-18 — replaying real historical deadlines through the whole decision engine.
+
+    Every field here exists to *bound* the replay. One deadline costs a model refit plus two
+    multi-gameweek solves over a full chip enumeration, which DL-26 measured in the tens of
+    seconds; an unbounded sweep of the backtest window would run for hours and answer the same
+    question the bounded one does.
+    """
+
+    deadline_stride: int = Field(
+        default=6,
+        ge=1,
+        description=(
+            "Take every Nth scoreable deadline. Spacing the sample rather than taking a run of "
+            "consecutive gameweeks is deliberate: consecutive deadlines share almost all their "
+            "training data and their fixture run, so they are close to one observation repeated."
+        ),
+    )
+    first_gameweek: int = Field(
+        default=6,
+        ge=1,
+        description=(
+            "Earliest gameweek sampled. Before this the component models are fitted on a handful "
+            "of matches, so the chip timing being compared reflects the prior rather than the "
+            "fixtures."
+        ),
+    )
+    last_gameweek: int = Field(
+        default=32,
+        ge=1,
+        description=(
+            "Latest gameweek sampled. Late enough in the season that the horizon runs off the end "
+            "leaves the chip enumerator almost no timings to choose between."
+        ),
+    )
+    max_deadlines: int = Field(
+        default=8,
+        ge=1,
+        description="Hard ceiling on sampled deadlines, whatever the stride implies.",
+    )
+    bank: float = Field(
+        default=0.0,
+        ge=0,
+        description=(
+            "Money in the bank of the replayed squad. Zero because the squad is solved to the "
+            "budget: a replay is not a manager's actual season, and pretending it had savings "
+            "would be an invented fact."
+        ),
+    )
+    free_transfers: int = Field(
+        default=1,
+        ge=0,
+        description="Free transfers the replayed squad starts each sampled deadline with.",
+    )
+
+
 class BacktestConfig(_Section):
     """Walk-forward replay. The measurement that makes every later change evaluable (FR-37)."""
 
+    chip_replay: ChipReplayConfig = ChipReplayConfig()
     training_seasons: tuple[str, ...] = Field(
         default=("2022/23", "2023/24", "2024/25", "2025/26"),
         description="Seasons available to the harness. Which of them a component may use is a "

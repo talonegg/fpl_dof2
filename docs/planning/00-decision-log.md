@@ -732,6 +732,145 @@ none of the three sources backfills history, so none of them can move a backtest
 
 ---
 
+## DL-28 — The simulation re-rank changes real chip decisions, and there is no evidence yet that it improves them
+
+**Date:** 2026-08-13 · **Status:** Accepted · **Arose in:** D-18
+
+E4-S4a's acceptance criterion was "the re-rank changes at least one chip recommendation **in the
+backtest**". E4 shipped a constructed unit test instead — three Bench Boost timings tied exactly on
+expected points, separated by the dial's percentile — and [D-18](epics/E0-steel-thread-gw1.md#6-technical-debt-register)
+recorded the gap. This entry records what happened when the criterion was actually run.
+
+**What was built.** `optimise/replay.py` replays real historical deadlines through the whole
+decision engine. Per sampled deadline it refits the component models on matches finished strictly
+before that deadline — through the *same* `fold_rows`/`training_rows` the walk-forward harness uses,
+because a second assembly of the training set is a second chance to leak (Invariant 5) — forecasts
+every player against each horizon gameweek's **real fixture**, solves the best legal squad, then runs
+`build_plan` twice, re-rank on and off. Gated behind a `slow` pytest marker on the same mechanism as
+`--network` (`tests/test_chip_replay.py`).
+
+**The sample, and why it is this size.** Eight deadlines: every sixth scoreable deadline between
+GW6 and GW32 across 2024/25 and 2025/26. Spaced rather than consecutive, because neighbouring
+deadlines share almost all their training data and their fixture run and are close to one
+observation repeated. It cost **951 seconds** — a full 72-deadline sweep at that rate is over two
+hours, and would answer the same question.
+
+**The result: 8 of 8 deadlines changed.** Every one moved a Bench Boost. Scored against what those
+exact players actually went on to score, **5 of the 8 changes landed on the better gameweek and 3 on
+the worse one**, mean +0.75 points per change with a spread from −44 to +42.
+
+| Season | GW | Re-rank off | Re-rank on | Actual, off | Actual, on |
+| --- | --- | --- | --- | --- | --- |
+| 2024/25 | 6 | BB GW7 | BB GW6 | 59 | **69** |
+| 2024/25 | 12 | BB GW13 | BB GW12 | **80** | 36 |
+| 2024/25 | 18 | BB GW22 | BB GW18 | 37 | **79** |
+| 2024/25 | 24 | BB GW25 | BB GW24 | 82 | **88** |
+| 2024/25 | 30 | BB GW32 | BB GW30 | **51** | 42 |
+| 2025/26 | 9 | BB GW10 | BB GW9 | **87** | 64 |
+| 2025/26 | 15 | BB GW19 | BB GW15 | 44 | **59** |
+| 2025/26 | 21 | BB GW25 | BB GW21 | 59 | **76** |
+
+**The criterion is met, and the honest reading is narrower than that sounds.** 5–3 on eight
+observations is indistinguishable from a coin flip; nobody should read it as skill. What it does
+establish is the thing D-18 said was unproven: the re-rank is not confined to constructed ties. It
+moves decisions the expectation-maximiser had already made on real data, which is exactly what
+E4-S4a asserted and had not shown.
+
+**The finding that was not asked for, and matters more.** The direction is regular: at the default
+Balanced dial the re-rank moved Bench Boost to the **first gameweek of the horizon** at all eight
+deadlines, without exception. 8-for-8 in one direction is not obviously what a risk-preference
+effect looks like, so it was worth asking what would falsify it — if the percentile is doing the
+work, the dials must disagree with each other, because they rank on opposite ends of the same
+distribution.
+
+**They do disagree.** Re-running three deadlines at each dial:
+
+| 2024/25 deadline | Re-rank off | Safe | Balanced | Aggressive |
+| --- | --- | --- | --- | --- |
+| GW6 | BB GW7 | BB GW6 | BB GW6 | BB GW6 |
+| GW18 | BB GW22 | BB GW18 | BB GW18 | **BB GW19** |
+| GW30 | BB GW32 | **BB GW32 — no change** | BB GW30 | BB GW30 |
+
+The safe dial declined to move the chip at all at GW30, and the aggressive dial chose a different
+week at GW18. So the front-loading is **not** a fixed structural artefact; the percentile genuinely
+separates plans, and the dial genuinely changes the answer.
+
+What survives the falsification test is narrower and still worth tracking: at the two dial settings
+a user is most likely to run, chip timing lands at the front of the horizon far more often than
+chance suggests, and nothing yet explains why. That is opened as **D-21**. Until the cause is
+known, the re-rank is proven to *move* chip timing and to *respond to the dial*, and is not proven
+to *time* chips well.
+
+**Consequence:** E4-S4a's DoD item is ticked — its stated criterion is met, and the second half of it
+("the direction of the change is explicable") is met by the dial table above rather than only by the
+constructed unit test. D-18 is closed and **D-21** is opened for the front-loading.
+D-13's gate is untouched — the forecast underneath all of this still loses to the model-free
+benchmark at the head of the ranking ([DL-21](#dl-21--the-v1-forecast-beats-price-and-loses-to-recent-form-reported-not-tuned)),
+and a well-timed chip on a poor ranking is still a poor chip.
+
+---
+
+## DL-29 — D-20 re-diagnosed: the backfill was never the blocker, the missing consumer is
+
+**Date:** 2026-08-13 · **Status:** Accepted · **Arose in:** D-20
+
+D-20 states that "none of E5's three new sources backfills history … no season-backfill path exists
+for any of them", and concludes that E5's stated purpose cannot be evaluated. Going to close it
+found the diagnosis wrong in a way worth recording, because acting on it would have bought nothing.
+
+**Understat and FBref already backfill.** Both adapters loop over `request.seasons`, both build
+season-shaped URLs from the season they are given, and both `stages/ingest.py` and
+`stages/transform.py` already pass `sources.backfill_seasons` into the request. The path existed and
+was untested. It is tested now, against recorded historical pages
+(`tests/test_source_backfill.py`, fixtures `understat_league_2024.html` and
+`fbref_stats_2024_2025.html`): each season fetched from its own URL, both seasons conformed and
+labelled, a relegated player surviving in the historical season only, a mid-season transfer
+resolving to the club the player finished at, `robots.txt` read once for the whole backfill rather
+than once per season, and a finished season never re-fetched.
+
+**One real defect was underneath it.** `request.seasons or (request.season,)` meant a configured
+backfill **replaced** the current season rather than adding to it — so switching a backfill on
+silently switched this season's enrichment off, with no error, no missing column and no symptom
+other than a forecast quietly missing the source it was configured to use. Fixed by
+`IngestRequest.seasons_with_current()`, which both scraped adapters now call.
+
+**And none of that can move a backtest metric, because nothing reads the data.** The conformed
+`player_metric` and `player_advanced` tables are written to silver by the transform stage and read
+by **no module in the project**. The feature store builds every feature from `player_gameweek`
+alone. So the chain from a backfilled xG figure to a backtest number is broken one link further
+downstream than D-20 says, and no amount of crawling repairs it.
+
+**A second, structural blocker sits behind the first.** Both scraped sources conform *running
+season totals* at `scope="season"` with no gameweek — correctly, as their own module docstrings
+argue, because labelling a running total as a gameweek observation would leak the rest of the season
+into every fold before it. But a crawl of a **finished** season yields one row per player describing
+the whole of it, and that row is unusable at any deadline *within* that season for exactly the same
+reason (Invariant 5). It is legitimate only as a **prior-season** feature. E5 never made that design
+decision, and it is the actual work D-20 is asking for.
+
+**No live crawl was performed, deliberately.** It would have produced data no metric can consume, at
+the cost of a few hundred requests against somebody else's site. Crawling to satisfy a checkbox is
+the wrong side of the posture recorded in [DL-27](#dl-27--e5-built-without-an-odds-key-or-a-fresh-scraping-sign-off-both-were-already-answered).
+
+**The DL-21 baseline was re-run and is unmoved, byte for byte.** `fpl-dof backtest` over the same 72
+folds and 21,712 scored observations returns model Spearman 0.24444, B0 0.21385, model-free 0.29104,
+MAE skill 0.01501, top-20 precision 0.00 — identical to the report from before this work. That is
+both the point (no source data reached the forecast, because none can) and a regression check on the
+one change made to the harness itself: `_fold_rows`/`_training_rows` were made public so the chip
+replay could reuse them rather than assemble a second, divergent training set.
+
+**Odds are untouched and stay untouched.** The provider publishes no historical archive on its free
+tier and no `ODDS_API_KEY` exists to test one with. That half of D-20 needs the owner obtaining a
+key (INPUTS-REQUIRED §4.1), not more code, and it is recorded as an external blocker rather than
+worked around.
+
+**Consequence:** E5's "backtest metrics measurably improve" DoD item stays **unticked** and D-07
+stays **open** — neither has been earned, and [DL-22](#dl-22--post-e3-audit-found-a-dod-item-ticked-without-its-acceptance-criterion-being-met)
+is the reason that matters. D-20 is narrowed to its true remainder and **D-22** is opened for the
+missing consumer, which is now the single thing standing between E5 and its own acceptance test.
+
+---
+
 ## Open decisions
 
 Decisions deliberately deferred, with the point at which each must be resolved.

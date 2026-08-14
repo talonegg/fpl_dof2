@@ -63,6 +63,20 @@ class IngestRequest:
     ignores this; a source whose URLs are season-shaped needs to be told, and guessing from the
     wall clock would quietly fetch the wrong year through every August."""
 
+    def seasons_with_current(self) -> tuple[str, ...]:
+        """Every season a season-shaped source should fetch: the backfill, then the current one.
+
+        **Backfill adds to the current season; it never replaces it.** Reading ``seasons`` alone
+        would mean that configuring a historical backfill silently switched off this season's
+        enrichment — the run would still succeed, the fields would still be typed, and the only
+        symptom would be a forecast quietly missing the source it was configured to use. Oldest
+        first, so a later season's row wins any last-write-wins merge downstream.
+        """
+        ordered = [season for season in self.seasons if season != self.season]
+        if self.season:
+            ordered.append(self.season)
+        return tuple(dict.fromkeys(ordered))
+
 
 @dataclass
 class IngestReport:

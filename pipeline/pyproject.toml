@@ -71,6 +71,7 @@ testpaths = ["tests"]
 addopts = "-q --strict-markers"
 markers = [
     "network: hits the live FPL API; deselected by default in CI",
+    "slow: measured in minutes, not seconds; deselected by default. Run with --slow",
 ]
 
 [tool.coverage.run]

@@ -183,7 +183,13 @@ class UnderstatAdapter(SourceAdapter):
     # --- conform -------------------------------------------------------------------------
 
     def _seasons(self, request: IngestRequest) -> tuple[str, ...]:
-        return request.seasons or ((request.season,) if request.season else ())
+        """The current season **and** any configured backfill.
+
+        The league page is one request per season and the URL is season-shaped, so a historical
+        season costs exactly one more page — which is why a backfill here is polite in a way the
+        page-per-statistic sources are not.
+        """
+        return request.seasons_with_current()
 
     def _refs(self, season: str, players: list[dict[str, Any]]) -> pd.DataFrame:
         rows = [

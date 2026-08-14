@@ -180,12 +180,19 @@ names the artefact or the test that makes it true — and the three that are **n
       `test_the_same_club_starting_cap_is_enforced_and_relaxable`. It also degrades with a stated
       reason when the *current* squad cannot field an XI under it, because "do nothing" must always
       remain a legal option
-- [ ] Simulation re-rank running, and demonstrably affecting at least one chip decision **in
-      backtest** — **partially met.** The re-rank runs (`optimise/simulate.py`, correlated within a
-      match) and is demonstrated to change a chip recommendation, with an explicable direction, by
-      `test_the_simulation_re_rank_changes_a_chip_recommendation`. That is a constructed case, **not
-      the backtest**: the walk-forward harness does not run the decision engine, so the criterion as
-      written is unmet. Tracked as **D-18**
+- [x] Simulation re-rank running, and demonstrably affecting at least one chip decision **in
+      backtest** — **met, and read the caveat.** `optimise/replay.py` runs `build_plan` twice, re-rank
+      on and off, at eight real historical deadlines sampled across 2024/25 and 2025/26, refitting
+      through the walk-forward harness's own `fold_rows`/`training_rows`.
+      It changed the chip recommendation at **8 of 8** of them; scored against what those players
+      actually went on to score, 5 changes were better and 3 worse
+      ([DL-28](../00-decision-log.md#dl-28), `tests/test_chip_replay.py`, gated `--slow`). The
+      criterion's second half — "the direction of the change is explicable" — is met on real data
+      too: re-running three deadlines at each dial, the safe dial declined to move the chip where
+      balanced moved it, and the aggressive dial chose a different week again. D-18 is closed.
+      **This is not evidence the re-rank improves timing** — 5–3 on eight observations is a coin
+      flip, and at the default dial the chip landed on the first horizon gameweek 8 times out of 8,
+      which is opened as **D-21**
 - [x] **Incumbency tie-break in the objective** — the same inputs produce the same squad twice running
       (R-16), and a transfer must clear a margin rather than merely tie.
       `test_the_same_inputs_produce_the_same_squad_twice_running`,

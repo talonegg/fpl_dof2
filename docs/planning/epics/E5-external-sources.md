@@ -69,11 +69,19 @@ degrades the model without breaking the pipeline.
       `tests/test_source_degradation.py`, one test per source for both "raises while fetching" and
       "returns nothing", plus a combined test that losing all three at once still produces a squad
       (stronger than the DoD asks for)
-- [ ] **Backtest metrics measurably improve** — **not met, and not meetable by this epic as built.**
-      None of the three new adapters backfills history: `enabled_by_default = False` and no season
-      backfill path exists for Understat, FBref or the odds API, so the walk-forward harness (which
-      replays 2022/23–2025/26) has zero rows from any of them to evaluate against. The epic's own §1
-      states this is "its true test" — the test cannot run, not that it ran and failed. See D-20
+- [ ] **Backtest metrics measurably improve** — **still not met, and the reason has changed.**
+      D-20 said the blocker was the missing backfill. It was not: Understat and FBref already looped
+      over `request.seasons`, and ingest and transform already passed `sources.backfill_seasons` into
+      it. That path is now tested against recorded historical pages
+      (`tests/test_source_backfill.py`), and a real defect underneath it is fixed — a configured
+      backfill used to **replace** the current season rather than add to it. **The actual blocker is
+      that nothing reads the result**: `player_metric` and `player_advanced` are written to silver and
+      consumed by no module, and the feature store builds every feature from `player_gameweek` alone.
+      Behind that sits a design question E5 never answered — a finished season's running total is
+      only ever legitimate as a *prior-season* feature (Invariant 5). No before/after metric table can
+      be produced until that is built, so none is claimed here. See
+      [DL-29](../00-decision-log.md#dl-29) and **D-22**. The odds half of D-20 stays open as an
+      external blocker: no free-tier historical archive and no `ODDS_API_KEY` to test one with
 - [x] **Adapter abstraction verified: nothing outside `sources/`, config and tests changed** —
       checked via `git diff --name-only HEAD -- pipeline/src/fpl_dof | grep -Ev '/(sources|config)/|/tests/'`
       against the pre-E4/E5 tree; the only hits are `silver/tables.py` (new canonical tables the
@@ -82,7 +90,8 @@ degrades the model without breaking the pipeline.
       (`understat`, `fbref`, `oddsapi`) appears anywhere outside `sources/`
 - [x] Attribution visible in the UI — `attribution` field on each adapter, carried through the
       provenance pattern already used by `squad.schema.json`
-- [ ] D-07 closed — **not closed.** Entity resolution exists and is tested, but D-07's own text
-      ("harmless now — one source. Becomes critical the moment E5 lands") is only retired once the
-      forecast actually consumes a second source's data, which the backtest gap above shows has not
-      happened yet in any evaluable way. Left open, narrowed: see D-20
+- [ ] D-07 closed — **still not closed.** Entity resolution exists and is tested, and the historical
+      seasons it would resolve against are now reachable and covered. But D-07's own text ("harmless
+      now — one source. Becomes critical the moment E5 lands") is only retired once the forecast
+      actually consumes a second source's data, and nothing does. Left open, narrowed again: the
+      remainder is **D-22**, not D-20

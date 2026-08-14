@@ -181,7 +181,7 @@ def walk_forward(
         # Built and cached first, before any decision about whether this fold can be *scored*. An
         # early gameweek is not scoreable — there is nothing to have learned from — but it is still
         # evidence for every later fold, and skipping the cache would throw it away.
-        merged = _fold_rows(frame, season, gameweek, deadline, forecast_config)
+        merged = fold_rows(frame, season, gameweek, deadline, forecast_config)
         cache[deadline] = merged
         assert_no_look_ahead(merged, past, as_of=deadline)
 
@@ -190,7 +190,7 @@ def walk_forward(
             # Predicting from almost nothing measures the prior, not the model.
             continue
 
-        training = _training_rows(cache, before=deadline)
+        training = training_rows(cache, before=deadline)
         if merged.empty or training.empty:
             continue
 
@@ -277,7 +277,7 @@ def walk_forward(
     return result
 
 
-def _fold_rows(
+def fold_rows(
     history: pd.DataFrame,
     season: str,
     gameweek: int,
@@ -308,7 +308,7 @@ def _fold_rows(
     )
 
 
-def _training_rows(
+def training_rows(
     cache: dict[pd.Timestamp, pd.DataFrame],
     *,
     before: pd.Timestamp,
@@ -347,5 +347,7 @@ __all__ = [
     "Fold",
     "Predictor",
     "deadlines_for",
+    "fold_rows",
+    "training_rows",
     "walk_forward",
 ]

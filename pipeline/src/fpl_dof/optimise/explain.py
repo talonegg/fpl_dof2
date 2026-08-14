@@ -69,6 +69,24 @@ D13_CAVEAT = Caveat(
 )
 
 
+D21_CAVEAT = Caveat(
+    code="D-21",
+    headline="The chip-timing re-rank concentrates on the front of the horizon, unexplained.",
+    detail=(
+        "Replayed against eight real historical deadlines (DL-28), the simulation re-rank changed "
+        "the chip recommendation at every one of them, and at the default Balanced dial it moved "
+        "the chip to the *first* gameweek of the horizon every time. A three-dial probe shows this "
+        "is not a fixed artefact — the safe dial declined to move the chip at all at one deadline, "
+        "and the aggressive dial chose a different week at another — so the percentile genuinely "
+        "responds to the dial. But the front-loading at the two dials most likely to be run is a "
+        "strong regularity nothing yet explains. The re-rank is proven to move a chip decision and "
+        "to respond to the dial; it is not proven to time chips well. Do not play a chip on the "
+        "re-rank's timing alone. Debt D-21 tracks identifying the mechanism; it is not closed."
+    ),
+    applies_to=(APPLIES_CHIP,),
+)
+
+
 def caveats_for(*, takes_hit: bool, chips_played: Iterable[str] = ()) -> tuple[Caveat, ...]:
     """The caveats a recommendation must carry, given what it actually recommends.
 
@@ -77,9 +95,9 @@ def caveats_for(*, takes_hit: bool, chips_played: Iterable[str] = ()) -> tuple[C
     the same effect as none.
     """
     chips = tuple(chips_played)
-    if takes_hit or chips:
-        return (D13_CAVEAT,)
-    return ()
+    if not takes_hit and not chips:
+        return ()
+    return (D13_CAVEAT, D21_CAVEAT) if chips else (D13_CAVEAT,)
 
 
 @dataclass(frozen=True, slots=True)
@@ -246,6 +264,7 @@ __all__ = [
     "APPLIES_HIT",
     "APPLIES_WILDCARD",
     "D13_CAVEAT",
+    "D21_CAVEAT",
     "Caveat",
     "Contribution",
     "Explanation",

@@ -266,7 +266,14 @@ class FbrefAdapter(SourceAdapter):
     # --- conform -------------------------------------------------------------------------
 
     def _seasons(self, request: IngestRequest) -> tuple[str, ...]:
-        return request.seasons or ((request.season,) if request.season else ())
+        """The current season **and** any configured backfill.
+
+        Costed honestly: seven pages per season, so a four-season backfill is twenty-eight requests
+        against somebody else's site. They go through the shared rate limiter and the week-long TTL
+        like everything else, so the backfill is paid once and then never again — a finished
+        season's totals cannot change, which is precisely what makes it safe to cache hard.
+        """
+        return request.seasons_with_current()
 
     def _collect(
         self, season: str, request: IngestRequest, warnings: list[str]

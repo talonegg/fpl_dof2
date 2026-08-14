@@ -40,7 +40,7 @@ from fpl_dof.optimise.chips import (
     enumerate_scenarios,
     gameweek_shapes,
 )
-from fpl_dof.optimise.explain import D13_CAVEAT, caveats_for
+from fpl_dof.optimise.explain import D13_CAVEAT, D21_CAVEAT, caveats_for
 from fpl_dof.optimise.plan import DecisionPlan, as_dict, build_plan
 from fpl_dof.optimise.risk import OWNERSHIP_LABEL, ownership_bet
 from fpl_dof.publish.contract import Contract, find_contracts_root
@@ -370,10 +370,12 @@ def test_the_d13_caveat_is_attached_to_any_hit_chip_or_wildcard() -> None:
     """E4 §0. The caveat is a field on the recommendation, not a footnote, so that the explanation
     layer and the UI cannot render the advice without it."""
     assert caveats_for(takes_hit=True) == (D13_CAVEAT,)
-    assert caveats_for(takes_hit=False, chips_played=("wildcard",)) == (D13_CAVEAT,)
+    assert caveats_for(takes_hit=False, chips_played=("wildcard",)) == (D13_CAVEAT, D21_CAVEAT)
     assert caveats_for(takes_hit=False, chips_played=()) == ()
     assert set(D13_CAVEAT.applies_to) == {"hit", "chip", "wildcard"}
     assert "top-20 precision" in D13_CAVEAT.detail
+    assert D21_CAVEAT.applies_to == ("chip",)
+    assert "eight real historical deadlines" in D21_CAVEAT.detail
 
 
 def test_a_chip_recommendation_carries_the_caveat_through_to_the_payload(
