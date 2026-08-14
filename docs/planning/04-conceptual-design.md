@@ -431,6 +431,19 @@ graph LR
     AGG --> OUT["mean, variance,<br/>decomposition"]
 ```
 
+> **Implementation status (2026-08-15, [DL-33](00-decision-log.md#dl-33)).** This section describes the
+> target model. The forecast that ships in `run` is `xp_v0`, a cold-start model that shrinks
+> FPL-history per-90 rates toward position-and-price-tier priors: it uses **no xG, no odds and no
+> scraped defensive-action counts**, so M2's "ratings estimated from xG", M3's "npxG/xA per 90" and the
+> odds view of M2 are aspirational here. The component model that consumes conformed advanced metrics
+> (`xp_v1`, via the prior-season join in `forecast/features.py`) exists but runs **only in the
+> backtest**, is not promoted to the live path, and has no data to consume regardless
+> ([D-23](epics/E0-steel-thread-gw1.md#6-technical-debt-register)). Because both the squad MILP and the
+> weekly plan MILP read only `expected_points.parquet`, external data reaches **both** decision models
+> through exactly one seam — the forecast — or through neither; it never enters the optimiser directly
+> (DP-02, Invariant 1). Tracked as [D-25](epics/E0-steel-thread-gw1.md#6-technical-debt-register),
+> gated behind D-23 (data) and D-13 (evidence).
+
 ### M1 — Availability and minutes
 
 **Predicts:** a distribution over `{0, 1–59, 60+}` minutes, plus expected minutes.
