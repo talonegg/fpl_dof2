@@ -871,6 +871,26 @@ missing consumer, which is now the single thing standing between E5 and its own 
 
 ---
 
+## DL-30 — Browser verification runs on Playwright-driven Chromium, not a Chrome plugin
+
+**Date:** 2026-08-14 · **Status:** Accepted · **Decided by:** Owner, on request
+
+E1 through E5's browser verification has, throughout, driven real Chromium via Playwright
+(`web/verify/browser-check.mjs`) rather than a Chrome browser extension or the Chrome DevTools MCP
+integration some sessions have been asked for. No such plugin or MCP tool is available in this
+Claude Code environment — confirmed by direct tool search, not assumed — and this has been true and
+noted as a deviation in every epic since E0.
+
+**Consequence:** Playwright-driven Chromium is accepted as satisfying "browser testing" for the
+purposes of every epic's Definition of Done in this project, present and future, unless a Chrome
+plugin or DevTools integration becomes available in the build environment. Verification still
+covers real console errors, real layout at three device widths (390/820/1440px), real network
+activity (confirming Invariant 8: the browser calls nothing but its own static artefacts), and real
+interaction — it is not a weaker check for being a different automation surface, and this entry
+exists so the substitution is a recorded decision rather than a silently repeated gap.
+
+---
+
 ## Open decisions
 
 Decisions deliberately deferred, with the point at which each must be resolved.
