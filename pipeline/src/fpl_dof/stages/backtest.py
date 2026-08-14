@@ -42,6 +42,10 @@ def run(ctx: StageContext) -> StageResult:
             "sources.backfill_seasons, then re-run ingest and transform."
         )
 
+    # Optional, and absent is normal: no scraped source is enabled by default, and the forecast
+    # degrades to the position priors it has always used when the table is not there (DP-15).
+    metrics = read_table_optional(ctx.layout.silver, season, Table.PLAYER_METRIC)
+
     predictor = ComponentPredictor(ctx.config.forecast, rules)
     result = walk_forward(
         history,
@@ -49,6 +53,7 @@ def run(ctx: StageContext) -> StageResult:
         forecast_config=ctx.config.forecast,
         backtest_config=ctx.config.backtest,
         seasons=ctx.config.backtest.training_seasons or None,
+        metrics=metrics,
     )
 
     directory = ctx.layout.gold / f"season={season.replace('/', '-')}"
@@ -79,6 +84,8 @@ def run(ctx: StageContext) -> StageResult:
             "mae_skill_score": _round(result.model.mae_skill_score),
             "beats_b0": str(result.beats_b0),
             "beats_model_free": str(result.beats_model_free),
+            "prior_season_prior": str(ctx.config.forecast.features.prior_season.enabled),
+            "prior_season_rows": 0 if metrics is None else len(metrics),
         },
         outputs=[
             Output(path=report_path),

@@ -27,6 +27,7 @@ from fpl_dof.publish.typescript import write_types
 from fpl_dof.rules.models import GameRules
 from fpl_dof.silver.store import read_table
 from fpl_dof.silver.tables import Table
+from fpl_dof.stages.decision import PLAN_FILENAME
 from fpl_dof.stages.forecast import XP_FILENAME
 from fpl_dof.stages.optimise import SQUAD_FILENAME
 from fpl_dof.stages.transform import read_rules
@@ -63,17 +64,18 @@ def run(ctx: StageContext) -> StageResult:
         Output(path=contract.write("squad", squad_payload, destination)),
     ]
 
-    # The weekly decision, when there is one. Its absence is normal before the season starts
-    # (DL-20), so a missing file is not an error — but a *stale* one would be a lie, and is
-    # therefore removed rather than left behind.
-    week_source = gold / WEEK_FILENAME
-    week_target = destination / "week.json"
-    if week_source.exists():
-        week = json.loads(week_source.read_text(encoding="utf-8"))
-        week["contract_version"] = CONTRACT_VERSION
-        outputs.append(Output(path=contract.write("week", week, destination)))
-    elif week_target.exists():
-        week_target.unlink()
+    # The weekly decision and the multi-gameweek plan, when there are any. Their absence is normal
+    # before the season starts (DL-20), so a missing file is not an error — but a *stale* one would
+    # be a lie, and is therefore removed rather than left behind.
+    for artefact, filename in (("week", WEEK_FILENAME), ("plan", PLAN_FILENAME)):
+        source = gold / filename
+        target = destination / f"{artefact}.json"
+        if source.exists():
+            payload = json.loads(source.read_text(encoding="utf-8"))
+            payload["contract_version"] = CONTRACT_VERSION
+            outputs.append(Output(path=contract.write(artefact, payload, destination)))
+        elif target.exists():
+            target.unlink()
 
     root = find_repo_root()
     if root is not None:

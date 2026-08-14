@@ -243,3 +243,200 @@ export interface Week {
     }[];
   } | null;
 }
+
+export interface PlanDeadline {
+  gameweek: number;
+  name: string;
+  deadline_utc: string;
+  decide_by_utc: string;
+  local_zone: string;
+  uk_zone: string;
+}
+
+export interface PlanChip {
+  gameweek: number;
+  chip: string;
+  chip_label: string;
+}
+
+export interface PlanWeek {
+  gameweek: number;
+  chip?: string | null;
+  chip_label?: string | null;
+  /** The persistent 15. Under a Free Hit this is what you keep, not what you field. */
+  squad: number[];
+  fielded: number[];
+  starting: number[];
+  bench_order?: number[];
+  captain: number;
+  vice_captain?: number;
+  formation?: Record<string, number>;
+  transfers_in?: number[];
+  transfers_out?: number[];
+  free_transfers: number;
+  /** Transfers charged against the free allowance. Zero on a Wildcard or Free Hit gameweek even when transfers were made — C15, the half of the chip rule that gets missed. */
+  charged_transfers?: number;
+  hit_points?: number;
+  bank_after?: number;
+  expected_points?: number;
+  net_expected_points?: number;
+}
+
+export interface PlanSimulation {
+  mean: number;
+  median: number;
+  percentiles?: Record<string, number>;
+  /** The percentile the risk dial ranks on. Never the mean: the mean is what the MILP already maximised. */
+  score: number;
+  draws: number;
+}
+
+export interface PlanOption {
+  key: string;
+  label: string;
+  chips?: PlanChip[];
+  status?: string;
+  objective?: number;
+  total_expected_points: number;
+  total_hit_points?: number;
+  score?: number;
+  simulation?: PlanSimulation | null;
+  weeks: PlanWeek[];
+}
+
+export interface ChipCalendarEntry {
+  chip: string;
+  chip_label: string;
+  gameweek: number;
+  is_double?: boolean;
+  is_blank?: boolean;
+  teams_doubling?: number[];
+  teams_blanking?: number[];
+  /** Read from the game's own chip windows, never assumed. Set one expiring at GW19 is true this season and is exactly the sort of fact that quietly stops being true. */
+  expires_gameweek: number;
+  gameweeks_until_expiry?: number;
+  note?: string;
+}
+
+export interface ChipExpiry {
+  chip: string;
+  chip_label: string;
+  expires_gameweek: number;
+}
+
+export interface ChipCalendar {
+  from_gameweek: number;
+  entries: ChipCalendarEntry[];
+  expiring: ChipExpiry[];
+  unavailable?: string[];
+}
+
+/** Something a human must weigh before acting, carried on the recommendation itself rather than as a footnote. D-13 is the one that matters here: the forecast is unvalidated at the head of the ranking, which is exactly where hits, chips and wildcards act. */
+export interface PlanCaveat {
+  code: string;
+  headline: string;
+  detail: string;
+  applies_to: string[];
+}
+
+export interface PlanContribution {
+  label: string;
+  points: number;
+  detail?: string;
+}
+
+export interface PlanRunnerUp {
+  label: string;
+  total_expected_points: number;
+  margin: number;
+  simulated_score?: number | null;
+  reason?: string;
+}
+
+export interface PlanPriceExposure {
+  spend: number;
+  bank_after: number;
+  sell_value_committed?: number;
+  players_bought?: number;
+  players_sold?: number;
+  statement: string;
+}
+
+export interface PlanExplanation {
+  headline: string;
+  marginal_gain_over_doing_nothing: number;
+  decomposition?: PlanContribution[];
+  runners_up?: PlanRunnerUp[];
+  ownership_bet?: OwnershipBet | null;
+  price_exposure?: PlanPriceExposure | null;
+  assumptions?: string[];
+  caveats: PlanCaveat[];
+}
+
+export interface OwnershipPosition {
+  player_id: number;
+  web_name: string;
+  /** FPL's published `selected_by_percent`. Always labelled 'selected by' and never 'effective ownership' (DL-24). */
+  selected_by_percent: number;
+  owned?: boolean;
+  starting?: boolean;
+  deviation: number;
+}
+
+/** The single most-captained player, as a plain callout rather than folded into an ownership number that would imply more precision than the data supports (DL-24). player_id is null when the figure is not published. */
+export interface MostCaptained {
+  player_id: number | null;
+  web_name?: string;
+  selected_by_percent?: number;
+  owned?: boolean;
+  statement: string;
+}
+
+export interface OwnershipBet {
+  dial: "safe" | "balanced" | "aggressive";
+  dial_description: string;
+  /** Which ownership source is in use, stated in the UI as Design 7.1 requires. A risk dial driven by an estimated quantity presented as a measured one is worse than no risk dial. */
+  source_statement: string;
+  ownership_label: string;
+  underweight?: OwnershipPosition[];
+  overweight?: OwnershipPosition[];
+  most_captained?: MostCaptained | null;
+  statements?: string[];
+}
+
+export interface PruningReport {
+  pool_size: number;
+  full_size: number;
+  target_size?: number;
+  within_target?: boolean;
+  by_reason?: Record<string, number>;
+  by_position?: Record<string, number>;
+}
+
+/** The multi-gameweek plan and the chip calendar (E4). Where week.json answers 'what do I do before this deadline', this answers 'what is the plan, and when do the chips go'. Every recommendation involving a hit, a chip or a wildcard carries the D-13 caveat as data, not as a footnote. */
+export interface Plan {
+  contract_version: 1;
+  run_id: string;
+  /** True when no squad could be established, or when no legal plan exists. Both are normal states before the season starts (DL-20) and neither is a failure. */
+  skipped: boolean;
+  skipped_reason?: string;
+  deadline: PlanDeadline;
+  gameweeks?: number[];
+  /** Which solver produced this. HiGHS from E4 onward (DL-15); CBC was only ever validated against the single-gameweek problem. */
+  solver?: string;
+  solve_seconds?: number;
+  /** greedy_fallback means the solver did not converge in its budget and this is a legal but not optimal plan (DP-15). */
+  status?: "optimal" | "greedy_fallback";
+  /** True when nothing cleared the margin over doing nothing. Holding is a decision, not the absence of one. */
+  is_hold?: boolean;
+  rationale?: string;
+  recommended?: PlanOption;
+  /** Roll everything: no transfer, no chip. Always solved and always ranked. */
+  baseline?: PlanOption;
+  alternatives?: PlanOption[];
+  chip_calendar?: ChipCalendar;
+  explanation?: PlanExplanation;
+  ownership?: OwnershipBet;
+  pruning?: PruningReport;
+  warnings?: string[];
+}

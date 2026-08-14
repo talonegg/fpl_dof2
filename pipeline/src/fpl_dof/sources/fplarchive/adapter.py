@@ -107,6 +107,10 @@ class ArchiveAdapter(SourceAdapter):
     # Off unless asked for. It is a large, slow, once-per-season ingest, and a default-on source
     # would make every routine run pay for data that changes once a year.
     enabled_by_default: ClassVar[bool] = False
+    # Losing the mirror costs the backtest its evidence base, which is debt rather than a crash —
+    # exactly what the module docstring above says should happen (DP-15).
+    essential: ClassVar[bool] = False
+    attribution: ClassVar[str] = "Historical gameweek data via the community FPL archive"
     resources: ClassVar[tuple[Resource, ...]] = (
         Resource(
             name="merged_gameweeks",

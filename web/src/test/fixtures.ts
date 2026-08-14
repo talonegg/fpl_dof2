@@ -1,4 +1,4 @@
-import type { Meta, Players, Rules, Squad, Week } from "../contract/types";
+import type { Meta, Plan, Players, Rules, Squad, Week } from "../contract/types";
 
 export const meta: Meta = {
   contract_version: 1,
@@ -274,6 +274,183 @@ export const week: Week = {
 
 /** Preseason: no squad exists yet, which is normal rather than broken (DL-20). */
 export const skippedWeek: Week = {
+  contract_version: 1,
+  run_id: "run-1",
+  skipped: true,
+  skipped_reason: "no published picks are available, and no squad is declared in configuration",
+  deadline: week.deadline,
+};
+
+/**
+ * A plan that recommends a chip, so the D-13 caveat is present. That is the case worth fixing in a
+ * test: a chip recommendation without its caveat is precisely the regression E4's own gate exists
+ * to prevent.
+ */
+export const plan: Plan = {
+  contract_version: 1,
+  run_id: "20260810T101557Z-d705a43f",
+  skipped: false,
+  deadline: week.deadline,
+  gameweeks: [2, 3, 4, 5, 6],
+  solver: "HiGHS",
+  solve_seconds: 12.4,
+  status: "optimal",
+  is_hold: false,
+  rationale: "Bench Boost in GW4 gains 6.20 points over holding",
+  recommended: {
+    key: "bboost@4",
+    label: "Bench Boost in GW4",
+    chips: [{ gameweek: 4, chip: "bboost", chip_label: "Bench Boost" }],
+    status: "optimal",
+    objective: 210.4,
+    total_expected_points: 248.1,
+    total_hit_points: -4,
+    score: 251.3,
+    simulation: {
+      mean: 248.0,
+      median: 247.2,
+      percentiles: { p10: 210.0, p30: 232.0, p50: 247.2, p75: 262.4, p90: 280.1 },
+      score: 251.3,
+      draws: 4000,
+    },
+    weeks: [
+      {
+        gameweek: 2,
+        chip: null,
+        chip_label: null,
+        squad: [1, 2, 3],
+        fielded: [1, 2, 3],
+        starting: [1, 2],
+        bench_order: [3],
+        captain: 2,
+        vice_captain: 1,
+        formation: { GKP: 1, DEF: 4, MID: 4, FWD: 2 },
+        transfers_in: [2],
+        transfers_out: [4],
+        free_transfers: 1,
+        charged_transfers: 1,
+        hit_points: 0,
+        bank_after: 0.2,
+        expected_points: 51.2,
+        net_expected_points: 51.2,
+      },
+      {
+        gameweek: 4,
+        chip: "bboost",
+        chip_label: "Bench Boost",
+        squad: [1, 2, 3],
+        fielded: [1, 2, 3],
+        starting: [1, 2],
+        bench_order: [3],
+        captain: 2,
+        vice_captain: 1,
+        formation: { GKP: 1, DEF: 4, MID: 4, FWD: 2 },
+        transfers_in: [],
+        transfers_out: [],
+        free_transfers: 2,
+        charged_transfers: 0,
+        hit_points: 0,
+        bank_after: 0.2,
+        expected_points: 60.4,
+        net_expected_points: 60.4,
+      },
+    ],
+  },
+  chip_calendar: {
+    from_gameweek: 2,
+    entries: [
+      {
+        chip: "bboost",
+        chip_label: "Bench Boost",
+        gameweek: 4,
+        is_double: true,
+        is_blank: false,
+        teams_doubling: [1, 2],
+        teams_blanking: [],
+        expires_gameweek: 19,
+        gameweeks_until_expiry: 17,
+        note: "2 club(s) play twice; Bench Boost expires at the GW19 deadline (17 gameweek(s) away)",
+      },
+    ],
+    expiring: [
+      { chip: "bboost", chip_label: "Bench Boost", expires_gameweek: 19 },
+      { chip: "wildcard", chip_label: "Wildcard", expires_gameweek: 19 },
+    ],
+    unavailable: [],
+  },
+  explanation: {
+    headline: "Bench Boost in GW4 beats Bench Boost in GW5 by 2.1 points; beats playing no chip by 6.2.",
+    marginal_gain_over_doing_nothing: 6.2,
+    decomposition: [
+      { label: "GW2", points: 51.2, detail: "XI and captain 51.20, 1 transfer(s) in" },
+    ],
+    runners_up: [
+      {
+        label: "roll everything (no transfer, no chip)",
+        total_expected_points: 241.9,
+        margin: -6.2,
+        simulated_score: 245.1,
+        reason: "holding the squad and making no transfer — always ranked, never assumed",
+      },
+    ],
+    ownership_bet: null,
+    price_exposure: {
+      spend: 14.8,
+      bank_after: 0.2,
+      sell_value_committed: 14.5,
+      players_bought: 1,
+      players_sold: 1,
+      statement: "£14.8m committed to 1 incoming player(s), funded by £14.5m raised from 1 outgoing.",
+    },
+    assumptions: ["Salah is assumed to start, which the model puts at 71%."],
+    caveats: [
+      {
+        code: "D-13",
+        headline: "This call rests on a forecast that is unvalidated at the head of the ranking.",
+        detail: "The walk-forward backtest (DL-21) found the worst top-20 precision of anything measured.",
+        applies_to: ["hit", "chip", "wildcard"],
+      },
+    ],
+  },
+  ownership: {
+    dial: "balanced",
+    dial_description: "Balanced — a small penalty.",
+    source_statement: "Ownership is FPL's published selected_by_percent.",
+    ownership_label: "selected by",
+    underweight: [
+      {
+        player_id: 9,
+        web_name: "Haaland",
+        selected_by_percent: 62.5,
+        owned: false,
+        starting: false,
+        deviation: -62.5,
+      },
+    ],
+    overweight: [],
+    most_captained: {
+      player_id: null,
+      web_name: "",
+      selected_by_percent: 0,
+      owned: false,
+      statement:
+        "The most-captained player for this gameweek is not available in the published data (D-15).",
+    },
+    statements: ["You are 63% underweight on Haaland (62.5% selected by)."],
+  },
+  pruning: {
+    pool_size: 214,
+    full_size: 703,
+    target_size: 250,
+    within_target: true,
+    by_reason: { owned: 15, top_by_points: 120 },
+    by_position: { GKP: 30, DEF: 62, MID: 78, FWD: 44 },
+  },
+  warnings: [],
+};
+
+/** Preseason: nothing to plan around yet (DL-20). */
+export const skippedPlan: Plan = {
   contract_version: 1,
   run_id: "run-1",
   skipped: true,

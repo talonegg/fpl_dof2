@@ -29,6 +29,7 @@ ARTEFACTS: dict[str, str] = {
     "players": "players.schema.json",
     "squad": "squad.schema.json",
     "week": "week.schema.json",
+    "plan": "plan.schema.json",
 }
 
 

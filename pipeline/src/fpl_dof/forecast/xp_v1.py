@@ -28,6 +28,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 from fpl_dof.config.models import ForecastConfig
+from fpl_dof.forecast.features import PRIOR_SEASON_MINUTES, PRIOR_SEASON_PREFIX
 from fpl_dof.forecast.models import ComponentModels, MinutesDistribution
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.rules.models import GameRules, Position
@@ -80,7 +81,13 @@ def _poisson_survival(threshold: int, mean: float) -> float:
     return max(0.0, min(1.0, 1.0 - below))
 
 
-def _rate(models: ComponentModels, column: str, position: str, row: pd.Series) -> float:
+def _rate(
+    models: ComponentModels,
+    column: str,
+    position: str,
+    row: pd.Series,
+    config: ForecastConfig,
+) -> float:
     observed = row.get(f"{column}_per90_last6")
     minutes = row.get("minutes_mean_last6")
     total_minutes = float(minutes) * float(row.get("matches_observed") or 0) if minutes else 0.0
@@ -88,7 +95,31 @@ def _rate(models: ComponentModels, column: str, position: str, row: pd.Series) -
     if model is None:
         return 0.0
     value = float(observed) if observed is not None and not pd.isna(observed) else float("nan")
-    return model.predict(position, value, total_minutes)
+    ratio, ratio_minutes = _prior_season(row, column, config)
+    return model.predict(
+        position, value, total_minutes, prior_ratio=ratio, prior_ratio_minutes=ratio_minutes
+    )
+
+
+def _prior_season(row: pd.Series, column: str, config: ForecastConfig) -> tuple[float, float]:
+    """The prior-season ratio for this component, if the feature store supplied one.
+
+    Which statistic informs which component is configuration, not knowledge held here: this
+    function knows only that a component may have a prior-season signal attached to it, never what
+    measured it (Invariant 1).
+    """
+    prior_season = config.features.prior_season
+    if not prior_season.enabled:
+        return float("nan"), 0.0
+    stem = prior_season.component_priors.get(column)
+    if stem is None:
+        return float("nan"), 0.0
+    ratio = row.get(f"{PRIOR_SEASON_PREFIX}{stem}_ratio")
+    minutes = row.get(PRIOR_SEASON_MINUTES)
+    return (
+        float(ratio) if ratio is not None and not pd.isna(ratio) else float("nan"),
+        float(minutes) if minutes is not None and not pd.isna(minutes) else 0.0,
+    )
 
 
 def forecast_player(
@@ -114,12 +145,12 @@ def forecast_player(
         status_multiplier=status_multiplier,
     )
 
-    goal_rate = _rate(models, "goals_scored", position.value, row)
-    assist_rate = _rate(models, "assists", position.value, row)
-    defcon_rate = _rate(models, "defensive_contribution", position.value, row)
-    save_rate = _rate(models, "saves", position.value, row)
-    card_rate = _rate(models, "yellow_cards", position.value, row)
-    bps_rate = _rate(models, "bps", position.value, row)
+    goal_rate = _rate(models, "goals_scored", position.value, row, config)
+    assist_rate = _rate(models, "assists", position.value, row, config)
+    defcon_rate = _rate(models, "defensive_contribution", position.value, row, config)
+    save_rate = _rate(models, "saves", position.value, row, config)
+    card_rate = _rate(models, "yellow_cards", position.value, row, config)
+    bps_rate = _rate(models, "bps", position.value, row, config)
 
     states: list[tuple[float, float, float, dict[str, float]]] = []
     for probability, played_minutes, appearance_points, long_play in (

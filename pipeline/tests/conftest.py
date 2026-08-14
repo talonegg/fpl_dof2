@@ -175,13 +175,23 @@ def layout(config: Config) -> Iterator[DataLayout]:
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[Any]) -> None:
-    """Keep network-marked tests out of the default run without needing -m on every invocation."""
-    if config.getoption("--network"):
-        return
-    skip = pytest.mark.skip(reason="hits the live FPL API; run with --network")
-    for item in items:
-        if item.get_closest_marker("network"):
-            item.add_marker(skip)
+    """Keep marked tests out of the default run without needing -m on every invocation.
+
+    Two gates, the same mechanism. ``network`` is about politeness and determinism; ``slow`` is
+    about minutes — a chip replay refits the models and solves the multi-gameweek MILP twice per
+    historical deadline, which is measured in minutes and has no business in the fast suite.
+    """
+    gates = (
+        ("network", "--network", "hits the live FPL API; run with --network"),
+        ("slow", "--slow", "takes minutes; run with --slow"),
+    )
+    for marker, option, reason in gates:
+        if config.getoption(option):
+            continue
+        skip = pytest.mark.skip(reason=reason)
+        for item in items:
+            if item.get_closest_marker(marker):
+                item.add_marker(skip)
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -190,4 +200,10 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         action="store_true",
         default=False,
         help="Run tests that hit the live FPL API.",
+    )
+    parser.addoption(
+        "--slow",
+        action="store_true",
+        default=False,
+        help="Run tests measured in minutes, such as the historical chip replay.",
     )

@@ -47,6 +47,8 @@ def run(ctx: StageContext) -> StageResult:
         "now": utcnow(),
         "team_ids": frozenset(teams["team_id"]) if teams is not None else None,
         "player_ids": frozenset(players["player_id"]) if players is not None else None,
+        "season": season,
+        "backfill_seasons": tuple(ctx.config.sources.backfill_seasons),
         "snapshot_age_seconds": _newest_snapshot_age(ctx),
         "previous_row_counts": _previous_row_counts(ctx, season),
     }

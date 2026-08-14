@@ -591,6 +591,453 @@ in-season evidence, neither of which compresses with build speed.
 
 ---
 
+## DL-24 — OD-06 resolved: effective ownership redefined without a captaincy term
+
+**Date:** 2026-08-11 · **Status:** Accepted · **Decided by:** Agent, ahead of E4-S4, recorded here
+before code so the choice is auditable rather than discovered in the risk-dial implementation
+
+Of the three routes set out in [04-conceptual-design.md §7.1](04-conceptual-design.md#71-effective-ownership-is-not-directly-observable-con-12-od-06),
+**Redefine** is adopted: `EO[p] = selected_by_percent[p]`, with no modelled captaincy term. The risk
+dial's objective penalises deviation from `selected_by_percent` alone.
+
+**Why, over the other two.** *Estimate* requires a captaincy-share model calibrated against
+`most_captained` (a single id per gameweek, not a distribution) — buildable, but its accuracy is
+itself unmeasured, and DL-21 already found this project shipping an unvalidated model presented as
+more certain than it is once before. *Sample* is genuinely measured but is post-deadline by
+construction — it informs next week, not the week it is needed for — and spends request budget
+pulling picks from public leagues, a cost with no E4 story funding it. **Redefine is never wrong
+about what it knows**: `selected_by_percent` is exact, public, and requires no additional model.
+
+**What is lost:** the risk dial cannot see captaincy concentration, so it cannot distinguish "60%
+own him, 40% of those captain him" from "60% own him, 5% captain him" — a real gap, most visible
+exactly at the players the dial exists to reason about. E4-S6's explanation layer must say so
+explicitly wherever ownership is shown, not just here.
+
+**What the UI states, per Design §7.1's own requirement:** every ownership figure is labelled
+"selected by" and never "effective ownership" or "captaincy share", and the single most-captained
+player (`most_captained` from `bootstrap-static` events, when published) is surfaced as a plain
+callout — "N% own him, and he is this gameweek's most-captained pick" — rather than folded into a
+number that implies more precision than the data supports.
+
+**Consequence:** the tier-1 cohort mismatch in CON-12 (top-100k template vs all ~11m managers) is
+not fixed by this — `selected_by_percent` is still whole-field ownership. That gap remains open and
+is not this decision's to close; it is a limitation the UI states alongside the EO source label.
+
+---
+
+## DL-25 — OD-05 resolved: the risk dial defaults to Balanced
+
+**Date:** 2026-08-11 · **Status:** Accepted · **Decided by:** Agent, during E4-S4, recorded before
+the dial shipped so the default is a decision rather than an accident of implementation
+
+**The dial defaults to `balanced`**, and it is a configuration field (`decision.risk.dial`) the owner
+can change at any time without a code change.
+
+**Why, and why it is not a strong claim.** OD-05 was narrowed by [DL-13](#dl-13--charter-amendments-following-the-2026-08-09-architecture-and-plan-audit)
+to a question of *temperament*, not of target: the rank ambition is already settled in charter §5
+(top-100k target, top-10k stretch). Temperament is the owner's to state, and the owner has not stated
+it — [INPUTS-REQUIRED §6.1](epics/INPUTS-REQUIRED.md) is still empty. Two things follow:
+
+1. **The design already names a default.** [04-conceptual-design.md §7.1](04-conceptual-design.md#71-effective-ownership-is-not-directly-observable-con-12-od-06)'s
+   own table gives Balanced as "Default" — "small penalty, broadly follows expected points, avoiding
+   only the most extreme template gaps". Adopting a different one would be inventing a preference
+   nobody expressed.
+2. **Balanced is the position that assumes least.** Safe assumes a rank worth protecting; Aggressive
+   assumes a rank worth chasing and conviction in an edge. Neither is knowable before a season has
+   been played, and [DL-21](#dl-21--the-v1-forecast-beats-price-and-loses-to-recent-form-reported-not-tuned)
+   makes the case against Aggressive sharper: a dial that rewards differentials is a dial that leans
+   harder on the model's discrimination at the head of the ranking, which is the one thing the
+   backtest says the model does not have.
+
+**Concretely:** `RiskConfig.ownership_weight` is `{safe: +0.020, balanced: +0.005, aggressive:
+-0.010}` expected points per percentage point of `selected_by_percent` per starter per gameweek.
+Balanced is deliberately an order of magnitude smaller than Safe rather than zero — a zero weight
+would make the dial's middle position mean "the dial is off", and the design asks for a small pull
+toward the template, not for none.
+
+**Consequence:** **OD-05 is closed.** It reopens on one trigger and one only — the owner stating a
+target rank or a temperament, at which point this becomes a one-line configuration change with no
+code behind it.
+
+---
+
+## DL-26 — HiGHS is installed and is the solver for the multi-gameweek model; CBC stays on the single-gameweek one
+
+**Date:** 2026-08-11 · **Status:** Accepted · **Arose in:** E4-S2
+
+[DL-15](#dl-15--chip-timing-by-scenario-enumeration-highs-as-the-solver-from-e4) committed to HiGHS
+from E4 without confirming it would install. It does: `highspy 1.15.1` installs from PyPI on Python
+3.14/Windows, PuLP 3.3.2 exposes it as `pulp.HiGHS`, and it solves the multi-gameweek model. It is
+open-source and carries no licence cost, so Invariant 3 is untouched. **This entry exists to record
+that the claim was tested rather than assumed**, and to state the split that was not in DL-15.
+
+**The split.** HiGHS is used for the **multi-gameweek** model only
+(`decision.horizon.solver`, default `HiGHS`). The single-gameweek E0 squad MILP and the E1 transfer
+MILP stay on **CBC**, which E0 validated against them. DL-15's argument was that CBC was never
+validated against a problem of E4's size — that argument says nothing about the problems it *was*
+validated against, and moving them would discard a validation to gain nothing.
+
+**A refusal, deliberately.** When `decision.horizon.solver` is `HiGHS` and `highspy` is absent, the
+run **fails with an explanation** rather than falling back to CBC. "Solved on HiGHS" is a claim about
+how much an answer can be trusted at this size; silently substituting a weaker solver while the
+configuration still says HiGHS would make that claim false in exactly the place nobody would look.
+CBC remains reachable by setting the field, which is an informed choice rather than a silent one.
+
+**Measured, on the real problem.** A full local run against the live snapshot — 577 players pruned
+to a 159-player pool, a five-gameweek horizon, twenty chip scenarios — solved every scenario to
+optimality in **92.7 seconds**, inside the 600-second `scenario_time_budget_seconds`. Individual
+scenarios ranged from 0.3 to about 5 seconds. So the budget is met, and DL-15's bet on HiGHS is
+vindicated on the problem it was made about rather than on a proxy.
+
+**What this still does not settle.** R-07 stays rated High, for two reasons the number above does not
+touch. It is a *preseason* run: no gameweek has been played, there are no double or blank gameweeks
+in the fixture list yet, and the second half of the season is where the chip calendar gets
+interesting and the model gets harder. And it is one developer machine, not CI, where the runner is
+slower and shared. The greedy fallback stays not-optional, and
+`decision.horizon.scenario_time_budget_seconds` bounds the enumeration so that a slow scenario set
+degrades to fewer scenarios rather than to a missed deadline (DP-15).
+
+---
+
+## DL-27 — E5 built without an odds key or a fresh scraping sign-off; both were already answered
+
+**Date:** 2026-08-12 · **Status:** Accepted · **Arose in:** E5
+
+Two inputs [INPUTS-REQUIRED.md §4](epics/INPUTS-REQUIRED.md#4-needed-for-e5-external-sources-around-gw10-12)
+lists as owner-supplied were not obtained before this epic was built. Neither blocked the build, and
+this entry records why rather than leaving the gap silent.
+
+**No `ODDS_API_KEY` exists.** The odds adapter (`sources/oddsapi/adapter.py`) is built in full —
+request shape, de-vig conversion, credit-budget ledger enforced in the adapter per CON-7/R-08 — and
+contract-tested against a recorded fixture (`tests/fixtures/odds_epl.json`), never against the live
+provider. With no key configured, `enabled_by_default = False` and the adapter contributes nothing;
+this is the epic's own required degraded state (E5-S4/S5), not a shortfall. **It has never been
+verified against a real response from The Odds API**, and cannot be until the owner obtains a key
+per INPUTS-REQUIRED §4.1 — at that point the contract test should be re-run with `--network` style
+verification against the live endpoint before the adapter is trusted with a real credit spend.
+
+**Understat and FBref were built without a fresh sign-off request.** INPUTS-REQUIRED §4.2 asks for
+"explicit sign-off on the scraping approach" before building — but the posture it asks for sign-off
+on is the same posture the epic doc and [04-conceptual-design.md §3.2](04-conceptual-design.md#32-entity-resolution-fr-07-r-10)
+already specify: personal non-commercial use, `robots.txt` checked programmatically before every
+crawl (not merely asserted), crawl-delayed via the existing `RateLimitConfig`, cached hard, weekly
+cadence at most, attributed in the UI. Treating an already-documented design decision as a second
+open question would have stalled the epic on a input that was, in substance, already given. Built to
+that spec; the owner retains the option to object and have it withdrawn, which is materially
+different from building without any recorded posture at all.
+
+**Consequence:** no debt opened for the odds key (E5-S4 is complete on its own terms; the live
+verification is a follow-up action, not unfinished code). See D-20 for the related and larger gap —
+none of the three sources backfills history, so none of them can move a backtest metric yet.
+
+---
+
+## DL-28 — The simulation re-rank changes real chip decisions, and there is no evidence yet that it improves them
+
+**Date:** 2026-08-13 · **Status:** Accepted · **Arose in:** D-18
+
+E4-S4a's acceptance criterion was "the re-rank changes at least one chip recommendation **in the
+backtest**". E4 shipped a constructed unit test instead — three Bench Boost timings tied exactly on
+expected points, separated by the dial's percentile — and [D-18](epics/E0-steel-thread-gw1.md#6-technical-debt-register)
+recorded the gap. This entry records what happened when the criterion was actually run.
+
+**What was built.** `optimise/replay.py` replays real historical deadlines through the whole
+decision engine. Per sampled deadline it refits the component models on matches finished strictly
+before that deadline — through the *same* `fold_rows`/`training_rows` the walk-forward harness uses,
+because a second assembly of the training set is a second chance to leak (Invariant 5) — forecasts
+every player against each horizon gameweek's **real fixture**, solves the best legal squad, then runs
+`build_plan` twice, re-rank on and off. Gated behind a `slow` pytest marker on the same mechanism as
+`--network` (`tests/test_chip_replay.py`).
+
+**The sample, and why it is this size.** Eight deadlines: every sixth scoreable deadline between
+GW6 and GW32 across 2024/25 and 2025/26. Spaced rather than consecutive, because neighbouring
+deadlines share almost all their training data and their fixture run and are close to one
+observation repeated. It cost **951 seconds** — a full 72-deadline sweep at that rate is over two
+hours, and would answer the same question.
+
+**The result: 8 of 8 deadlines changed.** Every one moved a Bench Boost. Scored against what those
+exact players actually went on to score, **5 of the 8 changes landed on the better gameweek and 3 on
+the worse one**, mean +0.75 points per change with a spread from −44 to +42.
+
+| Season | GW | Re-rank off | Re-rank on | Actual, off | Actual, on |
+| --- | --- | --- | --- | --- | --- |
+| 2024/25 | 6 | BB GW7 | BB GW6 | 59 | **69** |
+| 2024/25 | 12 | BB GW13 | BB GW12 | **80** | 36 |
+| 2024/25 | 18 | BB GW22 | BB GW18 | 37 | **79** |
+| 2024/25 | 24 | BB GW25 | BB GW24 | 82 | **88** |
+| 2024/25 | 30 | BB GW32 | BB GW30 | **51** | 42 |
+| 2025/26 | 9 | BB GW10 | BB GW9 | **87** | 64 |
+| 2025/26 | 15 | BB GW19 | BB GW15 | 44 | **59** |
+| 2025/26 | 21 | BB GW25 | BB GW21 | 59 | **76** |
+
+**The criterion is met, and the honest reading is narrower than that sounds.** 5–3 on eight
+observations is indistinguishable from a coin flip; nobody should read it as skill. What it does
+establish is the thing D-18 said was unproven: the re-rank is not confined to constructed ties. It
+moves decisions the expectation-maximiser had already made on real data, which is exactly what
+E4-S4a asserted and had not shown.
+
+**The finding that was not asked for, and matters more.** The direction is regular: at the default
+Balanced dial the re-rank moved Bench Boost to the **first gameweek of the horizon** at all eight
+deadlines, without exception. 8-for-8 in one direction is not obviously what a risk-preference
+effect looks like, so it was worth asking what would falsify it — if the percentile is doing the
+work, the dials must disagree with each other, because they rank on opposite ends of the same
+distribution.
+
+**They do disagree.** Re-running three deadlines at each dial:
+
+| 2024/25 deadline | Re-rank off | Safe | Balanced | Aggressive |
+| --- | --- | --- | --- | --- |
+| GW6 | BB GW7 | BB GW6 | BB GW6 | BB GW6 |
+| GW18 | BB GW22 | BB GW18 | BB GW18 | **BB GW19** |
+| GW30 | BB GW32 | **BB GW32 — no change** | BB GW30 | BB GW30 |
+
+The safe dial declined to move the chip at all at GW30, and the aggressive dial chose a different
+week at GW18. So the front-loading is **not** a fixed structural artefact; the percentile genuinely
+separates plans, and the dial genuinely changes the answer.
+
+What survives the falsification test is narrower and still worth tracking: at the two dial settings
+a user is most likely to run, chip timing lands at the front of the horizon far more often than
+chance suggests, and nothing yet explains why. That is opened as **D-21**. Until the cause is
+known, the re-rank is proven to *move* chip timing and to *respond to the dial*, and is not proven
+to *time* chips well.
+
+**Consequence:** E4-S4a's DoD item is ticked — its stated criterion is met, and the second half of it
+("the direction of the change is explicable") is met by the dial table above rather than only by the
+constructed unit test. D-18 is closed and **D-21** is opened for the front-loading.
+D-13's gate is untouched — the forecast underneath all of this still loses to the model-free
+benchmark at the head of the ranking ([DL-21](#dl-21--the-v1-forecast-beats-price-and-loses-to-recent-form-reported-not-tuned)),
+and a well-timed chip on a poor ranking is still a poor chip.
+
+---
+
+## DL-29 — D-20 re-diagnosed: the backfill was never the blocker, the missing consumer is
+
+**Date:** 2026-08-13 · **Status:** Accepted · **Arose in:** D-20
+
+D-20 states that "none of E5's three new sources backfills history … no season-backfill path exists
+for any of them", and concludes that E5's stated purpose cannot be evaluated. Going to close it
+found the diagnosis wrong in a way worth recording, because acting on it would have bought nothing.
+
+**Understat and FBref already backfill.** Both adapters loop over `request.seasons`, both build
+season-shaped URLs from the season they are given, and both `stages/ingest.py` and
+`stages/transform.py` already pass `sources.backfill_seasons` into the request. The path existed and
+was untested. It is tested now, against recorded historical pages
+(`tests/test_source_backfill.py`, fixtures `understat_league_2024.html` and
+`fbref_stats_2024_2025.html`): each season fetched from its own URL, both seasons conformed and
+labelled, a relegated player surviving in the historical season only, a mid-season transfer
+resolving to the club the player finished at, `robots.txt` read once for the whole backfill rather
+than once per season, and a finished season never re-fetched.
+
+**One real defect was underneath it.** `request.seasons or (request.season,)` meant a configured
+backfill **replaced** the current season rather than adding to it — so switching a backfill on
+silently switched this season's enrichment off, with no error, no missing column and no symptom
+other than a forecast quietly missing the source it was configured to use. Fixed by
+`IngestRequest.seasons_with_current()`, which both scraped adapters now call.
+
+**And none of that can move a backtest metric, because nothing reads the data.** The conformed
+`player_metric` and `player_advanced` tables are written to silver by the transform stage and read
+by **no module in the project**. The feature store builds every feature from `player_gameweek`
+alone. So the chain from a backfilled xG figure to a backtest number is broken one link further
+downstream than D-20 says, and no amount of crawling repairs it.
+
+**A second, structural blocker sits behind the first.** Both scraped sources conform *running
+season totals* at `scope="season"` with no gameweek — correctly, as their own module docstrings
+argue, because labelling a running total as a gameweek observation would leak the rest of the season
+into every fold before it. But a crawl of a **finished** season yields one row per player describing
+the whole of it, and that row is unusable at any deadline *within* that season for exactly the same
+reason (Invariant 5). It is legitimate only as a **prior-season** feature. E5 never made that design
+decision, and it is the actual work D-20 is asking for.
+
+**No live crawl was performed, deliberately.** It would have produced data no metric can consume, at
+the cost of a few hundred requests against somebody else's site. Crawling to satisfy a checkbox is
+the wrong side of the posture recorded in [DL-27](#dl-27--e5-built-without-an-odds-key-or-a-fresh-scraping-sign-off-both-were-already-answered).
+
+**The DL-21 baseline was re-run and is unmoved, byte for byte.** `fpl-dof backtest` over the same 72
+folds and 21,712 scored observations returns model Spearman 0.24444, B0 0.21385, model-free 0.29104,
+MAE skill 0.01501, top-20 precision 0.00 — identical to the report from before this work. That is
+both the point (no source data reached the forecast, because none can) and a regression check on the
+one change made to the harness itself: `_fold_rows`/`_training_rows` were made public so the chip
+replay could reuse them rather than assemble a second, divergent training set.
+
+**Odds are untouched and stay untouched.** The provider publishes no historical archive on its free
+tier and no `ODDS_API_KEY` exists to test one with. That half of D-20 needs the owner obtaining a
+key (INPUTS-REQUIRED §4.1), not more code, and it is recorded as an external blocker rather than
+worked around.
+
+**Consequence:** E5's "backtest metrics measurably improve" DoD item stays **unticked** and D-07
+stays **open** — neither has been earned, and [DL-22](#dl-22--post-e3-audit-found-a-dod-item-ticked-without-its-acceptance-criterion-being-met)
+is the reason that matters. D-20 is narrowed to its true remainder and **D-22** is opened for the
+missing consumer, which is now the single thing standing between E5 and its own acceptance test.
+
+---
+
+## DL-30 — Browser verification runs on Playwright-driven Chromium, not a Chrome plugin
+
+**Date:** 2026-08-14 · **Status:** Accepted · **Decided by:** Owner, on request
+
+E1 through E5's browser verification has, throughout, driven real Chromium via Playwright
+(`web/verify/browser-check.mjs`) rather than a Chrome browser extension or the Chrome DevTools MCP
+integration some sessions have been asked for. No such plugin or MCP tool is available in this
+Claude Code environment — confirmed by direct tool search, not assumed — and this has been true and
+noted as a deviation in every epic since E0.
+
+**Consequence:** Playwright-driven Chromium is accepted as satisfying "browser testing" for the
+purposes of every epic's Definition of Done in this project, present and future, unless a Chrome
+plugin or DevTools integration becomes available in the build environment. Verification still
+covers real console errors, real layout at three device widths (390/820/1440px), real network
+activity (confirming Invariant 8: the browser calls nothing but its own static artefacts), and real
+interaction — it is not a weaker check for being a different automation surface, and this entry
+exists so the substitution is a recorded decision rather than a silently repeated gap.
+
+---
+
+## DL-31 — D-22 closed: the prior-season consumer exists, and neither source it was built for can be fetched
+
+**Date:** 2026-08-15 · **Status:** Accepted · **Arose in:** D-22
+
+[DL-29](#dl-29--d-20-re-diagnosed-the-backfill-was-never-the-blocker-the-missing-consumer-is) named
+the missing consumer as the single thing standing between E5 and its acceptance test. It was built.
+It is not the last thing standing there.
+
+**The design, and the one decision that mattered.** A season total is knowable only once its season
+is over, so it enters the model as a **prior-season** feature and the boundary is enforced on the
+**season label**, not on a timestamp: a `scope="season"` row for season *S* is admissible only
+against a season starting strictly later than *S*. Deliberately not "compare `as_of` to the last
+kickoff of *S*" — a postponement, a rearranged final round or a missing fixture row moves that
+boundary, and at the first deadline of the following season no clock separates the two seasons at
+all. Property-tested across all 38 gameweeks at both ends: invisible at every deadline inside its own
+season including the last, visible at every deadline of the next one
+(`tests/test_prior_season_features.py`).
+
+**A ratio, not a rate.** Each statistic is divided by the mean among the player's own position and
+bounded to [0.5, 2.0], and the result *scales the position prior* a component is already shrunk
+toward, weighted by prior-season minutes on the same arithmetic as the existing shrinkage. Three
+reasons, in order of importance: what is trusted about an external provider is the ordering it
+implies rather than its scale, so a definitional mismatch between somebody's "defensive action" and
+the game's own cannot bias the level; a player with no prior season lands on the position prior
+exactly, which is what happens today, so "no evidence" needed no new mechanism; and last season's
+evidence fades as this season's accumulates rather than sitting permanently on the scale. Off by
+default (DP-08).
+
+**Then it was pointed at the real sources, and there are none.**
+
+- **Understat's `robots.txt` now reads `User-agent: *` / `Disallow: /`** — the entire site.
+- **FBref returns a Cloudflare 403 to every request**, `robots.txt` included, so no permission can
+  even be read.
+- **Underneath that, a posture defect:** only the FBref adapter ever checked `robots.txt`. The
+  Understat adapter did not, so enabling it fetched four pages the site disallows. The check now
+  lives in a shared `sources/robots.py` used by both, and Understat consequently fetches nothing.
+  The four snapshots taken before the fix were deleted.
+- **And the extraction is stale anyway:** the live Understat league page no longer carries the
+  `playersData` script the adapter parses. E5's "contract test against a recorded page" turns out to
+  use **hand-constructed** 2.4 KB fixtures, not recorded ones, so neither scraped adapter has ever
+  been run against a real page.
+
+Neither block is worked around. Ignoring a site's stated rules or defeating an access control is the
+wrong side of [DL-27](#dl-27--e5-built-without-an-odds-key-or-a-fresh-scraping-sign-off-both-were-already-answered)
+and NFR-10, and "the checkbox needs it" is not a reason. Opened as **D-23**, which is an owner
+decision about provenance, not a coding task.
+
+**Two real defects found on the way, both fixed.** Entity resolution stamped *every* crosswalk row
+with the current season regardless of which season its reference described — so a backfilled advanced
+row could never join an identity, and a two-season backfill would have hard-failed the duplicate-claim
+guard on one footballer legitimately appearing in both seasons. Resolution now keeps each reference's
+own season and scopes the guard by it. Two quality gates that assumed a single-season crosswalk were
+corrected with it: the unmatched-rate gate now judges the current season only, because a backfilled
+season is matched against *this* season's player list and everyone who has since left is unmatched in
+it, correctly and in numbers that would swamp the signal.
+
+**What could still be measured, and what it says.** With no source data, the question "does the
+design help" was put to a probe using the official feed's own prior-season totals in place of the
+missing ones — the same production path, the same season-boundary rule, and honestly not E5's
+acceptance test. On the corrected model (see [DL-32](#dl-32--the-component-models-never-fitted-in-the-backtest-so-dl-21s-table-describes-a-model-nobody-built)), 72 folds, 21,712 scored observations:
+
+| Prior-season prior | MAE | Spearman | MAE skill vs B0 | Top-20 precision | Calibration slope |
+| --- | --- | --- | --- | --- | --- |
+| Off | 1.94547 | 0.22545 | 0.00994 | 0.00 | 0.597 |
+| On | 1.94578 | **0.22790** | 0.00978 | 0.00 | 0.605 |
+| Difference | +0.0003 | **+0.0025** | −0.0002 | 0.00 | +0.008 |
+
+Per season: 2024/25 Spearman 0.28049 → 0.28439, 2025/26 0.17268 → 0.17336. **+0.002 Spearman is not
+"measurably improve" by any reading**, MAE is fractionally worse, and top-20 precision — the number
+D-13 is about — does not move off zero. The mechanism is demonstrably live rather than inert: the
+same probe before [DL-32](#dl-32--the-component-models-never-fitted-in-the-backtest-so-dl-21s-table-describes-a-model-nobody-built)'s fix returned figures identical in every reported
+digit, because it was scaling a prior that was zero.
+
+**Consequences:**
+
+1. **D-22 is closed.** The consumer exists, is safe, and is tested where being wrong would be
+   invisible.
+2. **E5's "backtest metrics measurably improve" stays unticked and D-07 stays open.** Neither is
+   earned, and [DL-22](#dl-22--post-e3-audit-found-a-dod-item-ticked-without-its-acceptance-criterion-being-met)
+   is why that matters. Their remainder is **D-23**.
+3. **The feature ships dark.** `forecast.features.prior_season.enabled` defaults false; nothing
+   promotes it without evidence, and there is none.
+4. **The odds half of D-20 is untouched** and still waits on a key.
+
+---
+
+## DL-32 — The component models never fitted in the backtest, so DL-21's table describes a model nobody built
+
+**Date:** 2026-08-15 · **Status:** Accepted · **Arose in:** D-22, while asking why the new feature
+changed nothing
+
+**The defect.** `fold_rows` built each fold from the feature frame plus `player_code`, `position`,
+`price`, the target and `minutes`. `ComponentPredictor.fit` was then handed that frame — which
+carries no `goals_scored`, no `assists`, no `bps`, no `team_id`. `RateModel.fit` begins
+`if self.column not in history.columns: return self`. So for **every fold of every backtest and
+every chip replay this project has ever run**:
+
+- M3–M7 had an empty `prior_by_position` and a `population_prior` of 0.0, so every rate was shrunk
+  toward **zero** rather than toward a fitted position prior;
+- M2 was never estimated at all — no team had an attack or defence rating, and `league_mean_goals`
+  stayed at its 1.4 default;
+- M8 kept its default BPS shape.
+
+Nothing failed. Every model still predicted, every metric was still computed, and the harness's own
+leakage tests still passed, because the frame was missing information rather than carrying too much.
+**This is exactly the "wrong invisibly" case DP-13 names**, and it was found only because a new
+feature that multiplies a prior did nothing at all — a prior of zero times any ratio is zero.
+
+**The fix.** `OUTCOME_COLUMNS` now names everything that describes the gameweek being predicted; the
+fold frame carries all of it so the components can fit on it, and `walk_forward` strips exactly that
+set before handing a frame to any predictor. The boundary is asserted rather than assumed
+(`test_no_outcome_column_of_any_kind_reaches_a_prediction`), alongside a test that the components
+come out of a real walk with a non-empty position prior and a fitted team rating — because "the
+column was present" and "the model learned from it" are different claims, and this defect lived in
+the gap between them.
+
+**The correction makes the model worse.** Same 72 folds, same 21,712 scored observations:
+
+| Model | MAE | Spearman | MAE skill vs B0 | Top-20 precision | Calibration slope |
+| --- | --- | --- | --- | --- | --- |
+| xp_v1 **as DL-21 published it** (rates shrunk to zero) | 1.9355 | 0.24444 | 0.01501 | 0.00 | 0.711 |
+| xp_v1 **with the components actually fitted** | 1.94547 | 0.22545 | 0.00994 | 0.00 | 0.597 |
+| B0 — price + position | 1.96499 | 0.21385 | — | 0.05 | 0.606 |
+| Model-free — trailing 6 gameweeks | 2.11489 | 0.29104 | −0.07628 | 0.05 | 0.394 |
+
+**Shrinking every rate to zero was accidental regularisation, and it was doing more good than the
+priors it replaced.** That is worth stating plainly rather than filing as a curiosity: the fitted
+position priors, as currently estimated, are worse than assuming nobody scores. The most likely
+reason is that they are fitted on a per-gameweek frame in which most rows are zeros for most
+statistics, so the "prior" is close to a league average that flatters nobody and fits the tail
+badly — but that is a hypothesis, and it is the next thing a model-improvement pass should falsify.
+
+**What this does not change.** The verdict is the same in both rows and now rests on a model that
+exists: **beats B0, loses to the model-free benchmark, top-20 precision 0.00.**
+[D-13](epics/E0-steel-thread-gw1.md#6-technical-debt-register) stands, unchanged and better
+evidenced. [DL-21](#dl-21--the-v1-forecast-beats-price-and-loses-to-recent-form-reported-not-tuned)
+is **not** superseded as a finding — its conclusion survives — but its table must be read as
+describing a partially unfitted model, and this entry is the corrected one.
+
+**Consequence:** the published `backtest.json`, `backtest-card.md` and model card now carry the
+corrected numbers. [DL-28](#dl-28--the-simulation-re-rank-changes-real-chip-decisions-and-there-is-no-evidence-yet-that-it-improves-them)'s
+chip replay ran on the unfitted model and its 5–3 result should be re-read with that in mind; it was
+already explicitly not evidence of skill, so no conclusion of it is withdrawn, and re-running it is
+worth doing when D-21 is investigated.
+
+---
+
 ## Open decisions
 
 Decisions deliberately deferred, with the point at which each must be resolved.
@@ -601,5 +1048,5 @@ Decisions deliberately deferred, with the point at which each must be resolved.
 | ~~OD-02~~ | ~~Hosting: Cloudflare Pages, public repo, or local-only~~ — **Closed by DL-12.** GitHub Pages is free on a public repository; no Cloudflare account needed | Resolved |
 | OD-03 | Which odds provider and free-tier credit budget | E5, ~GW10 |
 | OD-04 | Whether to add injury/press-conference feeds as a fourth source | E8, in-season |
-| OD-05 | **Default risk-dial posture.** Narrowed by [DL-13](#dl-13--charter-amendments-following-the-2026-08-09-architecture-and-plan-audit): the rank *ambition* is settled in charter §5 (top-100k target, top-10k stretch). What remains open is how aggressively the dial should default, which is a temperament question, not a target question | E4, before the risk dial ships |
-| OD-06 | **How effective ownership is obtained.** `selected_by_percent` is public; captaincy share is not exposed by any FPL endpoint, so `EO = selected_by% + captained_by%` is not directly computable. Three candidate routes are set out in [04-conceptual-design.md §7](04-conceptual-design.md#7-risk-and-ownership-model) | E4, with the risk dial |
+| ~~OD-05~~ | ~~Default risk-dial posture~~ — **Closed: Balanced, as a configuration field the owner can change at any time.** Reopens only if the owner states a target rank or a temperament. See [DL-25](#dl-25--od-05-resolved-the-risk-dial-defaults-to-balanced) | Resolved |
+| ~~OD-06~~ | ~~How effective ownership is obtained~~ — **Closed: redefined without a captaincy term.** See [DL-24](#dl-24--od-06-resolved-effective-ownership-redefined-without-a-captaincy-term) | Resolved |

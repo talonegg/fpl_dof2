@@ -33,6 +33,15 @@ def _render(schema: dict[str, Any], defs: dict[str, Any], indent: int = 0) -> st
         ref = str(schema["$ref"])
         return _type_name(ref.rsplit("/", 1)[-1])
 
+    # A nullable reference is expressed as `oneOf: [{$ref}, {type: null}]`, because a `$ref`
+    # cannot carry a type union alongside it. Rendered as a TypeScript union rather than falling
+    # through to `unknown`, which would silently drop the shape the app needs.
+    for keyword in ("oneOf", "anyOf"):
+        options = schema.get(keyword)
+        if isinstance(options, list) and options:
+            parts = [_render(option, defs, indent) for option in options]
+            return " | ".join(dict.fromkeys(parts))
+
     kind = schema.get("type")
     if isinstance(kind, list):
         parts = [_render({**schema, "type": single}, defs, indent) for single in kind]
