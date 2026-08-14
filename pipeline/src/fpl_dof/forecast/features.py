@@ -15,22 +15,35 @@ deadline it is being used for.
 The subtlety worth stating: **a gameweek's own deadline, not its kickoffs, is the boundary.** A
 match played on Saturday afternoon is unknowable at Friday's deadline even though both fall in the
 same gameweek, and using it would produce a backtest that looks superb and a season that does not.
+
+**The same question, asked of a season total, has a different answer.** The conformed advanced
+tables (``player_metric``) carry running season totals rather than per-fixture rows. A total for
+season *S* is not knowable at any deadline *within* S — at gameweek 10 nobody knows what the figure
+will be in May — so the boundary for those is the **season**, not the deadline, and it is enforced
+by season label rather than by timestamp: a metric row is admissible only against a season that
+starts strictly later than its own. That rule cannot be defeated by a fixture list, a postponement
+or an off-by-one on the last kickoff, which is why it is preferred over comparing ``as_of`` to the
+season's final match. See D-22.
 """
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 
 import numpy as np
 import pandas as pd
 
-from fpl_dof.config.models import FeatureConfig
+from fpl_dof.config.models import FeatureConfig, PriorSeasonConfig
 from fpl_dof.frames import as_int
 from fpl_dof.obs.logging import get_logger
 
 log = get_logger(__name__)
+
+#: Every prior-season feature carries this prefix, so one string finds all of them.
+PRIOR_SEASON_PREFIX = "prior_season_"
+PRIOR_SEASON_MINUTES = f"{PRIOR_SEASON_PREFIX}minutes"
 
 
 class LeakageError(RuntimeError):
@@ -77,6 +90,20 @@ def rolling_feature_names(config: FeatureConfig) -> tuple[str, ...]:
     ) + tuple(f"minutes_mean_last{window}" for window in config.rolling_windows)
 
 
+def prior_season_feature_names(config: FeatureConfig) -> tuple[str, ...]:
+    """The prior-season features, or nothing at all when the prior ships dark (DP-08).
+
+    Sorted rather than in configuration order so the column order of a training frame does not
+    depend on how somebody wrote a YAML mapping.
+    """
+    if not config.prior_season.enabled:
+        return ()
+    return (
+        PRIOR_SEASON_MINUTES,
+        *(f"{PRIOR_SEASON_PREFIX}{stem}_ratio" for stem in sorted(config.prior_season.statistics)),
+    )
+
+
 TARGET = "total_points"
 
 
@@ -90,8 +117,21 @@ def specs(config: FeatureConfig) -> tuple[FeatureSpec, ...]:
         )
         for name in rolling_feature_names(config)
     )
+    prior_season = tuple(
+        FeatureSpec(
+            name=name,
+            knowability=Knowability.BEFORE_DEADLINE,
+            summary=(
+                "A completed prior season's total. Knowable from the first deadline of the "
+                "following season and at no deadline before it"
+            ),
+            source_columns=("season", "scope", "minutes_played"),
+        )
+        for name in prior_season_feature_names(config)
+    )
     return (
         *rolling,
+        *prior_season,
         FeatureSpec(
             name="starts_rate",
             knowability=Knowability.BEFORE_DEADLINE,
@@ -141,18 +181,109 @@ def input_features(config: FeatureConfig) -> tuple[str, ...]:
     return tuple(spec.name for spec in specs(config) if spec.is_input)
 
 
+def season_start_year(season: str) -> int | None:
+    """``2024/25`` or ``2024-25`` -> ``2024``. Anything else -> ``None``.
+
+    Seasons are labelled inconsistently across this project's inputs, and the separator sorts
+    differently from the one beside it, so comparing labels as strings would silently order
+    ``2026-27`` before ``2025/26``. The start year is the only part that means anything.
+    """
+    head = str(season).strip()[:4]
+    return int(head) if head.isdigit() else None
+
+
+def prior_season_ratios(
+    metrics: pd.DataFrame,
+    *,
+    season: str,
+    positions: Mapping[int, str],
+    config: PriorSeasonConfig,
+) -> pd.DataFrame:
+    """Each player's most recent *completed* season, as position-relative per-90 ratios.
+
+    The knowability rule is the whole of the first filter: a season-scope row is admissible only
+    against a season that starts strictly later than its own. Applied to labels rather than to
+    timestamps because it must hold at every deadline of the target season including the first,
+    when no match of it has been played and no clock could distinguish the two seasons.
+
+    A player with no qualifying prior season gets no row, and therefore a null feature — the
+    absence of evidence, which the model's shrinkage already knows how to treat, rather than a zero,
+    which is a claim.
+    """
+    columns = [
+        PRIOR_SEASON_MINUTES,
+        *(f"{PRIOR_SEASON_PREFIX}{stem}_ratio" for stem in config.statistics),
+    ]
+    empty = pd.DataFrame(columns=["player_code", *columns])
+    target = season_start_year(season)
+    if metrics.empty or target is None or "minutes_played" not in metrics.columns:
+        return empty
+
+    frame = metrics[metrics["scope"] == "season"].copy()
+    frame["_start_year"] = frame["season"].map(season_start_year)
+    frame = frame[frame["_start_year"].notna() & (frame["_start_year"] < target)]
+    frame = frame[frame["player_code"].notna()]
+    minutes = pd.to_numeric(frame["minutes_played"], errors="coerce")
+    frame = frame[minutes.notna() & (minutes >= config.minimum_minutes)]
+    if frame.empty:
+        return empty
+
+    # The most recent completed season only. Two seasons ago is weaker evidence about the same
+    # thing, and averaging them would hide which one the number came from.
+    frame = frame.sort_values("_start_year").groupby("player_code", as_index=False).last()
+    frame["player_code"] = frame["player_code"].map(as_int)
+    frame[PRIOR_SEASON_MINUTES] = pd.to_numeric(frame["minutes_played"], errors="coerce")
+    frame["_position"] = frame["player_code"].map(positions)
+
+    for stem, sources in config.statistics.items():
+        available = [column for column in sources if column in frame.columns]
+        if not available:
+            frame[f"{PRIOR_SEASON_PREFIX}{stem}_ratio"] = np.nan
+            continue
+        total = frame[available].apply(pd.to_numeric, errors="coerce").sum(axis=1, min_count=1)
+        rate = total / frame[PRIOR_SEASON_MINUTES] * 90.0
+        frame[f"{PRIOR_SEASON_PREFIX}{stem}_ratio"] = _position_relative(
+            rate, frame["_position"], config
+        )
+
+    ratios: pd.DataFrame = frame[["player_code", *columns]].reset_index(drop=True)
+    return ratios
+
+
+def _position_relative(
+    rate: pd.Series, position: pd.Series, config: PriorSeasonConfig
+) -> pd.Series:
+    """A rate divided by the mean among the same position, bounded.
+
+    Position-relative because the model already carries a position prior: handing it an absolute
+    rate would count the position twice, and a defender would arrive with a defensive prior scaled
+    up simply for being a defender.
+    """
+    overall = float(rate.mean(skipna=True))
+    means = rate.groupby(position).transform("mean")
+    reference = means.where(means.notna() & (means > 0), overall if overall > 0 else np.nan)
+    ratio = rate / reference
+    return ratio.clip(lower=config.minimum_ratio, upper=config.maximum_ratio)
+
+
 def build_features(
     history: pd.DataFrame,
     *,
     as_of: pd.Timestamp,
     config: FeatureConfig,
     positions: pd.DataFrame | None = None,
+    metrics: pd.DataFrame | None = None,
+    season: str | None = None,
 ) -> pd.DataFrame:
     """One row per player, describing them as of ``as_of``.
 
     ``history`` is the per-gameweek table. **Only rows whose kickoff is strictly before ``as_of``
     are used**, and that filter happens here rather than in each caller, because a filter that each
     caller has to remember is a filter that one caller eventually forgets.
+
+    ``metrics`` is the conformed advanced table. It contributes only completed *prior* seasons, and
+    only when ``season`` says which season is being predicted; without that the question "is this
+    row in the past" has no answer and the safe answer is taken instead.
     """
     if history.empty:
         return pd.DataFrame(columns=["player_code", "as_of", *input_features(config)])
@@ -196,6 +327,7 @@ def build_features(
         rows.append(row)
 
     frame = pd.DataFrame(rows)
+    frame = _attach_prior_season(frame, known, config=config, metrics=metrics, season=season)
     if positions is not None and not positions.empty:
         frame = frame.merge(
             positions[["player_code", "position"]].drop_duplicates("player_code"),
@@ -203,6 +335,46 @@ def build_features(
             how="left",
         )
     return frame
+
+
+def _attach_prior_season(
+    frame: pd.DataFrame,
+    known: pd.DataFrame,
+    *,
+    config: FeatureConfig,
+    metrics: pd.DataFrame | None,
+    season: str | None,
+) -> pd.DataFrame:
+    """Merge the prior-season ratios on, or declare them null.
+
+    The columns exist whenever the feature is enabled, even when no source supplied a number. A
+    frame whose shape depends on whether a scraper ran is a frame that fails somewhere else, later,
+    for a reason nobody connects back to the scraper.
+    """
+    names = prior_season_feature_names(config)
+    if not names:
+        return frame
+    for name in names:
+        frame[name] = np.nan
+    if metrics is None or metrics.empty or season is None:
+        return frame
+
+    positions: Mapping[int, str] = (
+        {
+            as_int(code): str(value)
+            for code, value in known.groupby("player_code")["position"].last().items()
+        }
+        if "position" in known.columns
+        else {}
+    )
+    ratios = prior_season_ratios(
+        metrics, season=season, positions=positions, config=config.prior_season
+    )
+    if ratios.empty:
+        return frame
+    return frame.drop(columns=list(names)).merge(
+        ratios[["player_code", *names]], on="player_code", how="left"
+    )
 
 
 def assert_no_look_ahead(
@@ -273,6 +445,8 @@ def training_frame(
 
 
 __all__ = [
+    "PRIOR_SEASON_MINUTES",
+    "PRIOR_SEASON_PREFIX",
     "TARGET",
     "FeatureSpec",
     "Knowability",
@@ -280,7 +454,10 @@ __all__ = [
     "assert_no_look_ahead",
     "build_features",
     "input_features",
+    "prior_season_feature_names",
+    "prior_season_ratios",
     "rolling_feature_names",
+    "season_start_year",
     "specs",
     "training_frame",
 ]

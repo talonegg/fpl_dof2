@@ -23,6 +23,7 @@ from fpl_dof.forecast.backtest import (
     B0_COLUMN,
     FORM_COLUMN,
     MODEL_COLUMN,
+    OUTCOME_COLUMNS,
     BacktestResult,
     Predictor,
     deadlines_for,
@@ -43,7 +44,10 @@ from fpl_dof.forecast.metrics import (
     spearman,
     top_n_precision,
 )
+from fpl_dof.forecast.models import RATE_COMPONENTS
+from fpl_dof.forecast.xp_v1 import ComponentPredictor
 from fpl_dof.frames import as_float, as_int
+from fpl_dof.rules.models import GameRules
 
 SEASON = "2025/26"
 POSITIONS = ("GKP", "DEF", "MID", "FWD")
@@ -250,6 +254,65 @@ def test_the_harness_never_hands_a_model_the_answer() -> None:
     """
     with pytest.raises(AssertionError, match="handed a model the answer"):
         _walk(Cheater())
+
+
+class ColumnRecorder:
+    """A predictor that records exactly what it was shown."""
+
+    def __init__(self) -> None:
+        self.fitted: set[str] = set()
+        self.seen: set[str] = set()
+
+    def fit(self, training: pd.DataFrame) -> None:
+        self.fitted |= set(training.columns)
+
+    def predict(self, features: pd.DataFrame) -> pd.Series:
+        self.seen |= set(features.columns)
+        return pd.Series(0.0, index=features.index, dtype=float)
+
+
+def test_no_outcome_column_of_any_kind_reaches_a_prediction() -> None:
+    """Not just the target: every column describing the gameweek being predicted.
+
+    Widened when D-24 was found. The fold frame now carries the raw per-gameweek statistics so the
+    component models can actually fit on them, which makes the drop list the only thing standing
+    between a fitted model and a leaking one — so it is asserted rather than assumed.
+    """
+    recorder = ColumnRecorder()
+    _walk(recorder)
+
+    assert not recorder.seen & set(OUTCOME_COLUMNS)
+
+
+def test_the_training_frame_carries_the_statistics_the_components_fit_on() -> None:
+    """D-24. Without these columns ``RateModel.fit`` silently fits nothing.
+
+    The failure it guards against is invisible in every metric: the models still predict, the
+    backtest still runs, and every rate is shrunk toward zero rather than toward a position prior.
+    """
+    recorder = ColumnRecorder()
+    _walk(recorder)
+
+    for column in RATE_COMPONENTS:
+        assert column in recorder.fitted
+
+
+def test_the_components_actually_fit_a_position_prior_in_the_harness(
+    game_rules: GameRules,
+) -> None:
+    """The end-to-end version of the check above, through the real predictor.
+
+    Asserting on the fitted object rather than on its inputs, because "the column was present" and
+    "the model learned from it" are different claims and D-24 was the gap between them.
+    """
+    predictor = ComponentPredictor(ForecastConfig(), game_rules)
+    result = _walk(predictor)
+
+    assert result.model.observations > 0
+    assert predictor.models is not None
+    for column in RATE_COMPONENTS:
+        assert predictor.models.rates[column].prior_by_position, column
+    assert predictor.models.team_strength.attack
 
 
 def test_every_fold_is_stamped_at_its_own_deadline() -> None:

@@ -87,6 +87,9 @@ def test_no_backfill_still_fetches_the_current_season() -> None:
 def understat_mock() -> Iterator[respx.MockRouter]:
     base = UnderstatAdapter.base_url
     with respx.mock(assert_all_called=False) as mock:
+        mock.get(f"{base}/robots.txt").mock(
+            return_value=httpx.Response(200, content=fixture("understat_robots.txt"))
+        )
         for season, page in (
             (CURRENT, "understat_league.html"),
             (HISTORIC, "understat_league_2024.html"),

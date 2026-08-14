@@ -891,6 +891,153 @@ exists so the substitution is a recorded decision rather than a silently repeate
 
 ---
 
+## DL-31 — D-22 closed: the prior-season consumer exists, and neither source it was built for can be fetched
+
+**Date:** 2026-08-15 · **Status:** Accepted · **Arose in:** D-22
+
+[DL-29](#dl-29--d-20-re-diagnosed-the-backfill-was-never-the-blocker-the-missing-consumer-is) named
+the missing consumer as the single thing standing between E5 and its acceptance test. It was built.
+It is not the last thing standing there.
+
+**The design, and the one decision that mattered.** A season total is knowable only once its season
+is over, so it enters the model as a **prior-season** feature and the boundary is enforced on the
+**season label**, not on a timestamp: a `scope="season"` row for season *S* is admissible only
+against a season starting strictly later than *S*. Deliberately not "compare `as_of` to the last
+kickoff of *S*" — a postponement, a rearranged final round or a missing fixture row moves that
+boundary, and at the first deadline of the following season no clock separates the two seasons at
+all. Property-tested across all 38 gameweeks at both ends: invisible at every deadline inside its own
+season including the last, visible at every deadline of the next one
+(`tests/test_prior_season_features.py`).
+
+**A ratio, not a rate.** Each statistic is divided by the mean among the player's own position and
+bounded to [0.5, 2.0], and the result *scales the position prior* a component is already shrunk
+toward, weighted by prior-season minutes on the same arithmetic as the existing shrinkage. Three
+reasons, in order of importance: what is trusted about an external provider is the ordering it
+implies rather than its scale, so a definitional mismatch between somebody's "defensive action" and
+the game's own cannot bias the level; a player with no prior season lands on the position prior
+exactly, which is what happens today, so "no evidence" needed no new mechanism; and last season's
+evidence fades as this season's accumulates rather than sitting permanently on the scale. Off by
+default (DP-08).
+
+**Then it was pointed at the real sources, and there are none.**
+
+- **Understat's `robots.txt` now reads `User-agent: *` / `Disallow: /`** — the entire site.
+- **FBref returns a Cloudflare 403 to every request**, `robots.txt` included, so no permission can
+  even be read.
+- **Underneath that, a posture defect:** only the FBref adapter ever checked `robots.txt`. The
+  Understat adapter did not, so enabling it fetched four pages the site disallows. The check now
+  lives in a shared `sources/robots.py` used by both, and Understat consequently fetches nothing.
+  The four snapshots taken before the fix were deleted.
+- **And the extraction is stale anyway:** the live Understat league page no longer carries the
+  `playersData` script the adapter parses. E5's "contract test against a recorded page" turns out to
+  use **hand-constructed** 2.4 KB fixtures, not recorded ones, so neither scraped adapter has ever
+  been run against a real page.
+
+Neither block is worked around. Ignoring a site's stated rules or defeating an access control is the
+wrong side of [DL-27](#dl-27--e5-built-without-an-odds-key-or-a-fresh-scraping-sign-off-both-were-already-answered)
+and NFR-10, and "the checkbox needs it" is not a reason. Opened as **D-23**, which is an owner
+decision about provenance, not a coding task.
+
+**Two real defects found on the way, both fixed.** Entity resolution stamped *every* crosswalk row
+with the current season regardless of which season its reference described — so a backfilled advanced
+row could never join an identity, and a two-season backfill would have hard-failed the duplicate-claim
+guard on one footballer legitimately appearing in both seasons. Resolution now keeps each reference's
+own season and scopes the guard by it. Two quality gates that assumed a single-season crosswalk were
+corrected with it: the unmatched-rate gate now judges the current season only, because a backfilled
+season is matched against *this* season's player list and everyone who has since left is unmatched in
+it, correctly and in numbers that would swamp the signal.
+
+**What could still be measured, and what it says.** With no source data, the question "does the
+design help" was put to a probe using the official feed's own prior-season totals in place of the
+missing ones — the same production path, the same season-boundary rule, and honestly not E5's
+acceptance test. On the corrected model (see [DL-32](#dl-32--the-component-models-never-fitted-in-the-backtest-so-dl-21s-table-describes-a-model-nobody-built)), 72 folds, 21,712 scored observations:
+
+| Prior-season prior | MAE | Spearman | MAE skill vs B0 | Top-20 precision | Calibration slope |
+| --- | --- | --- | --- | --- | --- |
+| Off | 1.94547 | 0.22545 | 0.00994 | 0.00 | 0.597 |
+| On | 1.94578 | **0.22790** | 0.00978 | 0.00 | 0.605 |
+| Difference | +0.0003 | **+0.0025** | −0.0002 | 0.00 | +0.008 |
+
+Per season: 2024/25 Spearman 0.28049 → 0.28439, 2025/26 0.17268 → 0.17336. **+0.002 Spearman is not
+"measurably improve" by any reading**, MAE is fractionally worse, and top-20 precision — the number
+D-13 is about — does not move off zero. The mechanism is demonstrably live rather than inert: the
+same probe before [DL-32](#dl-32--the-component-models-never-fitted-in-the-backtest-so-dl-21s-table-describes-a-model-nobody-built)'s fix returned figures identical in every reported
+digit, because it was scaling a prior that was zero.
+
+**Consequences:**
+
+1. **D-22 is closed.** The consumer exists, is safe, and is tested where being wrong would be
+   invisible.
+2. **E5's "backtest metrics measurably improve" stays unticked and D-07 stays open.** Neither is
+   earned, and [DL-22](#dl-22--post-e3-audit-found-a-dod-item-ticked-without-its-acceptance-criterion-being-met)
+   is why that matters. Their remainder is **D-23**.
+3. **The feature ships dark.** `forecast.features.prior_season.enabled` defaults false; nothing
+   promotes it without evidence, and there is none.
+4. **The odds half of D-20 is untouched** and still waits on a key.
+
+---
+
+## DL-32 — The component models never fitted in the backtest, so DL-21's table describes a model nobody built
+
+**Date:** 2026-08-15 · **Status:** Accepted · **Arose in:** D-22, while asking why the new feature
+changed nothing
+
+**The defect.** `fold_rows` built each fold from the feature frame plus `player_code`, `position`,
+`price`, the target and `minutes`. `ComponentPredictor.fit` was then handed that frame — which
+carries no `goals_scored`, no `assists`, no `bps`, no `team_id`. `RateModel.fit` begins
+`if self.column not in history.columns: return self`. So for **every fold of every backtest and
+every chip replay this project has ever run**:
+
+- M3–M7 had an empty `prior_by_position` and a `population_prior` of 0.0, so every rate was shrunk
+  toward **zero** rather than toward a fitted position prior;
+- M2 was never estimated at all — no team had an attack or defence rating, and `league_mean_goals`
+  stayed at its 1.4 default;
+- M8 kept its default BPS shape.
+
+Nothing failed. Every model still predicted, every metric was still computed, and the harness's own
+leakage tests still passed, because the frame was missing information rather than carrying too much.
+**This is exactly the "wrong invisibly" case DP-13 names**, and it was found only because a new
+feature that multiplies a prior did nothing at all — a prior of zero times any ratio is zero.
+
+**The fix.** `OUTCOME_COLUMNS` now names everything that describes the gameweek being predicted; the
+fold frame carries all of it so the components can fit on it, and `walk_forward` strips exactly that
+set before handing a frame to any predictor. The boundary is asserted rather than assumed
+(`test_no_outcome_column_of_any_kind_reaches_a_prediction`), alongside a test that the components
+come out of a real walk with a non-empty position prior and a fitted team rating — because "the
+column was present" and "the model learned from it" are different claims, and this defect lived in
+the gap between them.
+
+**The correction makes the model worse.** Same 72 folds, same 21,712 scored observations:
+
+| Model | MAE | Spearman | MAE skill vs B0 | Top-20 precision | Calibration slope |
+| --- | --- | --- | --- | --- | --- |
+| xp_v1 **as DL-21 published it** (rates shrunk to zero) | 1.9355 | 0.24444 | 0.01501 | 0.00 | 0.711 |
+| xp_v1 **with the components actually fitted** | 1.94547 | 0.22545 | 0.00994 | 0.00 | 0.597 |
+| B0 — price + position | 1.96499 | 0.21385 | — | 0.05 | 0.606 |
+| Model-free — trailing 6 gameweeks | 2.11489 | 0.29104 | −0.07628 | 0.05 | 0.394 |
+
+**Shrinking every rate to zero was accidental regularisation, and it was doing more good than the
+priors it replaced.** That is worth stating plainly rather than filing as a curiosity: the fitted
+position priors, as currently estimated, are worse than assuming nobody scores. The most likely
+reason is that they are fitted on a per-gameweek frame in which most rows are zeros for most
+statistics, so the "prior" is close to a league average that flatters nobody and fits the tail
+badly — but that is a hypothesis, and it is the next thing a model-improvement pass should falsify.
+
+**What this does not change.** The verdict is the same in both rows and now rests on a model that
+exists: **beats B0, loses to the model-free benchmark, top-20 precision 0.00.**
+[D-13](epics/E0-steel-thread-gw1.md#6-technical-debt-register) stands, unchanged and better
+evidenced. [DL-21](#dl-21--the-v1-forecast-beats-price-and-loses-to-recent-form-reported-not-tuned)
+is **not** superseded as a finding — its conclusion survives — but its table must be read as
+describing a partially unfitted model, and this entry is the corrected one.
+
+**Consequence:** the published `backtest.json`, `backtest-card.md` and model card now carry the
+corrected numbers. [DL-28](#dl-28--the-simulation-re-rank-changes-real-chip-decisions-and-there-is-no-evidence-yet-that-it-improves-them)'s
+chip replay ran on the unfitted model and its 5–3 result should be re-read with that in mind; it was
+already explicitly not evidence of skill, so no conclusion of it is withdrawn, and re-running it is
+worth doing when D-21 is investigated.
+
+---
+
 ## Open decisions
 
 Decisions deliberately deferred, with the point at which each must be resolved.

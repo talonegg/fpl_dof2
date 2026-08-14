@@ -199,7 +199,16 @@ def resolve(
     """Resolve every source reference to a canonical player, or record that it could not be.
 
     Pure: frames in, frames out, no I/O and no clock (DP-03). ``season`` is passed rather than read
-    so that a re-run for a different season cannot pick up this one's answers by accident.
+    so that a re-run for a different season cannot pick up this one's answers by accident; it names
+    the season the canonical player list describes, and is the label a reference carrying none
+    falls back to.
+
+    **A reference keeps its own season.** A backfill hands this function several seasons at once,
+    and one footballer legitimately appears in each of them: same source id, same canonical player,
+    different season. Stamping them all with the current season would both collapse them onto one
+    crosswalk row — so a historical advanced row could never join to an identity — and trip the
+    duplicate-claim guard below on what is not a conflict at all. The guard is therefore scoped by
+    season, which is the unit resolution is defined on in the first place.
     """
     report = ResolutionReport()
     columns = columns_for(Table.PLAYER_CROSSWALK)
@@ -212,10 +221,11 @@ def resolve(
     override_map = {source: dict(entries) for source, entries in (overrides or {}).items()}
 
     rows: list[dict[str, object]] = []
-    claimed: dict[tuple[str, int], str] = {}
+    claimed: dict[tuple[str, str, int], str] = {}
 
     for record in refs.sort_values(["source", "source_player_id"]).itertuples():
         source = str(record.source)
+        ref_season = str(record.season) if pd.notna(record.season) else season
         source_id = str(record.source_player_id)
         name = str(record.source_name)
         club = team_key(str(record.source_team or ""))
@@ -247,18 +257,18 @@ def resolve(
                 matched, method, confidence = found, "fuzzy", round(score, 4)
 
         if matched is not None:
-            owner = claimed.get((source, matched.player_id))
+            owner = claimed.get((ref_season, source, matched.player_id))
             if owner is not None:
                 raise ResolutionConflictError(
                     f"{source} players {owner!r} and {source_id!r} both resolved to canonical "
-                    f"player {matched.player_id} ({matched.full_name}); one source cannot hold two "
-                    "identities for one footballer, and continuing would merge them"
+                    f"player {matched.player_id} ({matched.full_name}) in {ref_season}; one source "
+                    "cannot hold two identities for one footballer, and continuing would merge them"
                 )
-            claimed[(source, matched.player_id)] = source_id
+            claimed[(ref_season, source, matched.player_id)] = source_id
 
         rows.append(
             {
-                "season": season,
+                "season": ref_season,
                 "source": source,
                 "source_player_id": source_id,
                 "source_name": name,

@@ -248,10 +248,20 @@ def _crosswalk_is_mostly_matched(frame: pd.DataFrame, context: Mapping[str, obje
 
     Per source rather than overall, because one broken source averaged against three working ones
     is exactly the failure an aggregate hides.
+
+    **The current season only.** A backfilled season is matched against *this* season's player
+    list, so everyone who has since left the league is unmatched in it — correctly, and in numbers
+    that would swamp the rate this gate exists to watch. Judging a matcher by how many of last
+    year's departed players it failed to find in this year's squad list is judging it on the one
+    thing it cannot do.
     """
     limit = _config(context).maximum_unmatched_player_rate
+    season = context.get("season")
+    current = frame[frame["season"] == season] if season is not None else frame
+    if current.empty:
+        current = frame
     worst_source, worst_rate, counts = "", 0.0, {}
-    for source, group in frame.groupby("source"):
+    for source, group in current.groupby("source"):
         unmatched = int((group["match_method"] == "unmatched").sum())
         rate = unmatched / len(group) if len(group) else 0.0
         counts[str(source)] = {"unmatched": unmatched, "total": len(group)}
@@ -291,20 +301,24 @@ def _crosswalk_identities_are_one_to_one(
 def _crosswalk_is_for_this_season(
     frame: pd.DataFrame, context: Mapping[str, object]
 ) -> CheckResult:
-    """Every crosswalk row belongs to the season being run.
+    """Every crosswalk row belongs to a season this run actually asked for.
 
     Resolution is re-run from scratch each season because transfers invalidate club-based matching
     (Design §3.2). A row carried over from last season is last season's answer wearing this
-    season's clothes.
+    season's clothes — *unless* last season was explicitly backfilled, in which case its identities
+    are the point rather than the residue, and the prior-season features depend on them existing.
     """
     expected = context.get("season")
     if not isinstance(expected, str):
         return True, "no season in context to check against", {}
-    stale = sorted({str(value) for value in frame["season"].unique()} - {expected})
+    requested = context.get("backfill_seasons")
+    backfilled = requested if isinstance(requested, tuple | list) else ()
+    allowed = {expected} | {str(value) for value in backfilled}
+    stale = sorted({str(value) for value in frame["season"].unique()} - allowed)
     return (
         not stale,
-        f"crosswalk carries {len(stale)} season(s) other than {expected}: {stale[:3]}",
-        {"stale_seasons": stale[:10], "expected": expected},
+        f"crosswalk carries {len(stale)} season(s) nobody asked for: {stale[:3]}",
+        {"stale_seasons": stale[:10], "expected": sorted(allowed)},
     )
 
 

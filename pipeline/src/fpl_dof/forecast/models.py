@@ -250,6 +250,8 @@ class RateModel:
     prior_by_position: dict[str, float] = field(default_factory=dict)
     population_prior: float = 0.0
     prior_minutes: float = 900.0
+    prior_season_minutes: float = 900.0
+    """Prior-season minutes at which a player's own prior-season ratio carries half the weight."""
 
     def fit(self, history: pd.DataFrame) -> RateModel:
         if history.empty or self.column not in history.columns:
@@ -275,18 +277,44 @@ class RateModel:
             )
         return self
 
-    def predict(self, position: str, observed_rate: float, minutes_observed: float) -> float:
+    def predict(
+        self,
+        position: str,
+        observed_rate: float,
+        minutes_observed: float,
+        *,
+        prior_ratio: float = float("nan"),
+        prior_ratio_minutes: float = 0.0,
+    ) -> float:
         """Shrink the player's own rate toward the position prior.
 
         The weight is ``minutes / (minutes + prior_minutes)``, so a player with the prior's worth of
         evidence is weighted half on themselves. A player with none is the prior exactly, which is
         the right answer for a new signing and the wrong answer to invent from three appearances.
+
+        ``prior_ratio`` moves *the prior itself*: a completed prior season saying this player did
+        the thing twice as often as his position does raises what we expect of him before this
+        season's evidence arrives, and fades out as that evidence accumulates. It is deliberately
+        the same shrinkage arithmetic rather than a second mechanism — a player with no prior
+        season lands on the position prior exactly, which is what happens today.
         """
         prior = self.prior_by_position.get(position, self.population_prior)
+        prior *= self._prior_scale(prior_ratio, prior_ratio_minutes)
         if math.isnan(observed_rate) or minutes_observed <= 0:
             return prior
         weight = minutes_observed / (minutes_observed + self.prior_minutes)
         return weight * observed_rate + (1.0 - weight) * prior
+
+    def _prior_scale(self, ratio: float, minutes: float) -> float:
+        """How far the position prior moves toward a player's prior-season ratio.
+
+        One at both ends of the evidence range: no prior season means no adjustment, and a thin one
+        means an almost neutral adjustment. Nothing here can turn a prior negative or to zero.
+        """
+        if math.isnan(ratio) or ratio <= 0 or minutes <= 0:
+            return 1.0
+        weight = minutes / (minutes + self.prior_season_minutes)
+        return weight * ratio + (1.0 - weight)
 
     def describe(self) -> dict[str, object]:
         return {
@@ -294,6 +322,7 @@ class RateModel:
             "priors_per_90": {k: round(v, 4) for k, v in self.prior_by_position.items()},
             "population_prior": round(self.population_prior, 4),
             "prior_minutes": self.prior_minutes,
+            "prior_season_minutes": self.prior_season_minutes,
         }
 
 
@@ -408,9 +437,11 @@ def fit_components(
     (the feature store), and every model trusts it. Two places deciding is how they disagree.
     """
     rates = {
-        column: RateModel(column=column, prior_minutes=config.shrinkage.rate_prior_minutes).fit(
-            history
-        )
+        column: RateModel(
+            column=column,
+            prior_minutes=config.shrinkage.rate_prior_minutes,
+            prior_season_minutes=config.features.prior_season.prior_minutes,
+        ).fit(history)
         for column in RATE_COMPONENTS
     }
     return ComponentModels(

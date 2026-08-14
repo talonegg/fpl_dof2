@@ -283,6 +283,89 @@ class UncertaintyConfig(_Section):
     )
 
 
+class PriorSeasonConfig(_Section):
+    """Prior-season advanced metrics, as a player-specific prior (D-22).
+
+    The conformed advanced tables carry **running season totals**, which are legitimate only once
+    the season they describe has finished — a finished season's total is unusable at any deadline
+    inside that season (Invariant 5). So they enter the model as a *previous*-season feature and
+    nothing else.
+
+    **A ratio, not a rate.** What is trusted about an external provider's numbers is the ordering
+    they imply, not their absolute scale: one provider's "defensive action" is not the official
+    feed's, and a per-90 count taken literally would bias every prior it touches. Each statistic is
+    therefore divided by the mean among that player's position, and the result scales the position
+    prior the model already uses.
+
+    **Off by default (DP-08).** It ships dark and is promoted only if a backtest says it earns its
+    place, which is the entire point of the story that added it.
+    """
+
+    enabled: bool = Field(
+        default=False,
+        description=(
+            "Whether the prior-season prior is used at all. Off until measured: the toggle is what "
+            "makes the before/after comparison a single configuration change rather than a diff."
+        ),
+    )
+    statistics: dict[str, tuple[str, ...]] = Field(
+        default_factory=lambda: {
+            "non_penalty_expected_goals": ("non_penalty_expected_goals",),
+            "expected_assists": ("expected_assists",),
+            "defensive_actions": ("tackles", "interceptions", "blocks", "clearances", "recoveries"),
+        },
+        description=(
+            "Feature stem -> the canonical metric columns summed to build it. Summed rather than "
+            "named singly because the defensive proxy is a count of several actions, and which "
+            "actions a provider reports is exactly the kind of thing that belongs in configuration."
+        ),
+    )
+    component_priors: dict[str, str] = Field(
+        default_factory=lambda: {
+            "goals_scored": "non_penalty_expected_goals",
+            "assists": "expected_assists",
+            "defensive_contribution": "defensive_actions",
+        },
+        description=(
+            "Rate component -> the feature stem whose ratio scales its position prior. A component "
+            "absent from this map is unaffected, which is how the signal reaches M3 and M4 without "
+            "reaching anything it was never argued to inform."
+        ),
+    )
+    minimum_minutes: float = Field(
+        default=450.0,
+        ge=0,
+        description=(
+            "Prior-season minutes below which the rate is noise. Five full matches: enough that a "
+            "single cameo cannot set a player's prior for a whole season."
+        ),
+    )
+    prior_minutes: float = Field(
+        default=900.0,
+        gt=0,
+        description=(
+            "Prior-season minutes at which the player's own ratio carries half the weight against "
+            "a neutral 1.0. Deliberately the same figure as the rate shrinkage: last season's "
+            "evidence is not stronger than this season's, and pretending otherwise would let a "
+            "stale number outvote what the player is doing now."
+        ),
+    )
+    minimum_ratio: float = Field(
+        default=0.5,
+        gt=0,
+        description="Floor on the position-relative ratio. A prior may be halved, not erased.",
+    )
+    maximum_ratio: float = Field(
+        default=2.0,
+        gt=0,
+        description=(
+            "Ceiling on the position-relative ratio. Bounded because the tail of a ratio of small "
+            "numbers is meaningless, and an unbounded one would let a fringe player's 300 minutes "
+            "triple a prior."
+        ),
+    )
+
+
 class FeatureConfig(_Section):
     """The feature store. Windows are configuration because the right length is an empirical
     question the backtest is supposed to answer, not a constant to be asserted."""
@@ -314,6 +397,7 @@ class FeatureConfig(_Section):
         ge=0,
         description="Below this, a per-90 rate is noise dressed as evidence and is shrunk hard.",
     )
+    prior_season: PriorSeasonConfig = PriorSeasonConfig()
 
 
 class ForecastConfig(_Section):

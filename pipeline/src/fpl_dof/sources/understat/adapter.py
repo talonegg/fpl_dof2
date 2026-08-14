@@ -11,9 +11,14 @@ breaks extraction (R-06), so: the shape is contract-tested against a recorded pa
 mode is a source warning rather than a crash (DP-15), and the TTL is long because a season total
 that moved by one shot is not worth a second request.
 
-**Posture.** Personal, non-commercial use. One request per season per run, through the shared
-:class:`~fpl_dof.sources.fetch.Fetcher` so the project's single rate limit and User-Agent apply,
-cached hard, off the fast path, and credited in the published attribution (NFR-10).
+**Posture.** Personal, non-commercial use. ``robots.txt`` is fetched and *evaluated* before any page
+is requested, through the shared :mod:`~fpl_dof.sources.robots` mechanism — it was not, until D-23
+found this adapter fetching pages the site disallows. One request per season per run, through the
+shared :class:`~fpl_dof.sources.fetch.Fetcher` so the project's single rate limit and User-Agent
+apply, cached hard, off the fast path, and credited in the published attribution (NFR-10).
+
+**As of 2026-08-15 this source yields nothing, correctly.** The site serves ``Disallow: /`` for all
+agents, so the adapter declines every page. See D-23.
 
 **Season-to-date, not per gameweek.** The league page carries running totals. They are conformed
 with ``scope="season"`` and no gameweek, because labelling a running total as a gameweek
@@ -26,6 +31,7 @@ from __future__ import annotations
 import codecs
 import json
 import re
+import urllib.robotparser
 from typing import Any, ClassVar
 
 import pandas as pd
@@ -42,6 +48,7 @@ from fpl_dof.sources.base import (
 from fpl_dof.sources.errors import SourceContractError, SourceError
 from fpl_dof.sources.registry import register
 from fpl_dof.sources.resolve import REF_COLUMNS
+from fpl_dof.sources.robots import ROBOTS_RESOURCE, check_allowed, fetch_robots
 
 log = get_logger(__name__)
 
@@ -97,6 +104,12 @@ class UnderstatAdapter(SourceAdapter):
     )
     resources: ClassVar[tuple[Resource, ...]] = (
         Resource(
+            name=ROBOTS_RESOURCE,
+            summary="The site's own crawling rules, checked before anything else is requested",
+            cache_ttl_seconds=_DAY,
+            fast_path=False,
+        ),
+        Resource(
             name="league_players",
             summary="Season-to-date expected goals for every player in the competition",
             # A day. The underlying model is refitted after matches, not continuously, and this is
@@ -120,11 +133,19 @@ class UnderstatAdapter(SourceAdapter):
             raise ValueError(f"season {season!r} is not in the expected 'YYYY/YY' form")
         return head
 
-    def fetch_players(self, season: str, request: IngestRequest) -> list[dict[str, Any]]:
+    def fetch_players(
+        self,
+        season: str,
+        request: IngestRequest,
+        robots: urllib.robotparser.RobotFileParser | None = None,
+    ) -> list[dict[str, Any]]:
         resource = self.resource("league_players")
         year = self.season_year(season)
+        path = f"league/{self.LEAGUE}/{year}"
+        if robots is not None:
+            check_allowed(self, path, robots)
         fetched = self.fetcher.fetch(
-            self.url_for(f"league/{self.LEAGUE}/{year}"),
+            self.url_for(path),
             source=self.name,
             source_version=self.version,
             resource=resource.name,
@@ -269,10 +290,21 @@ class UnderstatAdapter(SourceAdapter):
         before_calls = self.fetcher.network_calls
         before_hits = self.fetcher.cache_hits
 
+        try:
+            robots = fetch_robots(self, request)
+        except SourceError as exc:
+            # No rules read means no permission established. Declining to fetch is the only honest
+            # response, and it degrades the run rather than failing it.
+            report.warnings.append(f"robots.txt could not be read ({exc}); nothing was fetched")
+            report.network_calls = self.fetcher.network_calls - before_calls
+            report.cache_hits = self.fetcher.cache_hits - before_hits
+            return report
+        report.resources[ROBOTS_RESOURCE] = 1
+
         fetched = 0
         for season in self._seasons(request):
             try:
-                players = self.fetch_players(season, request)
+                players = self.fetch_players(season, request, robots)
             except SourceError as exc:
                 report.warnings.append(f"{season}: {exc}")
                 continue

@@ -65,10 +65,29 @@ def fetcher(tmp_path: Path) -> Iterator[Fetcher]:
 # --- Understat ----------------------------------------------------------------------------------
 
 
+@contextmanager
+def understat_mock(*, allow: bool = True) -> Iterator[respx.MockRouter]:
+    base = UnderstatAdapter.base_url
+    robots = fixture("understat_robots.txt") if allow else b"User-agent: *\nDisallow: /\n"
+    with respx.mock(assert_all_called=False) as mock:
+        mock.get(f"{base}/robots.txt").mock(return_value=httpx.Response(200, content=robots))
+        mock.get(f"{base}/league/EPL/2026").mock(
+            return_value=httpx.Response(
+                200,
+                content=fixture("understat_league.html"),
+                headers={"content-type": "text/html; charset=utf-8"},
+            )
+        )
+        yield mock
+
+
 @pytest.fixture
 def understat(fetcher: Fetcher) -> Iterator[UnderstatAdapter]:
     base = UnderstatAdapter.base_url
     with respx.mock(assert_all_called=False) as mock:
+        mock.get(f"{base}/robots.txt").mock(
+            return_value=httpx.Response(200, content=fixture("understat_robots.txt"))
+        )
         mock.get(f"{base}/league/EPL/2026").mock(
             return_value=httpx.Response(
                 200,
@@ -113,6 +132,28 @@ def test_conformed_expected_goals_land_in_the_canonical_columns(
     # A running total is not a gameweek observation. Saying so is what keeps it out of a backtest's
     # past (Invariant 5).
     assert advanced["gameweek"].isna().all()
+
+
+def test_understat_reads_robots_before_a_single_page(fetcher: Fetcher) -> None:
+    """The check this adapter did not have until D-23, and the reason the source now yields nothing.
+
+    A scraped source that respects one site's rules and not another's does not respect anybody's;
+    the mechanism is shared so that adding a third source cannot forget it.
+    """
+    with understat_mock(allow=False):
+        report = UnderstatAdapter(fetcher).ingest(REQUEST)
+
+    assert report.resources.get("robots") == 1
+    assert not report.resources.get("league_players")
+    assert any("robots.txt disallows" in warning for warning in report.warnings)
+
+
+def test_understat_reads_its_pages_when_the_site_permits_them(fetcher: Fetcher) -> None:
+    with understat_mock():
+        report = UnderstatAdapter(fetcher).ingest(REQUEST)
+
+    assert report.resources.get("league_players") == 1
+    assert not report.warnings
 
 
 def test_it_emits_source_references_for_resolution(understat: UnderstatAdapter) -> None:

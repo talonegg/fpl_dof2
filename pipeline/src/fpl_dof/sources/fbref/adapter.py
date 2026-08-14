@@ -8,6 +8,10 @@ shot- and goal-creating actions, progressive carries and passes, and touches in 
 penalty area. The conformed columns are additive: nothing here replaces the official
 ``defensive_contribution``, which stays the highest-precedence source for the field it defines.
 
+**As of 2026-08-15 this source yields nothing.** The site answers every request — ``robots.txt``
+included — with a Cloudflare 403, so no permission can be read and nothing is fetched. That is the
+adapter behaving correctly, not failing. See D-23.
+
 **Posture (NFR-10).** Personal, non-commercial use. ``robots.txt`` is fetched and *evaluated*
 before any statistics page is requested — a comment claiming compliance is not compliance — the
 shared rate limiter applies, pages are cached for a week, every resource is off the fast path, and
@@ -46,6 +50,7 @@ from fpl_dof.sources.errors import SourceContractError, SourceError
 from fpl_dof.sources.fbref.tables import parse_table
 from fpl_dof.sources.registry import register
 from fpl_dof.sources.resolve import REF_COLUMNS
+from fpl_dof.sources.robots import RobotsDisallowedError, check_allowed, fetch_robots
 
 log = get_logger(__name__)
 
@@ -101,10 +106,6 @@ REQUIRED_ROW_KEYS: tuple[str, ...] = ("player_id", "player", "team")
 #: The site's positional shorthand. Composites like "DF,MF" are left unmapped rather than
 #: arbitrated, so resolution falls back to name and club instead of trusting a coin flip.
 _POSITIONS = {"GK": "GKP", "DF": "DEF", "MF": "MID", "FW": "FWD"}
-
-
-class RobotsDisallowedError(SourceError):
-    """The site's own rules say not to fetch this path. That settles it."""
 
 
 @register
@@ -179,36 +180,8 @@ class FbrefAdapter(SourceAdapter):
         return f"en/comps/{cls.COMPETITION_ID}/{slug}/{page}/{slug}-{cls.COMPETITION_SLUG}"
 
     def robots(self, request: IngestRequest) -> urllib.robotparser.RobotFileParser:
-        """Fetch and parse the site's crawling rules.
-
-        Through the shared fetcher like everything else, so the check itself is rate-limited,
-        snapshotted and cached rather than being an extra unaccounted request.
-        """
-        resource = self.resource("robots")
-        fetched = self.fetcher.fetch(
-            self.url_for("robots.txt"),
-            source=self.name,
-            source_version=self.version,
-            resource=resource.name,
-            key="robots",
-            cache_ttl_seconds=resource.cache_ttl_seconds,
-            force_refresh=request.force_refresh,
-            offline=request.offline,
-            now=request.now,
-            suffix=".txt.gz",
-        )
-        parser = urllib.robotparser.RobotFileParser()
-        parser.parse(fetched.payload.decode("utf-8", errors="replace").splitlines())
-        return parser
-
-    def _check_allowed(self, path: str, robots: urllib.robotparser.RobotFileParser) -> None:
-        if not robots.can_fetch("*", self.url_for(path)):
-            raise RobotsDisallowedError(
-                f"robots.txt disallows {path}; the page is not fetched",
-                source=self.name,
-                resource="robots",
-                key=path,
-            )
+        """Fetch and parse the site's crawling rules, through the shared mechanism."""
+        return fetch_robots(self, request)
 
     # --- fetch ---------------------------------------------------------------------------
 
@@ -222,7 +195,7 @@ class FbrefAdapter(SourceAdapter):
         resource = self.resource(f"league_{page}")
         path = self.page_path(season, page)
         if robots is not None:
-            self._check_allowed(path, robots)
+            check_allowed(self, path, robots)
         fetched = self.fetcher.fetch(
             self.url_for(path),
             source=self.name,

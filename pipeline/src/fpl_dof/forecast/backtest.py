@@ -32,6 +32,7 @@ from fpl_dof.config.models import BacktestConfig, ForecastConfig
 from fpl_dof.forecast import baselines
 from fpl_dof.forecast.features import TARGET, LeakageError, assert_no_look_ahead, build_features
 from fpl_dof.forecast.metrics import MetricSet, evaluate
+from fpl_dof.forecast.models import RATE_COMPONENTS
 from fpl_dof.frames import as_int
 from fpl_dof.obs.logging import get_logger
 
@@ -41,6 +42,26 @@ MODEL_COLUMN = "predicted"
 B0_COLUMN = "b0"
 MEAN_COLUMN = "b_mean"
 FORM_COLUMN = "b_form"
+
+#: What actually happened in the gameweek a fold predicts. **Available to ``fit``, never to
+#: ``predict``.**
+#:
+#: The distinction is the whole safety property. A component model is fitted on outcomes by
+#: construction — that is what fitting is — and it must never see the outcome of the row it is
+#: predicting. Naming the set once, here, is what lets ``walk_forward`` strip exactly it before
+#: handing a frame to a predictor; the previous code stripped only the target and the minutes, and
+#: the consequence was not a leak but its mirror image: the fold frame carried no raw statistic at
+#: all, so ``RateModel.fit`` found none of its columns and every scoring rate in the backtest was
+#: shrunk toward zero instead of toward a fitted position prior (D-24).
+OUTCOME_COLUMNS: tuple[str, ...] = (
+    TARGET,
+    "minutes",
+    "kickoff_time",
+    "fixture_id",
+    "team_id",
+    "goals_conceded",
+    *RATE_COMPONENTS,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -157,8 +178,14 @@ def walk_forward(
     forecast_config: ForecastConfig,
     backtest_config: BacktestConfig,
     seasons: Sequence[str] | None = None,
+    metrics: pd.DataFrame | None = None,
 ) -> BacktestResult:
-    """Replay the seasons one deadline at a time, refitting everything at each step."""
+    """Replay the seasons one deadline at a time, refitting everything at each step.
+
+    ``metrics`` is the conformed advanced table, passed straight through to the feature store. The
+    harness does not filter it and must not: which of its rows are knowable at a deadline is a
+    feature-store question, and answering it twice is how the two answers diverge.
+    """
     if history.empty:
         raise ValueError("cannot backtest an empty history")
 
@@ -181,7 +208,7 @@ def walk_forward(
         # Built and cached first, before any decision about whether this fold can be *scored*. An
         # early gameweek is not scoreable — there is nothing to have learned from — but it is still
         # evidence for every later fold, and skipping the cache would throw it away.
-        merged = fold_rows(frame, season, gameweek, deadline, forecast_config)
+        merged = fold_rows(frame, season, gameweek, deadline, forecast_config, metrics=metrics)
         cache[deadline] = merged
         assert_no_look_ahead(merged, past, as_of=deadline)
 
@@ -194,12 +221,13 @@ def walk_forward(
         if merged.empty or training.empty:
             continue
 
-        # **The outcome must never reach a predictor.** ``merged`` carries the target and the
-        # minutes actually played, because the harness needs them to score with; handing that frame
-        # to a model would let it read the answer. A model doing so by accident — through a merge
-        # that pulled one column too many — would produce a superb backtest and a worthless season,
-        # and nothing in the metrics would look wrong. So predictors see inputs only.
-        visible = merged.drop(columns=[TARGET, "minutes"], errors="ignore")
+        # **The outcome must never reach a predictor.** ``merged`` carries everything that
+        # happened in the gameweek, because the harness needs it to score with and the component
+        # models need it to fit on; handing that frame to a model would let it read the answer. A
+        # model doing so by accident — through a merge that pulled one column too many — would
+        # produce a superb backtest and a worthless season, and nothing in the metrics would look
+        # wrong. So predictors see inputs only.
+        visible = merged.drop(columns=list(OUTCOME_COLUMNS), errors="ignore")
 
         predictor.fit(training)
         merged[MODEL_COLUMN] = predictor.predict(visible).to_numpy()
@@ -283,6 +311,8 @@ def fold_rows(
     gameweek: int,
     deadline: pd.Timestamp,
     config: ForecastConfig,
+    *,
+    metrics: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Features as of ``deadline``, joined to what that gameweek actually produced.
 
@@ -293,14 +323,17 @@ def fold_rows(
     past = history[history["kickoff_time"] < deadline]
     if past.empty:
         return pd.DataFrame()
-    features = build_features(past, as_of=deadline, config=config.features)
+    features = build_features(
+        past, as_of=deadline, config=config.features, metrics=metrics, season=season
+    )
     if features.empty:
         return pd.DataFrame()
+    wanted = ["player_code", "position", "price", *OUTCOME_COLUMNS]
     outcomes = history[
         (history["season"] == season)
         & (history["gameweek"] == gameweek)
         & (history["kickoff_time"] >= deadline)
-    ][["player_code", "position", "price", TARGET, "minutes"]]
+    ][[column for column in wanted if column in history.columns]]
     if outcomes.empty:
         return pd.DataFrame()
     return features.drop(columns=["price"], errors="ignore").merge(
@@ -343,6 +376,7 @@ __all__ = [
     "FORM_COLUMN",
     "MEAN_COLUMN",
     "MODEL_COLUMN",
+    "OUTCOME_COLUMNS",
     "BacktestResult",
     "Fold",
     "Predictor",
