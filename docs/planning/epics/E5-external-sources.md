@@ -17,6 +17,21 @@ extra signals are wired in.
 three sources touches anything outside `sources/`, config and tests, the abstraction has leaked and
 fixing that is part of the epic, not a follow-up.
 
+### 1a. How this data is meant to reach both decision models — the review of 2026-08-15 ([DL-33](../00-decision-log.md#dl-33))
+
+A review asked whether these sources feed the **initial squad-construction model** and the **weekly
+recommendation model**. They do not, and the finding is worth stating here because it changes what
+"done" means for this epic. Both models consume one artefact, `expected_points.parquet`; the squad
+MILP and the weekly plan MILP read nothing source-specific, and must not (DP-02, Invariant 1). So the
+data reaches **both** models through a single seam — the forecast — or through neither.
+
+Today it reaches neither: the live forecast (`xp_v0`) has no `player_metric` input, and the model that
+does consume it (`xp_v1`) runs only in the backtest. Closing that is one wiring change, not two,
+recorded as [D-25](E0-steel-thread-gw1.md#6-technical-debt-register) and sequenced behind the two
+blockers that make it premature — [D-23](E0-steel-thread-gw1.md#6-technical-debt-register) (no data can
+be fetched) and [D-13](E0-steel-thread-gw1.md#6-technical-debt-register) (no evidence to promote on).
+The plan and its rejected alternative (porting the join into `xp_v0`) are in DL-33.
+
 ## 2. Stories
 
 ### E5-S1 — Entity resolution · 1.5 days · FR-07 · repays D-07 · **highest risk in the epic**
@@ -86,7 +101,11 @@ degrades the model without breaking the pipeline.
       around (NFR-10). A mechanism probe using the official feed's own prior-season totals in place
       of the missing ones moves the model by ~0.001 Spearman, so there is no evidence the *design*
       is where the value was either. Opened as **D-23**; the odds half of D-20 remains an external
-      blocker for want of an `ODDS_API_KEY`
+      blocker for want of an `ODDS_API_KEY`. A second gap surfaced in the 2026-08-15 review
+      ([DL-33](../00-decision-log.md#dl-33)): even with data, the *live* forecast (`xp_v0`) has no
+      `player_metric` input — the D-22 consumer runs only in the backtest's `xp_v1` — so nothing
+      external would reach either decision model until that seam is wired. Tracked as **D-25**, behind
+      D-23 and D-13
 - [x] **Adapter abstraction verified: nothing outside `sources/`, config and tests changed** —
       checked via `git diff --name-only HEAD -- pipeline/src/fpl_dof | grep -Ev '/(sources|config)/|/tests/'`
       against the pre-E4/E5 tree; the only hits are `silver/tables.py` (new canonical tables the

@@ -431,6 +431,24 @@ graph LR
     AGG --> OUT["mean, variance,<br/>decomposition"]
 ```
 
+> **Implementation status (2026-08-15, [DL-33](00-decision-log.md#dl-33), [DL-34](00-decision-log.md#dl-34)).**
+> This section describes the target model, and two parts of it are now real. **M3 consumes expected
+> goals**: the component model `xp_v1` observes and fits goal involvement through `expected_goals` /
+> `expected_assists` — carried by the official feed itself, so this needs no scraped source — and the
+> backtest measured it earning its place (Spearman 0.2255 → 0.2307, calibration 0.60 → 0.70), so it is
+> promoted in the shipped config (DL-34). Still aspirational: M2's xG-based team ratings (built but
+> dark — unmeasurable in a league-average backtest) and the odds view of M2 (no `ODDS_API_KEY`); the
+> npxG and shot-level detail a scraped source would add remain blocked by
+> [D-23](epics/E0-steel-thread-gw1.md#6-technical-debt-register).
+>
+> **One caveat that matters:** the model `run` *publishes* is still `xp_v0`, the cold-start model,
+> which uses none of this. The xG improvement lives in `xp_v1`, the model the backtest grades;
+> promoting it to the live path needs a fixture-aware horizon scorer it does not yet have
+> ([D-25](epics/E0-steel-thread-gw1.md#6-technical-debt-register)). Because both the squad MILP and the
+> weekly plan MILP read only `expected_points.parquet`, external signal reaches **both** decision
+> models through exactly one seam — the forecast — or through neither; it never enters the optimiser
+> directly (DP-02, Invariant 1).
+
 ### M1 — Availability and minutes
 
 **Predicts:** a distribution over `{0, 1–59, 60+}` minutes, plus expected minutes.

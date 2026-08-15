@@ -88,12 +88,15 @@ def _rate(
     row: pd.Series,
     config: ForecastConfig,
 ) -> float:
-    observed = row.get(f"{column}_per90_last6")
-    minutes = row.get("minutes_mean_last6")
-    total_minutes = float(minutes) * float(row.get("matches_observed") or 0) if minutes else 0.0
     model = models.rates.get(column)
     if model is None:
         return 0.0
+    # The model knows which statistic it observes: normally the component's own column, but the
+    # expected-goals statistic when that component was fitted through xG (ExpectedGoalsConfig). Read
+    # the rolling per-90 of exactly that column so fit and inference agree on the signal.
+    observed = row.get(f"{model.column}_per90_last6")
+    minutes = row.get("minutes_mean_last6")
+    total_minutes = float(minutes) * float(row.get("matches_observed") or 0) if minutes else 0.0
     value = float(observed) if observed is not None and not pd.isna(observed) else float("nan")
     ratio, ratio_minutes = _prior_season(row, column, config)
     return model.predict(
@@ -252,7 +255,7 @@ class ComponentPredictor:
     def fit(self, training: pd.DataFrame) -> None:
         from fpl_dof.forecast.models import fit_components
 
-        matches = _team_matches(training)
+        matches = _team_matches(training, use_xg=self.config.expected_goals.team_strength_from_xg)
         self.models = fit_components(training, matches, self.config, self.rules)
 
     def predict(self, features: pd.DataFrame) -> pd.Series:
@@ -278,26 +281,41 @@ class ComponentPredictor:
         return pd.Series(predictions, index=features.index, dtype=float)
 
 
-def _team_matches(history: pd.DataFrame) -> pd.DataFrame:
+def _team_matches(history: pd.DataFrame, *, use_xg: bool = False) -> pd.DataFrame:
     """Per-team, per-fixture goals for and against, reconstructed from player rows.
 
     The archive has no team-level table, and ``goals_conceded`` is recorded per player, so the
     team's figure is the maximum across its players in that fixture rather than the sum — summing
     would multiply one goal by eleven.
+
+    With ``use_xg``, the same reconstruction runs on ``expected_goals`` and
+    ``expected_goals_conceded`` instead (ExpectedGoalsConfig, M2). Expected goals sum across a
+    team's players the same way real goals do, and every player in a fixture carries the same team
+    expected-goals-conceded figure, so the sum/max reconstruction holds unchanged. Falls back to
+    actual goals when the xG columns are
+    absent, which keeps a partial archive working (DP-15).
     """
-    needed = {"team_id", "fixture_id", "goals_scored", "goals_conceded", "kickoff_time"}
+    for_column, against_column = (
+        ("expected_goals", "expected_goals_conceded")
+        if use_xg
+        else ("goals_scored", "goals_conceded")
+    )
+    needed = {"team_id", "fixture_id", for_column, against_column, "kickoff_time"}
+    empty = pd.DataFrame(
+        columns=["team_id", "fixture_id", "goals_for", "goals_against", "kickoff_time"]
+    )
     if history.empty or not needed <= set(history.columns):
-        return pd.DataFrame(
-            columns=["team_id", "fixture_id", "goals_for", "goals_against", "kickoff_time"]
-        )
+        # xG requested but not in this archive: fall back rather than return nothing, so M2 still
+        # fits on actual goals (DP-15). A genuinely empty history still returns empty.
+        if use_xg and not history.empty:
+            return _team_matches(history, use_xg=False)
+        return empty
     played = history[history["minutes"] > 0]
     if played.empty:
-        return pd.DataFrame(
-            columns=["team_id", "fixture_id", "goals_for", "goals_against", "kickoff_time"]
-        )
+        return empty
     grouped = played.groupby(["team_id", "fixture_id"], dropna=True).agg(
-        goals_for=("goals_scored", "sum"),
-        goals_against=("goals_conceded", "max"),
+        goals_for=(for_column, "sum"),
+        goals_against=(against_column, "max"),
         kickoff_time=("kickoff_time", "min"),
     )
     return grouped.reset_index()

@@ -436,13 +436,22 @@ def fit_components(
     This function does no filtering of its own, deliberately: one place decides what is knowable
     (the feature store), and every model trusts it. Two places deciding is how they disagree.
     """
+    # A component may be fitted and observed through a different statistic than the one it scores —
+    # goal involvement through expected goals rather than actual (ExpectedGoalsConfig, D-25). The
+    # dict stays keyed by the scoring component; only the column the model *reads* moves, so nothing
+    # downstream of `rates[...]` has to know which statistic informed it (Invariant 1).
+    xg = config.expected_goals
+
+    def observed_for(component: str) -> str:
+        return xg.rate_sources.get(component, component) if xg.enabled else component
+
     rates = {
-        column: RateModel(
-            column=column,
+        component: RateModel(
+            column=observed_for(component),
             prior_minutes=config.shrinkage.rate_prior_minutes,
             prior_season_minutes=config.features.prior_season.prior_minutes,
         ).fit(history)
-        for column in RATE_COMPONENTS
+        for component in RATE_COMPONENTS
     }
     return ComponentModels(
         minutes=MinutesModel().fit(history, rules.scoring.long_play_minutes),

@@ -1038,6 +1038,142 @@ worth doing when D-21 is investigated.
 
 ---
 
+## DL-33 — Understat and FBref reach neither decision model in the live pipeline, and the path to make them is one seam, not two
+
+**Date:** 2026-08-15 · **Status:** Accepted · **Arose in:** a review of whether external xG and
+defensive-action data feed the initial squad-construction model and the weekly recommendation model
+
+**The question asked.** Do Understat and FBref data — xG, npxG, xA, shot and defensive-action counts
+— actually inform (a) the preseason squad the optimiser builds and (b) the weekly transfer plan? The
+conceptual design §5 describes M2, M3 and M4 as consuming exactly these signals. The review traced
+the live code path end to end to see whether the description is true of what runs.
+
+**The finding: no, on both counts, and for two independent reasons that must both be cleared.**
+
+1. **The live forecast has no external-data input at all.** `stages/forecast.py` calls
+   `xp_v0.build_forecast`, whose `ForecastInputs` dataclass carries `players`, `teams`, `fixtures`,
+   `gameweeks` and `history` — all from the official FPL feed — and **no `player_metric` field**. The
+   stage never reads `Table.PLAYER_METRIC`. So the conformed advanced table that E5 conforms
+   Understat and FBref into is never opened by the model that ships. §5's M2 "attack and defence
+   ratings estimated from xG" and M3's "npxG per 90, xA per 90, shot volume" describe an *aspiration*;
+   the implemented `xp_v0` shrinks FPL-history per-90 rates toward position-and-price-tier priors and
+   uses no xG.
+2. **The one model that does consume `player_metric` is offline-only.** The D-22 prior-season wiring
+   ([DL-31](#dl-31)) lives in `forecast/features.py` and is exercised only by `xp_v1.ComponentPredictor`,
+   which is instantiated in exactly one place — `stages/backtest.py` — and the backtest is not part of
+   `run`. Even there it moves nothing, because there is no data to move ([D-23](epics/E0-steel-thread-gw1.md#6-technical-debt-register)):
+   Understat's `robots.txt` disallows the whole site and FBref returns a Cloudflare 403.
+
+**The architectural point that makes this tractable, and the one thing the review is most emphatic
+about.** Both decision models consume the *same* artefact — `expected_points.parquet`. The squad MILP
+(`stages/optimise.py`) and the weekly plan MILP (`stages/decision.py`) each read it and nothing
+source-specific, which is correct and must stay so: an optimiser that branched on a data source would
+break Invariant 1 and DP-02. **Therefore "include Understat and FBref in both models" is not two
+pieces of work, it is one: make the live forecast consume `player_metric`.** Both optimisers inherit
+the improvement for free, through the contract they already read. No optimiser change is required, and
+none is permitted. Anyone who proposes plumbing xG into the MILP has mislocated the seam.
+
+**The reviewed plan, in the order the steps must hold.**
+
+1. **Wire `player_metric` into the live forecast.** `ForecastInputs` gains a `metrics` field;
+   `stages/forecast.py` reads `Table.PLAYER_METRIC` via `read_table_optional` (absent is normal and
+   must degrade to today's behaviour, DP-15). The consuming mechanism already exists and is
+   property-tested — `features.prior_season_ratios` with its season-label knowability boundary — so
+   this is a plumbing change, not new modelling. **Preferred vehicle:** promote `xp_v1` to the
+   in-season live path (preseason stays on `xp_v0`'s cold start), because `xp_v1` already carries the
+   leakage-safe join *and* the modelled variance Invariant 6 wants. Porting the join into `xp_v0`
+   instead would duplicate the feature definition and re-open the train/inference-skew trap that
+   `features.py` exists to close — rejected for that reason.
+2. **Promotion is gated on the backtest, never on the wiring being present** (DP-08, DP-12,
+   [D-13](epics/E0-steel-thread-gw1.md#6-technical-debt-register)). An external signal may change a
+   recommendation only once the walk-forward backtest shows it improves skill against B0 and the
+   model-free benchmark. This is the whole reason `xp_v1` is not already live: it does not yet clear
+   D-13's top-20-precision bar. A plausible-looking xG feature that has not cleared it must ship dark.
+3. **The data must exist to clear the gate.** This is [D-23](epics/E0-steel-thread-gw1.md#6-technical-debt-register),
+   an owner provenance decision, not code: a licensed or freely-published alternative for xG and
+   defensive-action counts, or acceptance that the official feed's own `expected_goals` /
+   `expected_assists` / action columns are the only advanced data this project will hold. A mechanism
+   probe using the official feed's prior-season totals in place of the missing scraped ones moved the
+   backtest by ~0.001 Spearman, so there is not yet evidence the *design* is where the value lives
+   either — which is a reason to clear D-23 before investing in step 1, not after.
+
+**Honest conclusion.** The ambition is neither implemented nor currently evidenced as valuable. Step 1
+is perhaps a day's work but is premature before there is data (step 3) and evidence (step 2) to
+justify promoting anything. The review records the exact seam so the work can be executed the moment
+those clear, and opens **D-25** so the documented-versus-built gap in §5 is tracked rather than
+implied. No code changed in this review; §5 of the conceptual design and the E5 epic are annotated to
+match reality.
+
+---
+
+## DL-34 — Expected goals earn their place in the component model, measured and promoted; the live promotion does not
+
+**Date:** 2026-08-15 · **Status:** Accepted · **Arose in:** implementing DL-33's plan to include
+Understat/FBref-style signals in the model and optimise it by backtest
+
+**The unblock DL-33 missed.** DL-33 sequenced the xG work behind D-23 (no scraped source can be
+fetched) as if the *signal* were unavailable. It is not: the **official feed itself republishes
+expected goals**. The silver `player_gameweek` table already carries `expected_goals`,
+`expected_assists` and `expected_goals_conceded`, populated across all three backfilled seasons
+(2023/24–2025/26, ~5,400 non-zero xG and ~7,900 non-zero xA rows each), and the feature store was
+already computing `expected_goals_per90_last6` and `expected_assists_per90_last6` — **and nothing
+was reading them.** So the canonical use of xG could be built and measured now, with no scraper and
+no dependence on D-23. D-23 blocks the *scraped* provenance and the extra fields it would add
+(npxG, shot-level detail, richer defensive actions); it does not block xG itself.
+
+**What was built.** An `ExpectedGoalsConfig` switch (ships dark, DP-08) that makes the goal and
+assist rate models observe *and* fit through expected goals rather than actual — a player's xG
+regresses far less than his goals, so recent xG estimates the underlying scoring rate better,
+most sharply over the short windows FPL forces. The dict of rate models stays keyed by the scoring
+component; only the column each *reads* moves, so nothing downstream learns a source name
+(Invariant 1). Expected goals are added to the backtest's `OUTCOME_COLUMNS`: an outcome of the
+gameweek being predicted, carried for fitting and stripped before prediction exactly as the target
+is.
+
+**The measurement, over the same 72 folds and 21,712 scored observations as [DL-32](#dl-32):**
+
+| Model | MAE | Spearman | MAE skill vs B0 | Top-20 precision | Calibration slope |
+| --- | --- | --- | --- | --- | --- |
+| Baseline — actual goals (DL-32's corrected model) | 1.9455 | 0.22545 | 0.00994 | 0.00 | 0.597 |
+| **Expected goals (M3)** | **1.9266** | **0.23070** | **0.01957** | 0.00 | **0.701** |
+| xG for M3 **and** M2 team strength | 1.9266 | 0.23070 | 0.01957 | 0.00 | 0.701 |
+| B0 — price + position | 1.9650 | 0.21385 | — | 0.05 | 0.606 |
+| Model-free — trailing 6 | 2.1149 | 0.29104 | −0.07628 | 0.05 | 0.394 |
+
+**Two findings, both acted on.**
+
+1. **xG for goal involvement (M3) is a real, modest improvement.** Every aggregate moves the right
+   way — MAE down, Spearman up, MAE-skill over B0 nearly doubled, and calibration slope from 0.597
+   toward 0.701 — so it is **promoted**: `forecast.expected_goals.enabled` is set true in the shipped
+   config (the model default stays false, so the mechanism still ships dark and the promotion is a
+   single, recorded configuration change). The published `backtest.json`, `backtest-card.md` and
+   model card now describe the xG model.
+2. **xG for M2 team strength is unmeasurable here, so it stays off.** The two right-hand columns are
+   identical because `xp_v1.forecast_player` does not multiply a player's goal rate by his team's
+   attack rating, and the backtest scores every fixture at league-average opposition — so M2's
+   ratings barely touch a prediction in the harness. Enabling `team_strength_from_xg` would be a bet
+   the backtest cannot see, which is precisely what DP-12 forbids. The mechanism is built and tested
+   and left dark, to be measured once inference carries real fixtures.
+
+**What did not change: the verdict.** The model still **beats B0, still loses to the model-free
+benchmark, and top-20 precision is still 0.00.** xG sharpens the forecast; it does not clear the bar
+that matters. **[D-13](epics/E0-steel-thread-gw1.md#6-technical-debt-register) stands** — no hit,
+chip or wildcard may be justified on this model alone — and the caveat the UI already renders is
+unchanged and still correct.
+
+**The honest limit of this increment: the live artefact does not carry xG yet.** The improvement is
+in `xp_v1`, the component model the backtest grades. The model that `run` publishes is still
+`xp_v0`, and promoting `xp_v1` to the live in-season path is **more than the wiring D-25 named**:
+`xp_v1.to_frame` produces `xp_next` and a variance and nothing else, while both the squad MILP and
+the weekly plan MILP require `xp_horizon` and a per-gameweek `gw_n` column per fixture. `xp_v1` has
+no fixture-aware horizon scorer, so swapping it in live would break the optimiser contract. Building
+that scorer is real work and is left as **D-25**, deliberately not rushed against a preseason
+deadline (DL-10: cut scope, do not hack). What ships today is unchanged and correct — a cold-start
+forecast with the D-13 caveat — and the measured xG improvement is real, promoted where it can be
+measured, and waiting on one honest piece of engineering to reach production.
+
+---
+
 ## Open decisions
 
 Decisions deliberately deferred, with the point at which each must be resolved.
