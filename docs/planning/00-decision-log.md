@@ -1106,6 +1106,74 @@ match reality.
 
 ---
 
+## DL-34 — Expected goals earn their place in the component model, measured and promoted; the live promotion does not
+
+**Date:** 2026-08-15 · **Status:** Accepted · **Arose in:** implementing DL-33's plan to include
+Understat/FBref-style signals in the model and optimise it by backtest
+
+**The unblock DL-33 missed.** DL-33 sequenced the xG work behind D-23 (no scraped source can be
+fetched) as if the *signal* were unavailable. It is not: the **official feed itself republishes
+expected goals**. The silver `player_gameweek` table already carries `expected_goals`,
+`expected_assists` and `expected_goals_conceded`, populated across all three backfilled seasons
+(2023/24–2025/26, ~5,400 non-zero xG and ~7,900 non-zero xA rows each), and the feature store was
+already computing `expected_goals_per90_last6` and `expected_assists_per90_last6` — **and nothing
+was reading them.** So the canonical use of xG could be built and measured now, with no scraper and
+no dependence on D-23. D-23 blocks the *scraped* provenance and the extra fields it would add
+(npxG, shot-level detail, richer defensive actions); it does not block xG itself.
+
+**What was built.** An `ExpectedGoalsConfig` switch (ships dark, DP-08) that makes the goal and
+assist rate models observe *and* fit through expected goals rather than actual — a player's xG
+regresses far less than his goals, so recent xG estimates the underlying scoring rate better,
+most sharply over the short windows FPL forces. The dict of rate models stays keyed by the scoring
+component; only the column each *reads* moves, so nothing downstream learns a source name
+(Invariant 1). Expected goals are added to the backtest's `OUTCOME_COLUMNS`: an outcome of the
+gameweek being predicted, carried for fitting and stripped before prediction exactly as the target
+is.
+
+**The measurement, over the same 72 folds and 21,712 scored observations as [DL-32](#dl-32):**
+
+| Model | MAE | Spearman | MAE skill vs B0 | Top-20 precision | Calibration slope |
+| --- | --- | --- | --- | --- | --- |
+| Baseline — actual goals (DL-32's corrected model) | 1.9455 | 0.22545 | 0.00994 | 0.00 | 0.597 |
+| **Expected goals (M3)** | **1.9266** | **0.23070** | **0.01957** | 0.00 | **0.701** |
+| xG for M3 **and** M2 team strength | 1.9266 | 0.23070 | 0.01957 | 0.00 | 0.701 |
+| B0 — price + position | 1.9650 | 0.21385 | — | 0.05 | 0.606 |
+| Model-free — trailing 6 | 2.1149 | 0.29104 | −0.07628 | 0.05 | 0.394 |
+
+**Two findings, both acted on.**
+
+1. **xG for goal involvement (M3) is a real, modest improvement.** Every aggregate moves the right
+   way — MAE down, Spearman up, MAE-skill over B0 nearly doubled, and calibration slope from 0.597
+   toward 0.701 — so it is **promoted**: `forecast.expected_goals.enabled` is set true in the shipped
+   config (the model default stays false, so the mechanism still ships dark and the promotion is a
+   single, recorded configuration change). The published `backtest.json`, `backtest-card.md` and
+   model card now describe the xG model.
+2. **xG for M2 team strength is unmeasurable here, so it stays off.** The two right-hand columns are
+   identical because `xp_v1.forecast_player` does not multiply a player's goal rate by his team's
+   attack rating, and the backtest scores every fixture at league-average opposition — so M2's
+   ratings barely touch a prediction in the harness. Enabling `team_strength_from_xg` would be a bet
+   the backtest cannot see, which is precisely what DP-12 forbids. The mechanism is built and tested
+   and left dark, to be measured once inference carries real fixtures.
+
+**What did not change: the verdict.** The model still **beats B0, still loses to the model-free
+benchmark, and top-20 precision is still 0.00.** xG sharpens the forecast; it does not clear the bar
+that matters. **[D-13](epics/E0-steel-thread-gw1.md#6-technical-debt-register) stands** — no hit,
+chip or wildcard may be justified on this model alone — and the caveat the UI already renders is
+unchanged and still correct.
+
+**The honest limit of this increment: the live artefact does not carry xG yet.** The improvement is
+in `xp_v1`, the component model the backtest grades. The model that `run` publishes is still
+`xp_v0`, and promoting `xp_v1` to the live in-season path is **more than the wiring D-25 named**:
+`xp_v1.to_frame` produces `xp_next` and a variance and nothing else, while both the squad MILP and
+the weekly plan MILP require `xp_horizon` and a per-gameweek `gw_n` column per fixture. `xp_v1` has
+no fixture-aware horizon scorer, so swapping it in live would break the optimiser contract. Building
+that scorer is real work and is left as **D-25**, deliberately not rushed against a preseason
+deadline (DL-10: cut scope, do not hack). What ships today is unchanged and correct — a cold-start
+forecast with the D-13 caveat — and the measured xG improvement is real, promoted where it can be
+measured, and waiting on one honest piece of engineering to reach production.
+
+---
+
 ## Open decisions
 
 Decisions deliberately deferred, with the point at which each must be resolved.

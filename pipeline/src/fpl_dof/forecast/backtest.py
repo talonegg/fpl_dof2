@@ -60,6 +60,14 @@ OUTCOME_COLUMNS: tuple[str, ...] = (
     "fixture_id",
     "team_id",
     "goals_conceded",
+    # Expected goals are an outcome of the gameweek being predicted just as its actual goals are:
+    # a component may be *fitted* on them but must never *see* the row it is predicting, so they
+    # are carried into the fold frame and stripped from the predictor's view alongside everything
+    # else here (ExpectedGoalsConfig, D-25). The rolling per-90 *features* built from earlier weeks
+    # keep their own names and are unaffected by this strip.
+    "expected_goals",
+    "expected_assists",
+    "expected_goals_conceded",
     *RATE_COMPONENTS,
 )
 

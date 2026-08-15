@@ -366,6 +366,51 @@ class PriorSeasonConfig(_Section):
     )
 
 
+class ExpectedGoalsConfig(_Section):
+    """Observe player scoring rates through expected goals, not actual goals (DP-08, ships dark).
+
+    The best-established use of xG in football forecasting: a player's expected goals regress far
+    less than their actual goals, so recent xG estimates the underlying scoring rate better than
+    recent goals do — most sharply over the short windows FPL forces. A striker with two goals from
+    0.4 xG got lucky, and next week's forecast should mostly not believe the two.
+
+    Both ``expected_goals`` and ``expected_assists`` are carried by the **official feed itself**, so
+    this needs no scraped source and is unblocked by D-23. It is the live realisation of the M2/M3
+    xG design that [DL-33] found described in the conceptual design but implemented nowhere.
+
+    **Off by default.** Promoted only if the walk-forward backtest says it earns its place, which is
+    the discipline DP-12 asks for. The toggle makes the before/after a single configuration change.
+    """
+
+    enabled: bool = Field(
+        default=False,
+        description=(
+            "Whether goal and assist rates are observed and fitted through expected goals rather "
+            "than actual. Off until the backtest measures it (DP-08, DP-12)."
+        ),
+    )
+    rate_sources: dict[str, str] = Field(
+        default_factory=lambda: {
+            "goals_scored": "expected_goals",
+            "assists": "expected_assists",
+        },
+        description=(
+            "Rate component -> the statistic whose per-90 is observed and whose position prior is "
+            "fitted in its place. A component absent from this map keeps observing itself, so the "
+            "xG signal reaches goal involvement without touching cards, saves or bonus. Column "
+            "names only, never source names (Invariant 1)."
+        ),
+    )
+    team_strength_from_xg: bool = Field(
+        default=False,
+        description=(
+            "Whether M2 fits attack and defence on expected goals for and against rather than on "
+            "actual goals. Separable from the rate switch because the two are independent bets: "
+            "team-level xG and player-level xG can each earn their place or fail to."
+        ),
+    )
+
+
 class FeatureConfig(_Section):
     """The feature store. Windows are configuration because the right length is an empirical
     question the backtest is supposed to answer, not a constant to be asserted."""
@@ -457,6 +502,7 @@ class ForecastConfig(_Section):
     fixture_difficulty: FixtureDifficultyConfig = FixtureDifficultyConfig()
     uncertainty: UncertaintyConfig = UncertaintyConfig()
     features: FeatureConfig = FeatureConfig()
+    expected_goals: ExpectedGoalsConfig = ExpectedGoalsConfig()
 
 
 class ChipReplayConfig(_Section):
