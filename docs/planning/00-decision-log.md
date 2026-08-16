@@ -1842,6 +1842,118 @@ watching a real week happen, not by more local simulation.
 
 ---
 
+## DL-43 — The next model work is delivery then discrimination, not accuracy; the plan is a set of gated experiments
+
+**Date:** 2026-08-16 · **Status:** Accepted · **Serves:** OBJ-1, OBJ-7, FR-12, FR-37 · **Arose in:**
+the 2026-08-16 research pass · **Plan:** [05-model-improvement-plan.md](05-model-improvement-plan.md)
+
+### The finding this decision is built on
+
+The first backtest ([DL-21](#dl-21)) said `xp_v1` beats price and loses to trailing form, with the
+best MAE and the worst top-20 precision of anything measured. A research pass over the shipped code
+found three structural facts that reframe what "improve the model" means, none of which is a modelling
+subtlety:
+
+1. **The graded model is not the shipped model.** The backtest grades `xp_v1`; the pipeline publishes
+   `xp_v0`, which consumes none of the xG signal DL-34 measured and promoted. The gap is
+   [D-25](epics/E0-steel-thread-gw1.md#6-technical-debt-register). Until it closes, every measured
+   improvement is undelivered. This is the highest-leverage item and it is one wiring seam, not a
+   model.
+2. **The backtest is blind to fixtures.** The harness carries league-average opposition, so M2 fixture
+   difficulty — the whole of the fixture axis — is untestable until a fixture table is joined into the
+   fold frames. That plumbing is a prerequisite, not an improvement.
+3. **Two positions are unranked.** GKP Spearman 0.04, DEF 0.16. Any improvement must be measured per
+   position or a forwards-only gain hides the two hard cases.
+
+### The decision
+
+The improvement programme is delivered in leverage order — **X1 ship `xp_v1` live → D1 fixtures into
+the backtest → X2 minutes calibration → then discrimination at the head** — and **every change is a
+falsifiable experiment gated by the E8 §5 bar** (held-out backtest improves, six shadow gameweeks do
+not degrade, the change is explicable in advance). The target metric is **top-20 precision and
+captaincy separation, not MAE**: MAE is already the best in the table and is measuring the wrong thing
+for a tool used only at the head of its ranking (DL-21). The full table of changes, their gates and
+their sequencing is [05-model-improvement-plan.md](05-model-improvement-plan.md).
+
+### Rejected alternatives
+
+**Adopt the model-free benchmark, which wins on Spearman.** Rejected for the reason DL-21 already
+gave: trailing form has calibration slope 0.39 and the worst MAE — a momentum signal that buys at the
+top of the price rise. Winning on rank correlation is not being better to own.
+
+**Tune for MAE or for overall Spearman.** Rejected — both are already competitive and neither is what
+the tool is used for. Optimising them further is optimising the wrong loss.
+
+**A single blended monolith instead of the component chain.** Not rejected, but demoted to a *shadow
+benchmark* (X6, Q-04): the chain's explainability is a product requirement (DP-10), so a monolith
+that is merely more accurate does not replace it without an explicit decision weighing that trade.
+
+### Consequences
+
+D-13 (forecast does not beat the model-free benchmark at the head) gets a route to closure that is a
+plan rather than an aspiration. The DL-21 guardrail is unchanged: no −8 hit, chip or wildcard is
+justified by `xp_v1` alone until top-20 precision beats B0. Three new open questions — Q-14
+(evidence-adaptive shrinkage), Q-15 (goalkeeper formulation), Q-16 (auto-dispatch of a run from the
+browser) — are recorded in the plan.
+
+---
+
+## DL-44 — FPL team and league IDs are runtime inputs entered in the UI, never persisted in the repository
+
+**Date:** 2026-08-16 · **Status:** Accepted · **Serves:** NFR-11, NFR-13, FR-32 · **Arose in:**
+the 2026-08-16 research pass · **Builds on:** [DL-40](#dl-40--the-mini-league-is-an-optional-artefact-that-is-absent-by-default-and-its-comparison-is-anchored-on-the-squad-actually-fielded)
+
+### Context
+
+The owner asked that the FPL team ID and mini-league ID be **enterable through the UI** and **never
+persisted in the code**. Today they live in `entry.team_id` / `entry.league_id` in
+`config/local.yaml` — which is gitignored, so nothing is committed, but the values still live in a
+file the owner hand-edits, and there is no UI path at all. The IDs are **public** (NFR-11), not
+secrets; the concern is persistence and single-user assumption, not confidentiality.
+
+**The binding constraint is Invariant 8** — the browser never calls an external API. The SPA reads
+published static artefacts only; it cannot fetch the owner's picks or a league's standings itself, and
+the FPL API sends no CORS headers that would let it. So "enter the ID and see your data" cannot mean
+"the browser fetches it", and DL-03 forbids adding a backend that could.
+
+### Decision
+
+The two IDs are treated as **two genuinely different things that normally coincide** for a single
+user:
+
+1. **Pipeline input — a GitHub Actions repository variable, not committed config.** The pipeline reads
+   `FPL_DOF_TEAM_ID` / `FPL_DOF_LEAGUE_ID` from the environment via the overrides already declared on
+   `EntryConfig`. In CI these come from repository **variables** (the correct home for a non-secret
+   identifier); `config/local.yaml` stays the local-dev path and remains gitignored. Nothing about the
+   owner's identity enters git.
+2. **Browser input — a Settings view backed by `localStorage`.** The owner types the IDs in the app;
+   the values live in `localStorage` only, never transmitted, never committed. Within Invariant 8 the
+   setting does two things: it **personalises already-published artefacts** (highlights the owner's
+   league row, badges the owned squad, filters the scout to owned players — saying so plainly when the
+   published league was built for a different ID, as DL-40 does for the absent league), and it
+   **composes an owner-triggered `workflow_dispatch` deep link** so the repo owner can dispatch a run
+   with those IDs. No token ever reaches the client (Invariant 10, NFR-13).
+
+### Rejected alternatives
+
+**Let the browser call the FPL API with the entered ID.** Rejected outright — Invariant 8, and CORS
+would block it regardless. **Add a tiny backend / serverless function to proxy it.** Rejected — DL-03
+(no runtime backend, zero cost, NFR-01). **Keep the IDs in committed config with a code edit per
+change.** Rejected — that is exactly the persistence the owner asked to remove, and it hard-codes a
+single user into the wrong layer. **Auto-dispatch a run from the browser on save.** Deferred to Q-16:
+it needs either a client-held token (forbidden) or an owner-mediated flow, and whether the convenience
+is worth the surface is an owner-and-security decision, not a default.
+
+### Consequences
+
+Implementation is a sequenced follow-up, not built by this decision: a Settings story on E6's surface
+(`localStorage`, league-row highlighting), a documented repository-variable path in E7's workflows,
+and a charter requirement naming UI entry of the IDs. `FPL_DOF_TEAM_ID` / `FPL_DOF_LEAGUE_ID` are
+already promised in [INPUTS-REQUIRED §8](epics/INPUTS-REQUIRED.md#8-environment-variables); this
+decision makes the browser-entry half of them a first-class design rather than an env var only.
+
+---
+
 ## Open decisions
 
 Decisions deliberately deferred, with the point at which each must be resolved.
