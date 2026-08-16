@@ -22,12 +22,26 @@ import jsonschema
 
 CONTRACT_VERSION = 1
 
-#: Artefact name -> schema filename. The published directory is exactly these four files.
+#: Artefact name -> schema filename. The published directory is exactly these files.
 ARTEFACTS: dict[str, str] = {
     "meta": "meta.schema.json",
     "rules": "rules.schema.json",
     "players": "players.schema.json",
     "squad": "squad.schema.json",
+    "week": "week.schema.json",
+    "plan": "plan.schema.json",
+    # The two trend artefacts (DL-37). Additive, so contract v1 does not bump: a client that has
+    # never heard of them keeps working, which is the whole point of versioning the seam (DP-04).
+    # Both are fetched lazily by the routes that need them, never in the app shell's eager load.
+    "history": "history.schema.json",
+    "fixtures": "fixtures.schema.json",
+    # The mini-league (E6-S10). Written only when a league is configured, and it is not by default:
+    # unlike every other artefact here, its *absence* is the normal published state.
+    "league": "league.schema.json",
+    # The data health page's artefact (E7-S6, DL-41). Additive like the trend pair above, and
+    # fetched lazily by `/health` alone: it is the page you open when something looks wrong, so
+    # putting it on the first-paint path would tax every other page for it.
+    "health": "health.schema.json",
 }
 
 

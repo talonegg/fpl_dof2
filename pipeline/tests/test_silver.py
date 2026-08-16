@@ -19,8 +19,8 @@ from fpl_dof.config import Config
 from fpl_dof.paths import DataLayout
 from fpl_dof.pipeline import StageContext
 from fpl_dof.rules.models import GameRules, Position
-from fpl_dof.silver.store import read_table, table_path, write_table
-from fpl_dof.silver.tables import SchemaViolationError, Table, validate
+from fpl_dof.silver.store import read_table, read_table_optional, table_path, write_table
+from fpl_dof.silver.tables import OPTIONAL_TABLES, SchemaViolationError, Table, validate
 from fpl_dof.sources.base import IngestRequest
 from fpl_dof.sources.bronze import BronzeStore
 from fpl_dof.sources.fetch import Fetcher
@@ -37,10 +37,17 @@ def populated_bronze(config: Config, layout: DataLayout) -> Iterator[DataLayout]
     bootstrap = json.loads((FIXTURES / "bootstrap_static.json").read_text(encoding="utf-8"))
     fixtures = json.loads((FIXTURES / "fixtures.json").read_text(encoding="utf-8"))
     summaries = json.loads((FIXTURES / "element_summary.json").read_text(encoding="utf-8"))
+    set_piece = json.loads((FIXTURES / "set_piece_notes.json").read_text(encoding="utf-8"))
 
     with respx.mock(assert_all_called=False) as mock:
         mock.get(f"{BASE}/bootstrap-static/").mock(return_value=httpx.Response(200, json=bootstrap))
         mock.get(f"{BASE}/fixtures/").mock(return_value=httpx.Response(200, json=fixtures))
+        mock.get(f"{BASE}/team/set-piece-notes/").mock(
+            return_value=httpx.Response(200, json=set_piece)
+        )
+        mock.get(url__regex=rf"{BASE}/event/\d+/live/").mock(
+            return_value=httpx.Response(200, json={"elements": []})
+        )
         for element_id, summary in summaries.items():
             mock.get(f"{BASE}/element-summary/{element_id}/").mock(
                 return_value=httpx.Response(200, json=summary)
@@ -171,9 +178,34 @@ def test_transform_produces_every_table(config: Config, populated_bronze: DataLa
     assert result.metrics["rows.player"] == 92
     assert result.metrics["rows.team"] == 8
     assert result.metrics["season"] == "2026/27"
+
+    # Required tables must exist and carry rows. Optional ones legitimately do not: no team ID is
+    # configured here, and preseason there are no played gameweeks, so entry and per-gameweek
+    # tables are absent by design (DP-15) rather than by failure.
     for table in Table:
+        if table in OPTIONAL_TABLES:
+            continue
         frame = read_table(populated_bronze.silver, "2026/27", table)
         assert not frame.empty, table.value
+
+
+def test_optional_tables_are_absent_rather_than_empty_in_preseason(
+    config: Config, populated_bronze: DataLayout
+) -> None:
+    """DL-20: no configured team ID and no played gameweeks is the normal August state.
+
+    Absent and empty are different answers, and only absent is honest here — an empty entry table
+    would claim the squad was read and found to hold nobody.
+    """
+    transform.run(_ctx(config, populated_bronze))
+
+    for table in (Table.ENTRY, Table.ENTRY_PICK, Table.PLAYER_GAMEWEEK):
+        assert read_table_optional(populated_bronze.silver, "2026/27", table) is None, table.value
+
+    # Chips and price history are published year-round, so those are present.
+    chips = read_table(populated_bronze.silver, "2026/27", Table.CHIP)
+    assert not chips.empty
+    assert set(chips["name"]) >= {"wildcard", "freehit", "bboost", "3xc"}
 
 
 def test_transform_makes_no_network_calls(config: Config, populated_bronze: DataLayout) -> None:

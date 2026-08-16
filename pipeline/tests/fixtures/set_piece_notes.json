@@ -1,0 +1,35 @@
+{
+ "last_updated": "2026-08-09T15:22:11Z",
+ "teams": [
+  {
+   "notes": [
+    {
+     "external_link": true,
+     "info_message": "Check back for additional notes soon",
+     "source_link": ""
+    }
+   ],
+   "id": 1
+  },
+  {
+   "notes": [
+    {
+     "external_link": true,
+     "info_message": "Check back for additional notes soon",
+     "source_link": ""
+    }
+   ],
+   "id": 2
+  },
+  {
+   "notes": [
+    {
+     "external_link": true,
+     "info_message": "Check back for additional notes soon",
+     "source_link": ""
+    }
+   ],
+   "id": 3
+  }
+ ]
+}

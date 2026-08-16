@@ -1,0 +1,85 @@
+# Lint, type-check, unit/property tests, and the rules coverage gate. Runs the E0 code path
+# unchanged (D-10, NFR-09) — every command here matches CLAUDE.md's local commands exactly, just
+# translated from the Windows venv paths to a Linux runner.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install fpl-dof (pipeline[dev])
+        run: python -m pip install -e "pipeline[dev]"
+
+      - name: ruff check
+        run: python -m ruff check pipeline
+
+      - name: ruff format --check
+        run: python -m ruff format --check pipeline
+
+      - name: mypy
+        working-directory: pipeline
+        run: python -m mypy
+
+      - name: pytest
+        working-directory: pipeline
+        run: python -m pytest -q
+
+      - name: Rules coverage gate (must be 100%)
+        working-directory: pipeline
+        run: >
+          python -m pytest --cov=fpl_dof.rules --cov-fail-under=100
+          tests/test_rules_build.py tests/test_rules_scoring.py tests/test_rules_legality.py
+
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: npm ci
+        working-directory: web
+        run: npm ci
+
+      - name: typecheck
+        working-directory: web
+        run: npm run typecheck
+
+      - name: build
+        working-directory: web
+        run: npm run build
+
+      - name: test
+        working-directory: web
+        run: npm run test -- --run
+
+  alert:
+    needs: [pipeline, web]
+    if: failure() && github.event_name != 'pull_request'
+    uses: ./.github/workflows/alert-on-failure.yml
+    with:
+      workflow_name: CI
+      run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    permissions:
+      issues: write

@@ -1,14 +1,154 @@
+/* ---------- Shell (E6-S1) ----------
+   Every colour below comes from `tokens.css`. Nothing here may carry a literal, or the light theme
+   is wrong in exactly the places nobody looks. */
+
 .app {
-  max-width: 1200px;
+  max-width: var(--shell-max-width);
   margin: 0 auto;
-  padding: 0.75rem;
+  padding: var(--space-3);
   width: 100%;
 }
 
 .app-loading,
 .app-error {
-  padding: 2rem;
+  padding: var(--space-6);
   text-align: center;
+}
+
+.app-retry {
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-panel-alt);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.app-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--nav-bg);
+  border-bottom: 1px solid var(--border);
+}
+
+.app-topbar-inner {
+  max-width: var(--shell-max-width);
+  margin: 0 auto;
+  padding: var(--space-2) var(--space-3);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.app-nav-brand {
+  margin: 0;
+  font-size: var(--font-size-base);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  flex: 0 0 auto;
+}
+
+.app-nav {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.app-nav-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  gap: var(--space-1);
+  flex: 1 1 auto;
+  min-width: 0;
+  /* The links scroll inside their own box on a narrow phone. The page body must never scroll
+     sideways, which is the same rule the wide tables already follow. */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.app-nav-links::-webkit-scrollbar {
+  display: none;
+}
+
+.app-nav-link {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  text-decoration: none;
+  white-space: nowrap;
+  font-size: var(--font-size-sm);
+}
+
+.app-nav-link:hover {
+  color: var(--text);
+  background: var(--bg-panel-alt);
+}
+
+.app-nav-link.active {
+  color: var(--accent);
+  background: var(--nav-active-bg);
+  font-weight: 600;
+}
+
+/* One label is shown at a time; which one is a viewport question, handled in the media queries
+   at the foot of this file. */
+.app-nav-link-short {
+  display: none;
+}
+
+.theme-toggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-panel-alt);
+  color: var(--text);
+  font-size: var(--font-size-sm);
+  cursor: pointer;
+}
+
+/* ---------- Placeholder routes ---------- */
+
+.placeholder,
+.player-detail {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.placeholder h2,
+.player-detail h2 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-lg);
+}
+
+.placeholder-story {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.placeholder-summary,
+.player-detail-sub {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.placeholder a,
+.player-detail a {
+  color: var(--accent);
 }
 
 /* ---------- Header ---------- */
@@ -22,11 +162,6 @@
   flex-wrap: wrap;
   align-items: baseline;
   gap: 0.5rem 1.25rem;
-}
-
-.app-header-row h1 {
-  margin: 0;
-  font-size: 1.5rem;
 }
 
 .app-header-meta {
@@ -93,7 +228,7 @@
 }
 
 .pitch {
-  background: linear-gradient(180deg, #143d24, #0e2a19);
+  background: linear-gradient(180deg, var(--pitch-from), var(--pitch-to));
   border-radius: 0.6rem;
   padding: 0.75rem;
   display: flex;
@@ -142,12 +277,12 @@
 
 .badge-captain {
   background: var(--accent);
-  color: #05261a;
+  color: var(--on-accent);
 }
 
 .badge-vice {
-  background: #7fd8ff;
-  color: #052030;
+  background: var(--badge-vice-bg);
+  color: var(--badge-vice-fg);
 }
 
 .player-card-name {
@@ -207,32 +342,10 @@
   text-transform: uppercase;
 }
 
-/* ---------- Player table ---------- */
-
-.player-table-section {
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: 0.6rem;
-  padding: 1rem;
-}
-
-.player-table-controls {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  margin-bottom: 0.75rem;
-  align-items: center;
-}
-
-.player-table-controls input[type="text"] {
-  flex: 1 1 14rem;
-  padding: 0.4rem 0.6rem;
-  border-radius: 0.4rem;
-  border: 1px solid var(--border);
-  background: var(--bg);
-  color: var(--text);
-  min-width: 0;
-}
+/* ---------- Shared table furniture ----------
+   The flat player table that used to live here was replaced by the scout view (E6-S2), which brings
+   its own layout in `components/scout/scout.css`. What is left is the furniture more than one view
+   uses: the position chips, the sortable header button and the confidence badge. */
 
 .position-filter-group {
   display: flex;
@@ -243,7 +356,7 @@
 .position-filter-btn {
   padding: 0.35rem 0.7rem;
   border-radius: 0.4rem;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   background: var(--bg-panel-alt);
   color: var(--text);
   cursor: pointer;
@@ -251,14 +364,9 @@
 
 .position-filter-btn.active {
   background: var(--accent);
-  color: #05261a;
+  color: var(--on-accent);
   border-color: var(--accent);
   font-weight: 600;
-}
-
-.player-table-scroll {
-  overflow-x: auto;
-  max-width: 100%;
 }
 
 table {
@@ -289,18 +397,6 @@ td {
   color: var(--accent);
 }
 
-.player-row {
-  cursor: pointer;
-}
-
-.player-row:hover {
-  background: var(--bg-panel-alt);
-}
-
-.player-row.selected {
-  background: #24413a;
-}
-
 .confidence-badge {
   padding: 0.1rem 0.45rem;
   border-radius: 1rem;
@@ -309,29 +405,23 @@ td {
 }
 
 .confidence-high {
-  background: #1f4d33;
-  color: #7fe6ac;
+  background: var(--confidence-high-bg);
+  color: var(--confidence-high-fg);
 }
 
 .confidence-medium {
-  background: #4a3c14;
-  color: #e6c97f;
+  background: var(--confidence-medium-bg);
+  color: var(--confidence-medium-fg);
 }
 
 .confidence-low {
-  background: #4a2620;
-  color: #e69d7f;
+  background: var(--confidence-low-bg);
+  color: var(--confidence-low-fg);
 }
 
 .confidence-none {
-  background: #3a3a3a;
-  color: #b3b3b3;
-}
-
-.player-table-count {
-  color: var(--text-muted);
-  font-size: 0.85rem;
-  margin: 0.6rem 0;
+  background: var(--confidence-none-bg);
+  color: var(--confidence-none-fg);
 }
 
 /* ---------- Decomposition ---------- */
@@ -373,11 +463,11 @@ td {
 }
 
 .component-negative .component-value {
-  color: #e69d7f;
+  color: var(--value-negative);
 }
 
 .component-positive .component-value {
-  color: #7fe6ac;
+  color: var(--value-positive);
 }
 
 .decomposition-news {
@@ -406,6 +496,42 @@ td {
   }
 }
 
+/* Below this width the full nav labels no longer fit beside the brand and the theme toggle, so the
+   short forms take over and the toggle drops its text. Tested at 390px (E6 verifies 390/820/1440). */
+@media (max-width: 560px) {
+  .app-nav-link-full {
+    display: none;
+  }
+
+  .app-nav-link-short {
+    display: inline;
+  }
+
+  .app-topbar-inner {
+    gap: var(--space-2);
+    padding: var(--space-2);
+  }
+
+  .app-nav-brand {
+    font-size: var(--font-size-sm);
+  }
+
+  /* Tighter links so all five views fit at 390px without the last one falling off the end of the
+     scroller, where it would be reachable but undiscoverable. */
+  .app-nav-link {
+    padding: var(--space-1) var(--space-2);
+    font-size: var(--font-size-xs);
+  }
+
+  .theme-toggle {
+    padding: var(--space-1) var(--space-2);
+  }
+
+  .theme-toggle-text {
+    display: none;
+  }
+}
+
 @media (max-width: 480px) {
   table {
     min-width: 38rem;
@@ -415,4 +541,308 @@ td {
     min-width: 4.6rem;
     font-size: 0.72rem;
   }
+}
+
+/* --- This week ------------------------------------------------------------------------------
+   The panel is deliberately the first thing on the page: on a Thursday evening the question is
+   "what am I doing this week", not "what does the whole squad look like".
+
+   The options table is the only element here that can exceed a narrow viewport, so it gets its own
+   scroller. That is the intended pattern rather than a workaround — the page body must never
+   scroll horizontally, but a wide table inside a bounded box is fine and is how the player table
+   already behaves. */
+
+.week {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.week h2 {
+  margin: 0 0 0.75rem;
+  font-size: 1.05rem;
+}
+
+.week-deadline {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.2rem 0.75rem;
+  font-size: 0.9rem;
+  margin-bottom: 0.85rem;
+}
+
+.week-deadline-row {
+  display: contents;
+}
+
+.week-zone-label {
+  color: var(--text-muted);
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.04em;
+}
+
+.week-countdown span:last-child {
+  font-weight: 600;
+}
+
+.week-decide-by time {
+  color: var(--accent);
+}
+
+.week-state {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  align-items: baseline;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  margin: 0 0 0.75rem;
+}
+
+.week-provenance {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 0.05rem 0.5rem;
+  font-size: 0.78rem;
+}
+
+/* A declared squad is a first-class input (DL-20), but the reader should still be able to see at a
+   glance how much of this was read and how much was stated by hand. */
+.week-provenance-declared {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.week-rationale {
+  margin: 0 0 0.6rem;
+  font-weight: 600;
+}
+
+.week-moves {
+  list-style: none;
+  margin: 0 0 0.85rem;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+}
+
+.week-move-out {
+  color: var(--text-muted);
+}
+
+.week-move-in {
+  font-weight: 600;
+}
+
+.week-options-scroll {
+  overflow-x: auto;
+}
+
+.week-options-caption {
+  margin: 0 0 0.35rem;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.week-options {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  min-width: 22rem;
+}
+
+.week-options th,
+.week-options td {
+  text-align: right;
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.week-options th[scope="row"],
+.week-options thead th:first-child {
+  text-align: left;
+  font-weight: 500;
+}
+
+.week-option-chosen {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.week-chosen-badge {
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-left: 0.35rem;
+}
+
+.week-alerts {
+  list-style: none;
+  margin: 0.85rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+}
+
+.week-alert-urgent {
+  border-left: 3px solid var(--danger-border);
+  padding-left: 0.6rem;
+  font-size: 0.88rem;
+}
+
+.week-reconciliation,
+.week-skipped-reason {
+  margin: 0.85rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+/* --- The plan (E4) ---------------------------------------------------------------------------
+   The caveat block is styled to be impossible to skim past. DL-21 found the forecast losing to a
+   model-free benchmark at the head of the ranking, which is exactly where a hit, a chip or a
+   wildcard acts; a caveat rendered quietly is a caveat that does not exist. */
+
+.plan {
+  margin-top: 1.5rem;
+}
+
+.plan-caveats {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.plan-caveat {
+  border: 1px solid var(--danger-border);
+  border-left-width: 4px;
+  border-radius: 6px;
+  padding: 0.7rem 0.85rem;
+  background: color-mix(in srgb, var(--danger-border) 8%, transparent);
+}
+
+.plan-caveat-headline {
+  margin: 0;
+  font-weight: 600;
+}
+
+.plan-caveat-code {
+  display: inline-block;
+  margin-right: 0.5rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--danger-border);
+}
+
+.plan-caveat-detail {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.plan-rationale {
+  margin: 0.5rem 0 0;
+  font-weight: 500;
+}
+
+.plan-scope,
+.plan-price {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.plan-fallback {
+  color: var(--danger-border);
+}
+
+.plan-weeks-scroll,
+.plan-runners-scroll {
+  overflow-x: auto;
+  margin-top: 0.85rem;
+}
+
+.plan-weeks,
+.plan-runners {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: 0.85rem;
+}
+
+.plan-weeks th,
+.plan-weeks td,
+.plan-runners th,
+.plan-runners td {
+  padding: 0.3rem 0.6rem;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.plan-weeks th[scope="row"],
+.plan-weeks thead th:first-child,
+.plan-runners th[scope="row"],
+.plan-runners thead th:first-child,
+.plan-runners td:last-child {
+  text-align: left;
+  font-weight: 500;
+  white-space: normal;
+}
+
+.plan-runners-caption,
+.plan-ownership-source {
+  margin: 0.85rem 0 0;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.plan-ownership,
+.plan-calendar {
+  margin-top: 1.1rem;
+}
+
+.plan-ownership h3,
+.plan-calendar h3 {
+  font-size: 0.95rem;
+  margin: 0 0 0.4rem;
+}
+
+.plan-ownership-statements,
+.plan-chip-expiry,
+.plan-chip-windows,
+.plan-warnings {
+  list-style: none;
+  margin: 0.4rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+}
+
+.plan-most-captained {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+}
+
+.plan-warnings {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.plan-assumptions {
+  margin-top: 0.9rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.plan-assumptions summary {
+  cursor: pointer;
+}
+
+.plan-skipped-reason {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
 }

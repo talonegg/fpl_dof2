@@ -6,6 +6,9 @@ requires-python = ">=3.14"
 license = { text = "MIT" }
 
 dependencies = [
+    # The multi-gameweek solver from E4 onward (DL-15, DL-26). Not optional: the horizon model
+    # refuses to fall back to CBC silently, so an environment without this cannot plan.
+    "highspy>=1.15",
     "httpx>=0.28",
     "jsonschema>=4.23",
     "numpy>=2.2",
@@ -32,6 +35,10 @@ dev = [
 
 [project.scripts]
 fpl-dof = "fpl_dof.cli:main"
+# The read-only guard the scheduled workflows ask before doing anything (E7-S1, E7-S2). Separate
+# from `fpl-dof` because that command opens a run and writes a manifest, which is wrong for a
+# question asked ninety-six times a day.
+fpl-dof-schedule = "fpl_dof.schedule_cli:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -54,7 +61,7 @@ ignore = ["A005"]
 
 [tool.mypy]
 python_version = "3.14"
-files = ["src", "tests"]
+files = ["src", "tests", "scripts"]
 strict = true
 warn_unreachable = true
 plugins = ["pydantic.mypy"]
@@ -68,6 +75,7 @@ testpaths = ["tests"]
 addopts = "-q --strict-markers"
 markers = [
     "network: hits the live FPL API; deselected by default in CI",
+    "slow: measured in minutes, not seconds; deselected by default. Run with --slow",
 ]
 
 [tool.coverage.run]

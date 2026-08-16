@@ -9,6 +9,23 @@ depends on this epic landing on time
 
 ---
 
+## 0. Gate carried in from E3 — read before starting
+
+**[DL-21](../00-decision-log.md#dl-21--the-v1-forecast-beats-price-and-loses-to-recent-form-reported-not-tuned)
+found the forecast loses to a model-free benchmark on top-20 precision (0.00 vs 0.05) — the exact
+part of the ranking this epic's decisions act on. That finding opened debt
+[D-13](E0-steel-thread-gw1.md#6-technical-debt-register), and its consequence is a hard constraint on
+this epic, not a footnote:**
+
+> No −8 hit, chip, or wildcard may be justified by `xp_v1` alone until top-20 precision beats B0.
+
+**What this means concretely for the stories below:** E4-S2's MILP and E4-S3's chip modelling may be
+built and tested against the current forecast — the machinery does not need to wait — but **the
+squad/transfer engine must expose that its recommendations are running on an unvalidated-at-the-head
+forecast**, and any UI or explanation surfacing a hit/chip/wildcard call (E4-S6) must carry that
+caveat rather than present the recommendation as settled. Closing D-13 is not part of this epic's
+scope; not silently proceeding as though it were already closed is.
+
 ## 1. Why, and why the timing is not negotiable
 
 E1 gave a single-gameweek transfer recommendation. That is structurally short-sighted: it churns
@@ -135,17 +152,75 @@ price exposure, and the assumptions — "this assumes he starts, which the model
 
 ## 3. Definition of done
 
-- [ ] Multi-gameweek plan over a rolling horizon, with correct free-transfer and hit arithmetic
-- [ ] **Chips do not consume free transfers** — property-tested, not assumed (C15)
-- [ ] Chip calendar live, with set-1 expiry enforced; E2-S7's tracker superseded, not deleted
-- [ ] **OD-06 resolved** — the EO source chosen, recorded, and named in the UI
-- [ ] Risk dial functional; ownership bet surfaced on every recommendation
-- [ ] Same-club XI cap in force and relaxable per club
-- [ ] Simulation re-rank running, and demonstrably affecting at least one chip decision in backtest
-- [ ] **Incumbency tie-break in the objective** — the same inputs produce the same squad twice running
-      (R-16), and a transfer must clear a margin rather than merely tie
-- [ ] Overrides working, with useful infeasibility messages
-- [ ] Every recommendation explained with runner-ups and marginal gain
-- [ ] Property tests cover the full constraint set including chips and the full horizon
-- [ ] Solve time inside budget on HiGHS, with greedy fallback proven
-- [ ] D-03 and D-04 closed
+Ticked against what is actually built and tested, not against what was attempted.
+[DL-22](../00-decision-log.md#dl-22--post-e3-audit-found-a-dod-item-ticked-without-its-acceptance-criterion-being-met)
+exists because a prior epic ticked an item whose acceptance criterion was not met, so each line below
+names the artefact or the test that makes it true — and the three that are **not** true say so.
+
+- [x] Multi-gameweek plan over a rolling horizon, with correct free-transfer and hit arithmetic —
+      `optimise/horizon.py`; arithmetic covered by
+      `test_horizon.py::test_spending_transfers_reduces_the_balance_without_taking_it_negative` and
+      `::test_hits_are_charged_only_beyond_the_free_allowance`
+- [x] **Chips do not consume free transfers** — property-tested, not assumed (C15).
+      `test_chips_do_not_consume_free_transfers` for both transfer chips, plus
+      `test_a_wildcard_actually_transfers_while_charging_nothing` so that charging nothing cannot be
+      achieved by doing nothing
+- [x] Chip calendar live, with set-1 expiry enforced; E2-S7's tracker superseded, not deleted —
+      `optimise/chips.py`, published as `chip_calendar` in `plan.json` and rendered by
+      `PlanPanel.tsx`. Expiry is read from the game's own chip windows
+      (`test_set_one_chips_are_gone_after_their_published_expiry`), and `week/alerts.py`'s tracker is
+      untouched and still running
+- [x] **OD-06 resolved** — the EO source chosen, recorded, and named in the UI.
+      [DL-24](../00-decision-log.md#dl-24) chose *redefine*; `plan.json` carries
+      `ownership.source_statement`, and `PlanPanel.test.tsx` asserts the panel says "selected by" and
+      never "effective ownership"
+- [x] Risk dial functional; ownership bet surfaced on every recommendation — `optimise/risk.py`,
+      defaulted by [DL-25](../00-decision-log.md#dl-25). Every plan carries `explanation.ownership_bet`
+- [x] Same-club XI cap in force and relaxable per club — C16 in `horizon.py`,
+      `test_the_same_club_starting_cap_is_enforced_and_relaxable`. It also degrades with a stated
+      reason when the *current* squad cannot field an XI under it, because "do nothing" must always
+      remain a legal option
+- [x] Simulation re-rank running, and demonstrably affecting at least one chip decision **in
+      backtest** — **met, and read the caveat.** `optimise/replay.py` runs `build_plan` twice, re-rank
+      on and off, at eight real historical deadlines sampled across 2024/25 and 2025/26, refitting
+      through the walk-forward harness's own `fold_rows`/`training_rows`.
+      It changed the chip recommendation at **8 of 8** of them; scored against what those players
+      actually went on to score, 5 changes were better and 3 worse
+      ([DL-28](../00-decision-log.md#dl-28), `tests/test_chip_replay.py`, gated `--slow`). The
+      criterion's second half — "the direction of the change is explicable" — is met on real data
+      too: re-running three deadlines at each dial, the safe dial declined to move the chip where
+      balanced moved it, and the aggressive dial chose a different week again. D-18 is closed.
+      **This is not evidence the re-rank improves timing** — 5–3 on eight observations is a coin
+      flip, and at the default dial the chip landed on the first horizon gameweek 8 times out of 8,
+      which is opened as **D-21**
+- [x] **Incumbency tie-break in the objective** — the same inputs produce the same squad twice running
+      (R-16), and a transfer must clear a margin rather than merely tie.
+      `test_the_same_inputs_produce_the_same_squad_twice_running`,
+      `test_the_incumbency_bonus_keeps_a_tied_squad_rather_than_churning_it` and
+      `test_a_tied_alternative_does_not_beat_the_incumbent_squad`
+- [x] Overrides working, with useful infeasibility messages — locks, bans, club exclusions, spend
+      caps, forced formations and forced/forbidden chip gameweeks. Four tests assert the message
+      names the *cause* rather than a solver status
+- [x] Every recommendation explained with runner-ups and marginal gain — `optimise/explain.py`;
+      rolling everything is always among the runners-up
+      (`test_rolling_everything_is_always_a_ranked_runner_up`)
+- [x] Property tests cover the full constraint set including chips and the full horizon — the three
+      mandatory ones in `test_horizon.py`, over randomised inputs
+- [x] Solve time inside budget on HiGHS, with greedy fallback proven — a full local run solved all
+      twenty chip scenarios over a five-gameweek horizon on a 159-player pool in **92.7s**, inside the
+      600s budget ([DL-26](../00-decision-log.md#dl-26)). The fallback is proven by
+      `test_the_greedy_fallback_produces_a_legal_plan_and_says_it_is_a_fallback`. Measured preseason
+      and locally only, which **D-19** tracks — the number is met, not retired
+- [x] D-03 and D-04 closed — the single-gameweek objective and the absence of chip modelling are
+      both repaid; the register rows in [E0 §6](E0-steel-thread-gw1.md#6-technical-debt-register) are
+      marked closed
+- [x] **D-13's caveat is visible wherever a hit, chip or wildcard is recommended** — not resolved by
+      this epic, but not silently dropped either (see §0). `explain.D13_CAVEAT` is a field on the
+      recommendation, carried through `plan.schema.json` and rendered above the recommendation by
+      `PlanPanel.tsx`; asserted by `test_the_d13_caveat_is_attached_to_any_hit_chip_or_wildcard` and
+      by `PlanPanel.test.tsx`
+
+**Not done, and deliberately not ticked:** the simulation re-rank's backtest criterion above, plus
+the most-captained callout,
+which is implemented end to end but always renders "not available" because the silver gameweek table
+does not carry the id (**D-15**).

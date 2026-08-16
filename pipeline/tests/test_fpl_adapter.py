@@ -43,15 +43,22 @@ def recorded_api() -> Iterator[respx.MockRouter]:
     bootstrap = load("bootstrap_static")
     fixtures = load("fixtures")
     summaries = load("element_summary")
+    set_piece = load("set_piece_notes")
     assert isinstance(bootstrap, dict) and isinstance(summaries, dict)
 
     with respx.mock(assert_all_called=False) as mock:
         mock.get(f"{BASE}/bootstrap-static/").mock(return_value=httpx.Response(200, json=bootstrap))
         mock.get(f"{BASE}/fixtures/").mock(return_value=httpx.Response(200, json=fixtures))
+        mock.get(f"{BASE}/team/set-piece-notes/").mock(
+            return_value=httpx.Response(200, json=set_piece)
+        )
         for element_id, summary in summaries.items():
             mock.get(f"{BASE}/element-summary/{element_id}/").mock(
                 return_value=httpx.Response(200, json=summary)
             )
+        mock.get(url__regex=rf"{BASE}/event/\d+/live/").mock(
+            return_value=httpx.Response(200, json={"elements": []})
+        )
         yield mock
 
 
@@ -74,8 +81,30 @@ REQUEST = IngestRequest(run_id="run-1")
 
 
 def test_adapter_declares_its_resources() -> None:
+    """E2-S1: every endpoint in the catalogue is either ingested or explicitly out of scope.
+
+    Named exhaustively rather than counted, so adding a resource without deciding where it sits on
+    the fast path is a test failure rather than a silent change of cadence.
+    """
     names = {resource.name for resource in FplApiAdapter.resources}
-    assert names == {"bootstrap_static", "fixtures", "element_summary"}
+    assert names == {
+        "bootstrap_static",
+        "fixtures",
+        "element_summary",
+        "event_live",
+        "set_piece_notes",
+        "league_standings",
+        "entry",
+        "entry_history",
+        "entry_picks",
+        "entry_transfers",
+    }
+
+
+def test_the_per_gameweek_sweeps_stay_off_the_fast_path() -> None:
+    """``event/{gw}/live`` grows one request per finished gameweek and must not run 4-hourly."""
+    live = next(r for r in FplApiAdapter.resources if r.name == "event_live")
+    assert live.fast_path is False
 
 
 def test_the_expensive_resource_is_marked_off_the_fast_path() -> None:
@@ -84,6 +113,52 @@ def test_the_expensive_resource_is_marked_off_the_fast_path() -> None:
     assert summary.fast_path is False
     assert summary.cache_ttl_seconds is not None
     assert summary.cache_ttl_seconds >= 24 * 3600
+
+
+#: What the four-hourly workflow asks for (E7-S1).
+FAST_REQUEST = IngestRequest(run_id="run-1", fast_path_only=True)
+
+
+def test_the_fast_cadence_skips_every_resource_declared_off_the_fast_path(
+    recorded_api: respx.MockRouter, adapter: FplApiAdapter
+) -> None:
+    """E7-S1: the declarations above are honoured, not merely recorded.
+
+    Asserted against the requests actually issued rather than against the report alone, because a
+    report can say zero while the fetches happened and were discarded — which would cost the six
+    minutes this cadence exists to avoid.
+    """
+    report = adapter.ingest(FAST_REQUEST)
+
+    assert report.resources["bootstrap_static"] == 1
+    assert report.resources["fixtures"] == 1
+    assert report.resources["element_summary"] == 0
+    assert report.resources["event_live"] == 0
+
+    requested = [str(call.request.url) for call in recorded_api.calls]
+    assert not [url for url in requested if "element-summary" in url]
+    assert not [url for url in requested if "/live/" in url]
+
+
+def test_the_full_cadence_still_fetches_the_expensive_sweep(
+    recorded_api: respx.MockRouter, adapter: FplApiAdapter
+) -> None:
+    """The guard is opt-in: without ``--fast`` nothing about the daily ingest changes (D-10)."""
+    report = adapter.ingest(REQUEST)
+    assert report.resources["element_summary"] > 0
+    assert [call for call in recorded_api.calls if "element-summary" in str(call.request.url)]
+
+
+def test_wants_answers_from_the_resource_declaration_alone(adapter: FplApiAdapter) -> None:
+    for resource in FplApiAdapter.resources:
+        assert adapter.wants(resource.name, FAST_REQUEST) is resource.fast_path
+        # Without the flag, every resource is wanted whatever it declared.
+        assert adapter.wants(resource.name, REQUEST) is True
+
+
+def test_the_official_source_has_a_fast_path_at_all(adapter: FplApiAdapter) -> None:
+    """``has_fast_path`` is how the ingest stage skips a source without naming it (Invariant 1)."""
+    assert adapter.has_fast_path() is True
 
 
 def test_bootstrap_carries_everything_downstream_needs(
@@ -148,16 +223,25 @@ def test_ingest_snapshots_everything_and_reuses_the_cache(
     assert report.resources["bootstrap_static"] == 1
     assert report.resources["fixtures"] == 1
     assert report.resources["element_summary"] == 92
-    assert report.network_calls == 94
+    assert report.resources["set_piece_notes"] == 1
+    # No gameweek has finished in the recorded preseason fixture, so nothing is fetched per
+    # gameweek. Asking for a future gameweek would cache an empty payload as though it meant
+    # something.
+    assert report.resources["event_live"] == 0
+
+    # Expressed as its parts rather than as a total: a bare number stops describing anything the
+    # moment a resource is added, and the last thing wanted then is a magic constant to bump.
+    expected_calls = sum(report.resources.values())
+    assert report.network_calls == expected_calls
     assert report.cache_hits == 0
 
     snapshots = list((tmp_path / "bronze").rglob("*.json.gz"))
-    assert len(snapshots) == 94
+    assert len(snapshots) == expected_calls
     assert all(path.with_name(path.name + ".meta.json").exists() for path in snapshots)
 
     second = adapter.ingest(REQUEST)
     assert second.network_calls == 0, "a re-run inside the cache window must not touch the network"
-    assert second.cache_hits == 94
+    assert second.cache_hits == expected_calls
 
 
 def test_player_limit_is_honoured_and_warned_about(

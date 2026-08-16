@@ -19,6 +19,7 @@ from typing import ClassVar
 
 import pandas as pd
 
+from fpl_dof.config.models import SourceOverride
 from fpl_dof.rules.models import ApiRules
 from fpl_dof.sources.fetch import Fetcher
 
@@ -48,7 +49,51 @@ class IngestRequest:
     force_refresh: bool = False
     offline: bool = False
     player_limit: int | None = None
+    fast_path_only: bool = False
+    """Fetch only resources declared ``fast_path``. Set by the frequent cadence (E7-S1).
+
+    Adapters should ask :meth:`SourceAdapter.wants` rather than read this directly, so the rule is
+    written once and a new resource inherits it by declaring ``fast_path`` and nothing else.
+    """
+
     now: dt.datetime | None = None
+    entry_id: int | None = None
+    """The owner's team, when one is configured. A game concept, not a source concept — an adapter
+    that cannot expose it simply ignores the field."""
+
+    league_id: int | None = None
+    """A classic mini-league to read standings for, when one is configured. As with ``entry_id``, a
+    game concept rather than a source concept; an adapter with no notion of a league ignores it."""
+
+    league_rival_limit: int = 0
+    """How many of that league's entries to fetch squads for, from the top of the table down.
+
+    Defaults to **none**: standings are a single request, and squads are one request per entry per
+    gameweek. An adapter asked for a league without being given a budget fetches the cheap half and
+    stops, rather than inferring permission to make hundreds of requests.
+    """
+
+    seasons: tuple[str, ...] = ()
+    """Historical seasons to backfill. Empty means current season only."""
+
+    season: str | None = None
+    """The season being run, as ``2026/27``. A source that derives its own from the data it fetches
+    ignores this; a source whose URLs are season-shaped needs to be told, and guessing from the
+    wall clock would quietly fetch the wrong year through every August."""
+
+    def seasons_with_current(self) -> tuple[str, ...]:
+        """Every season a season-shaped source should fetch: the backfill, then the current one.
+
+        **Backfill adds to the current season; it never replaces it.** Reading ``seasons`` alone
+        would mean that configuring a historical backfill silently switched off this season's
+        enrichment — the run would still succeed, the fields would still be typed, and the only
+        symptom would be a forecast quietly missing the source it was configured to use. Oldest
+        first, so a later season's row wins any last-write-wins merge downstream.
+        """
+        ordered = [season for season in self.seasons if season != self.season]
+        if self.season:
+            ordered.append(self.season)
+        return tuple(dict.fromkeys(ordered))
 
 
 @dataclass
@@ -95,8 +140,29 @@ class SourceAdapter(ABC):
     resources: ClassVar[tuple[Resource, ...]] = ()
     enabled_by_default: ClassVar[bool] = True
 
-    def __init__(self, fetcher: Fetcher) -> None:
+    essential: ClassVar[bool] = True
+    """Whether the pipeline can produce a recommendation without this source.
+
+    Exactly one source supplies the game itself; everything else enriches it. A non-essential
+    source that fails is logged, recorded and skipped, because a slightly worse recommendation
+    comfortably beats no recommendation at 03:30 (NFR-15, DP-15). Marking a source essential is a
+    statement that its absence makes the output *wrong* rather than *poorer*.
+    """
+
+    attribution: ClassVar[str] = ""
+    """How this source must be credited where its data is shown (NFR-10).
+
+    Declared by the source because only the source knows its own terms, and carried downstream as
+    data so no module outside this package has to name a provider to render the credit.
+    """
+
+    contributes: ClassVar[tuple[str, ...]] = ()
+    """Canonical field names this source can supply. The input to per-field precedence (NFR-15),
+    and the reason losing a source removes known fields rather than unknown ones."""
+
+    def __init__(self, fetcher: Fetcher, options: SourceOverride | None = None) -> None:
         self.fetcher = fetcher
+        self.options = options or SourceOverride()
 
     def url_for(self, path: str) -> str:
         return f"{self.base_url.rstrip('/')}/{path.lstrip('/')}"
@@ -106,6 +172,24 @@ class SourceAdapter(ABC):
             if declared.name == name:
                 return declared
         raise KeyError(f"{self.name} declares no resource named {name!r}")
+
+    def wants(self, name: str, request: IngestRequest) -> bool:
+        """Whether ``name`` should be fetched under this request's cadence.
+
+        Adapters guard their expensive resources with this rather than branching on
+        ``request.fast_path_only`` themselves, so the cadence rule exists in exactly one place and
+        a resource opts out by declaring ``fast_path=False`` — a fact about the resource, stated
+        next to its TTL, rather than a condition buried in an ingest method.
+        """
+        return not request.fast_path_only or self.resource(name).fast_path
+
+    def has_fast_path(self) -> bool:
+        """Whether any of this source's resources belong on the frequent cadence at all.
+
+        A source where nothing is fast — scrapers, odds, the historical archive — is skipped whole
+        by the ingest stage rather than being built and then asked to fetch nothing.
+        """
+        return any(resource.fast_path for resource in self.resources)
 
     @abstractmethod
     def ingest(self, request: IngestRequest) -> IngestReport:

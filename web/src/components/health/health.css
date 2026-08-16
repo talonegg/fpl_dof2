@@ -1,0 +1,322 @@
+/* Data health page (E7-S6, DL-41).
+
+   Colour arrives only through a token from `tokens.css`. That matters more here than on most
+   pages: every colour on this one carries a status, and a hex code chosen against the light theme
+   would render a "degraded" badge as an unreadable smear in the dark one — a status page that is
+   illegible in half its states is worse than none.
+
+   Colour is never the only carrier either. Every pill prints its own word, so the page reads in
+   greyscale and to a screen reader (NFR-14).
+
+   The two tables are wide by construction — six columns of run detail does not fit a 390px phone
+   and never will. They scroll inside their own boxes, and the page body keeps its promise never to
+   scroll sideways. */
+
+.health {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* Loading, absent, malformed and error all render the same shaped panel as the page itself, so the
+   route never flashes an unstyled block on its way to the real thing. */
+.health-status {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  color: var(--text-muted);
+}
+
+.health-status h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-lg);
+  color: var(--text);
+}
+
+.health-status p,
+.health-status ul {
+  margin: 0 0 var(--space-3);
+}
+
+.health-status ul {
+  padding-left: var(--space-5);
+}
+
+.health-head h2 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+
+.health-asat {
+  margin: var(--space-1) 0 0;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.health-asat code,
+.health-note code {
+  font-size: var(--font-size-xs);
+  word-break: break-all;
+}
+
+.health-note {
+  margin: var(--space-2) 0 0;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* ---------- Banners ---------- */
+
+.health-banner {
+  background: var(--warn-bg);
+  border-left: 4px solid var(--warn-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4);
+}
+
+.health-banner h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-base);
+}
+
+.health-banner p {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+.health-banner ul {
+  margin: 0;
+  padding-left: var(--space-5);
+  font-size: var(--font-size-sm);
+}
+
+.health-banner-inline {
+  background: var(--danger-bg);
+  border-left: 4px solid var(--danger-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-sm);
+}
+
+/* ---------- Status tiles ----------
+
+   `auto-fit` with a minimum rather than a breakpoint: three tiles on a desktop, two on a tablet,
+   one on a phone, with no width written down anywhere and nothing to keep in step with the nav. */
+
+.health-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));
+  gap: var(--space-3);
+}
+
+.health-tile {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-left-width: 4px;
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+}
+
+.health-tile h3 {
+  margin: 0;
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.health-tile-value {
+  margin: var(--space-1) 0 0;
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  line-height: 1.15;
+}
+
+.health-tile-detail {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+/* ---------- Sections ---------- */
+
+.health-section {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+
+.health-section > h3 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-lg);
+}
+
+.health-empty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+/* ---------- Tables ---------- */
+
+.health-scroller {
+  overflow-x: auto;
+}
+
+.health-table {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  font-size: var(--font-size-sm);
+}
+
+/* Sits above the scroller rather than inside the table, so it wraps to the viewport instead of
+   inheriting the table's width and being clipped on a phone. */
+.health-caption {
+  margin: 0 0 var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.health-table th,
+.health-table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.health-table thead th {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* The reason column is the one that must wrap: it is prose, and the whole point of it is that a
+   reader can act on it without opening a log. Everything else stays on one line. */
+.health-why {
+  white-space: normal;
+  min-width: 16rem;
+  color: var(--text-muted);
+}
+
+/* ---------- Pills and tones ---------- */
+
+.health-pill {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  text-transform: capitalize;
+  border: 1px solid var(--border-strong);
+}
+
+/* Existing semantic tokens, reused rather than added to. A palette that grows an entry per page is
+   how a hex code eventually lands in a component. */
+.health-tone-good {
+  background: var(--confidence-high-bg);
+  color: var(--confidence-high-fg);
+  border-color: var(--confidence-high-fg);
+}
+
+.health-tone-warn {
+  background: var(--warn-bg);
+  color: var(--text);
+  border-color: var(--warn-border);
+}
+
+.health-tone-bad {
+  background: var(--danger-bg);
+  color: var(--text);
+  border-color: var(--danger-border);
+}
+
+.health-tone-neutral {
+  background: var(--bg-panel-alt);
+  color: var(--text-muted);
+  border-color: var(--border);
+}
+
+/* On a tile the tone belongs on the left edge only: filling a whole panel with the warning colour
+   makes the text inside it the least readable thing on the page. */
+.health-tile.health-tone-good {
+  background: var(--bg-panel);
+  color: var(--text);
+  border-left-color: var(--confidence-high-fg);
+}
+
+.health-tile.health-tone-warn {
+  background: var(--bg-panel);
+  color: var(--text);
+  border-left-color: var(--warn-border);
+}
+
+.health-tile.health-tone-bad {
+  background: var(--bg-panel);
+  color: var(--text);
+  border-left-color: var(--danger-border);
+}
+
+.health-tile.health-tone-neutral {
+  background: var(--bg-panel);
+  color: var(--text);
+  border-left-color: var(--border-strong);
+}
+
+/* ---------- Stages ---------- */
+
+.health-stages {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.health-stages li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2) var(--space-3);
+  font-size: var(--font-size-sm);
+}
+
+.health-stage-name {
+  font-weight: 600;
+  min-width: 6rem;
+}
+
+.health-stage-time {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.health-stage-error {
+  flex-basis: 100%;
+  color: var(--danger-border);
+}
+
+/* ---------- Charts ----------
+
+   One column on a phone, two from tablet width up. The charts scale by viewBox rather than by
+   measuring a container, so this is the only place their width is decided. */
+
+.health-charts {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-3);
+}
+
+@media (min-width: 48rem) {
+  .health-charts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

@@ -1,0 +1,82 @@
+# E7-S1: bootstrap-static and fixtures only — prices, status, ownership. Two cheap requests.
+#
+# GitHub Actions cron is static and cannot itself express "every 4h, hourly within 24h of a
+# deadline" (the cadence depends on the deadline, which the schedule does not know). So this fires
+# hourly and asks `fpl-dof-schedule --decide fast` whether *this* firing should actually ingest —
+# see pipeline/src/fpl_dof/week/schedule.py for the decision and why it is safe to ask often.
+#
+# `element-summary` never belongs here (see ingest-slow.yml) — it is ~700 requests and would turn
+# an hourly job into the exact cost problem DL-12 closed.
+#
+# The rolling `data` branch (E7-S4, R-13) is rebuilt and force-pushed at the end of every ingest
+# that actually fetched, by pipeline/scripts/retention.py — see pipeline/src/fpl_dof/retention.py
+# for why the mechanism is "rebuild from nothing", not "delete the old file".
+
+name: Ingest (fast)
+
+on:
+  schedule:
+    - cron: "0 * * * *" # hourly, UTC always — the guard step decides whether to actually fetch
+  workflow_dispatch:
+
+concurrency:
+  group: ingest-fast
+  cancel-in-progress: false # a superseded run has nothing to gain by cancelling a cheap, fast one
+
+permissions:
+  contents: read
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install fpl-dof
+        run: python -m pip install -e "pipeline[dev]"
+
+      - name: Restore bronze from the `data` branch
+        run: |
+          set -eu
+          mkdir -p data/bronze
+          if git ls-remote --exit-code --heads origin data >/dev/null 2>&1; then
+            git fetch --depth=1 origin data:refs/remotes/origin/data
+            git worktree add /tmp/data-branch origin/data
+            if [ -d /tmp/data-branch/bronze ]; then cp -r /tmp/data-branch/bronze/. data/bronze/; fi
+            git worktree remove /tmp/data-branch --force
+          else
+            echo "no data branch yet; starting from an empty bronze store"
+          fi
+
+      - name: Should this firing ingest?
+        id: schedule
+        run: echo "run=$(fpl-dof-schedule --decide fast)" >> "$GITHUB_OUTPUT"
+
+      - name: Fast ingest
+        if: steps.schedule.outputs.run == 'true'
+        run: fpl-dof ingest --fast
+
+      - name: Rebuild the rolling `data` branch
+        if: steps.schedule.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+          # No --window-days override: the script's default (30) matches
+          # RetentionConfig.bronze_days's default. If config/local.yaml or config/defaults ever
+          # override that value, pass --window-days here to match — see DL-41.
+          python pipeline/scripts/retention.py rolling data/bronze --remote "$remote"
+
+  alert:
+    needs: [ingest]
+    if: failure()
+    uses: ./.github/workflows/alert-on-failure.yml
+    with:
+      workflow_name: Ingest (fast)
+      run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    permissions:
+      issues: write

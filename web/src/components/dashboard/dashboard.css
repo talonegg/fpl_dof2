@@ -1,0 +1,367 @@
+/* --- Dashboard (E6-S6) --------------------------------------------------------------------
+   Ordered by what changes a decision: the deadline, then actionable alerts, then the
+   recommendation with its roll comparison, then the squad, then informational alerts and the
+   plan. See the doc comment on `Dashboard` in Dashboard.tsx for the full rationale. */
+
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+/* --- Deadline countdown ---------------------------------------------------------------------- */
+
+.dash-deadline {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+}
+
+.dash-deadline-imminent,
+.dash-deadline-passed {
+  border-left-color: var(--danger-border);
+}
+
+.dash-deadline-soon {
+  border-left-color: var(--warn-border);
+}
+
+.dash-deadline-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.dash-deadline-head h2 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+
+.dash-deadline-remaining {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.dash-deadline-count {
+  font-size: var(--font-size-xl);
+  font-weight: 700;
+}
+
+.dash-deadline-count-label {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.dash-deadline-zones {
+  margin: var(--space-3) 0 0;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-1) var(--space-4);
+  font-size: var(--font-size-sm);
+}
+
+.dash-deadline-zone {
+  display: contents;
+}
+
+.dash-deadline-zone dt {
+  color: var(--text-muted);
+  font-variant-caps: all-small-caps;
+  letter-spacing: 0.04em;
+}
+
+.dash-deadline-zone dd {
+  margin: 0;
+}
+
+.dash-deadline-decide time {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* --- Alerts ------------------------------------------------------------------------------------ */
+
+.dash-alerts {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+}
+
+.dash-alerts-heading {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-base);
+}
+
+.dash-alert-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.dash-alert {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-1) var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+}
+
+.dash-alert-urgent {
+  border-left-color: var(--danger-border);
+  background: var(--danger-bg);
+}
+
+.dash-alert-warning {
+  border-left-color: var(--warn-border);
+  background: var(--warn-bg);
+}
+
+.dash-alert-info {
+  border-left-color: var(--border);
+  background: var(--bg-panel-alt);
+}
+
+.dash-alert-tags {
+  display: flex;
+  gap: var(--space-2);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+/* --- Recommendation and the roll comparison ----------------------------------------------------- */
+
+.dash-recommendation {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+}
+
+.dash-recommendation h2 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-lg);
+}
+
+.dash-recommendation-action {
+  margin: 0 0 var(--space-3);
+  font-weight: 600;
+}
+
+.dash-recommendation-empty .dash-recommendation-action {
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.dash-roll {
+  margin-bottom: var(--space-3);
+}
+
+.dash-roll-statement {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.dash-roll-sides {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.dash-roll-side {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.dash-roll-side-chosen {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.dash-roll-side-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.dash-roll-side-value {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+}
+
+.dash-roll-side-unit {
+  font-size: var(--font-size-xs);
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.dash-roll-side-hit {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.dash-moves {
+  list-style: none;
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+}
+
+.dash-move-out {
+  color: var(--text-muted);
+}
+
+.dash-move-in {
+  font-weight: 600;
+}
+
+.dash-state {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  align-items: baseline;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin: 0 0 var(--space-3);
+}
+
+.dash-provenance {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 0.05rem 0.5rem;
+  font-size: var(--font-size-xs);
+}
+
+.dash-provenance-declared {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.dash-options-scroll {
+  overflow-x: auto;
+}
+
+.dash-options-caption {
+  margin: 0 0 var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.dash-options-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+  min-width: 22rem;
+}
+
+.dash-options-table th,
+.dash-options-table td {
+  text-align: right;
+  padding: 0.3rem var(--space-2);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.dash-options-table th[scope="row"],
+.dash-options-table thead th:first-child {
+  text-align: left;
+  font-weight: 500;
+}
+
+.dash-option-chosen {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.dash-chosen-badge {
+  color: var(--accent);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  margin-left: var(--space-1);
+}
+
+.dash-recommendation-warnings {
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-size-sm);
+  color: var(--warn-border);
+}
+
+/* --- Squad summary -------------------------------------------------------------------------- */
+
+.dash-squad-summary {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+}
+
+.dash-squad-summary h2 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-lg);
+}
+
+.dash-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-3);
+}
+
+.dash-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-3);
+  background: var(--bg-panel-alt);
+}
+
+.dash-metric-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.dash-metric-value {
+  font-size: var(--font-size-lg);
+  font-weight: 700;
+}
+
+.dash-metric-detail {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.dash-squad-advised,
+.dash-squad-caveat {
+  margin: var(--space-3) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+@media (max-width: 640px) {
+  .dash-roll-sides {
+    grid-template-columns: 1fr;
+  }
+}

@@ -431,6 +431,24 @@ graph LR
     AGG --> OUT["mean, variance,<br/>decomposition"]
 ```
 
+> **Implementation status (2026-08-15, [DL-33](00-decision-log.md#dl-33), [DL-34](00-decision-log.md#dl-34)).**
+> This section describes the target model, and two parts of it are now real. **M3 consumes expected
+> goals**: the component model `xp_v1` observes and fits goal involvement through `expected_goals` /
+> `expected_assists` — carried by the official feed itself, so this needs no scraped source — and the
+> backtest measured it earning its place (Spearman 0.2255 → 0.2307, calibration 0.60 → 0.70), so it is
+> promoted in the shipped config (DL-34). Still aspirational: M2's xG-based team ratings (built but
+> dark — unmeasurable in a league-average backtest) and the odds view of M2 (no `ODDS_API_KEY`); the
+> npxG and shot-level detail a scraped source would add remain blocked by
+> [D-23](epics/E0-steel-thread-gw1.md#6-technical-debt-register).
+>
+> **One caveat that matters:** the model `run` *publishes* is still `xp_v0`, the cold-start model,
+> which uses none of this. The xG improvement lives in `xp_v1`, the model the backtest grades;
+> promoting it to the live path needs a fixture-aware horizon scorer it does not yet have
+> ([D-25](epics/E0-steel-thread-gw1.md#6-technical-debt-register)). Because both the squad MILP and the
+> weekly plan MILP read only `expected_points.parquet`, external signal reaches **both** decision
+> models through exactly one seam — the forecast — or through neither; it never enters the optimiser
+> directly (DP-02, Invariant 1).
+
 ### M1 — Availability and minutes
 
 **Predicts:** a distribution over `{0, 1–59, 60+}` minutes, plus expected minutes.
@@ -1046,7 +1064,7 @@ accident.
 | Q-03 | Bench weight `β` under normal rules — the true value depends on auto-substitution probability, which is measurable from history | E4 | Historical analysis |
 | Q-04 | Whether one blended expected-points model beats the component chain. The chain wins on explainability, which is a product requirement; if a monolith is materially more accurate, that trade needs an explicit decision | E3 | Backtest |
 | Q-05 | How to weight the 25/26 season in training given the BPS revision and the introduction of Defensive Contribution — earlier seasons come from a different scoring regime | E3 | Model design |
-| ~~Q-06~~ | ~~Whether DuckDB-WASM payload size is acceptable on mobile~~ — **provisionally resolved 2026-08-09 by scoping rather than choosing.** The scout table is ~700 rows and needs no query engine: plain JSON plus client-side filtering is smaller and faster. DuckDB-WASM is lazy-loaded, route-scoped, and used only for the multi-season history views where the data is genuinely large | E6 | Resolved — confirm by measurement on a phone at E6-S2 |
+| ~~Q-06~~ | ~~Whether DuckDB-WASM payload size is acceptable on mobile~~ — **provisionally resolved 2026-08-09 by scoping rather than choosing.** The scout table is ~700 rows and needs no query engine: plain JSON plus client-side filtering is smaller and faster. DuckDB-WASM is lazy-loaded, route-scoped, and used only for the multi-season history views where the data is genuinely large. **Confirmed by measurement at E6-S9** ([DL-38](00-decision-log.md#dl-38--q-06-confirmed-by-measurement-and-the-app-caches-its-shell-and-its-data-under-opposite-rules)): on an emulated Pixel 5 over throttled mobile 4G with a 4× CPU throttle, 587 players filter in 31 ms and sort in 77 ms against a 150 ms budget, and the whole initial payload is 155 KiB against 3 MB | E6 | **Resolved by measurement** |
 | Q-07 | Price-change prediction — whether to model it, given FPL now publishes its own price-change predictor this season | E3 | Assess the official tool first |
 | Q-08 | How aggressively to model rotation for European competitors, where minutes uncertainty is highest and matters most | E3 | Backtest |
 | Q-09 | Whether mini-league rival modelling should feed the risk objective, rather than only being displayed | E8 | In-season |

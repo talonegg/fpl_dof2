@@ -40,7 +40,7 @@ import numpy as np
 import pandas as pd
 
 from fpl_dof.config.models import ForecastConfig
-from fpl_dof.frames import as_int
+from fpl_dof.frames import as_int, gameweek_column, gameweek_sd_column
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.rules.models import GameRules, Position
 
@@ -349,6 +349,16 @@ def build_forecast(
     result["xp_horizon_sd"] = np.maximum(
         result["xp_horizon"].abs() * cv, config.uncertainty.floor * math.sqrt(len(horizon))
     )
+    # Per-gameweek uncertainty travels with the per-gameweek mean, because the optimiser contract
+    # carries variance from day one even where the solver only approximates its use (Invariant 6).
+    for gameweek in horizon:
+        column = gameweek_column(gameweek)
+        if column not in result.columns:
+            continue
+        result[column] = result[column].fillna(0.0)
+        result[gameweek_sd_column(gameweek)] = np.maximum(
+            result[column].abs() * cv, config.uncertainty.floor
+        )
     result["next_gameweek"] = next_gw
     result["horizon_gameweeks"] = len(horizon)
 
@@ -416,6 +426,7 @@ def _score_gameweeks(
     }
     xp_next = np.zeros(len(frame))
     xp_horizon = np.zeros(len(frame))
+    per_gameweek: dict[str, np.ndarray] = {}
     team_ids = frame["team_id"].to_numpy()
 
     for gameweek in horizon:
@@ -477,10 +488,16 @@ def _score_gameweeks(
             for key, value in contribution.items():
                 components[key] = value.copy()
         xp_horizon += total * weight
+        # Kept per gameweek as well as summed. The multi-gameweek optimiser (E4-S2) needs μ[p,w],
+        # and the alternative — reconstructing a per-week number in the decision layer — would put
+        # a second copy of the forecast inside the solver, which is exactly what DP-02 forbids.
+        per_gameweek[gameweek_column(gameweek)] = total.copy()
 
     output = pd.DataFrame({"player_id": frame["player_id"].to_numpy()})
     output["xp_next"] = xp_next
     output["xp_horizon"] = xp_horizon
+    for column, values in per_gameweek.items():
+        output[column] = values
     output["expected_minutes"] = expected_minutes
     for key, value in components.items():
         output[f"component_{key}"] = value

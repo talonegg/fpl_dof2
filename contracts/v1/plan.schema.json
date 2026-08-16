@@ -1,0 +1,306 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/talonegg/fpl_dof2/contracts/v1/plan.schema.json",
+  "title": "Plan",
+  "description": "The multi-gameweek plan and the chip calendar (E4). Where week.json answers 'what do I do before this deadline', this answers 'what is the plan, and when do the chips go'. Every recommendation involving a hit, a chip or a wildcard carries the D-13 caveat as data, not as a footnote.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "run_id", "skipped", "deadline"],
+  "properties": {
+    "contract_version": { "type": "integer", "const": 1 },
+    "run_id": { "type": "string" },
+    "skipped": {
+      "type": "boolean",
+      "description": "True when no squad could be established, or when no legal plan exists. Both are normal states before the season starts (DL-20) and neither is a failure."
+    },
+    "skipped_reason": { "type": "string" },
+    "deadline": { "$ref": "#/$defs/plan_deadline" },
+    "gameweeks": { "type": "array", "items": { "type": "integer" } },
+    "solver": {
+      "type": "string",
+      "description": "Which solver produced this. HiGHS from E4 onward (DL-15); CBC was only ever validated against the single-gameweek problem."
+    },
+    "solve_seconds": { "type": "number" },
+    "status": {
+      "type": "string",
+      "enum": ["optimal", "greedy_fallback"],
+      "description": "greedy_fallback means the solver did not converge in its budget and this is a legal but not optimal plan (DP-15)."
+    },
+    "is_hold": {
+      "type": "boolean",
+      "description": "True when nothing cleared the margin over doing nothing. Holding is a decision, not the absence of one."
+    },
+    "rationale": { "type": "string" },
+    "recommended": { "$ref": "#/$defs/plan_option" },
+    "baseline": {
+      "$ref": "#/$defs/plan_option",
+      "description": "Roll everything: no transfer, no chip. Always solved and always ranked."
+    },
+    "alternatives": { "type": "array", "items": { "$ref": "#/$defs/plan_option" } },
+    "chip_calendar": { "$ref": "#/$defs/chip_calendar" },
+    "explanation": { "$ref": "#/$defs/plan_explanation" },
+    "ownership": { "$ref": "#/$defs/ownership_bet" },
+    "pruning": { "$ref": "#/$defs/pruning_report" },
+    "warnings": { "type": "array", "items": { "type": "string" } }
+  },
+  "$defs": {
+    "plan_deadline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gameweek", "name", "deadline_utc", "decide_by_utc", "local_zone", "uk_zone"],
+      "properties": {
+        "gameweek": { "type": "integer", "minimum": 1, "maximum": 38 },
+        "name": { "type": "string" },
+        "deadline_utc": { "type": "string" },
+        "decide_by_utc": { "type": "string" },
+        "local_zone": { "type": "string" },
+        "uk_zone": { "type": "string" }
+      }
+    },
+    "plan_chip": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gameweek", "chip", "chip_label"],
+      "properties": {
+        "gameweek": { "type": "integer" },
+        "chip": { "type": "string" },
+        "chip_label": { "type": "string" }
+      }
+    },
+    "plan_week": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gameweek", "squad", "fielded", "starting", "captain", "free_transfers"],
+      "properties": {
+        "gameweek": { "type": "integer" },
+        "chip": { "type": ["string", "null"] },
+        "chip_label": { "type": ["string", "null"] },
+        "squad": {
+          "type": "array",
+          "items": { "type": "integer" },
+          "description": "The persistent 15. Under a Free Hit this is what you keep, not what you field."
+        },
+        "fielded": { "type": "array", "items": { "type": "integer" } },
+        "starting": { "type": "array", "items": { "type": "integer" } },
+        "bench_order": { "type": "array", "items": { "type": "integer" } },
+        "captain": { "type": "integer" },
+        "vice_captain": { "type": "integer" },
+        "formation": { "type": "object", "additionalProperties": { "type": "integer" } },
+        "transfers_in": { "type": "array", "items": { "type": "integer" } },
+        "transfers_out": { "type": "array", "items": { "type": "integer" } },
+        "free_transfers": { "type": "integer" },
+        "charged_transfers": {
+          "type": "integer",
+          "description": "Transfers charged against the free allowance. Zero on a Wildcard or Free Hit gameweek even when transfers were made — C15, the half of the chip rule that gets missed."
+        },
+        "hit_points": { "type": "integer" },
+        "bank_after": { "type": "number" },
+        "expected_points": { "type": "number" },
+        "net_expected_points": { "type": "number" }
+      }
+    },
+    "plan_simulation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mean", "median", "score", "draws"],
+      "properties": {
+        "mean": { "type": "number" },
+        "median": { "type": "number" },
+        "percentiles": { "type": "object", "additionalProperties": { "type": "number" } },
+        "score": {
+          "type": "number",
+          "description": "The percentile the risk dial ranks on. Never the mean: the mean is what the MILP already maximised."
+        },
+        "draws": { "type": "integer" }
+      }
+    },
+    "plan_option": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "label", "total_expected_points", "weeks"],
+      "properties": {
+        "key": { "type": "string" },
+        "label": { "type": "string" },
+        "chips": { "type": "array", "items": { "$ref": "#/$defs/plan_chip" } },
+        "status": { "type": "string" },
+        "objective": { "type": "number" },
+        "total_expected_points": { "type": "number" },
+        "total_hit_points": { "type": "integer" },
+        "score": { "type": "number" },
+        "simulation": {
+          "oneOf": [{ "$ref": "#/$defs/plan_simulation" }, { "type": "null" }]
+        },
+        "weeks": { "type": "array", "items": { "$ref": "#/$defs/plan_week" } }
+      }
+    },
+    "chip_calendar_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["chip", "chip_label", "gameweek", "expires_gameweek"],
+      "properties": {
+        "chip": { "type": "string" },
+        "chip_label": { "type": "string" },
+        "gameweek": { "type": "integer" },
+        "is_double": { "type": "boolean" },
+        "is_blank": { "type": "boolean" },
+        "teams_doubling": { "type": "array", "items": { "type": "integer" } },
+        "teams_blanking": { "type": "array", "items": { "type": "integer" } },
+        "expires_gameweek": {
+          "type": "integer",
+          "description": "Read from the game's own chip windows, never assumed. Set one expiring at GW19 is true this season and is exactly the sort of fact that quietly stops being true."
+        },
+        "gameweeks_until_expiry": { "type": "integer" },
+        "note": { "type": "string" }
+      }
+    },
+    "chip_expiry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["chip", "chip_label", "expires_gameweek"],
+      "properties": {
+        "chip": { "type": "string" },
+        "chip_label": { "type": "string" },
+        "expires_gameweek": { "type": "integer" }
+      }
+    },
+    "chip_calendar": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from_gameweek", "entries", "expiring"],
+      "properties": {
+        "from_gameweek": { "type": "integer" },
+        "entries": { "type": "array", "items": { "$ref": "#/$defs/chip_calendar_entry" } },
+        "expiring": { "type": "array", "items": { "$ref": "#/$defs/chip_expiry" } },
+        "unavailable": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "plan_caveat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code", "headline", "detail", "applies_to"],
+      "description": "Something a human must weigh before acting, carried on the recommendation itself rather than as a footnote. D-13 is the one that matters here: the forecast is unvalidated at the head of the ranking, which is exactly where hits, chips and wildcards act.",
+      "properties": {
+        "code": { "type": "string" },
+        "headline": { "type": "string" },
+        "detail": { "type": "string" },
+        "applies_to": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "plan_contribution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "points"],
+      "properties": {
+        "label": { "type": "string" },
+        "points": { "type": "number" },
+        "detail": { "type": "string" }
+      }
+    },
+    "plan_runner_up": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "total_expected_points", "margin"],
+      "properties": {
+        "label": { "type": "string" },
+        "total_expected_points": { "type": "number" },
+        "margin": { "type": "number" },
+        "simulated_score": { "type": ["number", "null"] },
+        "reason": { "type": "string" }
+      }
+    },
+    "plan_price_exposure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["spend", "bank_after", "statement"],
+      "properties": {
+        "spend": { "type": "number" },
+        "bank_after": { "type": "number" },
+        "sell_value_committed": { "type": "number" },
+        "players_bought": { "type": "integer" },
+        "players_sold": { "type": "integer" },
+        "statement": { "type": "string" }
+      }
+    },
+    "plan_explanation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["headline", "marginal_gain_over_doing_nothing", "caveats"],
+      "properties": {
+        "headline": { "type": "string" },
+        "marginal_gain_over_doing_nothing": { "type": "number" },
+        "decomposition": { "type": "array", "items": { "$ref": "#/$defs/plan_contribution" } },
+        "runners_up": { "type": "array", "items": { "$ref": "#/$defs/plan_runner_up" } },
+        "ownership_bet": {
+          "oneOf": [{ "$ref": "#/$defs/ownership_bet" }, { "type": "null" }]
+        },
+        "price_exposure": {
+          "oneOf": [{ "$ref": "#/$defs/plan_price_exposure" }, { "type": "null" }]
+        },
+        "assumptions": { "type": "array", "items": { "type": "string" } },
+        "caveats": { "type": "array", "items": { "$ref": "#/$defs/plan_caveat" } }
+      }
+    },
+    "ownership_position": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["player_id", "web_name", "selected_by_percent", "deviation"],
+      "properties": {
+        "player_id": { "type": "integer" },
+        "web_name": { "type": "string" },
+        "selected_by_percent": {
+          "type": "number",
+          "description": "FPL's published `selected_by_percent`. Always labelled 'selected by' and never 'effective ownership' (DL-24)."
+        },
+        "owned": { "type": "boolean" },
+        "starting": { "type": "boolean" },
+        "deviation": { "type": "number" }
+      }
+    },
+    "most_captained": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["player_id", "statement"],
+      "description": "The single most-captained player, as a plain callout rather than folded into an ownership number that would imply more precision than the data supports (DL-24). player_id is null when the figure is not published.",
+      "properties": {
+        "player_id": { "type": ["integer", "null"] },
+        "web_name": { "type": "string" },
+        "selected_by_percent": { "type": "number" },
+        "owned": { "type": "boolean" },
+        "statement": { "type": "string" }
+      }
+    },
+    "ownership_bet": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dial", "dial_description", "source_statement", "ownership_label"],
+      "properties": {
+        "dial": { "type": "string", "enum": ["safe", "balanced", "aggressive"] },
+        "dial_description": { "type": "string" },
+        "source_statement": {
+          "type": "string",
+          "description": "Which ownership source is in use, stated in the UI as Design 7.1 requires. A risk dial driven by an estimated quantity presented as a measured one is worse than no risk dial."
+        },
+        "ownership_label": { "type": "string" },
+        "underweight": { "type": "array", "items": { "$ref": "#/$defs/ownership_position" } },
+        "overweight": { "type": "array", "items": { "$ref": "#/$defs/ownership_position" } },
+        "most_captained": {
+          "oneOf": [{ "$ref": "#/$defs/most_captained" }, { "type": "null" }]
+        },
+        "statements": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "pruning_report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["pool_size", "full_size"],
+      "properties": {
+        "pool_size": { "type": "integer" },
+        "full_size": { "type": "integer" },
+        "target_size": { "type": "integer" },
+        "within_target": { "type": "boolean" },
+        "by_reason": { "type": "object", "additionalProperties": { "type": "integer" } },
+        "by_position": { "type": "object", "additionalProperties": { "type": "integer" } }
+      }
+    }
+  }
+}

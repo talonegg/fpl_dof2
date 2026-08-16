@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/talonegg/fpl_dof2/contracts/v1/league.schema.json",
+  "title": "League",
+  "description": "A classic mini-league: its table, and the squads of the entries near the top of it (E6-S10, FR-32). Published only when a league is configured — when it is not, this file is absent from the published directory entirely, which is a different and more honest statement than an empty table. The comparison itself (overlap, differentials, captain divergence) is derived in the app from these facts rather than precomputed here, so the reader can see what it was derived from (DP-09, DP-10).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "league", "gameweek", "entries"],
+  "properties": {
+    "contract_version": { "type": "integer", "const": 1 },
+    "league": { "$ref": "#/$defs/league_meta" },
+    "gameweek": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "maximum": 38,
+      "description": "The gameweek every published squad is from — the most recent one with a final score. Null before any gameweek has been scored, when no manager has picks to read (DL-20) and the table is the only thing this artefact can carry."
+    },
+    "entries": { "type": "array", "items": { "$ref": "#/$defs/league_entry" } }
+  },
+  "$defs": {
+    "league_meta": {
+      "type": "object",
+      "description": "Which league this is, and how much of it was read. Published because 'you are 4th' means something different in a league of 8 than in one of 800,000, and because the rows here are the top of a table rather than all of it.",
+      "additionalProperties": false,
+      "required": ["id", "name", "entries_published", "squads_published", "squad_limit"],
+      "properties": {
+        "id": { "type": "integer", "minimum": 1, "description": "The FPL classic league ID, as configured." },
+        "name": { "type": "string" },
+        "entries_published": { "type": "integer", "minimum": 0, "description": "Rows in `entries`. The first page of the standings, capped at what the API returns per page — not necessarily the whole league." },
+        "squads_published": { "type": "integer", "minimum": 0, "description": "How many of those entries have a `squad`. Below `squad_limit` means squads were asked for and not available, which is normal before a gameweek is scored." },
+        "squad_limit": { "type": "integer", "minimum": 0, "description": "The configured budget for how many entries' squads to fetch. Zero means squads were never requested, so an absent squad says nothing about availability — the tunable behind the cost, named rather than buried (DP-06)." }
+      }
+    },
+    "league_entry": {
+      "type": "object",
+      "description": "One manager's row in the table, with their squad when it was read.",
+      "additionalProperties": false,
+      "required": ["entry_id", "entry_name", "player_name", "rank", "total", "is_owner"],
+      "properties": {
+        "entry_id": { "type": "integer", "minimum": 1 },
+        "entry_name": { "type": "string", "description": "The team name, as it appears on the league's own public page." },
+        "player_name": { "type": "string", "description": "The manager's display name, as it appears on the league's own public page." },
+        "rank": { "type": "integer", "minimum": 1 },
+        "last_rank": { "type": ["integer", "null"], "minimum": 0, "description": "Rank at the previous update. Zero for an entry that had none. Null when not reported." },
+        "event_total": { "type": ["integer", "null"], "description": "Points scored in the latest scored gameweek. Null when not reported." },
+        "total": { "type": "integer", "description": "Points for the season to date." },
+        "is_owner": {
+          "type": "boolean",
+          "description": "This row is the configured team. **The comparison is anchored on this row and no other**: differentials are measured against the squad actually fielded, never against the squad the optimiser recommended, because a differential against a team you do not own is not a differential (DP-09). At most one entry has this set, and none does when no team is configured or the owner is not in this league."
+        },
+        "squad": { "oneOf": [{ "$ref": "#/$defs/league_squad" }, { "type": "null" }] }
+      }
+    },
+    "league_squad": {
+      "type": "object",
+      "description": "A manager's fifteen for the published gameweek, as the public picks endpoint reports them. Carries no prices: the endpoint does not report another manager's purchase or selling price, and this project will never authenticate to obtain one (Invariant 4).",
+      "additionalProperties": false,
+      "required": ["player_ids", "starting_ids", "captain_id", "vice_captain_id"],
+      "properties": {
+        "player_ids": { "type": "array", "items": { "type": "integer", "minimum": 1 }, "description": "All fifteen, ascending. What overlap and differentials are computed from." },
+        "starting_ids": { "type": "array", "items": { "type": "integer", "minimum": 1 }, "description": "The eleven who started, in squad order." },
+        "captain_id": { "type": ["integer", "null"], "minimum": 1, "description": "Null when the picks carried no captain flag." },
+        "vice_captain_id": { "type": ["integer", "null"], "minimum": 1 }
+      }
+    }
+  }
+}

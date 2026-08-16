@@ -17,6 +17,7 @@ from fpl_dof.obs import ManifestWriter, StageStatus, configure_logging, get_logg
 from fpl_dof.obs.logging import run_context
 from fpl_dof.paths import find_repo_root
 from fpl_dof.pipeline import (
+    ALL_STAGES,
     STAGES,
     StageContext,
     StageFailedError,
@@ -71,8 +72,16 @@ def build_parser() -> argparse.ArgumentParser:
             default=None,
             help="Cap per-player fetches. For development only; never for a real run.",
         )
+        sub.add_argument(
+            "--fast",
+            action="store_true",
+            help=(
+                "Fetch only the resources their source declared cheap enough for the frequent "
+                "cadence. Seconds rather than minutes; skips the per-player sweeps."
+            ),
+        )
 
-    for stage in STAGES:
+    for stage in ALL_STAGES:
         sub = subparsers.add_parser(stage.name, help=stage.summary, description=stage.summary)
         add_common(sub)
 
@@ -126,6 +135,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         force_refresh=args.force_refresh,
         offline=args.offline,
         player_limit=args.player_limit,
+        fast_path_only=args.fast,
     )
     ctx = StageContext(config=config, layout=layout, run_id=run_id, options=options)
     writer = ManifestWriter(

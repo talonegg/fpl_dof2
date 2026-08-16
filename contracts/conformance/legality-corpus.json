@@ -1,0 +1,393 @@
+{
+  "$comment": "Cross-language legality conformance corpus. One file, two readers: pipeline/tests/test_legality_conformance.py and web/src/components/squad/legality.conformance.test.ts. See README.md in this directory before editing. Rule values here are TEST INPUT, not configuration — neither validator reads this file at runtime, and the second ruleset is deliberately not FPL's.",
+  "corpus_version": 1,
+  "rulesets": {
+    "fpl_2026_27": {
+      "$comment": "The published 2026/27 squad rules. Present so the corpus exercises the shape the app actually runs against.",
+      "size": 15,
+      "starting_size": 11,
+      "budget": 100.0,
+      "club_limit": 3,
+      "composition": { "GKP": 2, "DEF": 5, "MID": 5, "FWD": 3 },
+      "formation_min": { "GKP": 1, "DEF": 3, "MID": 2, "FWD": 1 },
+      "formation_max": { "GKP": 1, "DEF": 5, "MID": 5, "FWD": 3 },
+      "sell_on_fee": 0.5,
+      "sell_at_purchase_price": false
+    },
+    "twelve_a_side": {
+      "$comment": "A game FPL does not play: twelve players, eight starting, one keeper, two per club, sixty million. Nothing about it is real, which is the point — a validator with an opinion about squad size, club limit or budget passes every case under fpl_2026_27 and fails here.",
+      "size": 12,
+      "starting_size": 8,
+      "budget": 60.0,
+      "club_limit": 2,
+      "composition": { "GKP": 1, "DEF": 4, "MID": 4, "FWD": 3 },
+      "formation_min": { "GKP": 1, "DEF": 2, "MID": 2, "FWD": 1 },
+      "formation_max": { "GKP": 1, "DEF": 4, "MID": 4, "FWD": 3 },
+      "sell_on_fee": 0.0,
+      "sell_at_purchase_price": false
+    }
+  },
+  "player_pool": {
+    "$comment": "Ids are blocked by position so a failure message says which position it names without a lookup: 1-9 GKP, 11-19 DEF, 21-29 MID, 31-39 FWD for the fifteen-a-side cases; 51/61-69/71-79/81-89 likewise for the twelve-a-side ones.",
+    "1": { "position": "GKP", "team_id": 1, "price": 4.5 },
+    "2": { "position": "GKP", "team_id": 2, "price": 4.0 },
+    "11": { "position": "DEF", "team_id": 1, "price": 4.5 },
+    "12": { "position": "DEF", "team_id": 2, "price": 4.5 },
+    "13": { "position": "DEF", "team_id": 3, "price": 5.0 },
+    "14": { "position": "DEF", "team_id": 4, "price": 4.5 },
+    "15": { "position": "DEF", "team_id": 5, "price": 4.0 },
+    "21": { "position": "MID", "team_id": 1, "price": 8.0 },
+    "22": { "position": "MID", "team_id": 3, "price": 7.0 },
+    "23": { "position": "MID", "team_id": 4, "price": 6.0 },
+    "24": { "position": "MID", "team_id": 5, "price": 5.5 },
+    "25": { "position": "MID", "team_id": 6, "price": 4.5 },
+    "31": { "position": "FWD", "team_id": 2, "price": 9.0 },
+    "32": { "position": "FWD", "team_id": 6, "price": 7.5 },
+    "33": { "position": "FWD", "team_id": 7, "price": 5.5 },
+    "34": { "position": "FWD", "team_id": 8, "price": 4.5 },
+    "51": { "position": "GKP", "team_id": 1, "price": 4.0 },
+    "61": { "position": "DEF", "team_id": 1, "price": 4.0 },
+    "62": { "position": "DEF", "team_id": 2, "price": 4.5 },
+    "63": { "position": "DEF", "team_id": 3, "price": 4.5 },
+    "64": { "position": "DEF", "team_id": 4, "price": 4.0 },
+    "71": { "position": "MID", "team_id": 2, "price": 6.0 },
+    "72": { "position": "MID", "team_id": 3, "price": 5.5 },
+    "73": { "position": "MID", "team_id": 4, "price": 5.0 },
+    "74": { "position": "MID", "team_id": 5, "price": 4.5 },
+    "81": { "position": "FWD", "team_id": 5, "price": 7.0 },
+    "82": { "position": "FWD", "team_id": 6, "price": 6.0 },
+    "83": { "position": "FWD", "team_id": 7, "price": 5.0 }
+  },
+  "cases": [
+    {
+      "name": "legal-fifteen-no-lineup",
+      "why": "The E0 case: fifteen chosen, no XI yet, so only squad-level rules apply. Two clubs sit exactly on the limit, which must not be a violation.",
+      "rules": "fpl_2026_27",
+      "squad": { "players": [1, 2, 11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31, 32, 33] },
+      "expected": []
+    },
+    {
+      "name": "legal-fifteen-with-lineup",
+      "why": "The same fifteen set up for a gameweek: a 1-4-4-2, a captain and vice who both start, and a bench order naming exactly the three outfield substitutes.",
+      "rules": "fpl_2026_27",
+      "squad": {
+        "players": [1, 2, 11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31, 32, 33],
+        "starting": [1, 11, 12, 13, 14, 21, 22, 23, 24, 31, 32],
+        "captain": 21,
+        "vice_captain": 31,
+        "bench_order": [15, 25, 33]
+      },
+      "expected": []
+    },
+    {
+      "name": "empty-squad",
+      "why": "The degenerate input. Every position is short and the size is wrong, and nothing else fires — an empty squad is not over budget.",
+      "rules": "fpl_2026_27",
+      "squad": { "players": [] },
+      "expected": [
+        { "code": "squad_size", "detail": { "actual": 0, "expected": 15 } },
+        { "code": "composition", "detail": { "position": "GKP", "actual": 0, "expected": 2 } },
+        { "code": "composition", "detail": { "position": "DEF", "actual": 0, "expected": 5 } },
+        { "code": "composition", "detail": { "position": "MID", "actual": 0, "expected": 5 } },
+        { "code": "composition", "detail": { "position": "FWD", "actual": 0, "expected": 3 } }
+      ]
+    },
+    {
+      "name": "squad-too-small",
+      "why": "One forward short. Size and composition are separate findings, both reported.",
+      "rules": "fpl_2026_27",
+      "squad": { "players": [1, 2, 11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31, 32] },
+      "expected": [
+        { "code": "squad_size", "detail": { "actual": 14, "expected": 15 } },
+        { "code": "composition", "detail": { "position": "FWD", "actual": 2, "expected": 3 } }
+      ]
+    },
+    {
+      "name": "squad-too-large",
+      "why": "A sixteenth player, from a club nobody else is at, so only size and composition move.",
+      "rules": "fpl_2026_27",
+      "squad": { "players": [1, 2, 11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31, 32, 33, 34] },
+      "expected": [
+        { "code": "squad_size", "detail": { "actual": 16, "expected": 15 } },
+        { "code": "composition", "detail": { "position": "FWD", "actual": 4, "expected": 3 } }
+      ]
+    },
+    {
+      "name": "duplicate-player",
+      "why": "Player 32 selected twice in place of 33. Size, composition and the club limit are all satisfied by the count, so duplication is the only thing that can catch it.",
+      "rules": "fpl_2026_27",
+      "squad": { "players": [1, 2, 11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31, 32, 32] },
+      "expected": [{ "code": "duplicate_player", "detail": { "player_ids": [32] } }]
+    },
+    {
+      "name": "composition-wrong-on-two-positions",
+      "why": "A midfielder re-badged as a sixth defender. One edit, two violations, in position order — a validator that stops at the first would report half of it.",
+      "rules": "fpl_2026_27",
+      "squad": {
+        "players": [1, 2, 11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31, 32, 33],
+        "player_overrides": { "25": { "position": "DEF" } }
+      },
+      "expected": [
+        { "code": "composition", "detail": { "position": "DEF", "actual": 6, "expected": 5 } },
+        { "code": "composition", "detail": { "position": "MID", "actual": 4, "expected": 5 } }
+      ]
+    },
+    {
+      "name": "over-budget-by-a-tenth",
+      "why": "£100.1m against £100.0m. A tenth is the smallest overspend the game can express, so it is the one worth testing.",
+      "rules": "fpl_2026_27",
+      "squad": {
+        "players": [1, 2, 11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31, 32, 33],
+        "player_overrides": { "21": { "price": 24.1 } }
+      },
+      "expected": [{ "code": "budget", "detail": { "spend": 100.1, "budget": 100.0 } }]
+    },
+    {
+      "name": "exactly-on-budget",
+      "why": "The float trap, in both languages at once. Fifteen prices summing to precisely the budget must pass; summing in floating point rather than tenths gives 100.00000000000001 and rejects a legal squad.",
+      "rules": "fpl_2026_27",
+      "squad": {
+        "players": [1, 2, 11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31, 32, 33],
+        "player_overrides": { "21": { "price": 24.0 } }
+      },
+      "expected": []
+    },
+    {
+      "name": "budget-override-binds",
+      "why": "The in-season case: the figure is squad value plus bank, not the opening £100.0m. A squad legal against the rules' budget is illegal against the override.",
+      "rules": "fpl_2026_27",
+      "budget": 80.0,
+      "squad": { "players": [1, 2, 11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31, 32, 33] },
+      "expected": [{ "code": "budget", "detail": { "spend": 84.0, "budget": 80.0 } }]
+    },
+    {
+      "name": "club-limit-exceeded",
+      "why": "Five players from club 1. One club over, one violation, carrying the count and the limit it broke.",
+      "rules": "fpl_2026_27",
+      "squad": {
+        "players": [1, 2, 11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31, 32, 33],
+        "player_overrides": { "13": { "team_id": 1 }, "22": { "team_id": 1 } }
+      },
+      "expected": [{ "code": "club_limit", "detail": { "team_id": 1, "actual": 5, "limit": 3 } }]
+    },
+    {
+      "name": "club-limit-two-clubs-over",
+      "why": "Two clubs over at once, which pins the ordering: club violations come out in ascending team id, not in the order the players happen to be listed.",
+      "rules": "fpl_2026_27",
+      "squad": {
+        "players": [1, 2, 11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31, 32, 33],
+        "player_overrides": {
+          "13": { "team_id": 1 },
+          "22": { "team_id": 1 },
+          "14": { "team_id": 2 },
+          "23": { "team_id": 2 }
+        }
+      },
+      "expected": [
+        { "code": "club_limit", "detail": { "team_id": 1, "actual": 5, "limit": 3 } },
+        { "code": "club_limit", "detail": { "team_id": 2, "actual": 5, "limit": 3 } }
+      ]
+    },
+    {
+      "name": "starting-size-wrong",
+      "why": "Ten starters. The shape that remains is legal, so nothing but the count fires.",
+      "rules": "fpl_2026_27",
+      "squad": {
+        "players": [1, 2, 11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31, 32, 33],
+        "starting": [1, 11, 12, 13, 14, 21, 22, 23, 24, 31],
+        "captain": 21,
+        "vice_captain": 31
+      },
+      "expected": [{ "code": "starting_size", "detail": { "actual": 10, "expected": 11 } }]
+    },
+    {
+      "name": "starter-not-in-squad",
+      "why": "An id in the XI that the fifteen has never heard of. Formation counts only players it can find, so the shape stays legal and the stray id is the sole finding.",
+      "rules": "fpl_2026_27",
+      "squad": {
+        "players": [1, 2, 11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31, 32, 33],
+        "starting": [1, 11, 12, 13, 14, 21, 22, 23, 24, 31, 999],
+        "captain": 21,
+        "vice_captain": 31
+      },
+      "expected": [{ "code": "starter_not_in_squad", "detail": { "player_ids": [999] } }]
+    },
+    {
+      "name": "formation-below-minimum",
+      "why": "No goalkeeper at all. The lower bound is the one a squad builder trips over by benching someone.",
+      "rules": "fpl_2026_27",
+      "squad": {
+        "players": [1, 2, 11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31, 32, 33],
+        "starting": [11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31],
+        "captain": 21,
+        "vice_captain": 31
+      },
+      "expected": [
+        { "code": "formation", "detail": { "position": "GKP", "actual": 0, "min": 1, "max": 1 } }
+      ]
+    },
+    {
+      "name": "formation-above-maximum",
+      "why": "Both keepers starting and only two defenders: an upper bound and a lower bound broken by the same XI, reported in position order.",
+      "rules": "fpl_2026_27",
+      "squad": {
+        "players": [1, 2, 11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31, 32, 33],
+        "starting": [1, 2, 11, 12, 21, 22, 23, 24, 25, 31, 32],
+        "captain": 21,
+        "vice_captain": 31
+      },
+      "expected": [
+        { "code": "formation", "detail": { "position": "GKP", "actual": 2, "min": 1, "max": 1 } },
+        { "code": "formation", "detail": { "position": "DEF", "actual": 2, "min": 3, "max": 5 } }
+      ]
+    },
+    {
+      "name": "captain-not-starting",
+      "why": "The armband on the reserve goalkeeper.",
+      "rules": "fpl_2026_27",
+      "squad": {
+        "players": [1, 2, 11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31, 32, 33],
+        "starting": [1, 11, 12, 13, 14, 21, 22, 23, 24, 31, 32],
+        "captain": 2,
+        "vice_captain": 31
+      },
+      "expected": [{ "code": "captain_not_starting", "detail": { "player_id": 2 } }]
+    },
+    {
+      "name": "vice-not-starting",
+      "why": "The vice-captaincy on a substitute, which is the same rule and a separate code.",
+      "rules": "fpl_2026_27",
+      "squad": {
+        "players": [1, 2, 11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31, 32, 33],
+        "starting": [1, 11, 12, 13, 14, 21, 22, 23, 24, 31, 32],
+        "captain": 21,
+        "vice_captain": 33
+      },
+      "expected": [{ "code": "vice_not_starting", "detail": { "player_id": 33 } }]
+    },
+    {
+      "name": "captain-is-vice",
+      "why": "One player wearing both armbands. Both are starting, so this is the only thing wrong.",
+      "rules": "fpl_2026_27",
+      "squad": {
+        "players": [1, 2, 11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31, 32, 33],
+        "starting": [1, 11, 12, 13, 14, 21, 22, 23, 24, 31, 32],
+        "captain": 21,
+        "vice_captain": 21
+      },
+      "expected": [{ "code": "captain_is_vice", "detail": { "player_id": 21 } }]
+    },
+    {
+      "name": "bench-order-includes-reserve-keeper",
+      "why": "The reserve goalkeeper has a fixed place and is not part of the substitution order, so naming him in it is a violation.",
+      "rules": "fpl_2026_27",
+      "squad": {
+        "players": [1, 2, 11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31, 32, 33],
+        "starting": [1, 11, 12, 13, 14, 21, 22, 23, 24, 31, 32],
+        "captain": 21,
+        "vice_captain": 31,
+        "bench_order": [2, 15, 25, 33]
+      },
+      "expected": [
+        {
+          "code": "bench_order",
+          "detail": { "given": [2, 15, 25, 33], "expected": [15, 25, 33] }
+        }
+      ]
+    },
+    {
+      "name": "bench-order-missing-a-substitute",
+      "why": "A substitute left out of the order. The detail names both sides so a caller can say which player.",
+      "rules": "fpl_2026_27",
+      "squad": {
+        "players": [1, 2, 11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31, 32, 33],
+        "starting": [1, 11, 12, 13, 14, 21, 22, 23, 24, 31, 32],
+        "captain": 21,
+        "vice_captain": 31,
+        "bench_order": [15, 25]
+      },
+      "expected": [
+        { "code": "bench_order", "detail": { "given": [15, 25], "expected": [15, 25, 33] } }
+      ]
+    },
+    {
+      "name": "bench-order-names-a-substitute-twice",
+      "why": "The case the two implementations disagreed on, recorded deliberately (DL-39). The Python authority compares the given order with the expected substitutes as a *set*, so a repeated id is not a violation; the TypeScript mirror compared sorted lists and reported one. TypeScript now matches. Both are lax here and the looseness is noted in DL-39 — no caller can produce it, because the builder derives the bench order from the squad rather than accepting one.",
+      "rules": "fpl_2026_27",
+      "squad": {
+        "players": [1, 2, 11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31, 32, 33],
+        "starting": [1, 11, 12, 13, 14, 21, 22, 23, 24, 31, 32],
+        "captain": 21,
+        "vice_captain": 31,
+        "bench_order": [15, 15, 25, 33]
+      },
+      "expected": []
+    },
+    {
+      "name": "multi-violation-sixteen-midfielders-at-one-club",
+      "why": "Everything wrong at once, which pins the order the codes come out in: size, then composition per position, then budget, then the club limit.",
+      "rules": "fpl_2026_27",
+      "squad": {
+        "players": [1, 2, 11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31, 32, 33, 34],
+        "player_defaults": { "position": "MID", "team_id": 1, "price": 20.0 }
+      },
+      "expected": [
+        { "code": "squad_size", "detail": { "actual": 16, "expected": 15 } },
+        { "code": "composition", "detail": { "position": "GKP", "actual": 0, "expected": 2 } },
+        { "code": "composition", "detail": { "position": "DEF", "actual": 0, "expected": 5 } },
+        { "code": "composition", "detail": { "position": "MID", "actual": 16, "expected": 5 } },
+        { "code": "composition", "detail": { "position": "FWD", "actual": 0, "expected": 3 } },
+        { "code": "budget", "detail": { "spend": 320.0, "budget": 100.0 } },
+        { "code": "club_limit", "detail": { "team_id": 1, "actual": 16, "limit": 3 } }
+      ]
+    },
+    {
+      "name": "multi-violation-squad-and-lineup",
+      "why": "Squad-level and line-up-level findings in the same answer, which pins the ordering between the two halves: composition before formation, formation before captaincy.",
+      "rules": "fpl_2026_27",
+      "squad": {
+        "players": [1, 2, 11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31, 32, 33],
+        "player_overrides": { "25": { "position": "DEF" } },
+        "starting": [1, 2, 11, 12, 13, 21, 22, 23, 31, 32, 33],
+        "captain": 14,
+        "vice_captain": 14
+      },
+      "expected": [
+        { "code": "composition", "detail": { "position": "DEF", "actual": 6, "expected": 5 } },
+        { "code": "composition", "detail": { "position": "MID", "actual": 4, "expected": 5 } },
+        { "code": "formation", "detail": { "position": "GKP", "actual": 2, "min": 1, "max": 1 } },
+        { "code": "captain_not_starting", "detail": { "player_id": 14 } },
+        { "code": "vice_not_starting", "detail": { "player_id": 14 } },
+        { "code": "captain_is_vice", "detail": { "player_id": 14 } }
+      ]
+    },
+    {
+      "name": "twelve-a-side-legal-squad",
+      "why": "A legal squad under rules FPL does not play, spending precisely the sixty million that ruleset allows. Both validators must accept it, which no implementation carrying a literal fifteen, eleven, three or hundred can do.",
+      "rules": "twelve_a_side",
+      "squad": {
+        "players": [51, 61, 62, 63, 64, 71, 72, 73, 74, 81, 82, 83],
+        "starting": [51, 61, 62, 71, 72, 73, 81, 82],
+        "captain": 71,
+        "vice_captain": 81,
+        "bench_order": [63, 64, 74, 83]
+      },
+      "expected": []
+    },
+    {
+      "name": "twelve-a-side-rejects-the-legal-fifteen",
+      "why": "Invariant 9, stated as a single case: the very squad the first case calls legal, judged under the other ruleset. Size, three positions, budget and two clubs all move. If either implementation knew any FPL number rather than reading it, this is where it would say the squad was fine.",
+      "rules": "twelve_a_side",
+      "squad": { "players": [1, 2, 11, 12, 13, 14, 15, 21, 22, 23, 24, 25, 31, 32, 33] },
+      "expected": [
+        { "code": "squad_size", "detail": { "actual": 15, "expected": 12 } },
+        { "code": "composition", "detail": { "position": "GKP", "actual": 2, "expected": 1 } },
+        { "code": "composition", "detail": { "position": "DEF", "actual": 5, "expected": 4 } },
+        { "code": "composition", "detail": { "position": "MID", "actual": 5, "expected": 4 } },
+        { "code": "budget", "detail": { "spend": 84.0, "budget": 60.0 } },
+        { "code": "club_limit", "detail": { "team_id": 1, "actual": 3, "limit": 2 } },
+        { "code": "club_limit", "detail": { "team_id": 2, "actual": 3, "limit": 2 } }
+      ]
+    }
+  ]
+}

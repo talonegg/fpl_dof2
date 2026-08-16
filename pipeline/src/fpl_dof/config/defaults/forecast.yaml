@@ -62,6 +62,20 @@ forecast:
       none: 1.00
     floor: 0.5
 
+  # Observe goal involvement through expected goals rather than actual (D-25, DL-34). The pydantic
+  # default is off — the mechanism ships dark (DP-08) — and this promotes it because the walk-forward
+  # backtest measured it earning its place: over the same 72 folds / 21,712 observations, Spearman
+  # 0.22545 -> 0.23070, MAE 1.94547 -> 1.92655, MAE-skill over B0 0.00994 -> 0.01957, calibration
+  # slope 0.597 -> 0.701. The verdict is unchanged (beats B0, loses to model-free, top-20 precision
+  # 0.00), so D-13 stands; this is a real but modest improvement, not a breakthrough.
+  #
+  # team_strength_from_xg stays off: M2's ratings do not touch player goal rates in xp_v1 and the
+  # backtest scores opposition at league average, so an xG team model is *unmeasurable* here and
+  # enabling it would be acting on faith rather than evidence (DP-12).
+  expected_goals:
+    enabled: true
+    team_strength_from_xg: false
+
 optimiser:
   bench_weight: 0.15
   captain_multiplier: 2

@@ -27,6 +27,10 @@ from pydantic import BaseModel, ConfigDict
 from fpl_dof.obs.manifest import utcnow
 
 SNAPSHOT_SUFFIX = ".json.gz"
+"""Default snapshot extension. Overridable per call, because not every source speaks JSON — the
+archive source (DL-19) serves CSV, and a file named ``.json.gz`` that contains CSV is a small lie
+that costs someone an afternoon later."""
+
 META_SUFFIX = ".meta.json"
 _TIMESTAMP_FORMAT = "%Y%m%dT%H%M%SZ"
 _UNSAFE = re.compile(r"[^A-Za-z0-9._-]+")
@@ -93,12 +97,13 @@ class BronzeStore:
         run_id: str | None = None,
         content_encoding: str | None = None,
         now: dt.datetime | None = None,
+        suffix: str = SNAPSHOT_SUFFIX,
     ) -> Snapshot:
         moment = now or utcnow()
         directory = self.resource_dir(source, resource) / moment.strftime("%Y-%m-%d")
         directory.mkdir(parents=True, exist_ok=True)
         stem = f"{safe_key(key)}__{moment.strftime(_TIMESTAMP_FORMAT)}"
-        path = directory / f"{stem}{SNAPSHOT_SUFFIX}"
+        path = directory / f"{stem}{suffix}"
 
         # mtime=0 and an empty embedded filename, so identical bytes produce byte-identical files.
         # gzip stores both the modification time and the original filename in its header; leaving
@@ -129,7 +134,9 @@ class BronzeStore:
         )
         return Snapshot(path=path, meta=meta)
 
-    def latest(self, source: str, resource: str, key: str) -> Snapshot | None:
+    def latest(
+        self, source: str, resource: str, key: str, *, suffix: str = SNAPSHOT_SUFFIX
+    ) -> Snapshot | None:
         """The most recent snapshot for this key, or ``None``.
 
         Filenames embed a sortable UTC timestamp, so lexical maximum is chronological maximum.
@@ -137,7 +144,7 @@ class BronzeStore:
         directory = self.resource_dir(source, resource)
         if not directory.is_dir():
             return None
-        pattern = f"*/{safe_key(key)}__*{SNAPSHOT_SUFFIX}"
+        pattern = f"*/{safe_key(key)}__*{suffix}"
         candidates = sorted(directory.glob(pattern))
         for path in reversed(candidates):
             meta_path = path.with_name(path.name + META_SUFFIX)

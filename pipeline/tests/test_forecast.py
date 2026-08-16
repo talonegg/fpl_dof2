@@ -477,3 +477,24 @@ def test_the_model_card_states_the_diagnostic_and_the_weaknesses(
     assert "D-01" in text
     assert "Tunables in force" in text
     assert "start-probability floor" in text
+
+
+def test_the_model_card_drops_the_stale_no_backtesting_claim_once_backtested(
+    inputs: ForecastInputs, game_rules: GameRules, tmp_path: Path
+) -> None:
+    result = build_forecast(inputs, game_rules, CONFIG)
+    regression = regress_xp_on_price(result)
+    path = write_model_card(
+        tmp_path / "model-card.md",
+        forecast=result,
+        regression=regression,
+        config=CONFIG,
+        rules=game_rules,
+        run_id="run-1",
+        backtest={"verdict": "beats B0, loses to model-free"},
+    )
+    text = path.read_text(encoding="utf-8")
+    assert "expected points v1 (backtested)" in text
+    assert "No backtesting" not in text
+    assert "D-14" in text
+    assert "Brier" in text

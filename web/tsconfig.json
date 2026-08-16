@@ -18,7 +18,10 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
 
-    "types": ["vitest/globals", "vite/client"]
+    // `node` is here for the build-time and test-time files only — `vite.config.ts` reading
+    // `tokens.css`, and the contrast test reading it back. No application module may import a Node
+    // built-in; that is a review point, not something the compiler can express.
+    "types": ["vitest/globals", "vite/client", "node"]
   },
   "include": ["src", "vite.config.ts"]
 }

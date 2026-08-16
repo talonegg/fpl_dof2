@@ -1,0 +1,127 @@
+# E7-S2: transform → gates → forecast → optimise → week → decision → publish. Deliberately *not*
+# ingest (that is ingest-fast.yml / ingest-slow.yml's job) and deliberately not run after every
+# fast ingest — re-solving because a price moved £0.10 is waste (architecture §9).
+#
+# Triggers: nightly, after ingest-slow, at T-3h/T-45m before a deadline, and manual dispatch. The
+# deadline-relative trigger is a static 15-minute cron plus a guard step, for the same reason
+# ingest-fast.yml is hourly-plus-a-guard: GitHub Actions cron cannot itself depend on when the next
+# deadline is. See pipeline/src/fpl_dof/week/schedule.py — R-09's freeze and the one-sided window
+# shape that keeps the T-45m trigger from ever landing inside it are enforced there, not here.
+#
+# **Nothing here may run inside 45 minutes of a deadline (R-09).** The guard enforces this; this
+# workflow file does not duplicate that logic and must not be changed to bypass it under pressure.
+
+name: Pipeline
+
+on:
+  schedule:
+    - cron: "0 1 * * *" # nightly, unconditional
+    - cron: "*/15 * * * *" # deadline-relative guard, every 15 minutes — see ScheduleConfig
+  workflow_run:
+    workflows: ["Ingest (slow)"]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  # `cancel-in-progress: false` is deliberate (E7-S4, NFR-06, R-13): a run in progress is left to
+  # finish rather than killed mid-stage (stages are independently resumable, but a half-finished
+  # publish must never race a fresh one — Invariant 7). With a single group and queueing disabled
+  # for in-progress runs, GitHub Actions still only starts the *newest* queued run once the current
+  # one finishes; older queued runs are superseded, which is "one at a time, newer wins" without
+  # cancelling active work.
+  group: pipeline
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    # Always runs; the decide step below is what actually branches. Only the 15-minute
+    # deadline-relative cron consults fpl-dof-schedule — the nightly cron, the post-ingest-slow
+    # trigger, and manual dispatch proceed unconditionally (they are not deadline-relative, so
+    # there is no window to be inside or outside of).
+    runs-on: ubuntu-latest
+    outputs:
+      run: ${{ steps.decide.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: python -m pip install -e "pipeline[dev]"
+      - name: Restore bronze and silver from the `data` branch
+        run: |
+          set -eu
+          mkdir -p data
+          if git ls-remote --exit-code --heads origin data >/dev/null 2>&1; then
+            git fetch --depth=1 origin data:refs/remotes/origin/data
+            git worktree add /tmp/data-branch origin/data
+            for tier in bronze silver; do
+              if [ -d "/tmp/data-branch/$tier" ]; then cp -r "/tmp/data-branch/$tier" "data/$tier"; fi
+            done
+            git worktree remove /tmp/data-branch --force
+          fi
+      - name: Decide whether to run
+        id: decide
+        run: |
+          if [ "${{ github.event_name }}" != "schedule" ] || [ "${{ github.event.schedule }}" != "*/15 * * * *" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=$(fpl-dof-schedule --decide pipeline)" >> "$GITHUB_OUTPUT"
+          fi
+
+  run:
+    needs: [guard]
+    if: needs.guard.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install fpl-dof
+        run: python -m pip install -e "pipeline[dev]"
+
+      - name: Restore bronze and silver from the `data` branch
+        run: |
+          set -eu
+          mkdir -p data
+          if git ls-remote --exit-code --heads origin data >/dev/null 2>&1; then
+            git fetch --depth=1 origin data:refs/remotes/origin/data
+            git worktree add /tmp/data-branch origin/data
+            for tier in bronze silver; do
+              if [ -d "/tmp/data-branch/$tier" ]; then cp -r "/tmp/data-branch/$tier" "data/$tier"; fi
+            done
+            git worktree remove /tmp/data-branch --force
+          fi
+
+      # Runs the exact E0 code path (D-10): `fpl-dof run --only ...`, no CI-only branch anywhere.
+      - name: Run the pipeline (transform through publish)
+        run: >
+          fpl-dof run
+          --only transform quality forecast optimise week decision publish
+
+      - name: Upload the published web contract
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-data-contract
+          path: data/web/v1
+          retention-days: 14
+
+  alert:
+    needs: [guard, run]
+    if: failure()
+    uses: ./.github/workflows/alert-on-failure.yml
+    with:
+      workflow_name: Pipeline
+      run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    permissions:
+      issues: write

@@ -7,6 +7,7 @@ force, the R-15 diagnostic result, and — at least as importantly — the known
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
 
 import pandas as pd
@@ -16,14 +17,24 @@ from fpl_dof.forecast.diagnostics import PriceDependence, PriceRegression, top_b
 from fpl_dof.frames import as_float, as_int
 from fpl_dof.rules.models import GameRules
 
+COLD_START_WEAKNESS = (
+    "No backtesting",
+    "This forecast has never been validated against anything (debt D-01, a knowing breach of "
+    "blueprint principle B7). Do not trust it for expensive decisions. E3 repays this.",
+)
+
+BACKTESTED_WEAKNESS = (
+    "Minutes-model calibration is unmeasured",
+    "The Brier-score plumbing exists (`forecast.metrics.brier_score`), but the backtest harness "
+    "does not yet pass minutes probabilities through it, so `minutes_brier` is always null and "
+    "E3-S3's own acceptance criterion — calibration curves and Brier score reported — is not "
+    "actually satisfied. Tracked as debt D-14, found in the post-E3 audit rather than closed "
+    "by it.",
+)
+
 KNOWN_WEAKNESSES = [
     (
-        "No backtesting",
-        "This forecast has never been validated against anything (debt D-01, a knowing breach of "
-        "blueprint principle B7). Do not trust it for expensive decisions. E3 repays this.",
-    ),
-    (
-        "No minutes model",
+        "No minutes model with measured calibration",
         "Expected minutes come from last season's start rate shrunk toward a price-tier prior "
         "(D-02, D-12). Rotation risk and injury returns are mispriced.",
     ),
@@ -68,11 +79,15 @@ def write_model_card(
     config: ForecastConfig,
     rules: GameRules,
     run_id: str,
+    backtest: Mapping[str, object] | None = None,
 ) -> Path:
     lines: list[str] = []
     add = lines.append
 
-    add("# Model card — expected points v0 (cold start)")
+    if backtest is not None:
+        add("# Model card — expected points v1 (backtested)")
+    else:
+        add("# Model card — expected points v0 (cold start)")
     add("")
     add(f"**Run:** `{run_id}` · **Season:** {rules.season} · **Players scored:** {len(forecast)}")
     add(
@@ -80,6 +95,40 @@ def write_model_card(
         f"**Horizon:** {as_int(forecast['horizon_gameweeks'].iloc[0])} gameweeks"
     )
     add("")
+    if backtest is not None:
+        add("")
+        add("## Measured accuracy")
+        add("")
+        # The card is what a human actually reads before a deadline. A backtest finding that lives
+        # only in backtest.json is a finding nobody sees at the moment it matters (DL-21).
+        add(str(backtest.get("verdict", "")))
+        add("")
+        model = backtest.get("model") or {}
+        b0 = backtest.get("b0") or {}
+        free = backtest.get("model_free") or {}
+        if isinstance(model, Mapping) and isinstance(b0, Mapping) and isinstance(free, Mapping):
+            add("| Model | MAE | Spearman | Top-20 precision |")
+            add("| --- | --- | --- | --- |")
+            for label, metrics in (
+                ("This forecast", model),
+                ("B0 — price + position", b0),
+                ("Model-free — trailing 6", free),
+            ):
+                add(
+                    f"| {label} | {metrics.get('mae')} | {metrics.get('spearman')} | "
+                    f"{metrics.get('top_n_precision')} |"
+                )
+            add("")
+            if not backtest.get("beats_model_free", True):
+                add(
+                    "**The head of the ranking is where this is weakest, and the head is where the "
+                    "tool is used.** Top-20 precision is what matters for a captaincy or transfer "
+                    "decision, and on that measure the forecast currently does not beat picking "
+                    "recent form. Treat its ordering as a prompt to look, not as a reason to act "
+                    "(DL-21)."
+                )
+                add("")
+
     add("## What this model is")
     add("")
     add(
@@ -169,7 +218,9 @@ def write_model_card(
     add("")
     add("Stated because they are the reason the human review gate (E0-S8) is mandatory.")
     add("")
-    for title, detail in KNOWN_WEAKNESSES:
+    weaknesses = list(KNOWN_WEAKNESSES)
+    weaknesses.insert(0, BACKTESTED_WEAKNESS if backtest is not None else COLD_START_WEAKNESS)
+    for title, detail in weaknesses:
         add(f"- **{title}.** {detail}")
     add("")
 

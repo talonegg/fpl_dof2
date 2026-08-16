@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/talonegg/fpl_dof2/contracts/v1/fixtures.schema.json",
+  "title": "Fixtures",
+  "description": "The fixture ticker: a team-by-gameweek difficulty grid built from the model's own expected goals rather than FPL's static preseason FDR (DL-37). Covers the same gameweek window plan.json does, so the ticker and the plan cannot disagree about how far ahead 'ahead' is. Doubles and blanks come from the same fixture-counting the chip calendar uses, not from a second derivation of the same fact.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "from_gameweek", "to_gameweek", "scale", "model", "teams"],
+  "properties": {
+    "contract_version": { "type": "integer", "const": 1 },
+    "from_gameweek": { "type": "integer", "minimum": 1, "maximum": 38, "description": "First gameweek in the grid — the next one to be played." },
+    "to_gameweek": { "type": "integer", "minimum": 1, "maximum": 38, "description": "Last gameweek in the grid, inclusive. Clipped at the end of the season." },
+    "scale": { "$ref": "#/$defs/difficulty_scale" },
+    "model": { "$ref": "#/$defs/fixture_model" },
+    "teams": { "type": "array", "items": { "$ref": "#/$defs/team_fixtures" } }
+  },
+  "$defs": {
+    "difficulty_scale": {
+      "type": "object",
+      "description": "What a difficulty number means, published alongside the numbers so the reader can argue with the scale rather than take it on faith (DP-10).",
+      "additionalProperties": false,
+      "required": ["minimum", "neutral", "maximum", "anchor_ratio", "description"],
+      "properties": {
+        "minimum": { "type": "number", "description": "Easiest possible score. Scores are clipped to this." },
+        "neutral": { "type": "number", "description": "A fixture the model rates exactly league-average. Not a midpoint by convention — the arithmetic genuinely lands here for an average fixture." },
+        "maximum": { "type": "number", "description": "Hardest possible score. Scores are clipped to this." },
+        "anchor_ratio": {
+          "type": "number",
+          "exclusiveMinimum": 1,
+          "description": "The tunable that sets the scale's steepness: a side expected to score this multiple of the league mean scores `minimum` for attack. Named and defaulted rather than buried as a literal (DP-06)."
+        },
+        "description": { "type": "string", "description": "The formula in words, for a tooltip." }
+      }
+    },
+    "fixture_model": {
+      "type": "object",
+      "description": "Which model produced these expectations, and its fitted parameters. A difficulty rating whose origin cannot be recovered is one nobody can challenge (DP-09).",
+      "additionalProperties": false,
+      "required": ["name", "league_mean_goals", "home_advantage", "teams_rated"],
+      "properties": {
+        "name": { "type": "string", "description": "The component model, e.g. M2_team_strength." },
+        "league_mean_goals": { "type": "number", "minimum": 0, "description": "Time-decayed mean goals per team per match. The denominator every ratio below is taken against." },
+        "home_advantage": { "type": "number", "exclusiveMinimum": 0, "description": "Multiplier applied to the home side's expected goals." },
+        "teams_rated": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "How many clubs the model actually has ratings for. Zero means it fell back to league-average everywhere, which makes every fixture a 3 — visible degradation rather than silent (DP-15)."
+        }
+      }
+    },
+    "team_fixtures": {
+      "type": "object",
+      "description": "One club's run over the window. The summary means are what 'sortable by run quality' sorts on.",
+      "additionalProperties": false,
+      "required": ["team_id", "team", "name", "gameweeks"],
+      "properties": {
+        "team_id": { "type": "integer", "minimum": 1 },
+        "team": { "type": "string", "description": "Short club name, e.g. ARS." },
+        "name": { "type": "string", "description": "Full club name." },
+        "mean_difficulty": {
+          "type": ["number", "null"],
+          "description": "Mean overall difficulty across the fixtures actually scheduled in the window. Blanks contribute nothing rather than counting as maximally hard — a blank is flagged separately so a view can penalise it on its own terms. Null when the club has no fixture at all in the window."
+        },
+        "mean_attack_difficulty": { "type": ["number", "null"], "description": "As `mean_difficulty`, for the attacking half of the scale." },
+        "mean_defence_difficulty": { "type": ["number", "null"], "description": "As `mean_difficulty`, for the defensive half of the scale." },
+        "gameweeks": {
+          "type": "array",
+          "description": "One entry per gameweek in the window, always present and always in ascending order — including the gameweeks this club blanks, which is exactly the entry that would otherwise be invisible.",
+          "items": { "$ref": "#/$defs/fixture_gameweek" }
+        }
+      }
+    },
+    "fixture_gameweek": {
+      "type": "object",
+      "description": "One club, one gameweek. A double is two fixtures here; a blank is none.",
+      "additionalProperties": false,
+      "required": ["gameweek", "is_double", "is_blank", "fixtures"],
+      "properties": {
+        "gameweek": { "type": "integer", "minimum": 1, "maximum": 38 },
+        "is_double": { "type": "boolean", "description": "This club has two or more fixtures in this gameweek." },
+        "is_blank": { "type": "boolean", "description": "This club has no fixture in this gameweek." },
+        "fixtures": { "type": "array", "items": { "$ref": "#/$defs/fixture_entry" } }
+      }
+    },
+    "fixture_entry": {
+      "type": "object",
+      "description": "One fixture, rated from the perspective of the club whose row it sits in.",
+      "additionalProperties": false,
+      "required": [
+        "opponent_id",
+        "opponent",
+        "at_home",
+        "expected_goals_for",
+        "expected_goals_against",
+        "difficulty",
+        "attack_difficulty",
+        "defence_difficulty"
+      ],
+      "properties": {
+        "opponent_id": { "type": "integer", "minimum": 1 },
+        "opponent": { "type": "string", "description": "Short club name of the opposition." },
+        "at_home": { "type": "boolean" },
+        "kickoff_utc": { "type": ["string", "null"], "format": "date-time", "description": "UTC. The browser renders local zones itself (DL-11). Null for a fixture with no confirmed time." },
+        "expected_goals_for": { "type": "number", "minimum": 0, "description": "Goals the model expects this club to score. The derivation behind the difficulty score, published so the score is checkable (DP-09)." },
+        "expected_goals_against": { "type": "number", "minimum": 0, "description": "Goals the model expects this club to concede." },
+        "difficulty": { "type": "number", "description": "Overall difficulty: the mean of the attacking and defensive scores. Lower is easier." },
+        "attack_difficulty": {
+          "type": "number",
+          "description": "Difficulty for this club's attackers, from expected goals for. Published separately because a high-scoring game between two good sides is a good fixture for forwards and a bad one for defenders, and collapsing that into one number is most of what is wrong with a single FDR figure."
+        },
+        "defence_difficulty": { "type": "number", "description": "Difficulty for this club's defenders and goalkeeper, from expected goals against." }
+      }
+    }
+  }
+}

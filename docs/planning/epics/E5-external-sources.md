@@ -17,6 +17,21 @@ extra signals are wired in.
 three sources touches anything outside `sources/`, config and tests, the abstraction has leaked and
 fixing that is part of the epic, not a follow-up.
 
+### 1a. How this data is meant to reach both decision models — the review of 2026-08-15 ([DL-33](../00-decision-log.md#dl-33))
+
+A review asked whether these sources feed the **initial squad-construction model** and the **weekly
+recommendation model**. They do not, and the finding is worth stating here because it changes what
+"done" means for this epic. Both models consume one artefact, `expected_points.parquet`; the squad
+MILP and the weekly plan MILP read nothing source-specific, and must not (DP-02, Invariant 1). So the
+data reaches **both** models through a single seam — the forecast — or through neither.
+
+Today it reaches neither: the live forecast (`xp_v0`) has no `player_metric` input, and the model that
+does consume it (`xp_v1`) runs only in the backtest. Closing that is one wiring change, not two,
+recorded as [D-25](E0-steel-thread-gw1.md#6-technical-debt-register) and sequenced behind the two
+blockers that make it premature — [D-23](E0-steel-thread-gw1.md#6-technical-debt-register) (no data can
+be fetched) and [D-13](E0-steel-thread-gw1.md#6-technical-debt-register) (no evidence to promote on).
+The plan and its rejected alternative (porting the join into `xp_v0`) are in DL-33.
+
 ## 2. Stories
 
 ### E5-S1 — Entity resolution · 1.5 days · FR-07 · repays D-07 · **highest risk in the epic**
@@ -56,11 +71,54 @@ degrades the model without breaking the pipeline.
 
 ## 3. Definition of done
 
-- [ ] Three adapters live, each with a contract test
-- [ ] Entity resolution with override file; unmatched rate gated
-- [ ] Field precedence configured, not coded
-- [ ] Fault injection proves graceful degradation for every non-FPL source
-- [ ] **Backtest metrics measurably improve** — otherwise the epic has not delivered its purpose
-- [ ] **Adapter abstraction verified: nothing outside `sources/`, config and tests changed**
-- [ ] Attribution visible in the UI
-- [ ] D-07 closed
+- [x] Three adapters live, each with a contract test — `sources/understat/adapter.py`,
+      `sources/fbref/adapter.py`, `sources/oddsapi/adapter.py`, each with fixture-backed contract
+      tests in `tests/test_external_sources.py` (no live network call during tests, per §0 below).
+      **Read with one correction (D-23):** the two scraped adapters' fixtures are *hand-constructed*
+      pages matching the shape the adapter assumes, not pages recorded from the live sites, so they
+      test the parser against its own assumptions. The live Understat page has since stopped
+      carrying the script the parser looks for and neither adapter would notice until a run
+      degraded — which is what a recorded-page contract test is supposed to prevent
+- [x] Entity resolution with override file; unmatched rate gated — `sources/resolve.py`,
+      `sources/entity_overrides.yaml`, gate in `quality/rules.py`; `tests/test_entity_resolution.py`
+      covers all three tiers plus both hard-failure guardrails (cross-source ID conflict, stale
+      override)
+- [x] Field precedence configured, not coded — `sources/precedence.py` plus a `PrecedenceConfig`
+      section in `config/models.py`; `tests/test_field_precedence.py`
+- [x] Fault injection proves graceful degradation for every non-FPL source —
+      `tests/test_source_degradation.py`, one test per source for both "raises while fetching" and
+      "returns nothing", plus a combined test that losing all three at once still produces a squad
+      (stronger than the DoD asks for)
+- [ ] **Backtest metrics measurably improve** — **still not met, and the reason has changed again.**
+      The consumer D-22 named now exists: the feature store joins `player_metric` on `player_code`
+      and feeds prior-season, position-relative ratios into the priors of M3 and M4, with the
+      season-label knowability boundary property-tested at both ends
+      (`tests/test_prior_season_features.py`, [DL-31](../00-decision-log.md#dl-31)). **D-22 is
+      closed and this item still cannot be ticked, for a blunter reason: there is no data.**
+      Enabling both scraped sources and running ingest for real returns nothing from either —
+      Understat's `robots.txt` now disallows the entire site, and FBref answers every request,
+      `robots.txt` included, with a Cloudflare 403. Both refusals are respected rather than worked
+      around (NFR-10). A mechanism probe using the official feed's own prior-season totals in place
+      of the missing ones moves the model by ~0.001 Spearman, so there is no evidence the *design*
+      is where the value was either. Opened as **D-23**; the odds half of D-20 remains an external
+      blocker for want of an `ODDS_API_KEY`. A second gap surfaced in the 2026-08-15 review
+      ([DL-33](../00-decision-log.md#dl-33)): even with data, the *live* forecast (`xp_v0`) has no
+      `player_metric` input — the D-22 consumer runs only in the backtest's `xp_v1` — so nothing
+      external would reach either decision model until that seam is wired. Tracked as **D-25**, behind
+      D-23 and D-13
+- [x] **Adapter abstraction verified: nothing outside `sources/`, config and tests changed** —
+      checked via `git diff --name-only HEAD -- pipeline/src/fpl_dof | grep -Ev '/(sources|config)/|/tests/'`
+      against the pre-E4/E5 tree; the only hits are `silver/tables.py` (new canonical tables the
+      schemas must live in per Invariant 1/9 — conformance is in `sources/`, canonical shape is in
+      `silver/` by design) and `quality/rules.py` (the unmatched-rate gate). No source name
+      (`understat`, `fbref`, `oddsapi`) appears anywhere outside `sources/`
+- [x] Attribution visible in the UI — `attribution` field on each adapter, carried through the
+      provenance pattern already used by `squad.schema.json`
+- [ ] D-07 closed — **still not closed.** Entity resolution exists, is tested, and is now correct
+      across seasons: a real defect was fixed in this pass, where every crosswalk row was stamped
+      with the *current* season whatever season its reference described, which both prevented a
+      backfilled advanced row from ever joining an identity and would have failed any multi-season
+      backfill on the duplicate-claim guard. But D-07's own text ("harmless now — one source.
+      Becomes critical the moment E5 lands") is only retired once the forecast actually consumes a
+      second source's data, and no second source can currently be fetched. Left open, narrowed
+      again: the remainder is **D-23**, not D-22
