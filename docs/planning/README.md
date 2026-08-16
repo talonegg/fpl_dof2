@@ -75,6 +75,7 @@ Full rationale and rejected alternatives in the [Decision Log](00-decision-log.m
 | How the optimiser is formulated | [Design §6](04-conceptual-design.md#6-decision-engine) |
 | How the model gets judged, and against what | [Charter §5 tier 2](01-project-charter.md#tier-2--model-quality-obj-7) |
 | **How the forecast gets better, in leverage order** | **[Model Improvement Plan](05-model-improvement-plan.md)** |
+| How that plan is scheduled as work (epics E9–E13) | [Epics §7 — the model-improvement programme](epics/README.md#7-the-model-improvement-programme-e9e13) ([DL-45](00-decision-log.md#dl-45)) |
 | How the team/league IDs are entered without being committed | [Model Improvement Plan §7](05-model-improvement-plan.md#7-fpl-team-and-league-ids--ui-entry-never-persisted-dl-44) |
 | How to add a new data source later | [Design §14](04-conceptual-design.md#14-extensibility) |
 | What could go wrong | [Plan §6 — RAID log](02-project-plan-and-blueprint.md#6-raid-log) |

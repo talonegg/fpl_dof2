@@ -1954,6 +1954,64 @@ decision makes the browser-entry half of them a first-class design rather than a
 
 ---
 
+## DL-45 — The model-improvement plan is scheduled as five gated epics, E9–E13
+
+**Date:** 2026-08-16 · **Status:** Accepted · **Serves:** OBJ-1, OBJ-7, OBJ-5, FR-12, FR-37 ·
+**Builds on:** [DL-43](#dl-43), [DL-44](#dl-44), [DL-21](#dl-21)
+
+### Context
+
+[DL-43](#dl-43) accepted the [Model Improvement Plan](05-model-improvement-plan.md) as a programme of
+falsifiable, gated experiments; [DL-44](#dl-44) settled the team/league ID design. The plan was a
+research document, not a build schedule. To make it actionable it has to enter the plan of record —
+the [epics](epics/README.md) — as scheduled work with dependencies, acceptance criteria and promotion
+gates, rather than living only as prose.
+
+### Decision
+
+The plan's items are decomposed into **five new epics** appended to the epic register, ordered by
+leverage rather than by area:
+
+- **[E9](epics/E9-forecast-delivery-and-backtest-fidelity.md) — Forecast delivery + backtest
+  fidelity** (X1, D1). First, and it **gates E10–E12**: closes D-25 so the *shipped* model is the
+  *graded* model, and puts fixtures into the backtest so the fixture axis becomes testable. These are
+  plumbing, not modelling, and they are the highest-leverage work in the programme.
+- **[E10](epics/E10-discrimination-at-the-head.md) — Discrimination at the head** (X2/close D-14, X3,
+  X4, X5, X6). Optimises top-20 precision and captaincy separation *per position*, not MAE.
+- **[E11](epics/E11-fixture-difficulty-and-market-signal.md) — Fixture difficulty + market signal**
+  (F1–F5, D3/close OD-03). Depends on E9-S2.
+- **[E12](epics/E12-data-widening-for-priors.md) — Data widening for priors** (D2/resolve Q-13, D4,
+  D5). Low-urgency; feeds E10 and E11 from already-permitted sources, no new scraping.
+- **[E13](epics/E13-runtime-personalisation-ids.md) — Runtime personalisation** (plan §7, realising
+  DL-44). Independent of the model epics; realises the E6/E7 stories the plan proposed, collected here
+  because E6 has already shipped.
+
+**The governing rule is unchanged:** nothing promotes by argument. Every modelling change clears the
+[E8 §5 bar](epics/E8-in-season-operations.md#5-the-bar-for-changing-the-model-mid-season) — held-out
+backtest improves, six shadow gameweeks do not degrade, explicable in advance — and the DL-21
+guardrail on hits/chips/wildcards stands until top-20 precision beats B0.
+
+### Rejected alternatives
+
+**Fold the work into existing epics (E3/E5/E6/E7).** Rejected — those epics are built and marked done;
+reopening them hides a distinct, evidence-gated programme inside closed work and loses the leverage
+ordering. The one exception is honoured by cross-reference: E13 explicitly realises the E6/E7 stories
+§7 proposed. **Leave the plan as prose.** Rejected — a research document is not a schedule; without
+dependencies and acceptance criteria in the plan of record, the work is not actionable and its gates
+are not enforceable. **One large "model v2" epic.** Rejected — it would bury E9's gating role and let
+untestable fixture work start before the backtest can see fixtures.
+
+### Consequences
+
+The epic register grows from nine to fourteen; the [epics README §7](epics/README.md#7-the-model-improvement-programme-e9e13)
+carries the programme, its item-to-epic map, and the E9 gate. The build-pace guidance
+([DL-23](#dl-23)) applies unchanged: these are ceilings, and the season clock plus evidence pace the
+work, not build time. E9 aside, none of E10–E13 is urgent against a dated constraint, and the §4
+"stop building after ~GW30" rule applies to them. Three open questions from the plan (Q-14, Q-15,
+Q-16) are carried on the open-questions list; Q-13 and Q-04 are pulled into E12 and E10 respectively.
+
+---
+
 ## Open decisions
 
 Decisions deliberately deferred, with the point at which each must be resolved.

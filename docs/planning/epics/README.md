@@ -7,7 +7,9 @@
 
 ## 1. The shape of this plan
 
-The build is organised as one **steel thread** followed by eight incremental epics.
+The build is organised as one **steel thread** followed by eight incremental epics, and then a
+**model-improvement programme** of five further epics (E9–E13) that turn the first backtest's finding
+into scheduled, gated work — see §7.
 
 > **A steel thread is a thin but complete and working path through every layer of the real
 > architecture.** It is not a prototype and not a spike — every line written is kept. It proves the
@@ -35,7 +37,21 @@ graph LR
     E7 --> E8["E8 · In-season operations"]
     E4 --> E8
     E6 --> E8
+    E3 --> E9["E9 · Deliver + backtest fidelity"]
+    E7 --> E9
+    E9 --> E10["E10 · Discrimination at the head"]
+    E9 --> E11["E11 · Fixture difficulty + market"]
+    E5 --> E11
+    E9 --> E12["E12 · Data widening for priors"]
+    E12 --> E10
+    E12 --> E11
+    E6 --> E13["E13 · Runtime personalisation (IDs)"]
+    E7 --> E13
 ```
+
+E9–E13 are a second wave, not a continuation of the first sequence: they begin from the
+[Model Improvement Plan](../05-model-improvement-plan.md) and the [DL-21](../00-decision-log.md#dl-21)
+finding, and E9 gates the three modelling epics behind it (§7).
 
 ## 2. Epic register
 
@@ -50,6 +66,11 @@ graph LR
 | [E4](E4-decision-engine.md) | Decision engine | OBJ-3, OBJ-4 | GW15 (chips expire GW19) | 7–10 d |
 | [E6](E6-web-application.md) | Web application | OBJ-5 | GW16 | 7–10 d |
 | [E8](E8-in-season-operations.md) | In-season operations | OBJ-1 | Continuous | ~0.5 d/wk |
+| **[E9](E9-forecast-delivery-and-backtest-fidelity.md)** | **Forecast delivery + backtest fidelity** | OBJ-1, OBJ-7 | first of the programme | 2–3 d |
+| [E10](E10-discrimination-at-the-head.md) | Discrimination at the head | OBJ-1, OBJ-7 | after E9 | 6–9 d |
+| [E11](E11-fixture-difficulty-and-market-signal.md) | Fixture difficulty + market signal | OBJ-1 | after E9 | 5–7 d |
+| [E12](E12-data-widening-for-priors.md) | Data widening for priors | OBJ-1 | feeds E10/E11 | 3–4 d |
+| [E13](E13-runtime-personalisation-ids.md) | Runtime personalisation (team/league IDs) | OBJ-5 | independent | 2–3 d |
 
 **Total build: 46–64 focused days**, against the [plan's original 29–44](../02-project-plan-and-blueprint.md#8-estimation-summary).
 The increase is honest, not scope creep: the original estimate assumed a clean sequential build with
@@ -214,3 +235,44 @@ Hosting is no longer among the open questions: [DL-12](../00-decision-log.md#dl-
 made the repository public, which closes both OD-01 and OD-02 and puts the site on GitHub Pages for
 free. The one thing it asks in return is vigilance — every push is world-readable, so NFR-13 stops
 being precautionary.
+
+## 7. The model-improvement programme (E9–E13)
+
+E0–E8 built the system and revealed, through the first backtest
+([DL-21](../00-decision-log.md#dl-21)), *where the forecast is weak and why*. The
+[Model Improvement Plan](../05-model-improvement-plan.md) turned that finding into a prioritised set
+of falsifiable experiments; **E9–E13 are those experiments scheduled as epics** and recorded in
+[DL-45](../00-decision-log.md#dl-45). Nothing here promotes by argument — every modelling change
+clears the [E8 §5 bar](E8-in-season-operations.md#5-the-bar-for-changing-the-model-mid-season):
+held-out backtest improves, six shadow gameweeks do not degrade, explicable in advance.
+
+### Where the plan's items live
+
+| Plan item | Epic |
+| --- | --- |
+| **X1** ship `xp_v1` live (close D-25) · **D1** fixtures into the backtest | **[E9](E9-forecast-delivery-and-backtest-fidelity.md)** |
+| **X2** minutes (close D-14) · **X3** anti-shrinkage · **X4** penalty term · **X5** goalkeeper · **X6** monolith shadow | [E10](E10-discrimination-at-the-head.md) |
+| **F1–F5** fixture ratings, home advantage, opponent-adjusted rates, promoted priors, market blend · **D3** odds live | [E11](E11-fixture-difficulty-and-market-signal.md) |
+| **D2** DefCon history (Q-13) · **D4** penalty reference table · **D5** prior-season prior re-measured | [E12](E12-data-widening-for-priors.md) |
+| **§7** UI-entered, never-persisted team/league IDs (DL-44) | [E13](E13-runtime-personalisation-ids.md) |
+
+### The one gate that orders the programme
+
+**E9 is first and it gates E10, E11 and E12.** Two of its items are not modelling changes — they are
+the seams that make every other item real: the model that is *graded* must be the model that is
+*shipped* (X1/D-25), and the backtest must be able to *see fixtures* (D1). While either is unmet, the
+other epics measure things they cannot deliver and cannot test. This is the same "measurement before
+the thing it measures" discipline E4 inherited from E3.
+
+The leverage order within the programme, and the gate on each change, is
+[Model Improvement Plan §8](../05-model-improvement-plan.md#8-sequencing-and-gates). **E13 is
+independent** — it shares no dependency with the model epics and can be built whenever convenient
+after E6/E7.
+
+### How this interacts with the prioritisation framework (§4)
+
+The programme does **not** override the weekly question — *"what is the biggest regret at the next
+deadline?"*. In-season, an E7 automation gap or an E4 chip deadline still outranks a discrimination
+experiment. E9–E13 are the answer to *"what should I build when nothing is on fire?"*, ranked by
+leverage; E9 aside, none is urgent against a dated constraint, and after ~GW30 the framework's "stop
+building and just play" rule applies to them too.
