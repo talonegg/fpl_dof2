@@ -27,11 +27,22 @@ def run(ctx: StageContext) -> StageResult:
         if not adapters:
             raise RuntimeError("no sources are enabled; ingest has nothing to do")
 
+        if ctx.options.fast_path_only:
+            # Still no source name here: a source is skipped because it says nothing it offers is
+            # cheap enough for this cadence, not because this module recognises it (Invariant 1).
+            adapters = [adapter for adapter in adapters if adapter.has_fast_path()]
+            if not adapters:
+                raise RuntimeError(
+                    "no enabled source declares a fast-path resource; there is nothing the fast "
+                    "cadence can fetch"
+                )
+
         request = IngestRequest(
             run_id=ctx.run_id,
             force_refresh=ctx.options.force_refresh,
             offline=ctx.options.offline,
             player_limit=ctx.options.player_limit,
+            fast_path_only=ctx.options.fast_path_only,
             entry_id=ctx.config.entry.team_id,
             league_id=ctx.config.entry.league_id,
             league_rival_limit=ctx.config.entry.league_rival_limit,
@@ -62,4 +73,5 @@ def run(ctx: StageContext) -> StageResult:
             result.outputs.extend(Output(path=path) for path in report.snapshots)
 
     result.metrics["sources"] = len(adapters)
+    result.metrics["cadence"] = "fast" if ctx.options.fast_path_only else "full"
     return result

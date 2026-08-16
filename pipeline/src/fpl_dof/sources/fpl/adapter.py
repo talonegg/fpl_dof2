@@ -1090,62 +1090,70 @@ class FplApiAdapter(SourceAdapter):
         report.resources["fixtures"] = 1
         log.info("fpl.fixtures", extra={"count": len(fixtures)})
 
-        element_ids = [int(element["id"]) for element in bootstrap["elements"]]
-        if request.player_limit is not None:
-            element_ids = element_ids[: request.player_limit]
-            report.warnings.append(
-                f"player_limit={request.player_limit} applied; this is a development setting "
-                "and must not be used for a real run"
-            )
-
-        log.info("fpl.element_summary.start", extra={"players": len(element_ids)})
+        # ~700 requests, several minutes. It is declared off the fast path, and the fast cadence
+        # runs six times a day, so honouring that declaration is what keeps the frequent workflow
+        # measured in seconds (Architecture §9).
         fetched = 0
-        checked_contract = False
-        for element_id in element_ids:
-            try:
-                summary = self.fetch_element_summary(element_id, request)
-            except SourceNotFoundError:
-                # A removed player. Recoverable: the squad model simply will not see them.
-                report.warnings.append(f"element-summary/{element_id} returned 404")
-                continue
-            fetched += 1
-            if not checked_contract and summary["history_past"]:
-                missing = [
-                    key
-                    for key in REQUIRED_HISTORY_PAST_KEYS
-                    if key not in summary["history_past"][0]
-                ]
-                if missing:
-                    raise SourceContractError(
-                        f"history_past is missing required keys: {', '.join(missing)}",
-                        source=self.name,
-                        resource="element_summary",
-                        key=str(element_id),
-                    )
-                checked_contract = True
+        if not self.wants("element_summary", request):
+            log.info("fpl.element_summary.skipped", extra={"reason": "off the fast path"})
+        else:
+            element_ids = [int(element["id"]) for element in bootstrap["elements"]]
+            if request.player_limit is not None:
+                element_ids = element_ids[: request.player_limit]
+                report.warnings.append(
+                    f"player_limit={request.player_limit} applied; this is a development setting "
+                    "and must not be used for a real run"
+                )
+
+            log.info("fpl.element_summary.start", extra={"players": len(element_ids)})
+            checked_contract = False
+            for element_id in element_ids:
+                try:
+                    summary = self.fetch_element_summary(element_id, request)
+                except SourceNotFoundError:
+                    # A removed player. Recoverable: the squad model simply will not see them.
+                    report.warnings.append(f"element-summary/{element_id} returned 404")
+                    continue
+                fetched += 1
+                if not checked_contract and summary["history_past"]:
+                    missing = [
+                        key
+                        for key in REQUIRED_HISTORY_PAST_KEYS
+                        if key not in summary["history_past"][0]
+                    ]
+                    if missing:
+                        raise SourceContractError(
+                            f"history_past is missing required keys: {', '.join(missing)}",
+                            source=self.name,
+                            resource="element_summary",
+                            key=str(element_id),
+                        )
+                    checked_contract = True
 
         report.resources["element_summary"] = fetched
 
-        try:
-            self.fetch_set_piece_notes(request)
-            report.resources["set_piece_notes"] = 1
-        except SourceNotFoundError, OfflineWithoutSnapshotError:
-            report.warnings.append("set-piece notes unavailable")
+        if self.wants("set_piece_notes", request):
+            try:
+                self.fetch_set_piece_notes(request)
+                report.resources["set_piece_notes"] = 1
+            except SourceNotFoundError, OfflineWithoutSnapshotError:
+                report.warnings.append("set-piece notes unavailable")
 
         # Only gameweeks that have actually been played. Asking for a future one returns an empty
         # payload that would then be cached as if it meant something.
         live = 0
-        for event in bootstrap["events"]:
-            if not event.get("finished"):
-                continue
-            try:
-                self.fetch_event_live(int(event["id"]), request)
-                live += 1
-            except SourceNotFoundError, OfflineWithoutSnapshotError:
-                report.warnings.append(f"no live data for gameweek {event['id']}")
+        if self.wants("event_live", request):
+            for event in bootstrap["events"]:
+                if not event.get("finished"):
+                    continue
+                try:
+                    self.fetch_event_live(int(event["id"]), request)
+                    live += 1
+                except SourceNotFoundError, OfflineWithoutSnapshotError:
+                    report.warnings.append(f"no live data for gameweek {event['id']}")
         report.resources["event_live"] = live
 
-        if request.league_id is not None:
+        if request.league_id is not None and self.wants("league_standings", request):
             report.resources.update(
                 self._ingest_league(request.league_id, bootstrap, request, report)
             )

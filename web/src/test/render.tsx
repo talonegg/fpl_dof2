@@ -7,6 +7,7 @@ import { DataProvider } from "../data/DataProvider";
 import { resetPublishedDataCache } from "../data/published";
 import { resetTrendCaches } from "../data/api";
 import { fixtureGrid, leagueTable, meta, plan, players, rules, squad, week } from "./fixtures";
+import { health } from "../components/health/testFixtures";
 
 function jsonResponse(body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -20,10 +21,10 @@ export interface FetchStubOptions {
    * Absent artefacts are served as 404, which is the normal preseason answer (DL-20) — and, for
    * the lazily fetched ones, the answer a bundle deployed against older published data gets.
    */
-  missing?: Array<"week" | "plan" | "fixtures" | "league">;
+  missing?: Array<"week" | "plan" | "fixtures" | "league" | "health">;
   /** Artefacts that should fail outright, for the error path. */
   failing?: Array<
-    "meta" | "rules" | "players" | "squad" | "week" | "plan" | "fixtures" | "league"
+    "meta" | "rules" | "players" | "squad" | "week" | "plan" | "fixtures" | "league" | "health"
   >;
   /** Override a body, for the variants a route needs (a preseason league, and so on). */
   bodies?: Record<string, unknown>;
@@ -52,6 +53,9 @@ export function installFetchStub(options: FetchStubOptions = {}) {
     // only when a league is configured (E6-S10). It is served here so the populated view has
     // something to render; the absent case is the one a test asks for with `missing: ["league"]`.
     league: leagueTable,
+    // Lazily fetched by `/health` alone (DL-41), and served here for the same reason `fixtures` is:
+    // a route that fetches it must not fall through to the "unexpected fetch" rejection.
+    health,
     ...(options.bodies ?? {}),
   };
 

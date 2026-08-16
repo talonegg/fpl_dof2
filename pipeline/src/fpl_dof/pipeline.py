@@ -38,6 +38,14 @@ class StageOptions:
     force_refresh: bool = False
     offline: bool = False
     player_limit: int | None = None
+    fast_path_only: bool = False
+    """Restrict ingestion to resources their own source declared cheap enough to refresh often.
+
+    The fast cadence runs six times a day and hourly before a deadline (E7-S1), so what it may
+    fetch is a property of each resource, declared on ``Resource.fast_path`` inside the sources
+    package. No module outside that package names a resource, let alone a source (Invariant 1) —
+    this flag only carries the *question* down to the adapters.
+    """
 
 
 @dataclass(frozen=True, slots=True)

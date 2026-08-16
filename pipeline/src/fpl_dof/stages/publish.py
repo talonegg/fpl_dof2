@@ -19,11 +19,12 @@ import pandas as pd
 
 from fpl_dof.frames import as_float, as_int
 from fpl_dof.obs.logging import get_logger
-from fpl_dof.obs.manifest import git_sha, utcnow
+from fpl_dof.obs.manifest import RunManifest, git_sha, read_manifest, utcnow
 from fpl_dof.paths import find_repo_root
 from fpl_dof.pipeline import Output, StageContext, StageResult
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
 from fpl_dof.publish.fixtures import build_fixtures
+from fpl_dof.publish.health import build_health
 from fpl_dof.publish.history import build_history
 from fpl_dof.publish.league import build_league
 from fpl_dof.publish.typescript import write_types
@@ -61,6 +62,7 @@ def run(ctx: StageContext) -> StageResult:
     squad_payload = _squad(squad, rules)
     history = _history(ctx, season, rules)
     fixtures = _fixtures(ctx, season, teams, gameweeks)
+    health = _health(ctx, gold)
 
     outputs = [
         Output(path=contract.write("meta", meta, destination)),
@@ -80,6 +82,15 @@ def run(ctx: StageContext) -> StageResult:
     # delete them there too — that directory is what the browser actually reads, so a stale file
     # surviving there is the only copy that would be believed.
     removed: list[str] = []
+
+    # The data health artefact (E7-S6, DL-41). `None` only when this run's own manifest could not
+    # be read, which makes every field of it unknowable — and an unreadable manifest is exactly the
+    # moment a *stale* health page would be most misleading, since it would describe an earlier run
+    # as though it were this one.
+    if health is not None:
+        outputs.append(Output(path=contract.write("health", health, destination)))
+    else:
+        removed.append("health.json")
 
     league = _league(ctx, season, gameweeks)
     if league is not None:
@@ -139,6 +150,10 @@ def run(ctx: StageContext) -> StageResult:
             "fixture_teams_rated": fixtures["model"]["teams_rated"],
             "league_entries": len(league["entries"]) if league else 0,
             "league_squads": league["league"]["squads_published"] if league else 0,
+            "health_sources": len(health["sources"]) if health else 0,
+            "health_sources_degraded": (
+                sum(1 for s in health["sources"] if s["status"] == "degraded") if health else 0
+            ),
         },
         outputs=outputs,
     )
@@ -293,6 +308,124 @@ def _fixtures(
         config=ctx.config.publish.fixtures,
         contract_version=CONTRACT_VERSION,
     )
+
+
+def _health(ctx: StageContext, gold: Path) -> dict[str, Any] | None:
+    """The data health artefact (E7-S6, FR-33, NFR-07, DL-41).
+
+    This function is the effectful half (DP-03): it reads this run's manifest, the gate report, the
+    bronze snapshot times and the recent manifests, and hands them to a pure builder. Every read is
+    individually optional, and each absence has a distinct published meaning rather than a shared
+    default — a missing gate report publishes as null, not as a pass.
+
+    **The manifest read is against the file, not against an in-memory writer**, because the writer
+    flushes after every stage and the file is therefore the same record anyone reading the run
+    afterwards would see. This run's own `publish` stage is necessarily absent from it, and the
+    run's `status` is null, which is the honest description of a run that has not finished.
+    """
+    manifest_path = ctx.layout.runs / ctx.run_id / "manifest.json"
+    try:
+        manifest = read_manifest(manifest_path)
+    except OSError, ValueError:
+        log.warning("publish.health_manifest_unreadable", extra={"path": str(manifest_path)})
+        return None
+
+    limit = ctx.config.publish.health.history_runs
+    return build_health(
+        manifest=manifest,
+        gate_report=_gate_report(gold),
+        observed=_source_observations(ctx),
+        recent=_recent_manifests(ctx, limit=limit),
+        generated_at=utcnow(),
+        history_limit=limit,
+        contract_version=CONTRACT_VERSION,
+    )
+
+
+def _gate_report(gold: Path) -> dict[str, Any] | None:
+    """The gate report this run wrote, or ``None``.
+
+    ``None`` is reachable in normal operation: `fpl-dof publish` can be run as a single stage, and
+    then no gate report belongs to this run at all. Reading an older one and presenting it as this
+    run's would be worse than showing none — a stale pass is indistinguishable from a real one.
+    """
+    from fpl_dof.stages.quality import REPORT_FILENAME
+
+    path = gold / REPORT_FILENAME
+    if not path.exists():
+        return None
+    try:
+        loaded: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
+    except OSError, json.JSONDecodeError:
+        log.warning("publish.health_gate_report_unreadable", extra={"path": str(path)})
+        return None
+    return loaded
+
+
+def _source_observations(ctx: StageContext) -> dict[str, dt.datetime]:
+    """When each source's freshest snapshot was captured, keyed by the source's own label.
+
+    The labels are the bronze store's top-level directory names, which the store writes from
+    whatever the adapter called itself. This module never names one and never branches on one
+    (Invariant 1) — it reads what is there and passes the strings through.
+
+    The newest file is found by modification time, which is cheap over a tree that holds a snapshot
+    per player per day; the capture time is then read from **that one sidecar**, because mtime is a
+    property of the file and `fetched_at` is a property of the fetch, and they part company the
+    moment a snapshot is copied between machines.
+    """
+    from fpl_dof.sources import BronzeStore
+
+    bronze = BronzeStore(ctx.layout.bronze)
+    if not bronze.root.is_dir():
+        return {}
+
+    observations: dict[str, dt.datetime] = {}
+    for directory in sorted(p for p in bronze.root.iterdir() if p.is_dir()):
+        sidecars = list(directory.rglob("*.meta.json"))
+        if not sidecars:
+            continue
+        newest = max(sidecars, key=lambda p: p.stat().st_mtime)
+        moment = _fetched_at(newest)
+        if moment is not None:
+            observations[directory.name] = moment
+    return observations
+
+
+def _fetched_at(sidecar: Path) -> dt.datetime | None:
+    """``fetched_at`` from a snapshot sidecar, falling back to the file's own mtime."""
+    try:
+        payload = json.loads(sidecar.read_text(encoding="utf-8"))
+        stamp = payload.get("fetched_at")
+        if isinstance(stamp, str):
+            return pd.Timestamp(stamp).tz_convert("UTC").to_pydatetime()
+    except OSError, ValueError:
+        pass
+    try:
+        return dt.datetime.fromtimestamp(sidecar.stat().st_mtime, tz=dt.UTC)
+    except OSError:
+        return None
+
+
+def _recent_manifests(ctx: StageContext, *, limit: int) -> list[RunManifest]:
+    """The most recent run manifests, this one included, for the rolling series.
+
+    Read newest-first and stopped at the limit, so a `runs/` directory holding a season of runs
+    costs the same as one holding thirty. Unreadable manifests are skipped rather than fatal: a run
+    that died mid-write leaves a truncated file, and one bad file must not cost the whole series.
+    """
+    if limit <= 0 or not ctx.layout.runs.is_dir():
+        return []
+
+    manifests: list[RunManifest] = []
+    for path in sorted(ctx.layout.runs.glob("*/manifest.json"), reverse=True):
+        if len(manifests) >= limit:
+            break
+        try:
+            manifests.append(read_manifest(path))
+        except OSError, ValueError:
+            continue
+    return manifests
 
 
 def _league(ctx: StageContext, season: str, gameweeks: pd.DataFrame) -> dict[str, Any] | None:

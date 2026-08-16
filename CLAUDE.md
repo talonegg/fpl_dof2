@@ -50,6 +50,7 @@ Python lives in `.venv` at the repo root, created with `uv`. `uv` is installed a
 | Web tests | `cd web && npm run test -- --run` |
 | Web type check + build | `cd web && npm run typecheck && npm run build` |
 | Browser verification (layout, accessibility, PWA/offline, performance) | Serve a build, then `cd web && npm run verify:browser -- http://127.0.0.1:4173` — see `web/verify/README.md`. Needs a **built** site: the service worker is not generated in dev |
+| Deployed smoke test (E7-S7) — app shell, key routes, contract files | `cd web && npm run verify:smoke -- <deployed-url>` — see `web/verify/README.md` §"Phase 5". Pass the deployed **path**, not the bare origin; exits non-zero on failure so a workflow can gate on it |
 | Regenerate the PWA icons after a palette change | `cd web && node scripts/make-icons.mjs` — reads the colours from `src/tokens.css` |
 
 Reading the current squad without the web app: `data/gold/season=2026-27/squad.json`, this week's

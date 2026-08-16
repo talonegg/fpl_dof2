@@ -1632,6 +1632,216 @@ which may render as a zero or as agreement. `FPL_DOF_LEAGUE_ID` was already prom
 
 ---
 
+## DL-41 — The data health page reads one new artefact assembled from records that already exist, and the deadline guard reads the same published deadline the app does
+
+**Date:** 2026-08-16 · **Status:** Accepted · **Serves:** FR-33, NFR-07, NFR-15 · **Story:**
+[E7-S6](epics/E7-automation-and-hosting.md#e7-s6--data-health-page--1-day--fr-33-nfr-07),
+[E7-S7](epics/E7-automation-and-hosting.md#e7-s7--deployed-smoke-test-and-deadline-guard--05-day)
+
+### Context
+
+E7-S6 wants a page showing per-source freshness and status, the last run's outcome, the quality gate
+results, rolling model accuracy and degraded-source banners. Every one of those numbers is already
+written down somewhere: the run manifest (DP-11) has stage outcomes, timings and per-source metrics;
+`quality.json` has the full gate report; the bronze store's snapshot sidecars carry `fetched_at`.
+Nothing needed measuring. What was missing was a **seam** — the browser reads published static
+artefacts and nothing else (Invariant 8), and none of those files is published.
+
+### Decision 1 — one new contract artefact, `health.json`, additive at contract v1
+
+`health.json` joins the artefact table alongside `history.json` and `fixtures.json` (DL-37). Additive,
+so contract v1 does not bump: a client that has never heard of it keeps working. It is fetched
+lazily by `/health` alone, never in the app shell's eager load — the NFR-04 initial-payload budget is
+not there to be spent on a page that is opened when something looks wrong.
+
+**It is assembled, never measured.** `publish/health.py` is a pure function over three inputs the
+stage hands it: the current run's manifest, the gate report, and a list of recent manifests. Purity
+matters more here than it looks — a health page that computed its own view of health would be a
+second opinion that can disagree with the manifest, and the whole value of the page is that it is
+the manifest, rendered.
+
+### Decision 2 — degraded sources are data, and the web layer never names one
+
+Invariant 1 says only `sources/` may know a source exists. The health page must nonetheless show
+*which* source is degraded, or the banner is useless. The resolution is the one the pipeline already
+uses: `stages/ingest.py` writes `degraded.{adapter.name}` by asking the registry, and contains no
+source name itself. `health.json` carries a `sources[]` array of `{source, status, detail, …}` where
+`source` is a **string from the data**, and the web layer renders that string. There is no source
+name, no per-source branch and no per-source styling anywhere in `web/`. Adding a fourth source
+changes an adapter module and nothing else, which is the acceptance test DP-01 states.
+
+`status` is `ok` or `degraded`, with the exception class name as `detail` — the derivation next to
+the flag, so "degraded" is checkable rather than asserted (DP-09).
+
+### Decision 3 — rolling metrics history comes from the run manifests, and the storage is not the contract
+
+E7-S6 asks for a rolling history of freshness, volumes, accuracy and solve time. A dedicated metrics
+store is being built in parallel. Rather than block on it, or invent a competing one, the publisher
+reads the **run manifests already on disk**: `optimise.solve_seconds` is the solve time,
+`transform.rows.*` are the volumes, `forecast.r_squared_on_price` is the one per-run model diagnostic
+recorded today, and stage timings are the run duration.
+
+The schema's `metrics_history` is nullable and carries a `derived_from` field naming where the series
+came from. **The shape is the contract; the storage is an implementation detail.** When a metrics
+store lands, the publisher swaps its reader and `derived_from` changes value — no schema change, no
+app change. The page renders whatever series it is given and says so when it is given none (DP-15).
+
+**`r_squared_on_price` is labelled as a price-dependence diagnostic, not as accuracy**, on the page as
+well as in the schema. It is R-15's check that the forecast is not a repricing of the price list; it
+is emphatically not a measure of skill, and a chart captioned "accuracy" over it would be the
+unvalidated-model-presented-as-validated failure DP-09 exists to prevent. Real skill measurement is
+the backtest's, it lives in the model card, and it is deliberately not charted here.
+
+### Decision 4 — no conformance corpus
+
+`contracts/conformance/` pins behaviour implemented twice (DL-39). `health.json` is display data with
+no logic on the browser side: the app formats timestamps and renders strings it was handed. There is
+no second implementation to drift from, so a corpus would pin nothing. The JSON Schema and the
+publisher test are the whole boundary.
+
+### Decision 5 — the deadline guard reads the published deadline, not the pipeline
+
+H4 blocks a publish or deploy inside 45 minutes of a deadline. A hook runs on every matching tool
+call, so it must be fast and must never be the reason a session stalls. Shelling out to Python to
+compute the next deadline would cost an interpreter start plus a config load on every `git push`.
+
+The hook instead reads `deadline_utc` from files the pipeline has **already** written, in preference
+order: `data/web/v1/week.json`, then `data/gold/season=*/week.json`, then `data/web/v1/meta.json`.
+Node, one `readFileSync`, no subprocess.
+
+**The failure mode is chosen deliberately: no data means allow.** A hook that blocked whenever it
+could not find a deadline would fire on every fresh checkout and would be disabled within a day, and
+a guard that is disabled protects nothing. It states loudly what it could not read. The 45 minutes
+is R-09's window, restated in one named constant in the hook rather than inferred.
+
+### Consequences
+
+`/health` is the one route that is useful precisely when the rest of the app is not, so it holds
+itself to that: a missing, stale or malformed `health.json` renders a page that says which, and the
+gate-failure state is a first-class view rather than an error. It is also the only page that renders
+correctly when the *last* thing that happened was a blocked publication — which, by Invariant 7, is
+the state the site is in whenever a gate fires.
+
+The deployed smoke test extends `web/verify/` rather than starting a second harness: same Playwright
+Chromium (DL-30), a fifth phase that runs against a URL and checks the shell, the routes and the
+contract files. It is a separate npm script so a deploy workflow can call it without paying for the
+four local phases.
+
+---
+
+## DL-42 — E7 lands: seven workflows, a deadline-relative scheduling seam, and a retention mechanism that is verified against a real remote rather than assumed
+
+**Date:** 2026-08-16 · **Status:** Accepted · **Serves:** OBJ-6, NFR-01, NFR-05, NFR-06, R-09, R-13,
+FR-35, FR-38 · **Story:** [E7](epics/E7-automation-and-hosting.md), all stories
+
+### Context
+
+E7 closes the manual-operation debt (D-08) and the no-CI debt (D-10) before GW1's charter carve-out
+expires. Three questions had to be answered in code, not policy: how a cadence that depends on the
+FPL deadline can exist inside GitHub Actions' static cron, how a Git-backed rolling store stays
+bounded rather than merely slow-growing, and how a solo, timezone-inconvenienced owner gets told
+when something breaks.
+
+### Decision 1 — cron fires often; a pure function decides whether to act
+
+GitHub Actions cron cannot itself express "hourly within 24h of a deadline" or "at T-3h and T-45m
+before a deadline" — the schedule is fixed at commit time and the deadline is data. The resolution:
+fire a cheap guard frequently (`ingest-fast.yml` hourly, `pipeline.yml`'s deadline-relative trigger
+every 15 minutes) and ask a pure function whether *this* firing should do the expensive part.
+
+`fpl_dof.week.schedule.fast_ingest_decision` and `.pipeline_decision` take a clock reading and
+`ScheduleConfig` and return a `ScheduleDecision` with a human-readable reason — no I/O, no clock
+read internally, fully unit-tested. The effectful edge is a new console script, `fpl-dof-schedule`
+(`schedule_cli.py`), deliberately **not** a `fpl-dof` subcommand: `fpl-dof` opens a run and writes a
+manifest on every invocation, which is right for a stage and wrong for a read-only question a
+workflow asks up to 96 times a day. Keeping it off that path also means D-10's promise — the E0 code
+path runs in CI unchanged — is not compromised by the thing that makes CI deadline-aware.
+
+**R-09's freeze is enforced by two properties, not one.** `pipeline_decision` checks the hard freeze
+(`deadline_freeze_minutes`, default 45) before consulting the offset windows at all, and every
+window is `[offset, offset + tolerance]` — one-sided, ending *at* the offset rather than straddling
+it. A symmetric window would have let a delayed cron firing land at, say, T-35m; the one-sided shape
+makes that impossible by construction rather than by convention. `ScheduleConfig` carries a
+validator that rejects a configuration where the tolerance is too small to guarantee a 15-minute
+cron never skips a window entirely, and one where any offset falls inside the freeze — so a
+misconfiguration that would silently violate R-09 fails to load rather than running.
+
+**A source declares its own cadence eligibility.** Rather than the ingest stage or the CLI knowing
+which resources are cheap, `SourceAdapter` gained `Resource.fast_path` (a fact declared next to each
+resource's TTL) and `wants()`/`has_fast_path()` methods. `fpl-dof ingest --fast` asks the adapter,
+never branches on a source name — Invariant 1 holds across the fast/slow split the same way it holds
+everywhere else.
+
+### Decision 2 — the `data` branch is rebuilt from nothing every run, and this is verified against a real remote, not asserted
+
+Architecture §7.3 is specific that git deletion does not reclaim space — a `data` branch maintained
+by committing removals grows monotonically regardless of how carefully old files are pruned from the
+working tree. `pipeline/src/fpl_dof/retention.py` (pure: which bronze paths fall inside a retention
+window, given their own embedded `YYYY-MM-DD` directory — **never filesystem mtime**, because `git
+checkout` rewrites every mtime and an mtime-keyed job on a fresh clone would retain everything
+forever while looking correct) and `pipeline/scripts/retention.py` (effectful: stage the retained
+set into a fresh directory, `git init --orphan`, commit, `push --force`) split cleanly on DP-03.
+
+This was not left as "should work" — it was run against a real local bare git remote (not a mock):
+60 simulated daily runs over a 30-day window kept the `data` branch at exactly one commit with zero
+parents throughout, and the retained file count stayed bounded at the window size rather than
+growing. A genuine bug surfaced only by this — not by the unit tests — was `shutil.rmtree` failing
+on Windows when a staging directory was reused, because git leaves its object files read-only; fixed
+with a `chmod`-and-retry `onexc` handler. `snapshots` (the permanent, append-only, one-per-source-
+per-gameweek evidence trail) is idempotent by content comparison, also verified against the same
+real remote: appending an identical gameweek's snapshot twice produces one commit, not two.
+
+`retention.bronze_days` (default 30) is a named, defaulted, justified `RetentionConfig` field
+(DP-06) rather than a literal in a workflow file.
+
+### Decision 3 — seven workflows, each doing one thing, wired by `workflow_run` rather than a monolith
+
+`ci.yml` (push/PR — lint, mypy, pytest, the 100% rules-coverage gate, web typecheck/build/test),
+`ingest-fast.yml` (hourly, bootstrap-static + fixtures only), `ingest-slow.yml` (daily,
+element-summary and external sources — `element-summary` never appears on the fast path, per the
+DL-12 minutes finding), `pipeline.yml` (transform through publish, never ingest — re-solving because
+a price moved is waste), `deploy.yml` (GitHub Pages via `actions/deploy-pages`, which only swaps the
+live site on success — "a deploy fails, the previous site remains live" is that action's default
+behaviour, not custom logic this project had to write), `backtest.yml` (weekly), and a reusable
+`alert-on-failure.yml` every other workflow's failure path calls.
+
+**`pipeline.yml`'s concurrency group uses `cancel-in-progress: false`, not `true`.** A run in
+progress is left to finish — Invariant 7 means a half-finished publish must never race a fresh one,
+and stages are independently resumable but not safely interruptible mid-stage. With one group and
+in-progress cancellation off, GitHub Actions still starts only the newest *queued* run once the
+current one finishes, which is "one at a time, newer supersedes older, nothing active is killed" —
+E7-S4's requirement, achieved with the concurrency primitive rather than custom queueing logic.
+
+**`deploy.yml` prefers the artefact the triggering `pipeline.yml` run just uploaded**
+(`web-data-contract`), and falls back to the `data` branch's own `web/` copy, and ships the app
+shell dataless rather than failing if neither exists — `web/public/data/` is gitignored, so a bare
+checkout has nothing to serve otherwise. This is DP-15 applied to the deploy path itself, not just
+to the app's runtime behaviour.
+
+### Decision 4 — alerting is a reusable `workflow_call`, deduplicated by a hidden marker
+
+`alert-on-failure.yml` opens a GitHub Issue labelled `pipeline-alert` on failure, via
+`actions/github-script` and the automatically-provided `GITHUB_TOKEN` — no new secret, no paid
+service (NFR-01). Repeated failures of the same workflow **comment on one issue** rather than
+opening a new one each time, found by a hidden HTML-comment marker in the body rather than by title
+match, because a failing nightly pipeline must not out-pace what one person can read. Realtime
+delivery to a timezone-inconvenienced owner depends on the GitHub mobile app watching this
+repository — a one-time manual setup this decision records rather than a paid dependency this
+project introduced.
+
+### Consequences
+
+D-08 (no automation) and D-10 (no CI, E0 running only locally) both close: `ci.yml` runs the exact
+`fpl-dof` entry points a developer does, with no CI-only branch anywhere in the pipeline source
+(NFR-09), and the fast/slow/pipeline/deploy chain replaces manual weekly operation with a
+deadline-aware one. What remains **unverifiable from a workstation** — actual cron firing at real
+UK/AEST-shifted times, an actual `GITHUB_TOKEN`-authenticated push to `github.com` rather than a
+local bare remote, an actual GitHub Pages deployment reachable from a phone — is exactly the E7 DoD's
+"one full week passes with zero manual intervention" acceptance test, and can only be discharged by
+watching a real week happen, not by more local simulation.
+
+---
+
 ## Open decisions
 
 Decisions deliberately deferred, with the point at which each must be resolved.

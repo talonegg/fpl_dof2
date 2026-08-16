@@ -12,7 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class _Section(BaseModel):
@@ -1123,6 +1123,26 @@ class QualityConfig(_Section):
     )
 
 
+class RetentionConfig(_Section):
+    """How long CI keeps the rolling bronze snapshot store (E7-S4, R-13).
+
+    Applies only to the ``data`` branch's rolling bronze window, rebuilt from scratch and
+    force-pushed every run — see ``pipeline/scripts/retention.py``. The ``snapshots`` branch is a
+    separate, append-only evidence trail and is never pruned by this setting (NFR-06).
+    """
+
+    bronze_days: int = Field(
+        default=30,
+        gt=0,
+        description=(
+            "Rolling window of bronze snapshots kept on the `data` branch. Wide enough to debug "
+            "the recent past (a bad forecast traced back a couple of weeks), narrow enough that "
+            "the orphan-branch rebuild stays a few hundred MB rather than growing without bound "
+            "(architecture §7.3). Not an archive — that is what the `snapshots` branch is for."
+        ),
+    )
+
+
 class HistoryArtefactConfig(_Section):
     """How the per-player trend series is compacted on the way out (DL-37, E6-S3/S5)."""
 
@@ -1171,11 +1191,119 @@ class FixtureTickerConfig(_Section):
     )
 
 
+class HealthArtefactConfig(_Section):
+    """How much run history the data health page carries (DL-41, E7-S6)."""
+
+    history_runs: int = Field(
+        default=30,
+        ge=0,
+        le=500,
+        description=(
+            "How many recent runs the rolling metrics series covers, newest last. Each point is a "
+            "few hundred bytes, so this is a legibility budget rather than a payload one: a chart "
+            "of the last thirty runs shows a trend, and one of the last three hundred shows a "
+            "smear. Thirty is roughly a fortnight at the E7-S2 cadence — long enough to see a "
+            "solve time drifting, short enough that a single bad run is still visible on it. "
+            "0 disables the series, and the page then says there is no history rather than "
+            "drawing an empty axis."
+        ),
+    )
+
+
 class PublishConfig(_Section):
     """Tunables that shape published artefacts rather than the models behind them."""
 
     history: HistoryArtefactConfig = HistoryArtefactConfig()
     fixtures: FixtureTickerConfig = FixtureTickerConfig()
+    health: HealthArtefactConfig = HealthArtefactConfig()
+
+
+class ScheduleConfig(_Section):
+    """When the automated workflows are allowed to do work (E7-S1, E7-S2).
+
+    GitHub Actions cron is static and always UTC, so a cadence that depends on *the deadline* cannot
+    be expressed in the schedule itself. Each workflow therefore fires on a fixed, frequent cron and
+    asks :mod:`fpl_dof.week.schedule` whether this particular firing should proceed. The tunables
+    live here rather than inline in YAML so they are named, defaulted and justified in one place
+    (DP-06), and so the decision is unit-testable without a runner.
+
+    Everything is UTC. The deadline is stored in UTC (DL-11) and Actions cron is UTC, so no
+    conversion happens anywhere on this path — which is the point, because the UK/AEST offset moves
+    twice a season and not on the same dates (CON-11).
+    """
+
+    fast_ingest_boundary_hours: tuple[int, ...] = Field(
+        default=(0, 4, 8, 12, 16, 20),
+        description=(
+            "UTC hours at which the fast ingest runs in its base four-hourly cadence. Whole hours "
+            "because an hourly cron is the finest granularity the guard can meaningfully test, and "
+            "these six are simply 24 divided by four, starting at midnight."
+        ),
+    )
+    fast_ingest_deadline_window_hours: float = Field(
+        default=24.0,
+        gt=0,
+        description=(
+            "Inside this many hours of the next deadline the fast ingest runs every hour instead "
+            "of every four. Prices, availability and ownership move fastest in the last day, and "
+            "those are exactly the fields NFR-05 puts a freshness bound on."
+        ),
+    )
+    pipeline_offsets_minutes: tuple[int, ...] = Field(
+        default=(180, 45),
+        description=(
+            "Minutes before the deadline at which the pipeline produces a recommendation: T-3h "
+            "for a considered answer while there is still time to act on it, and T-45m as the "
+            "last automatic refresh before the R-09 freeze."
+        ),
+    )
+    pipeline_cron_interval_minutes: int = Field(
+        default=15,
+        gt=0,
+        description=(
+            "How often pipeline.yml's guard job fires. It must match the cron in that workflow — "
+            "it is declared here so the tolerance below can be validated against it, rather than "
+            "the two drifting apart silently."
+        ),
+    )
+    pipeline_window_tolerance_minutes: float = Field(
+        default=20.0,
+        gt=0,
+        description=(
+            "How much EARLIER than an offset a firing still counts. The window is "
+            "[offset, offset + tolerance] and never extends later, so the T-45m trigger can only "
+            "ever fire at or before T-45m (R-09). It must exceed the cron interval, or an offset "
+            "could fall between two firings and be missed entirely."
+        ),
+    )
+    deadline_freeze_minutes: float = Field(
+        default=45.0,
+        ge=0,
+        description=(
+            "Nothing that produces a recommendation is scheduled inside this many minutes of a "
+            "deadline (R-09). Scheduled runs are best-effort and can be delayed under platform "
+            "load; the deadline is not. Manual dispatch remains the fallback."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _windows_are_reachable_and_outside_the_freeze(self) -> ScheduleConfig:
+        if not self.pipeline_offsets_minutes:
+            raise ValueError("schedule.pipeline_offsets_minutes must name at least one offset")
+        if self.pipeline_window_tolerance_minutes <= self.pipeline_cron_interval_minutes:
+            raise ValueError(
+                "schedule.pipeline_window_tolerance_minutes "
+                f"({self.pipeline_window_tolerance_minutes}) must exceed "
+                f"pipeline_cron_interval_minutes ({self.pipeline_cron_interval_minutes}), or a "
+                "pre-deadline window can fall between two cron firings and never be entered"
+            )
+        earliest = min(self.pipeline_offsets_minutes)
+        if earliest < self.deadline_freeze_minutes:
+            raise ValueError(
+                f"schedule.pipeline_offsets_minutes has an offset at T-{earliest}m, inside the "
+                f"{self.deadline_freeze_minutes}-minute deadline freeze (R-09)"
+            )
+        return self
 
 
 class Config(_Section):
@@ -1191,6 +1319,8 @@ class Config(_Section):
     transfers: TransferConfig = TransferConfig()
     alerts: AlertsConfig = AlertsConfig()
     quality: QualityConfig = QualityConfig()
+    retention: RetentionConfig = RetentionConfig()
     backtest: BacktestConfig = BacktestConfig()
     decision: DecisionConfig = DecisionConfig()
     publish: PublishConfig = PublishConfig()
+    schedule: ScheduleConfig = ScheduleConfig()

@@ -633,3 +633,115 @@ export interface League {
   gameweek: number | null;
   entries: LeagueEntry[];
 }
+
+/** The manifest excerpt: what the last run was, and how it ended. */
+export interface HealthRun {
+  /** The same id meta.json carries. Traces back to the full manifest on disk (DP-11). */
+  run_id: string;
+  git_sha?: string | null;
+  /** True when the working tree had uncommitted changes. Such a run is not reproducible from its recorded inputs, and the page says so rather than leaving it implied. */
+  git_dirty?: boolean | null;
+  started_at: string;
+  /** Null when the run did not reach the end. A manifest is written after every stage, so an unfinished run still publishes what it got through. */
+  finished_at?: string | null;
+  /** The run's own outcome. Null while it is still in flight — which is the state of the run that wrote this file. */
+  status?: "succeeded" | "failed" | "skipped" | null;
+  duration_seconds?: number | null;
+  /** Every stage the run recorded, in the order it ran them. */
+  stages: HealthStage[];
+}
+
+export interface HealthStage {
+  name: string;
+  status: "succeeded" | "failed" | "skipped";
+  started_at: string;
+  finished_at: string;
+  duration_seconds: number;
+  /** Why the stage failed, when it did. Present so a failure can be read here rather than only in a CI log that expires. */
+  error?: string | null;
+}
+
+/** One source's freshness and status. `source` is an opaque label from the data: render it, never test it. */
+export interface HealthSource {
+  source: string;
+  /** `degraded` means the run continued without this source's fields (NFR-15, DP-15). `unknown` means the source has data on disk but this run recorded nothing about it — which is not the same as healthy, and is not shown as healthy. */
+  status: "ok" | "degraded" | "unknown";
+  /** The derivation behind `degraded`: the exception class the stage caught, or the reason it recorded. A flag without its reason is an assertion (DP-09). */
+  detail?: string | null;
+  /** Which stage recorded the degradation. Fetching and conforming fail differently and are worth telling apart. */
+  degraded_at_stage?: string | null;
+  /** When this source's freshest snapshot was captured. Null when it has never been captured. */
+  observed_at?: string | null;
+  /** `generated_at` minus `observed_at`. Published rather than left to the browser so the number cannot drift with the reader's clock or with how long a cached page has been open. */
+  age_seconds?: number | null;
+  /** Resource name to row or record count, exactly as the run recorded it. */
+  resources?: Record<string, number>;
+  network_calls?: number | null;
+  /** A run served entirely from cache is a legitimate, fast run — and also the reason a source can be 'ok' while its data is older than the run. Published so the two are distinguishable. */
+  cache_hits?: number | null;
+}
+
+/** The quality gate report. A blocking failure means nothing was published and the last good artefact is still live (Invariant 7) — so a health page showing a blocked run is being served by the run before it. */
+export interface HealthGates {
+  /** False only when an error-severity gate failed. A failed warning still publishes. */
+  passed: boolean;
+  counts: {
+    passed: number;
+    failed: number;
+    /** A gate whose table was absent. Distinct from passing: a gate that never ran proves nothing. */
+    skipped: number;
+  };
+  blocking: string[];
+  results: HealthGate[];
+}
+
+export interface HealthGate {
+  gate: string;
+  /** Which kind of assertion this is — shape, range, referential integrity, or freshness and volume. */
+  class: string;
+  severity: "info" | "warn" | "error";
+  outcome: "passed" | "failed" | "skipped";
+  /** Why it landed where it did, in words, whether it passed or failed. This is the reason a failure can be acted on without opening a log. */
+  message: string;
+  /** The requirement this gate protects (DP-14). A gate nobody can trace to a requirement is one that gets deleted by whoever it inconveniences. */
+  requirement: string;
+}
+
+/** A short rolling series over recent runs. Oldest first. */
+export interface HealthMetricsHistory {
+  /** Where the series came from. The shape here is the contract; the storage behind it is not, so this value may change without a schema change (DL-41). */
+  derived_from: string;
+  runs: HealthMetricsPoint[];
+}
+
+/** One run's measurements. Every field but the id is nullable, because a run that failed early recorded fewer of them, and a gap must draw as a gap rather than as a zero. */
+export interface HealthMetricsPoint {
+  run_id: string;
+  finished_at?: string | null;
+  status?: "succeeded" | "failed" | "skipped" | null;
+  duration_seconds?: number | null;
+  /** How long the squad MILP took. The measurement that says whether the optimiser is still comfortably inside the pre-deadline window. */
+  solve_seconds?: number | null;
+  /** Total conformed silver rows. The volume signal: a source returning 30 players instead of 700 produces a perfectly valid, perfectly wrong silver layer, and this is where that shows. */
+  rows_total?: number | null;
+  /** Per-table row counts for the same run. */
+  rows?: Record<string, number>;
+  /** R-15's PRICE-DEPENDENCE DIAGNOSTIC, not a measure of accuracy: how much of the forecast is explained by price and position alone. High is bad. Skill is measured against a baseline in the backtest and reported in the model card (DP-12), deliberately not here. */
+  r_squared_on_price?: number | null;
+  gates_failed?: number | null;
+}
+
+/** How the pipeline itself is doing: what the last run did, which sources are degraded, which quality gates passed, and how a handful of run-level measurements have moved. Assembled from the run manifest, the gate report and the bronze snapshot times — never measured here, so the page cannot hold a second opinion about health that disagrees with the manifest (DL-41). */
+export interface Health {
+  /** Additive at v1: a client that has never heard of this artefact keeps working. */
+  contract_version: 1;
+  /** UTC (DL-11). Every age on this page is measured from here, not from the reader's clock, so a stale cached copy reports the ages it was published with rather than ages that keep growing. */
+  generated_at: string;
+  run: HealthRun;
+  /** One entry per data source the run knew about. Source names are DATA, discovered from the registry and the bronze store — no consumer of this artefact may branch on one (Invariant 1, DP-01). */
+  sources: HealthSource[];
+  /** The gate report from this run, or null when none was published with it. Nullable rather than defaulted to a pass: a gate report that is missing has proved nothing, and rendering that as 'all clear' is exactly the silent wrongness the gates exist to catch (DP-13, DP-15). */
+  gates: HealthGates | null;
+  /** Recent runs as a short series, or null when no history could be assembled. Nullable on purpose: the page degrades to 'no history yet' rather than to an error (DP-15). */
+  metrics_history?: HealthMetricsHistory | null;
+}

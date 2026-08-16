@@ -9,6 +9,7 @@ import { CompareRoute } from "./routes/CompareRoute";
 import { SquadRoute } from "./routes/SquadRoute";
 import { FixturesRoute } from "./routes/FixturesRoute";
 import { LeagueRoute } from "./routes/LeagueRoute";
+import { HealthRoute } from "./routes/HealthRoute";
 import { NotFoundRoute } from "./routes/NotFoundRoute";
 import "./App.css";
 
@@ -30,6 +31,7 @@ export function AppRoutes() {
         <Route path="squad" element={<SquadRoute />} />
         <Route path="fixtures" element={<FixturesRoute />} />
         <Route path="league" element={<LeagueRoute />} />
+        <Route path="health" element={<HealthRoute />} />
         <Route path="*" element={<NotFoundRoute />} />
       </Route>
     </Routes>

@@ -1,0 +1,80 @@
+# E7-S1: everything expensive — `element-summary` for every player (~700 requests, ~6 minutes at
+# a polite rate) plus external sources on their own credit budgets. Daily, never on the fast path:
+# this data changes at most once a day, and putting it on an hourly cadence was the single largest
+# line in the minutes recount that led to DL-12.
+
+name: Ingest (slow)
+
+on:
+  schedule:
+    - cron: "20 2 * * *" # 02:20 UTC — off-peak for both UK and AEST, well before the nightly pipeline
+  workflow_dispatch:
+
+concurrency:
+  group: ingest-slow
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install fpl-dof
+        run: python -m pip install -e "pipeline[dev]"
+
+      - name: Restore bronze from the `data` branch
+        run: |
+          set -eu
+          mkdir -p data/bronze
+          if git ls-remote --exit-code --heads origin data >/dev/null 2>&1; then
+            git fetch --depth=1 origin data:refs/remotes/origin/data
+            git worktree add /tmp/data-branch origin/data
+            if [ -d /tmp/data-branch/bronze ]; then cp -r /tmp/data-branch/bronze/. data/bronze/; fi
+            git worktree remove /tmp/data-branch --force
+          else
+            echo "no data branch yet; starting from an empty bronze store"
+          fi
+
+      - name: Full ingest (element-summary + external sources)
+        run: fpl-dof ingest
+
+      - name: Rebuild the rolling `data` branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+          python pipeline/scripts/retention.py rolling data/bronze --remote "$remote"
+
+      - name: Archive today's full bronze snapshot to `snapshots` (E7-S4, NFR-06)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+          gameweek="$(fpl-dof-schedule | python -c "import json,sys; print(json.load(sys.stdin).get('gameweek') or 0)")"
+          if [ "$gameweek" = "0" ]; then
+            echo "no current gameweek known yet; skipping the permanent archive for this run"
+          else
+            tar -czf /tmp/bronze-full.tar.gz -C data bronze
+            python pipeline/scripts/retention.py permanent /tmp/bronze-full.tar.gz \
+              --remote "$remote" --source bronze-full --gameweek "$gameweek"
+          fi
+
+  alert:
+    needs: [ingest]
+    if: failure()
+    uses: ./.github/workflows/alert-on-failure.yml
+    with:
+      workflow_name: Ingest (slow)
+      run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    permissions:
+      issues: write

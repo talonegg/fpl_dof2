@@ -49,6 +49,13 @@ class IngestRequest:
     force_refresh: bool = False
     offline: bool = False
     player_limit: int | None = None
+    fast_path_only: bool = False
+    """Fetch only resources declared ``fast_path``. Set by the frequent cadence (E7-S1).
+
+    Adapters should ask :meth:`SourceAdapter.wants` rather than read this directly, so the rule is
+    written once and a new resource inherits it by declaring ``fast_path`` and nothing else.
+    """
+
     now: dt.datetime | None = None
     entry_id: int | None = None
     """The owner's team, when one is configured. A game concept, not a source concept — an adapter
@@ -165,6 +172,24 @@ class SourceAdapter(ABC):
             if declared.name == name:
                 return declared
         raise KeyError(f"{self.name} declares no resource named {name!r}")
+
+    def wants(self, name: str, request: IngestRequest) -> bool:
+        """Whether ``name`` should be fetched under this request's cadence.
+
+        Adapters guard their expensive resources with this rather than branching on
+        ``request.fast_path_only`` themselves, so the cadence rule exists in exactly one place and
+        a resource opts out by declaring ``fast_path=False`` — a fact about the resource, stated
+        next to its TTL, rather than a condition buried in an ingest method.
+        """
+        return not request.fast_path_only or self.resource(name).fast_path
+
+    def has_fast_path(self) -> bool:
+        """Whether any of this source's resources belong on the frequent cadence at all.
+
+        A source where nothing is fast — scrapers, odds, the historical archive — is skipped whole
+        by the ingest stage rather than being built and then asked to fetch nothing.
+        """
+        return any(resource.fast_path for resource in self.resources)
 
     @abstractmethod
     def ingest(self, request: IngestRequest) -> IngestReport:

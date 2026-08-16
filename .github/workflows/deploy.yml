@@ -1,0 +1,113 @@
+# E7-S3: build the SPA and deploy the site + published data to GitHub Pages (NFR-01, free on a
+# public repository — DL-12).
+#
+# `web/public/data/` is gitignored (it is generated, not source), so a build from a bare checkout
+# has no data to serve. This workflow prefers the artefact pipeline.yml just uploaded (the freshest
+# possible contract, from the run that triggered this deploy); if that is unavailable — e.g. a
+# push-to-main deploy with no recent pipeline run — it falls back to whatever pipeline.yml last
+# published to the `data` branch's `web/` copy, or ships dataless rather than failing (DP-15,
+# architecture §10.3: "a deploy fails → previous site remains live" — this makes that the *default*
+# behaviour of actions/deploy-pages, which only swaps the live site on success).
+
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_run:
+    workflows: ["Pipeline"]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Ensure the data directory exists
+        run: mkdir -p web/public/data/v1
+
+      - name: Download the contract from the triggering pipeline run
+        if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: web-data-contract
+          path: web/public/data/v1
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          run-id: ${{ github.event.workflow_run.id }}
+
+      - name: Fall back to the `data` branch's published copy
+        run: |
+          set -eu
+          if [ -n "$(ls -A web/public/data/v1 2>/dev/null)" ]; then
+            echo "contract already present from the triggering run's artifact"
+            exit 0
+          fi
+          if git ls-remote --exit-code --heads origin data >/dev/null 2>&1; then
+            git fetch --depth=1 origin data:refs/remotes/origin/data
+            git worktree add /tmp/data-branch origin/data
+            if [ -d /tmp/data-branch/web/v1 ]; then
+              cp -r /tmp/data-branch/web/v1/. web/public/data/v1/
+              echo "restored contract from the data branch"
+            fi
+            git worktree remove /tmp/data-branch --force
+          fi
+          if [ -z "$(ls -A web/public/data/v1 2>/dev/null)" ]; then
+            echo "::warning::no published contract found anywhere; deploying the app shell only"
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: npm ci
+        working-directory: web
+        run: npm ci
+
+      - name: typecheck
+        working-directory: web
+        run: npm run typecheck
+
+      - name: build
+        working-directory: web
+        run: npm run build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web/dist
+
+  deploy:
+    needs: [build]
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+  alert:
+    needs: [build, deploy]
+    if: failure()
+    uses: ./.github/workflows/alert-on-failure.yml
+    with:
+      workflow_name: Deploy
+      run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    permissions:
+      issues: write

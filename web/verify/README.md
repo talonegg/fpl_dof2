@@ -29,6 +29,34 @@ Screenshots land in `verify/screenshots/` — one per viewport at load, one afte
 | 3 · Progressive web app (FR-34) | Manifest, service worker, and the app opening offline with real data |
 | 4 · Performance (NFR-04, Q-06) | Emulated Pixel 5 on throttled 4G — FCP, payload, scout interaction latency |
 
+## Phase 5 — the deployed smoke test (E7-S7)
+
+`smoke-check.mjs` is the same harness pointed at a site **this project did not serve itself**:
+
+```bash
+npm run verify:smoke -- https://<user>.github.io/<repo>/
+```
+
+It answers a narrower question than the four phases above — not "is this build correct?" but **"did
+the thing that is actually deployed come up, and is it serving real data?"** It checks that the app
+shell mounts, that `/`, `/scout`, `/squad`, `/fixtures` and `/health` each render their real view
+rather than a blank or error screen, that every artefact a successful publication writes is fetchable
+and parses as JSON declaring `contract_version: 1`, and that nothing reached an external origin.
+
+**Pass the deployed path, not the bare origin.** GitHub Pages serves a project site under a path
+prefix and the app is built with that prefix as its base; the origin alone would check a 404 page.
+
+| Choice | Why |
+| --- | --- |
+| A separate script, not a fifth phase inside `browser-check.mjs` | It runs at a different time — after a deploy, from a workflow with no build directory — and must stay fast, because a post-deploy check that takes four minutes is one that gets skipped |
+| Parses the JSON rather than trusting the status code | A single-page host answers a missing path with `index.html` and a **200**. Status alone would pass on an artefact that was never deployed; a failed parse is what actually catches it |
+| `week.json`, `plan.json` and `league.json` are not required | Each is legitimately absent in a normal published state (DL-20, DL-40). Requiring them would fail every deploy made before the first gameweek is scored |
+| Routes named by the `data-testid` of the component that fills them | Checking for a non-empty body passes on an error page, which is precisely the failure a smoke test exists to catch |
+| No layout, accessibility, PWA or performance checks | Those belong on a build before it ships. Repeating them per deploy doubles the cost to re-answer a settled question |
+
+Exits non-zero on any failure, so a workflow can gate on it. It takes a URL and nothing else, so the
+deploy workflow can call it with whatever URL Pages returned.
+
 Phase 4 prints its measurements whether or not they pass, because a budget met by a hair and a budget
 met twentyfold call for different decisions and a bare PASS cannot tell them apart.
 

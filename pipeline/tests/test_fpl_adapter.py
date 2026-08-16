@@ -115,6 +115,52 @@ def test_the_expensive_resource_is_marked_off_the_fast_path() -> None:
     assert summary.cache_ttl_seconds >= 24 * 3600
 
 
+#: What the four-hourly workflow asks for (E7-S1).
+FAST_REQUEST = IngestRequest(run_id="run-1", fast_path_only=True)
+
+
+def test_the_fast_cadence_skips_every_resource_declared_off_the_fast_path(
+    recorded_api: respx.MockRouter, adapter: FplApiAdapter
+) -> None:
+    """E7-S1: the declarations above are honoured, not merely recorded.
+
+    Asserted against the requests actually issued rather than against the report alone, because a
+    report can say zero while the fetches happened and were discarded — which would cost the six
+    minutes this cadence exists to avoid.
+    """
+    report = adapter.ingest(FAST_REQUEST)
+
+    assert report.resources["bootstrap_static"] == 1
+    assert report.resources["fixtures"] == 1
+    assert report.resources["element_summary"] == 0
+    assert report.resources["event_live"] == 0
+
+    requested = [str(call.request.url) for call in recorded_api.calls]
+    assert not [url for url in requested if "element-summary" in url]
+    assert not [url for url in requested if "/live/" in url]
+
+
+def test_the_full_cadence_still_fetches_the_expensive_sweep(
+    recorded_api: respx.MockRouter, adapter: FplApiAdapter
+) -> None:
+    """The guard is opt-in: without ``--fast`` nothing about the daily ingest changes (D-10)."""
+    report = adapter.ingest(REQUEST)
+    assert report.resources["element_summary"] > 0
+    assert [call for call in recorded_api.calls if "element-summary" in str(call.request.url)]
+
+
+def test_wants_answers_from_the_resource_declaration_alone(adapter: FplApiAdapter) -> None:
+    for resource in FplApiAdapter.resources:
+        assert adapter.wants(resource.name, FAST_REQUEST) is resource.fast_path
+        # Without the flag, every resource is wanted whatever it declared.
+        assert adapter.wants(resource.name, REQUEST) is True
+
+
+def test_the_official_source_has_a_fast_path_at_all(adapter: FplApiAdapter) -> None:
+    """``has_fast_path`` is how the ingest stage skips a source without naming it (Invariant 1)."""
+    assert adapter.has_fast_path() is True
+
+
 def test_bootstrap_carries_everything_downstream_needs(
     recorded_api: respx.MockRouter, adapter: FplApiAdapter
 ) -> None:
