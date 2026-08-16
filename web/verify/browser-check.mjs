@@ -370,6 +370,10 @@ for (const viewport of VIEWPORTS) {
     ["#/squad", "squad-builder"],
     ["#/fixtures", "fixture-ticker"],
     ["#/player/1", "player-detail"],
+    // The data health page (E7-S6). Its test id is asserted like any other view, and for the same
+    // reason: it is the page a reader opens when something looks wrong, so a route that regressed
+    // to rendering nothing would be discovered at the worst possible moment.
+    ["#/health", "health-panel"],
     ["#/no-such-view", "not-found"],
   ]) {
     await page.evaluate((h) => {

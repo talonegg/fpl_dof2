@@ -1,5 +1,6 @@
 import type {
   Fixtures,
+  Health,
   History,
   League,
   Meta,
@@ -84,6 +85,7 @@ export async function fetchPlan(): Promise<Plan | null> {
 let historyCache: Promise<History | null> | null = null;
 let fixturesCache: Promise<Fixtures | null> | null = null;
 let leagueCache: Promise<League | null> | null = null;
+let healthCache: Promise<Health | null> | null = null;
 
 async function fetchLazy<T>(name: string): Promise<T | null> {
   const res = await fetch(`${DATA_BASE}/${name}.json`);
@@ -159,9 +161,30 @@ export function fetchLeague(): Promise<League | null> {
   return leagueCache;
 }
 
+/**
+ * How the pipeline itself is doing — E7-S6's data health page (FR-33, NFR-07, DL-41).
+ *
+ * Lazy for the opposite reason to the others. `history.json` is lazy because it is large; this one
+ * is small, and is lazy because of *when* it is wanted: it is the page you open when something
+ * looks wrong, and the shell's eager load is the path every other page waits behind.
+ *
+ * **A null here is itself a health signal.** Every run that publishes anything publishes this too,
+ * so its absence means either a bundle deployed against older published data, or a run that could
+ * not read its own manifest. The view says which of those it cannot tell apart, rather than showing
+ * a blank page (DP-15).
+ */
+export function fetchHealth(): Promise<Health | null> {
+  healthCache ??= fetchLazy<Health>("health").catch((error: unknown) => {
+    healthCache = null;
+    throw error;
+  });
+  return healthCache;
+}
+
 /** Drop the lazy caches so the next call hits the network. Used by the retry path, and by tests. */
 export function resetTrendCaches(): void {
   historyCache = null;
   fixturesCache = null;
   leagueCache = null;
+  healthCache = null;
 }

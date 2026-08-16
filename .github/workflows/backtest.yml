@@ -1,0 +1,72 @@
+# Weekly walk-forward regression (architecture §9). Needs the archive source enabled and
+# `sources.backfill_seasons` set (CLAUDE.md) — both are configuration, not secrets, so this needs
+# no credentials and stays inside NFR-01's zero-cost bound: it is free CI compute either way.
+#
+# `fpl-dof backtest` is deliberately not part of `run` or pipeline.yml — see
+# pipeline/src/fpl_dof/stages/backtest.py: it is slow, needs the historical backfill, and produces a
+# finding rather than an artefact the weekly decision consumes.
+
+name: Backtest
+
+on:
+  schedule:
+    - cron: "0 16 * * 2" # 16:00 UTC Tuesday — well clear of any deadline, once a week
+  workflow_dispatch:
+
+concurrency:
+  group: backtest
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install fpl-dof
+        run: python -m pip install -e "pipeline[dev]"
+
+      - name: Restore bronze and silver from the `data` branch
+        run: |
+          set -eu
+          mkdir -p data
+          if git ls-remote --exit-code --heads origin data >/dev/null 2>&1; then
+            git fetch --depth=1 origin data:refs/remotes/origin/data
+            git worktree add /tmp/data-branch origin/data
+            for tier in bronze silver; do
+              if [ -d "/tmp/data-branch/$tier" ]; then cp -r "/tmp/data-branch/$tier" "data/$tier"; fi
+            done
+            git worktree remove /tmp/data-branch --force
+          fi
+
+      - name: Ensure the archive backfill is available
+        run: fpl-dof transform
+
+      - name: Walk-forward backtest
+        run: fpl-dof backtest
+
+      - name: Upload the backtest report
+        uses: actions/upload-artifact@v4
+        with:
+          name: backtest-report
+          path: data/gold/**/backtest.json
+          retention-days: 90
+          if-no-files-found: warn
+
+  alert:
+    needs: [backtest]
+    if: failure()
+    uses: ./.github/workflows/alert-on-failure.yml
+    with:
+      workflow_name: Backtest
+      run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+    permissions:
+      issues: write

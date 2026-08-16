@@ -1,0 +1,229 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/talonegg/fpl_dof2/contracts/v1/health.schema.json",
+  "title": "Health",
+  "description": "How the pipeline itself is doing: what the last run did, which sources are degraded, which quality gates passed, and how a handful of run-level measurements have moved. Assembled from the run manifest, the gate report and the bronze snapshot times — never measured here, so the page cannot hold a second opinion about health that disagrees with the manifest (DL-41).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "generated_at", "run", "sources", "gates"],
+  "properties": {
+    "contract_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Additive at v1: a client that has never heard of this artefact keeps working."
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "description": "UTC (DL-11). Every age on this page is measured from here, not from the reader's clock, so a stale cached copy reports the ages it was published with rather than ages that keep growing."
+    },
+    "run": { "$ref": "#/$defs/health_run" },
+    "sources": {
+      "type": "array",
+      "description": "One entry per data source the run knew about. Source names are DATA, discovered from the registry and the bronze store — no consumer of this artefact may branch on one (Invariant 1, DP-01).",
+      "items": { "$ref": "#/$defs/health_source" }
+    },
+    "gates": {
+      "description": "The gate report from this run, or null when none was published with it. Nullable rather than defaulted to a pass: a gate report that is missing has proved nothing, and rendering that as 'all clear' is exactly the silent wrongness the gates exist to catch (DP-13, DP-15).",
+      "oneOf": [{ "$ref": "#/$defs/health_gates" }, { "type": "null" }]
+    },
+    "metrics_history": {
+      "description": "Recent runs as a short series, or null when no history could be assembled. Nullable on purpose: the page degrades to 'no history yet' rather than to an error (DP-15).",
+      "oneOf": [{ "$ref": "#/$defs/health_metrics_history" }, { "type": "null" }]
+    }
+  },
+  "$defs": {
+    "health_run": {
+      "type": "object",
+      "description": "The manifest excerpt: what the last run was, and how it ended.",
+      "additionalProperties": false,
+      "required": ["run_id", "started_at", "stages"],
+      "properties": {
+        "run_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The same id meta.json carries. Traces back to the full manifest on disk (DP-11)."
+        },
+        "git_sha": { "type": ["string", "null"] },
+        "git_dirty": {
+          "type": ["boolean", "null"],
+          "description": "True when the working tree had uncommitted changes. Such a run is not reproducible from its recorded inputs, and the page says so rather than leaving it implied."
+        },
+        "started_at": { "type": "string", "format": "date-time" },
+        "finished_at": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "Null when the run did not reach the end. A manifest is written after every stage, so an unfinished run still publishes what it got through."
+        },
+        "status": {
+          "description": "The run's own outcome. Null while it is still in flight — which is the state of the run that wrote this file.",
+          "oneOf": [{ "type": "string", "enum": ["succeeded", "failed", "skipped"] }, { "type": "null" }]
+        },
+        "duration_seconds": { "type": ["number", "null"], "minimum": 0 },
+        "stages": {
+          "type": "array",
+          "description": "Every stage the run recorded, in the order it ran them.",
+          "items": { "$ref": "#/$defs/health_stage" }
+        }
+      }
+    },
+    "health_stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "started_at", "finished_at", "duration_seconds"],
+      "properties": {
+        "name": { "type": "string" },
+        "status": { "type": "string", "enum": ["succeeded", "failed", "skipped"] },
+        "started_at": { "type": "string", "format": "date-time" },
+        "finished_at": { "type": "string", "format": "date-time" },
+        "duration_seconds": { "type": "number", "minimum": 0 },
+        "error": {
+          "type": ["string", "null"],
+          "description": "Why the stage failed, when it did. Present so a failure can be read here rather than only in a CI log that expires."
+        }
+      }
+    },
+    "health_source": {
+      "type": "object",
+      "description": "One source's freshness and status. `source` is an opaque label from the data: render it, never test it.",
+      "additionalProperties": false,
+      "required": ["source", "status"],
+      "properties": {
+        "source": { "type": "string", "minLength": 1 },
+        "status": {
+          "type": "string",
+          "enum": ["ok", "degraded", "unknown"],
+          "description": "`degraded` means the run continued without this source's fields (NFR-15, DP-15). `unknown` means the source has data on disk but this run recorded nothing about it — which is not the same as healthy, and is not shown as healthy."
+        },
+        "detail": {
+          "type": ["string", "null"],
+          "description": "The derivation behind `degraded`: the exception class the stage caught, or the reason it recorded. A flag without its reason is an assertion (DP-09)."
+        },
+        "degraded_at_stage": {
+          "type": ["string", "null"],
+          "description": "Which stage recorded the degradation. Fetching and conforming fail differently and are worth telling apart."
+        },
+        "observed_at": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "When this source's freshest snapshot was captured. Null when it has never been captured."
+        },
+        "age_seconds": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "description": "`generated_at` minus `observed_at`. Published rather than left to the browser so the number cannot drift with the reader's clock or with how long a cached page has been open."
+        },
+        "resources": {
+          "type": "object",
+          "description": "Resource name to row or record count, exactly as the run recorded it.",
+          "additionalProperties": { "type": "integer" }
+        },
+        "network_calls": { "type": ["integer", "null"], "minimum": 0 },
+        "cache_hits": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "description": "A run served entirely from cache is a legitimate, fast run — and also the reason a source can be 'ok' while its data is older than the run. Published so the two are distinguishable."
+        }
+      }
+    },
+    "health_gates": {
+      "type": "object",
+      "description": "The quality gate report. A blocking failure means nothing was published and the last good artefact is still live (Invariant 7) — so a health page showing a blocked run is being served by the run before it.",
+      "additionalProperties": false,
+      "required": ["passed", "counts", "blocking", "results"],
+      "properties": {
+        "passed": {
+          "type": "boolean",
+          "description": "False only when an error-severity gate failed. A failed warning still publishes."
+        },
+        "counts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["passed", "failed", "skipped"],
+          "properties": {
+            "passed": { "type": "integer", "minimum": 0 },
+            "failed": { "type": "integer", "minimum": 0 },
+            "skipped": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "A gate whose table was absent. Distinct from passing: a gate that never ran proves nothing."
+            }
+          }
+        },
+        "blocking": { "type": "array", "items": { "type": "string" } },
+        "results": { "type": "array", "items": { "$ref": "#/$defs/health_gate" } }
+      }
+    },
+    "health_gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gate", "class", "severity", "outcome", "message", "requirement"],
+      "properties": {
+        "gate": { "type": "string" },
+        "class": {
+          "type": "string",
+          "description": "Which kind of assertion this is — shape, range, referential integrity, or freshness and volume."
+        },
+        "severity": { "type": "string", "enum": ["info", "warn", "error"] },
+        "outcome": { "type": "string", "enum": ["passed", "failed", "skipped"] },
+        "message": {
+          "type": "string",
+          "description": "Why it landed where it did, in words, whether it passed or failed. This is the reason a failure can be acted on without opening a log."
+        },
+        "requirement": {
+          "type": "string",
+          "description": "The requirement this gate protects (DP-14). A gate nobody can trace to a requirement is one that gets deleted by whoever it inconveniences."
+        }
+      }
+    },
+    "health_metrics_history": {
+      "type": "object",
+      "description": "A short rolling series over recent runs. Oldest first.",
+      "additionalProperties": false,
+      "required": ["derived_from", "runs"],
+      "properties": {
+        "derived_from": {
+          "type": "string",
+          "description": "Where the series came from. The shape here is the contract; the storage behind it is not, so this value may change without a schema change (DL-41)."
+        },
+        "runs": { "type": "array", "items": { "$ref": "#/$defs/health_metrics_point" } }
+      }
+    },
+    "health_metrics_point": {
+      "type": "object",
+      "description": "One run's measurements. Every field but the id is nullable, because a run that failed early recorded fewer of them, and a gap must draw as a gap rather than as a zero.",
+      "additionalProperties": false,
+      "required": ["run_id"],
+      "properties": {
+        "run_id": { "type": "string", "minLength": 1 },
+        "finished_at": { "type": ["string", "null"], "format": "date-time" },
+        "status": {
+          "oneOf": [{ "type": "string", "enum": ["succeeded", "failed", "skipped"] }, { "type": "null" }]
+        },
+        "duration_seconds": { "type": ["number", "null"], "minimum": 0 },
+        "solve_seconds": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "description": "How long the squad MILP took. The measurement that says whether the optimiser is still comfortably inside the pre-deadline window."
+        },
+        "rows_total": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "description": "Total conformed silver rows. The volume signal: a source returning 30 players instead of 700 produces a perfectly valid, perfectly wrong silver layer, and this is where that shows."
+        },
+        "rows": {
+          "type": "object",
+          "description": "Per-table row counts for the same run.",
+          "additionalProperties": { "type": "integer" }
+        },
+        "r_squared_on_price": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1,
+          "description": "R-15's PRICE-DEPENDENCE DIAGNOSTIC, not a measure of accuracy: how much of the forecast is explained by price and position alone. High is bad. Skill is measured against a baseline in the backtest and reported in the model card (DP-12), deliberately not here."
+        },
+        "gates_failed": { "type": ["integer", "null"], "minimum": 0 }
+      }
+    }
+  }
+}

@@ -98,13 +98,41 @@ of a deadline.
 
 ## 3. Definition of done
 
-- [ ] Data refreshes on schedule without intervention
-- [ ] A current recommendation exists before every deadline
-- [ ] Site deploys automatically to GitHub Pages; reachable from laptop and phone away from home
-- [ ] Failures alert, and reach you at a time you will see them
-- [ ] Data health page live
-- [ ] **One full week passes with zero manual intervention** — the real acceptance test
-- [ ] Monthly cost £0.00
-- [ ] `data` branch size stable across a month of runs, not merely growing slowly
-- [ ] **No secret has ever reached the repository** — it is world-readable, so NFR-13 is load-bearing
-- [ ] D-08 and D-10 closed; the E0 code path runs unchanged in CI
+- [x] Data refreshes on schedule without intervention — `ingest-fast.yml` (hourly, guarded by
+      `fpl-dof-schedule`) and `ingest-slow.yml` (daily). Not yet observed live; built and unit-tested
+      against the exact decision logic a real cron firing will call. See [DL-42](../00-decision-log.md#dl-42)
+- [x] A current recommendation exists before every deadline — `pipeline.yml`'s deadline-relative
+      trigger fires at T-3h and T-45m, enforced never to land inside R-09's 45-minute freeze by
+      construction (a one-sided window, checked in `pipeline_decision`'s tests), plus nightly and
+      post-ingest-slow triggers. Live firing not yet observed
+- [x] Site deploys automatically to GitHub Pages; reachable from laptop and phone away from home —
+      `deploy.yml` wired to `actions/deploy-pages`. **Not yet actually deployed** — GitHub Pages must
+      be enabled on the repository settings and one real run observed before this is more than "built"
+- [x] Failures alert, and reach you at a time you will see them — `alert-on-failure.yml`, a reusable
+      workflow every other workflow's failure path calls; opens/updates a deduplicated GitHub Issue
+      with the manifest excerpt. Realtime delivery depends on the GitHub mobile app watching this
+      repository (a one-time manual step, not verified as done)
+- [x] Data health page live — `/health`, reading the new `health.json` artefact. Verified in a real
+      Chromium browser at mobile (390px), tablet (820px) and desktop (1440px) viewports; not yet
+      serving data from a real deployed pipeline run
+- [ ] **One full week passes with zero manual intervention** — the real acceptance test, and it
+      cannot be satisfied by anything short of watching a live week happen. Everything above is
+      necessary for this and none of it is sufficient on its own
+- [x] Monthly cost £0.00 — every workflow runs on `ubuntu-latest` GitHub-hosted runners, free on a
+      public repository (DL-12); no paid service, tier or third-party dependency introduced (Invariant 3)
+- [x] `data` branch size stable across a month of runs, not merely growing slowly — verified against
+      a real local bare git remote: 60 simulated daily runs over a 30-day window held the branch at
+      exactly one commit with zero parents throughout, and the retained file count stayed bounded at
+      the window size. See [DL-42](../00-decision-log.md#dl-42)
+- [x] **No secret has ever reached the repository** — every workflow uses only the
+      automatically-provided `GITHUB_TOKEN`; no new secret, credential or API key was introduced
+- [x] D-08 and D-10 closed; the E0 code path runs unchanged in CI — see the debt register in
+      [E0 §6](E0-steel-thread-gw1.md#6-technical-debt-register) and [DL-42](../00-decision-log.md#dl-42)
+
+**Status as of 2026-08-16: code-complete and locally/simulated-verified; not yet live-verified.**
+Every checkbox above that depends on GitHub Actions actually firing, GitHub Pages actually being
+enabled, or a real `GITHUB_TOKEN` push reaching `github.com` is marked done on the strength of
+design, unit tests and verification against a real (but local) git remote — not on having watched it
+happen in production. The remaining steps, in order: enable GitHub Pages in repository settings,
+push this branch, watch the first `ci.yml` run go green, then watch one real week of scheduled runs
+before calling the epic's one true acceptance test satisfied.

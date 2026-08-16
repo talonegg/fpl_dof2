@@ -107,3 +107,34 @@ def test_adapters_expose_their_resources(registry: None, fetcher: Fetcher) -> No
         adapter.resource("absent")
     assert adapter.url_for("/x/") == "https://alpha.invalid/x/"
     assert "alpha" in repr(adapter)
+
+
+# --- the fast cadence (E7-S1) -------------------------------------------------------------------
+
+
+class _Slow(_Alpha):
+    """A source where nothing is cheap — a scraper, an archive, a metered API."""
+
+    name: ClassVar[str] = "slow"
+    resources: ClassVar[tuple[Resource, ...]] = (
+        Resource(name="pages", summary="scraped pages", fast_path=False),
+    )
+
+
+def test_a_source_declares_whether_it_belongs_on_the_fast_cadence_at_all(
+    fetcher: Fetcher,
+) -> None:
+    """The ingest stage skips a whole source on this answer, so it must not name one itself."""
+    with temporary_registry((_Alpha, _Slow)):
+        by_name = {a.name: a for a in build(SourcesConfig(), fetcher)}
+    assert by_name["alpha"].has_fast_path() is True
+    assert by_name["slow"].has_fast_path() is False
+
+
+def test_wants_defers_to_the_resource_declaration_only_when_the_fast_flag_is_set(
+    fetcher: Fetcher,
+) -> None:
+    with temporary_registry((_Slow,)):
+        adapter = build(SourcesConfig(), fetcher)[0]
+    assert adapter.wants("pages", IngestRequest(run_id="r")) is True
+    assert adapter.wants("pages", IngestRequest(run_id="r", fast_path_only=True)) is False

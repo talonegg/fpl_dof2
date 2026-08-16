@@ -1,0 +1,4 @@
+# CI's rolling bronze window (E7-S4, R-13). See RetentionConfig for why this exists and why the
+# `snapshots` branch is not governed by it.
+retention:
+  bronze_days: 30

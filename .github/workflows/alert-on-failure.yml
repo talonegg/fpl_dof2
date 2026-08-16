@@ -1,0 +1,108 @@
+# Reusable failure alert (E7-S5, FR-38). Zero-cost by construction (NFR-01): GitHub's own Issues
+# carry the notification, which reaches the owner by email and, if the GitHub mobile app is
+# installed and watching this repo, by push — a one-time manual setup, not a paid dependency.
+#
+# HOW TO CALL THIS FROM ANOTHER WORKFLOW
+#
+#   alert:
+#     needs: [your-real-job]
+#     if: failure()
+#     uses: ./.github/workflows/alert-on-failure.yml
+#     with:
+#       workflow_name: ${{ github.workflow }}
+#       run_url: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+#       # Optional: a short excerpt of what failed. Keep it small — this becomes an issue body, not
+#       # an artefact. The run_url above is how a reader gets the rest.
+#       detail: "stage 'quality' failed: ..."
+#     permissions:
+#       issues: write
+#
+# Every workflow that can fail unattended (ci.yml only on `main`/schedule, not on every PR churn;
+# ingest-fast.yml, ingest-slow.yml, pipeline.yml, retention.yml, deploy.yml, backtest.yml) should
+# add a trailing job shaped like the one above. Issues are deduplicated by a hidden HTML-comment
+# marker keyed on `workflow_name`, so repeated failures of the same workflow update one issue
+# instead of spawning a new one each time — a failing nightly pipeline must not fill the issue
+# tracker faster than anyone can read it.
+
+name: Alert on failure
+
+on:
+  workflow_call:
+    inputs:
+      workflow_name:
+        required: true
+        type: string
+      run_url:
+        required: true
+        type: string
+      detail:
+        required: false
+        type: string
+        default: ""
+
+permissions:
+  issues: write
+
+jobs:
+  alert:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Open or update the pipeline-alert issue
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const marker = `<!-- fpl-dof-alert:${{ inputs.workflow_name }} -->`;
+            const detail = ${{ toJSON(inputs.detail) }};
+            const body = [
+              marker,
+              `**${{ inputs.workflow_name }}** failed.`,
+              "",
+              `Run: ${{ inputs.run_url }}`,
+              "",
+              detail ? "```\n" + detail + "\n```" : "_No excerpt attached — see the run log._",
+              "",
+              `_Last failure: ${new Date().toISOString()}_`,
+            ].join("\n");
+
+            const label = "pipeline-alert";
+            await github.rest.issues.listLabelsForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            }).catch(() => null);
+            try {
+              await github.rest.issues.getLabel({ owner: context.repo.owner, repo: context.repo.repo, name: label });
+            } catch {
+              await github.rest.issues.createLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                name: label,
+                color: "b60205",
+                description: "Automated pipeline/workflow failure (E7-S5, FR-38)",
+              });
+            }
+
+            const open = await github.rest.issues.listForRepo({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              labels: label,
+              per_page: 100,
+            });
+            const existing = open.data.find((issue) => issue.body && issue.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: existing.number,
+                body,
+              });
+            } else {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title: `pipeline-alert: ${{ inputs.workflow_name }} failed`,
+                body,
+                labels: [label],
+              });
+            }

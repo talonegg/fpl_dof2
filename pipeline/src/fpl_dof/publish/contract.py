@@ -38,6 +38,10 @@ ARTEFACTS: dict[str, str] = {
     # The mini-league (E6-S10). Written only when a league is configured, and it is not by default:
     # unlike every other artefact here, its *absence* is the normal published state.
     "league": "league.schema.json",
+    # The data health page's artefact (E7-S6, DL-41). Additive like the trend pair above, and
+    # fetched lazily by `/health` alone: it is the page you open when something looks wrong, so
+    # putting it on the first-paint path would tax every other page for it.
+    "health": "health.schema.json",
 }
 
 

@@ -8,6 +8,10 @@
             "type": "command",
             "if": "Bash(git commit *)",
             "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/secret-scan.cjs\""
+          },
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/deadline-guard.cjs\""
           }
         ]
       },
