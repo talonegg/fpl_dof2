@@ -49,7 +49,8 @@ Python lives in `.venv` at the repo root, created with `uv`. `uv` is installed a
 | Web dev server (LAN-accessible for mobile testing) | `cd web && npm run dev` — `vite.config.ts` sets `host: true` |
 | Web tests | `cd web && npm run test -- --run` |
 | Web type check + build | `cd web && npm run typecheck && npm run build` |
-| Browser verification (3 viewports) | Serve a build, then `cd web && npm run verify:browser -- http://127.0.0.1:4173` — see `web/verify/README.md` |
+| Browser verification (layout, accessibility, PWA/offline, performance) | Serve a build, then `cd web && npm run verify:browser -- http://127.0.0.1:4173` — see `web/verify/README.md`. Needs a **built** site: the service worker is not generated in dev |
+| Regenerate the PWA icons after a palette change | `cd web && node scripts/make-icons.mjs` — reads the colours from `src/tokens.css` |
 
 Reading the current squad without the web app: `data/gold/season=2026-27/squad.json`, this week's
 decision at `week.json`, the gate report at `quality.json`, and the model card next to them at
@@ -74,7 +75,9 @@ ranking (DL-21).
   - `stages/` — the five pipeline stages; the effectful edge (DP-03).
 - `web/` — TypeScript/React. Everything after it. `src/contract/types.ts` is **generated** — never
   edit it by hand; `fpl-dof publish` rewrites it from the JSON Schemas.
-- `contracts/` — shared JSON Schema. The single definition of the boundary between the two.
+- `contracts/` — the single definition of the boundary between the two. `v1/` is the published
+  artefacts' JSON Schema; `conformance/` holds the fixture corpora for behaviour implemented in both
+  languages, written once and read by both pytest and vitest — never copied (DL-39).
 - `docs/planning/` — charter, plan, architecture, conceptual design, AI tooling plan.
 - `data/` — local working data. Gitignored. Never commit it.
 

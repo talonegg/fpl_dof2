@@ -81,6 +81,38 @@ REQUIRED_HISTORY_PAST_KEYS = (
 )
 
 
+def _standings_results(standings: dict[str, Any]) -> list[dict[str, Any]]:
+    """The first page of a classic league's table, in the order the API returned it.
+
+    **One page only, deliberately.** The endpoint paginates at 50 and this project reads the top of
+    the table, not the whole of it; following `has_next` would turn a configured league into an
+    unbounded crawl of a stranger's server for rows nothing renders.
+    """
+    results = (standings.get("standings") or {}).get("results")
+    return [result for result in results if isinstance(result, dict)] if results else []
+
+
+def _league_entry_ids(standings: dict[str, Any], limit: int) -> list[int]:
+    """Entry IDs to fetch squads for: the top `limit` of the table, best rank first."""
+    if limit <= 0:
+        return []
+    ordered = sorted(
+        (r for r in _standings_results(standings) if r.get("entry") and r.get("rank")),
+        key=lambda r: int(r["rank"]),
+    )
+    return [int(result["entry"]) for result in ordered[:limit]]
+
+
+def _latest_finished_gameweek(bootstrap: dict[str, Any]) -> int | None:
+    """The most recent gameweek with a final score, or None when none has been played.
+
+    None is the normal preseason state, not an error (DL-20): before GW1 there are no picks to read
+    for anybody, so there is nothing a caller could usefully do with a number here.
+    """
+    finished = [int(event["id"]) for event in bootstrap["events"] if event.get("finished")]
+    return max(finished) if finished else None
+
+
 @register
 class FplApiAdapter(SourceAdapter):
     name: ClassVar[str] = "fpl"
@@ -886,12 +918,119 @@ class FplApiAdapter(SourceAdapter):
         if request.entry_id is not None:
             tables.update(self._conform_entry(request.entry_id, bootstrap, request, warnings))
 
+        if request.league_id is not None:
+            tables.update(self._conform_league(request.league_id, bootstrap, request, warnings))
+
         snapshot = self.fetcher.bronze.latest(self.name, "bootstrap_static", "all")
         return Conformed(
             tables=tables,
             rules=self.extract_rules(bootstrap),
             rules_snapshot_sha256=snapshot.meta.sha256 if snapshot else None,
             warnings=warnings,
+        )
+
+    def _conform_league(
+        self,
+        league_id: int,
+        bootstrap: dict[str, Any],
+        request: IngestRequest,
+        warnings: list[str],
+    ) -> dict[str, pd.DataFrame]:
+        """The mini-league table, and as many rivals' squads as the budget allowed.
+
+        An unreadable league is a warning, never a failure: it enriches a comparison view and feeds
+        no decision, so losing it must cost exactly that view (NFR-15, DP-15).
+        """
+        try:
+            standings = self.fetch_league_standings(league_id, request)
+        except SourceNotFoundError, OfflineWithoutSnapshotError:
+            warnings.append(f"league {league_id} was not readable; continuing without it")
+            return {}
+
+        gameweek = _latest_finished_gameweek(bootstrap)
+        picks: dict[int, dict[str, Any]] = {}
+        if gameweek is not None:
+            for entry_id in _league_entry_ids(standings, request.league_rival_limit):
+                try:
+                    payload = self.fetch_entry_picks(entry_id, gameweek, request)
+                except OfflineWithoutSnapshotError:
+                    warnings.append(f"no picks snapshot for league entry {entry_id}")
+                    continue
+                if payload is not None:
+                    picks[entry_id] = payload
+
+        if request.league_rival_limit > 0 and not picks:
+            # Says which of the two reasons applies, because "no overlap shown" has a very
+            # different meaning preseason than it does in October (DP-15: visible degradation).
+            warnings.append(
+                f"league {league_id}: no rival squads available"
+                + (" (no gameweek scored yet)" if gameweek is None else f" for gameweek {gameweek}")
+            )
+
+        return {
+            Table.LEAGUE_STANDING.value: self._league_standings(league_id, standings),
+            Table.LEAGUE_PICK.value: self._league_picks(gameweek, picks),
+        }
+
+    def _league_standings(self, league_id: int, standings: dict[str, Any]) -> pd.DataFrame:
+        name = str((standings.get("league") or {}).get("name") or "")
+        rows = [
+            {
+                "league_id": league_id,
+                "league_name": name,
+                "entry_id": int(result["entry"]),
+                "entry_name": str(result.get("entry_name") or ""),
+                "player_name": str(result.get("player_name") or ""),
+                "rank": int(result["rank"]),
+                "last_rank": result.get("last_rank"),
+                "event_total": result.get("event_total"),
+                "total": int(result.get("total") or 0),
+            }
+            for result in _standings_results(standings)
+            if result.get("entry") is not None and result.get("rank") is not None
+        ]
+        return pd.DataFrame(
+            rows,
+            columns=[
+                "league_id",
+                "league_name",
+                "entry_id",
+                "entry_name",
+                "player_name",
+                "rank",
+                "last_rank",
+                "event_total",
+                "total",
+            ],
+        )
+
+    def _league_picks(
+        self, gameweek: int | None, picks_by_entry: dict[int, dict[str, Any]]
+    ) -> pd.DataFrame:
+        rows = [
+            {
+                "entry_id": entry_id,
+                "gameweek": gameweek,
+                "player_id": int(pick["element"]),
+                "slot": int(pick["position"]),
+                "multiplier": int(pick["multiplier"]),
+                "is_captain": bool(pick.get("is_captain")),
+                "is_vice_captain": bool(pick.get("is_vice_captain")),
+            }
+            for entry_id, payload in sorted(picks_by_entry.items())
+            for pick in payload.get("picks") or []
+        ]
+        return pd.DataFrame(
+            rows,
+            columns=[
+                "entry_id",
+                "gameweek",
+                "player_id",
+                "slot",
+                "multiplier",
+                "is_captain",
+                "is_vice_captain",
+            ],
         )
 
     def _conform_entry(
@@ -1007,11 +1146,9 @@ class FplApiAdapter(SourceAdapter):
         report.resources["event_live"] = live
 
         if request.league_id is not None:
-            try:
-                self.fetch_league_standings(request.league_id, request)
-                report.resources["league_standings"] = 1
-            except SourceNotFoundError, OfflineWithoutSnapshotError:
-                report.warnings.append(f"league {request.league_id} unavailable")
+            report.resources.update(
+                self._ingest_league(request.league_id, bootstrap, request, report)
+            )
 
         if request.entry_id is not None:
             report.resources.update(
@@ -1029,6 +1166,43 @@ class FplApiAdapter(SourceAdapter):
             },
         )
         return report
+
+    def _ingest_league(
+        self,
+        league_id: int,
+        bootstrap: dict[str, Any],
+        request: IngestRequest,
+        report: IngestReport,
+    ) -> dict[str, int]:
+        """The configured mini-league: its table, and the squads of the entries near the top.
+
+        Standings are one request. Squads are one request *per entry*, which is why the number of
+        entries read is a configured budget rather than "everyone in the league" — a public league
+        can hold hundreds of thousands of them.
+        """
+        counts: dict[str, int] = {}
+        try:
+            standings = self.fetch_league_standings(league_id, request)
+        except SourceNotFoundError, OfflineWithoutSnapshotError:
+            report.warnings.append(f"league {league_id} unavailable")
+            return counts
+        counts["league_standings"] = 1
+
+        gameweek = _latest_finished_gameweek(bootstrap)
+        if gameweek is None:
+            # Preseason. Nobody has picks yet, not even the owner (DL-20), so there is nothing to
+            # fetch and the standings alone are the honest answer.
+            return counts
+
+        fetched = 0
+        for entry_id in _league_entry_ids(standings, request.league_rival_limit):
+            try:
+                if self.fetch_entry_picks(entry_id, gameweek, request) is not None:
+                    fetched += 1
+            except OfflineWithoutSnapshotError:
+                report.warnings.append(f"no picks snapshot for league entry {entry_id}")
+        counts["league_entry_picks"] = fetched
+        return counts
 
     def _ingest_entry(
         self,

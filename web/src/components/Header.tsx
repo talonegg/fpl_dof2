@@ -11,8 +11,9 @@ export function Header({ meta }: HeaderProps) {
 
   return (
     <header className="app-header" data-testid="header">
+      {/* The app's title is the shell's `h1` (E6-S1). This banner describes the *run*: which
+          season, which gameweek, how fresh, and how much the forecast can be trusted. */}
       <div className="app-header-row">
-        <h1>FPL DOF</h1>
         <div className="app-header-meta">
           <span>{meta.season}</span>
           <span>Next GW {meta.next_gameweek}</span>

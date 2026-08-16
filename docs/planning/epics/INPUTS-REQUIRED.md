@@ -95,8 +95,28 @@ wasteful pipeline, and slowness on the deadline path costs more than money.
 | # | Input | Why |
 | --- | --- | --- |
 | 6.1 | **Target overall rank** (OD-05) | Drives the default risk-dial position. "Top 100k" and "top 1k" imply very different differential appetites |
-| 6.2 | **Mini-league ID(s)**, if you want rival analysis | Optional (FR-32). Found in the league URL |
+| 6.2 | **Mini-league ID**, if you want rival analysis | Optional (FR-32). See §6a — the setting now exists and is wired end to end |
 | 6.3 | **Chip philosophy** | Whether you want the tool to plan chips aggressively around doubles, or to hold them as insurance |
+
+### 6a. Mini-league ID — optional, wired, and unset
+
+**Nothing is blocked by this and nothing needs to happen now.** [E6-S10](E6-web-application.md#e6-s10)
+built the mini-league view against the case where this is *not* set, which is the state the
+repository is in and the state the tests run against.
+
+| | |
+| --- | --- |
+| **Setting** | `entry.league_id` in `config/local.yaml`, or the `FPL_DOF_LEAGUE_ID` environment variable |
+| **Where to find it** | Open the league on the FPL site; it is the number in `/leagues/{THIS_NUMBER}/standings/c` |
+| **Secret?** | No. A classic league ID is public, as is everything the standings return (NFR-11) |
+| **Companion setting** | `entry.league_rival_limit`, default 20 — how many entries from the top of the table to fetch squads for. Each costs one request, so this is the knob that decides what rival analysis costs. `0` publishes the table alone |
+| **Also needs** | `entry.team_id` (3.1), for the overlap columns. The comparison is anchored on the squad you actually fielded, so without your own entry there is a table and no comparison — and the page says so rather than showing empty columns |
+
+**With it unset:** no league is fetched, no `league.json` is published, and `/league` renders a
+first-class "no mini-league configured" page explaining what setting it would unlock. **With it set:**
+the table appears on the next `fpl-dof run`, and the overlap, differential and captain-divergence
+columns fill in from the first gameweek that has been scored — rivals' squads cannot be read before
+one has (DL-20).
 
 ---
 
@@ -143,7 +163,7 @@ Complete set across all epics. **None are needed for E0** beyond the optional on
 | `FPL_DOF_USER_AGENT_CONTACT` | Honest client identification (NFR-10) | E0 | No | `https://github.com/talonegg/fpl_dof2` |
 | `FPL_DOF_TIMEZONE` | Local rendering zone | E1 | No | `Australia/Sydney` |
 | `FPL_DOF_TEAM_ID` | Your FPL entry ID | **E1** | No — public | `1234567` |
-| `FPL_DOF_LEAGUE_ID` | Mini-league for rival analysis | E6 | No | `987654` |
+| `FPL_DOF_LEAGUE_ID` | Mini-league for rival analysis (§6a). Optional — unset is the normal state | E6 | No | `987654` |
 | `ODDS_API_KEY` | Bookmaker odds provider | E5 | **Yes** | — |
 | `FPL_DOF_ODDS_CREDIT_BUDGET` | Monthly request cap, enforced in the adapter | E5 | No | `450` |
 

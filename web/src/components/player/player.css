@@ -1,0 +1,230 @@
+/* Player detail (E6-S3). Colour comes only from `tokens.css`.
+
+   The difficulty bands reuse the confidence tokens rather than introducing a parallel palette. Both
+   scales say the same thing in the same direction — good, middling, bad — and one three-colour scale
+   the reader learns once beats two that differ only by hue. The bands are also never the only
+   signal: each cell carries its numeric difficulty and a `title`, so the strip is readable in
+   greyscale (NFR-14). */
+
+/* `player-page`, not `player-detail`: App.css styles `.player-detail` as a single bordered panel,
+   which is what this route used to be. The built-out page is a stack of panels, so it needs its own
+   class rather than to fight that rule at equal specificity. */
+.player-page {
+  display: block;
+}
+
+.player-page a {
+  color: var(--accent);
+}
+
+.player-header {
+  margin-bottom: var(--space-4);
+}
+
+.player-header h2 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-xl);
+}
+
+.player-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.player-metric {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel-alt);
+}
+
+.player-metric-label {
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.player-metric-value {
+  font-size: var(--font-size-xl);
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+.player-metric-note {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.player-panel {
+  margin-bottom: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+}
+
+.player-panel h3 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-lg);
+}
+
+.panel-note {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.panel-warning {
+  margin: 0 0 var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--warn-border);
+  border-radius: var(--radius-sm);
+  background: var(--warn-bg);
+  color: var(--text);
+  font-size: var(--font-size-sm);
+}
+
+.availability-line {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text);
+}
+
+.availability-status {
+  font-weight: 600;
+}
+
+.availability-flagged .availability-status {
+  color: var(--value-negative);
+}
+
+/* ---------- Fixture run ---------- */
+
+.fixture-run-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fixture-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 4.6rem;
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel-alt);
+  color: var(--text);
+  font-size: var(--font-size-xs);
+}
+
+.fixture-gw {
+  color: var(--text-muted);
+  letter-spacing: 0.04em;
+}
+
+.fixture-opponent {
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+}
+
+.fixture-venue {
+  margin-left: 0.15rem;
+  font-weight: 400;
+  color: var(--text-muted);
+}
+
+.fixture-difficulty {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-muted);
+}
+
+.fixture-band-very-easy {
+  background: var(--confidence-high-bg);
+  color: var(--confidence-high-fg);
+}
+
+.fixture-band-easy {
+  background: var(--confidence-high-bg);
+  color: var(--confidence-high-fg);
+  opacity: 0.85;
+}
+
+.fixture-band-neutral {
+  background: var(--confidence-none-bg);
+  color: var(--confidence-none-fg);
+}
+
+.fixture-band-hard {
+  background: var(--confidence-medium-bg);
+  color: var(--confidence-medium-fg);
+}
+
+.fixture-band-very-hard {
+  background: var(--confidence-low-bg);
+  color: var(--confidence-low-fg);
+}
+
+.fixture-band-very-easy .fixture-gw,
+.fixture-band-easy .fixture-gw,
+.fixture-band-neutral .fixture-gw,
+.fixture-band-hard .fixture-gw,
+.fixture-band-very-hard .fixture-gw,
+.fixture-band-very-easy .fixture-difficulty,
+.fixture-band-easy .fixture-difficulty,
+.fixture-band-neutral .fixture-difficulty,
+.fixture-band-hard .fixture-difficulty,
+.fixture-band-very-hard .fixture-difficulty,
+.fixture-band-very-easy .fixture-venue,
+.fixture-band-easy .fixture-venue,
+.fixture-band-neutral .fixture-venue,
+.fixture-band-hard .fixture-venue,
+.fixture-band-very-hard .fixture-venue {
+  color: inherit;
+  opacity: 0.75;
+}
+
+.fixture-blank {
+  border-style: dashed;
+  color: var(--text-muted);
+}
+
+.player-detail-back {
+  margin: var(--space-4) 0 0;
+  font-size: var(--font-size-sm);
+}
+
+/* Available to screen readers, absent from the visual layout. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 640px) {
+  .player-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .player-panel {
+    padding: var(--space-3);
+  }
+}

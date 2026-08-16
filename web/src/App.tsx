@@ -1,70 +1,63 @@
-import { useEffect, useState } from "react";
-import { fetchMeta, fetchPlan, fetchPlayers, fetchRules, fetchSquad, fetchWeek } from "./api";
-import type { Meta, Plan, Players, Rules, Squad, Week } from "./contract/types";
-import { Header } from "./components/Header";
-import { SquadPitch } from "./components/SquadPitch";
-import { Bench } from "./components/Bench";
-import { WeekPanel } from "./components/WeekPanel";
-import { PlanPanel } from "./components/PlanPanel";
-import { PlayerTable } from "./components/PlayerTable";
+import { HashRouter, Route, Routes } from "react-router-dom";
+import { ThemeProvider } from "./theme/ThemeProvider";
+import { DataProvider } from "./data/DataProvider";
+import { AppLayout } from "./layout/AppLayout";
+import { DashboardRoute } from "./routes/DashboardRoute";
+import { ScoutRoute } from "./routes/ScoutRoute";
+import { PlayerRoute } from "./routes/PlayerRoute";
+import { CompareRoute } from "./routes/CompareRoute";
+import { SquadRoute } from "./routes/SquadRoute";
+import { FixturesRoute } from "./routes/FixturesRoute";
+import { LeagueRoute } from "./routes/LeagueRoute";
+import { NotFoundRoute } from "./routes/NotFoundRoute";
 import "./App.css";
 
-interface LoadedData {
-  meta: Meta;
-  rules: Rules;
-  players: Players;
-  squad: Squad;
-  week: Week | null;
-  plan: Plan | null;
+/**
+ * The route table. Exported separately from `App` so tests (and any future story) can mount it
+ * under a `MemoryRouter` at a chosen path without a real browser history.
+ *
+ * Every path here has a matching entry in `routes/nav.ts`, except the parameterised player route
+ * and the catch-all.
+ */
+export function AppRoutes() {
+  return (
+    <Routes>
+      <Route element={<AppLayout />}>
+        <Route index element={<DashboardRoute />} />
+        <Route path="scout" element={<ScoutRoute />} />
+        <Route path="player/:id" element={<PlayerRoute />} />
+        <Route path="compare" element={<CompareRoute />} />
+        <Route path="squad" element={<SquadRoute />} />
+        <Route path="fixtures" element={<FixturesRoute />} />
+        <Route path="league" element={<LeagueRoute />} />
+        <Route path="*" element={<NotFoundRoute />} />
+      </Route>
+    </Routes>
+  );
 }
 
+/**
+ * Application root: theme, then data, then routing.
+ *
+ * `HashRouter`, not `BrowserRouter` — hosting is GitHub Pages under an unknown path prefix with no
+ * server able to rewrite unknown paths onto `index.html`, so a deep-linked or refreshed path route
+ * would 404 (DL-35). It also leaves E6-S9 with exactly one document to cache offline.
+ *
+ * `DataProvider` sits above the router so the published artefacts are loaded once for the whole
+ * session and survive every navigation.
+ */
 export function App() {
-  const [data, setData] = useState<LoadedData | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    Promise.all([
-      fetchMeta(),
-      fetchRules(),
-      fetchPlayers(),
-      fetchSquad(),
-      fetchWeek(),
-      fetchPlan(),
-    ])
-      .then(([meta, rules, players, squad, week, plan]) => {
-        if (!cancelled) setData({ meta, rules, players, squad, week, plan });
-      })
-      .catch((err: unknown) => {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  if (error) {
-    return (
-      <div className="app-error" role="alert">
-        Could not load published data: {error}
-      </div>
-    );
-  }
-
-  if (!data) {
-    return <div className="app-loading">Loading…</div>;
-  }
-
   return (
-    <div className="app">
-      <Header meta={data.meta} />
-      <main>
-        {data.week && <WeekPanel week={data.week} />}
-        {data.plan && <PlanPanel plan={data.plan} />}
-        <SquadPitch squad={data.squad} rules={data.rules} />
-        <Bench squad={data.squad} />
-        <PlayerTable players={data.players.players} />
-      </main>
-    </div>
+    <ThemeProvider>
+      <DataProvider>
+        <HashRouter
+          // Opt in to the v6→v7 behaviour changes now, while there are six routes rather than
+          // twelve. Both are behavioural, not cosmetic, and both are cheap to adopt here.
+          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+        >
+          <AppRoutes />
+        </HashRouter>
+      </DataProvider>
+    </ThemeProvider>
   );
 }

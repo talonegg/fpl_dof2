@@ -39,6 +39,8 @@ class Table(StrEnum):
     ENTRY_PICK = "entry_pick"
     ENTRY_TRANSFER = "entry_transfer"
     ENTRY_CHIP = "entry_chip"
+    LEAGUE_STANDING = "league_standing"
+    LEAGUE_PICK = "league_pick"
     PLAYER_CROSSWALK = "player_crosswalk"
     PLAYER_ADVANCED = "player_advanced"
     PLAYER_METRIC = "player_metric"
@@ -357,6 +359,58 @@ class EntryChipSchema(pa.DataFrameModel):
         coerce = True
 
 
+class LeagueStandingSchema(pa.DataFrameModel):
+    """One rival's position in a configured classic mini-league (E6-S10, FR-32).
+
+    Everything here is what the standings themselves report. ``player_name`` and ``entry_name`` are
+    public display names people chose for a public leaderboard, not personal data this project went
+    looking for — and no identifier here reaches the browser that is not already on the league's own
+    public page (NFR-11, Invariant 10).
+    """
+
+    league_id: Series[int] = pa.Field(ge=1)
+    league_name: Series[str]
+    entry_id: Series[int] = pa.Field(ge=1)
+    entry_name: Series[str]
+    player_name: Series[str]
+    rank: Series[int] = pa.Field(ge=1)
+    last_rank: Series[int] = pa.Field(ge=0, nullable=True)
+    event_total: Series[int] = pa.Field(nullable=True)
+    total: Series[int]
+
+    class Config:
+        strict = True
+        coerce = True
+        unique = ["league_id", "entry_id"]  # noqa: RUF012 - pandera Config
+
+
+class LeaguePickSchema(pa.DataFrameModel):
+    """A rival's squad for one gameweek.
+
+    **Deliberately not ``entry_pick``**, though the shape is nearly the same. That table is the
+    owner's own squad and the weekly decision is loaded from it; letting a hundred rivals' rows into
+    it would make every consumer's correctness depend on remembering to filter by ``entry_id``, and
+    the failure would be a plausible-looking squad built from somebody else's players (DP-13).
+
+    No ``purchase_price`` or ``selling_price``: the public picks endpoint carries neither for
+    another manager, and there is no transfer history fetched here to reconstruct them from. Absent
+    rather than zero — an unmeasured price is not a free player (DL-18).
+    """
+
+    entry_id: Series[int] = pa.Field(ge=1)
+    gameweek: Series[int] = pa.Field(ge=1, le=38)
+    player_id: Series[int] = pa.Field(ge=1)
+    slot: Series[int] = pa.Field(ge=1, le=15, description="1-11 start, 12-15 bench, in order.")
+    multiplier: Series[int] = pa.Field(ge=0, le=3)
+    is_captain: Series[bool]
+    is_vice_captain: Series[bool]
+
+    class Config:
+        strict = True
+        coerce = True
+        unique = ["entry_id", "gameweek", "slot"]  # noqa: RUF012 - pandera Config
+
+
 class _AdvancedMetrics(pa.DataFrameModel):
     """The metric columns, as nullable floats, shared by the two tables that carry them.
 
@@ -513,6 +567,8 @@ SCHEMAS: dict[Table, type[pa.DataFrameModel]] = {
     Table.ENTRY_PICK: EntryPickSchema,
     Table.ENTRY_TRANSFER: EntryTransferSchema,
     Table.ENTRY_CHIP: EntryChipSchema,
+    Table.LEAGUE_STANDING: LeagueStandingSchema,
+    Table.LEAGUE_PICK: LeaguePickSchema,
     Table.PLAYER_CROSSWALK: PlayerCrosswalkSchema,
     Table.PLAYER_ADVANCED: PlayerAdvancedSchema,
     Table.PLAYER_METRIC: PlayerMetricSchema,
@@ -530,6 +586,9 @@ OPTIONAL_TABLES: frozenset[Table] = frozenset(
         Table.ENTRY_PICK,
         Table.ENTRY_TRANSFER,
         Table.ENTRY_CHIP,
+        # Only exist when a mini-league is configured, which it is not by default (E6-S10).
+        Table.LEAGUE_STANDING,
+        Table.LEAGUE_PICK,
         # Everything an external source contributes. Losing one of those sources removes the
         # fields it fed and nothing else, which is what DP-15 asks for in table form.
         Table.PLAYER_CROSSWALK,

@@ -1,0 +1,443 @@
+/* Scout view (E6-S2).
+
+   Colour only ever arrives through a token from `tokens.css` — a literal here would be right in one
+   theme and wrong in the other, which is the whole reason the token layer exists (E6-S1).
+
+   Two layouts, one breakpoint. Above 640px the rows are a CSS grid that reads as a table; below it
+   they are cards. The breakpoint is mirrored in `useMediaQuery.ts` as `PHONE_QUERY`, because the
+   virtualiser needs the row height in pixels before anything renders — change the pair together. */
+
+.scout {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+
+/* ---------- Controls ---------- */
+
+.scout-controls-primary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.scout-search {
+  flex: 1 1 14rem;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  color: var(--text);
+  font-size: var(--font-size-base);
+}
+
+/* The card layout has no header to click, so sorting becomes a control (E6-S2). */
+.scout-sort-select {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: 1 1 100%;
+}
+
+/* The field must be allowed to shrink below the width of its longest option, or the select sizes
+   itself to that option's text and pushes the direction button off the card. */
+.scout-sort-select .scout-inline-field {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-right: 0;
+}
+
+.scout-sort-select select {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  padding: var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  color: var(--text);
+  font-size: var(--font-size-sm);
+}
+
+.scout-controls-buttons {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.scout-toggle {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-panel-alt);
+  color: var(--text);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+}
+
+.scout-toggle[disabled] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.scout-toggle.active {
+  background: var(--accent);
+  color: var(--on-accent);
+  border-color: var(--accent);
+}
+
+.scout-panel {
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel-alt);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: flex-start;
+}
+
+.scout-panel-hint {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.scout-fieldset {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  margin: 0;
+  min-width: 0;
+}
+
+.scout-fieldset-wide {
+  flex: 1 1 100%;
+}
+
+.scout-fieldset legend {
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  padding: 0 var(--space-1);
+}
+
+.scout-inline-field {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  margin-right: var(--space-3);
+}
+
+.scout-inline-field input {
+  width: 6rem;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+}
+
+.scout-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  /* Comfortably tappable at 390px: the picker is otherwise a row of hairline targets. */
+  min-height: 2rem;
+  padding-right: var(--space-2);
+}
+
+.scout-checkbox-pinned {
+  color: var(--text-muted);
+}
+
+.scout-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+/* Twenty clubs is more than fits on a phone, so the facet gets its own bounded scroller rather than
+   letting the panel grow past the table it is meant to be filtering. */
+.scout-club-row {
+  max-height: 8rem;
+  overflow-y: auto;
+}
+
+.scout-preset-save {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  flex: 1 1 100%;
+}
+
+.scout-preset-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  flex: 1 1 100%;
+}
+
+.scout-preset-item {
+  display: inline-flex;
+  align-items: stretch;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  overflow: hidden;
+  background: var(--bg-panel);
+}
+
+.scout-preset-apply,
+.scout-preset-delete {
+  border: none;
+  background: none;
+  color: var(--text);
+  cursor: pointer;
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--font-size-sm);
+}
+
+.scout-preset-delete {
+  color: var(--value-negative);
+  border-left: 1px solid var(--border);
+}
+
+/* ---------- Comparison tray ---------- */
+
+.scout-compare-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--nav-active-bg);
+  font-size: var(--font-size-sm);
+}
+
+.scout-compare-label {
+  font-weight: 600;
+}
+
+.scout-compare-names {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.scout-compare-chip {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--bg-panel);
+  color: var(--text);
+  padding: var(--space-1) var(--space-2);
+  font-size: var(--font-size-xs);
+  cursor: pointer;
+}
+
+.scout-compare-go {
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: var(--on-accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.scout-compare-hint {
+  color: var(--text-muted);
+}
+
+/* ---------- Virtualised grid ---------- */
+
+/* The scroller is bounded so the virtualiser has a viewport to measure. `dvh` keeps it honest on a
+   phone, where the browser chrome collapses on scroll and `vh` would leave the last rows behind it. */
+.scout-scroll {
+  margin-top: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  overflow: auto;
+  height: min(70dvh, 44rem);
+  background: var(--bg-panel);
+}
+
+.scout-head,
+.scout-row {
+  display: grid;
+  align-items: center;
+  /* Wide enough that the default columns keep their shape; narrower viewports scroll this box
+     horizontally rather than letting the page body do it. */
+  min-width: 46rem;
+}
+
+.scout-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--bg-panel-alt);
+  border-bottom: 1px solid var(--border);
+  height: 2.2rem;
+}
+
+.scout-body {
+  position: relative;
+  width: 100%;
+}
+
+.scout-row {
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  font-size: var(--font-size-sm);
+}
+
+.scout-row:hover {
+  background: var(--bg-panel-alt);
+}
+
+.scout-row.selected {
+  background: var(--row-selected-bg);
+}
+
+.scout-row:focus-visible,
+.scout-card:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+.scout-cell {
+  padding: 0 var(--space-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scout-cell-numeric {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.scout-cell-select {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.scout-cell-head {
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
+
+/* Invariant 6: the band is part of the number, not a footnote. Smaller and muted so the mean stays
+   scannable, but never absent and never separable from it. */
+.scout-xp-mean {
+  font-weight: 600;
+}
+
+.scout-xp-sd {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.scout-count {
+  margin: var(--space-3) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+/* ---------- Phone: cards ---------- */
+
+.scout-scroll-cards {
+  /* No horizontal scroll here — the card is the answer to a narrow viewport, not a narrower table. */
+  overflow-x: hidden;
+}
+
+.scout-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.scout-card.selected {
+  background: var(--row-selected-bg);
+}
+
+.scout-card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.scout-card-name {
+  font-weight: 600;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scout-card-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+}
+
+.scout-card-field {
+  display: flex;
+  flex-direction: column;
+}
+
+.scout-card-label {
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+}
+
+.scout-card-value {
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 640px) {
+  .scout {
+    padding: var(--space-3);
+  }
+
+  .scout-scroll {
+    height: min(62dvh, 40rem);
+  }
+}
+
+/* Available to any component that needs a label only a screen reader reads. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}

@@ -1,4 +1,14 @@
-import type { Meta, Plan, Players, Rules, Squad, Week } from "../contract/types";
+import type {
+  FixtureEntry,
+  Fixtures,
+  League,
+  Meta,
+  Plan,
+  Players,
+  Rules,
+  Squad,
+  Week,
+} from "../contract/types";
 
 export const meta: Meta = {
   contract_version: 1,
@@ -456,4 +466,242 @@ export const skippedPlan: Plan = {
   skipped: true,
   skipped_reason: "no published picks are available, and no squad is declared in configuration",
   deadline: week.deadline,
+};
+
+// --- The mini-league (E6-S10) ------------------------------------------------------------------
+//
+// Four entries chosen for the cases that are easy to get wrong rather than for realism: the owner
+// sits second, one rival has no published squad at all (outside the fetch budget), and one has a
+// squad with no captain flag. Those last two must not render the same as each other, and neither
+// may render as a zero — "not measured" and "measured as none" are different claims (DP-09).
+
+export const leagueTable: League = {
+  contract_version: 1,
+  league: {
+    id: 314159,
+    name: "The Sunday League",
+    entries_published: 4,
+    squads_published: 3,
+    squad_limit: 3,
+  },
+  gameweek: 3,
+  entries: [
+    {
+      entry_id: 100,
+      entry_name: "Roy Race XI",
+      player_name: "Alex Stone",
+      rank: 1,
+      last_rank: 3,
+      event_total: 68,
+      total: 210,
+      is_owner: false,
+      // Shares Raya and Watkins, captains Raya where the owner captains Watkins, and holds one
+      // player the owner does not (#4, deliberately absent from `players.json`).
+      squad: { player_ids: [1, 2, 4], starting_ids: [1, 2], captain_id: 1, vice_captain_id: 2 },
+    },
+    {
+      entry_id: 200,
+      entry_name: "DOF Select",
+      player_name: "The Owner",
+      rank: 2,
+      last_rank: 1,
+      event_total: 54,
+      total: 198,
+      is_owner: true,
+      squad: { player_ids: [1, 2, 3], starting_ids: [1, 2], captain_id: 2, vice_captain_id: 1 },
+    },
+    {
+      entry_id: 300,
+      entry_name: "Beyond The Budget",
+      player_name: "Sam Reed",
+      rank: 3,
+      last_rank: 2,
+      event_total: 41,
+      total: 175,
+      is_owner: false,
+      squad: null,
+    },
+    {
+      entry_id: 400,
+      entry_name: "New Arrival",
+      player_name: "Jo Patel",
+      rank: 4,
+      // Zero is the API's "never previously ranked", not a rank that held still.
+      last_rank: 0,
+      event_total: null,
+      total: 150,
+      is_owner: false,
+      squad: { player_ids: [2, 3, 5], starting_ids: [2, 3], captain_id: null, vice_captain_id: null },
+    },
+  ],
+};
+
+/** A configured league before any gameweek has been scored: a table and nothing else (DL-20). */
+export const preseasonLeague: League = {
+  contract_version: 1,
+  league: {
+    id: 314159,
+    name: "The Sunday League",
+    entries_published: 2,
+    squads_published: 0,
+    squad_limit: 3,
+  },
+  gameweek: null,
+  entries: [
+    {
+      entry_id: 100,
+      entry_name: "Roy Race XI",
+      player_name: "Alex Stone",
+      rank: 1,
+      last_rank: null,
+      event_total: null,
+      total: 0,
+      is_owner: false,
+      squad: null,
+    },
+    {
+      entry_id: 200,
+      entry_name: "DOF Select",
+      player_name: "The Owner",
+      rank: 2,
+      last_rank: null,
+      event_total: null,
+      total: 0,
+      is_owner: true,
+      squad: null,
+    },
+  ],
+};
+
+// --- The fixture ticker grid (E6-S8) -----------------------------------------------------------
+//
+// Five clubs over a four-gameweek window, built to exercise the cases that are easy to get wrong
+// rather than to be realistic: ARS has a double in GW3, MUN blanks twice, and MCI has the lowest
+// mean difficulty in the set while playing only half the fixtures — which is exactly the row that
+// makes "easiest run first" misleading if the blanks are not shown alongside it.
+
+function fixtureEntry(
+  opponentId: number,
+  opponent: string,
+  atHome: boolean,
+  attack: number,
+  defence: number,
+  goalsFor: number,
+  goalsAgainst: number,
+): FixtureEntry {
+  return {
+    opponent_id: opponentId,
+    opponent,
+    at_home: atHome,
+    kickoff_utc: null,
+    expected_goals_for: goalsFor,
+    expected_goals_against: goalsAgainst,
+    difficulty: (attack + defence) / 2,
+    attack_difficulty: attack,
+    defence_difficulty: defence,
+  };
+}
+
+function played(gameweek: number, entries: FixtureEntry[]) {
+  return {
+    gameweek,
+    is_double: entries.length > 1,
+    is_blank: entries.length === 0,
+    fixtures: entries,
+  };
+}
+
+export const fixtureGrid: Fixtures = {
+  contract_version: 1,
+  from_gameweek: 1,
+  to_gameweek: 4,
+  scale: {
+    minimum: 1.0,
+    neutral: 3.0,
+    maximum: 5.0,
+    anchor_ratio: 2.0,
+    description:
+      "3 is a fixture the model rates exactly league-average; lower is easier. Scores are clipped to 1-5.",
+  },
+  model: {
+    name: "M2_team_strength",
+    league_mean_goals: 1.42,
+    home_advantage: 1.18,
+    teams_rated: 20,
+  },
+  teams: [
+    {
+      team_id: 1,
+      team: "ARS",
+      name: "Arsenal",
+      mean_difficulty: 2.46,
+      mean_attack_difficulty: 2.4,
+      mean_defence_difficulty: 2.52,
+      gameweeks: [
+        played(1, [fixtureEntry(5, "BUR", true, 1.4, 1.8, 2.4, 0.7)]),
+        played(2, [fixtureEntry(16, "MUN", false, 3.6, 3.2, 1.1, 1.5)]),
+        played(3, [
+          fixtureEntry(13, "MCI", true, 1.6, 2.2, 2.2, 0.9),
+          fixtureEntry(2, "AVL", false, 3.2, 2.8, 1.3, 1.2),
+        ]),
+        played(4, [fixtureEntry(2, "AVL", true, 2.2, 2.6, 1.8, 1.0)]),
+      ],
+    },
+    {
+      team_id: 2,
+      team: "AVL",
+      name: "Aston Villa",
+      mean_difficulty: 3.45,
+      mean_attack_difficulty: 3.53,
+      mean_defence_difficulty: 3.38,
+      gameweeks: [
+        played(1, [fixtureEntry(13, "MCI", false, 4.8, 4.4, 0.7, 2.1)]),
+        played(2, [fixtureEntry(5, "BUR", true, 1.8, 2.2, 2.1, 0.9)]),
+        played(3, [fixtureEntry(1, "ARS", true, 3.6, 3.2, 1.2, 1.4)]),
+        played(4, [fixtureEntry(1, "ARS", false, 3.9, 3.7, 1.0, 1.7)]),
+      ],
+    },
+    {
+      team_id: 5,
+      team: "BUR",
+      name: "Burnley",
+      mean_difficulty: 4.23,
+      mean_attack_difficulty: 4.35,
+      mean_defence_difficulty: 4.1,
+      gameweeks: [
+        played(1, [fixtureEntry(1, "ARS", false, 4.6, 4.2, 0.6, 2.3)]),
+        played(2, [fixtureEntry(2, "AVL", false, 4.2, 4.0, 0.8, 2.0)]),
+        played(3, [fixtureEntry(13, "MCI", true, 4.9, 4.7, 0.5, 2.5)]),
+        played(4, [fixtureEntry(16, "MUN", false, 3.7, 3.5, 0.9, 1.8)]),
+      ],
+    },
+    {
+      team_id: 13,
+      team: "MCI",
+      name: "Manchester City",
+      mean_difficulty: 1.5,
+      mean_attack_difficulty: 1.4,
+      mean_defence_difficulty: 1.6,
+      gameweeks: [
+        played(1, [fixtureEntry(2, "AVL", true, 1.2, 1.4, 2.6, 0.6)]),
+        played(2, []),
+        played(3, [fixtureEntry(5, "BUR", false, 1.6, 1.8, 2.3, 0.8)]),
+        played(4, []),
+      ],
+    },
+    {
+      team_id: 16,
+      team: "MUN",
+      name: "Manchester United",
+      mean_difficulty: 2.55,
+      mean_attack_difficulty: 2.7,
+      mean_defence_difficulty: 2.4,
+      gameweeks: [
+        played(1, []),
+        played(2, [fixtureEntry(1, "ARS", true, 3.0, 2.8, 1.4, 1.3)]),
+        played(3, []),
+        played(4, [fixtureEntry(5, "BUR", false, 2.4, 2.0, 1.9, 0.8)]),
+      ],
+    },
+  ],
 };

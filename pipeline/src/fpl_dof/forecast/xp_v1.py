@@ -350,10 +350,21 @@ def to_frame(forecasts: list[PlayerForecast]) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
+def team_matches(history: pd.DataFrame, *, use_xg: bool = False) -> pd.DataFrame:
+    """One row per team per fixture, with goals for and against — what M2 fits on.
+
+    A public name for :func:`_team_matches`, because the fixture ticker (DL-37) needs the same
+    reconstruction and reaching into another module's private is how a second, subtly different
+    copy of it eventually appears. There is already one such copy in the chip replay.
+    """
+    return _team_matches(history, use_xg=use_xg)
+
+
 __all__ = [
     "COMPONENT_ORDER",
     "ComponentPredictor",
     "PlayerForecast",
     "forecast_player",
+    "team_matches",
     "to_frame",
 ]

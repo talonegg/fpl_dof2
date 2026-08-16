@@ -23,9 +23,12 @@ from fpl_dof.obs.manifest import git_sha, utcnow
 from fpl_dof.paths import find_repo_root
 from fpl_dof.pipeline import Output, StageContext, StageResult
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
+from fpl_dof.publish.fixtures import build_fixtures
+from fpl_dof.publish.history import build_history
+from fpl_dof.publish.league import build_league
 from fpl_dof.publish.typescript import write_types
 from fpl_dof.rules.models import GameRules
-from fpl_dof.silver.store import read_table
+from fpl_dof.silver.store import read_table, read_table_optional
 from fpl_dof.silver.tables import Table
 from fpl_dof.stages.decision import PLAN_FILENAME
 from fpl_dof.stages.forecast import XP_FILENAME
@@ -56,26 +59,47 @@ def run(ctx: StageContext) -> StageResult:
     rules_payload = _rules(rules)
     players = _players(forecast, teams)
     squad_payload = _squad(squad, rules)
+    history = _history(ctx, season, rules)
+    fixtures = _fixtures(ctx, season, teams, gameweeks)
 
     outputs = [
         Output(path=contract.write("meta", meta, destination)),
         Output(path=contract.write("rules", rules_payload, destination)),
         Output(path=contract.write("players", players, destination), rows=len(players["players"])),
         Output(path=contract.write("squad", squad_payload, destination)),
+        Output(path=contract.write("history", history, destination), rows=len(history["players"])),
+        Output(path=contract.write("fixtures", fixtures, destination), rows=len(fixtures["teams"])),
     ]
 
+    # The mini-league, when one is configured (E6-S10). Configuring a league is the whole trigger:
+    # with none set there is no artefact, and a stale one from a previous configuration is removed
+    # rather than left to describe a league nobody is comparing against any more.
+    # Artefacts whose absence is a normal published state, and which must therefore be *removed*
+    # when absent rather than left behind: a stale file is not merely old, it is a false statement
+    # about the present. Their names are collected so the copy into the app's public directory can
+    # delete them there too — that directory is what the browser actually reads, so a stale file
+    # surviving there is the only copy that would be believed.
+    removed: list[str] = []
+
+    league = _league(ctx, season, gameweeks)
+    if league is not None:
+        outputs.append(Output(path=contract.write("league", league, destination)))
+    else:
+        removed.append("league.json")
+
     # The weekly decision and the multi-gameweek plan, when there are any. Their absence is normal
-    # before the season starts (DL-20), so a missing file is not an error — but a *stale* one would
-    # be a lie, and is therefore removed rather than left behind.
+    # before the season starts (DL-20), so a missing file is not an error.
     for artefact, filename in (("week", WEEK_FILENAME), ("plan", PLAN_FILENAME)):
         source = gold / filename
-        target = destination / f"{artefact}.json"
         if source.exists():
             payload = json.loads(source.read_text(encoding="utf-8"))
             payload["contract_version"] = CONTRACT_VERSION
             outputs.append(Output(path=contract.write(artefact, payload, destination)))
-        elif target.exists():
-            target.unlink()
+        else:
+            removed.append(f"{artefact}.json")
+
+    for name in removed:
+        (destination / name).unlink(missing_ok=True)
 
     root = find_repo_root()
     if root is not None:
@@ -96,6 +120,8 @@ def run(ctx: StageContext) -> StageResult:
             for output in list(outputs):
                 if output.path.suffix == ".json":
                     shutil.copy2(output.path, public / output.path.name)
+            for name in removed:
+                (public / name).unlink(missing_ok=True)
             log.info("publish.copied_to_app", extra={"destination": str(public)})
 
     log.info(
@@ -107,6 +133,12 @@ def run(ctx: StageContext) -> StageResult:
             "contract_version": CONTRACT_VERSION,
             "players": len(players["players"]),
             "squad_players": len(squad_payload["players"]),
+            "history_players": len(history["players"]),
+            "history_gameweeks_played": history["gameweeks_played"],
+            "fixture_teams": len(fixtures["teams"]),
+            "fixture_teams_rated": fixtures["model"]["teams_rated"],
+            "league_entries": len(league["entries"]) if league else 0,
+            "league_squads": league["league"]["squads_published"] if league else 0,
         },
         outputs=outputs,
     )
@@ -197,6 +229,111 @@ def _players(forecast: pd.DataFrame, teams: pd.DataFrame) -> dict[str, Any]:
             }
         )
     return {"contract_version": CONTRACT_VERSION, "players": players}
+
+
+def _history(ctx: StageContext, season: str, rules: GameRules) -> dict[str, Any]:
+    """Per-player trend series for the current season (E6-S3, E6-S5, DL-37).
+
+    Both source tables are optional: ``player_gameweek`` has no rows for a season nobody has played
+    yet, and ``price_history`` has none until something has observed a price. Neither absence is a
+    failure, and the artefact is published empty rather than omitted so a view has a shape to
+    render "no gameweeks played yet" from (DP-15).
+    """
+    silver = ctx.layout.silver
+    return build_history(
+        player_gameweek=read_table_optional(silver, season, Table.PLAYER_GAMEWEEK),
+        price_history=read_table_optional(silver, season, Table.PRICE_HISTORY),
+        players=read_table(silver, season, Table.PLAYER),
+        season=season,
+        rules=rules,
+        config=ctx.config.publish.history,
+        contract_version=CONTRACT_VERSION,
+    )
+
+
+def _fixtures(
+    ctx: StageContext, season: str, teams: pd.DataFrame, gameweeks: pd.DataFrame
+) -> dict[str, Any]:
+    """The model-derived fixture difficulty grid (E6-S8, DL-37).
+
+    M2 is fitted on **this season's** results only. The silver table holds the backfilled prior
+    seasons too, and it would be tempting to fit on them for a grid that says something useful in
+    August — but FPL reassigns club ids between seasons and nothing here maps them, so a
+    multi-season fit would rate this season's clubs on last season's ids. That is precisely the
+    silent, plausible-looking wrongness DP-13 says to spend the effort avoiding. Preseason the
+    model therefore has no ratings, every fixture scores neutral, and ``teams_rated`` says so.
+    """
+    silver = ctx.layout.silver
+    from fpl_dof.forecast.models import TeamStrengthModel
+    from fpl_dof.forecast.xp_v1 import team_matches
+
+    history = read_table_optional(silver, season, Table.PLAYER_GAMEWEEK)
+    current = (
+        history[history["season"] == season]
+        if history is not None and not history.empty
+        else pd.DataFrame()
+    )
+    model = TeamStrengthModel()
+    if not current.empty:
+        model = model.fit(team_matches(current))
+
+    first = 1
+    if _has_next(gameweeks):
+        first = as_int(gameweeks[gameweeks["is_next"]]["gameweek"].iloc[0])
+    last_gameweek = as_int(gameweeks["gameweek"].max()) if not gameweeks.empty else first
+    # The same window `plan.json` covers, so the ticker and the plan cannot disagree about how far
+    # ahead "ahead" is — clipped at the end of the season rather than running off it.
+    span = ctx.config.decision.horizon.gameweeks
+    return build_fixtures(
+        fixtures=read_table(silver, season, Table.FIXTURE),
+        teams=teams,
+        model=model,
+        from_gameweek=first,
+        to_gameweek=min(first + span - 1, last_gameweek),
+        config=ctx.config.publish.fixtures,
+        contract_version=CONTRACT_VERSION,
+    )
+
+
+def _league(ctx: StageContext, season: str, gameweeks: pd.DataFrame) -> dict[str, Any] | None:
+    """The configured mini-league, or ``None`` when there is no league to publish (E6-S10, FR-32).
+
+    Three ways to get ``None``, and they are not the same thing: no league configured, a configured
+    league the source could not read, and a league whose standings came back empty. Only the first
+    is routine — the other two have already been recorded as ingest warnings by the time this runs,
+    so the artefact's absence is never the only trace of them (DP-15).
+    """
+    league_id = ctx.config.entry.league_id
+    if league_id is None:
+        return None
+
+    silver = ctx.layout.silver
+    standings = read_table_optional(silver, season, Table.LEAGUE_STANDING)
+    if standings is None or standings.empty:
+        log.warning("publish.league_absent", extra={"league_id": league_id})
+        return None
+
+    return build_league(
+        standings=standings,
+        league_picks=read_table_optional(silver, season, Table.LEAGUE_PICK),
+        entry_picks=read_table_optional(silver, season, Table.ENTRY_PICK),
+        owner_entry_id=ctx.config.entry.team_id,
+        gameweek=_latest_finished(gameweeks),
+        squad_limit=ctx.config.entry.league_rival_limit,
+        contract_version=CONTRACT_VERSION,
+    )
+
+
+def _latest_finished(gameweeks: pd.DataFrame) -> int | None:
+    """The gameweek every published squad is read from. None before any has been scored (DL-20)."""
+    if gameweeks.empty:
+        return None
+    finished = gameweeks[gameweeks["finished"]]
+    return as_int(finished["gameweek"].max()) if not finished.empty else None
+
+
+def _has_next(gameweeks: pd.DataFrame) -> bool:
+    return not gameweeks.empty and bool(gameweeks["is_next"].any())
 
 
 def _squad(squad: dict[str, Any], rules: GameRules) -> dict[str, Any]:
