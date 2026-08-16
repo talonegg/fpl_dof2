@@ -440,3 +440,196 @@ export interface Plan {
   pruning?: PruningReport;
   warnings?: string[];
 }
+
+/** One player's two series. Keyed by the same `id` as players.json, so a view joins on it directly. */
+export interface PlayerHistory {
+  /** Matches `id` in players.json. This is FPL's element id, which is reassigned between seasons — safe here precisely because this artefact is one season. */
+  id: number;
+  /** Performance by gameweek, ascending. Empty until the first gameweek is scored. A player with two fixtures in one gameweek appears once per fixture, so a double gameweek is two entries with the same `gw`. */
+  gameweeks: HistoryGameweek[];
+  /** Price and ownership, ascending by date, emitted only when something changed. Price and ownership are step functions, so the omitted days are the days the value was unchanged — carry the last value forward to fill them. */
+  prices: HistoryPrice[];
+}
+
+/** What a player did in one fixture. Field names are abbreviated deliberately: at ~700 players over 38 gameweeks the key names are a material fraction of the payload. */
+export interface HistoryGameweek {
+  gw: number;
+  /** FPL points actually scored in this fixture. */
+  pts: number;
+  mins: number;
+  /** Goals actually scored. */
+  goals: number;
+  /** Assists actually made. */
+  assists: number;
+  /** Expected goals for this fixture. Absent means not measured, which is not the same claim as zero (DL-18) — a chart must not plot an absent value as a nil return. */
+  xg?: number;
+  /** Expected assists for this fixture. Absent means not measured. */
+  xa?: number;
+  /** Defensive Contribution actions counted for this player's position. Absent means not measured — the component did not exist before 2025/26. */
+  dc?: number;
+  /** Points actually awarded for those actions. All-or-nothing at a per-position threshold, computed from the same rules configuration the pipeline scores with, never from a literal (Invariant 2). Absent whenever `dc` is. */
+  dc_pts?: number;
+  /** Price at this gameweek, in £m. */
+  price: number;
+}
+
+/** One price/ownership observation. Emitted only on change, plus the first and last observation of the season. */
+export interface HistoryPrice {
+  /** Observation date, ISO 8601 (YYYY-MM-DD). */
+  on: string;
+  /** In £m. */
+  price: number;
+  /** Ownership as a percentage of all managers, as FPL publishes it. This is the only ownership figure in this artefact and it is always a percentage — the per-gameweek `selected_by` in the source table is a raw manager count on a different scale, and carrying both is how a wrong chart gets drawn (DL-37). */
+  owned: number;
+}
+
+/** Per-player time series for the current season: what each player actually did, gameweek by gameweek, and how their price and ownership moved. Measured history, not forecast — so unlike players.json these numbers carry no uncertainty, because inventing an error bar for something that was counted would be worse than having none (DL-37). Lazy-loaded by route: it is larger than the other artefacts combined once the season is under way, and only the trend-bearing views want it. */
+export interface History {
+  contract_version: 1;
+  /** The season every series here belongs to, e.g. 2026/27. One season only: a chart mixing two scoring regimes on one axis is a chart that misleads (DL-37). */
+  season: string;
+  /** How many gameweeks have been scored. Zero before the season starts, which is a normal state and not a failure (DL-20) — a view should say 'no gameweeks played yet' rather than render an empty axis. */
+  gameweeks_played: number;
+  /** Date of the earliest price observation, ISO 8601. Null when nothing has been observed yet. FPL publishes only the current price, so history exists only for days something recorded it — nothing can reconstruct the days nobody watched. */
+  observed_from?: string | null;
+  /** Date of the most recent price observation, ISO 8601. Null when nothing has been observed yet. */
+  observed_to?: string | null;
+  players: PlayerHistory[];
+}
+
+/** What a difficulty number means, published alongside the numbers so the reader can argue with the scale rather than take it on faith (DP-10). */
+export interface DifficultyScale {
+  /** Easiest possible score. Scores are clipped to this. */
+  minimum: number;
+  /** A fixture the model rates exactly league-average. Not a midpoint by convention — the arithmetic genuinely lands here for an average fixture. */
+  neutral: number;
+  /** Hardest possible score. Scores are clipped to this. */
+  maximum: number;
+  /** The tunable that sets the scale's steepness: a side expected to score this multiple of the league mean scores `minimum` for attack. Named and defaulted rather than buried as a literal (DP-06). */
+  anchor_ratio: number;
+  /** The formula in words, for a tooltip. */
+  description: string;
+}
+
+/** Which model produced these expectations, and its fitted parameters. A difficulty rating whose origin cannot be recovered is one nobody can challenge (DP-09). */
+export interface FixtureModel {
+  /** The component model, e.g. M2_team_strength. */
+  name: string;
+  /** Time-decayed mean goals per team per match. The denominator every ratio below is taken against. */
+  league_mean_goals: number;
+  /** Multiplier applied to the home side's expected goals. */
+  home_advantage: number;
+  /** How many clubs the model actually has ratings for. Zero means it fell back to league-average everywhere, which makes every fixture a 3 — visible degradation rather than silent (DP-15). */
+  teams_rated: number;
+}
+
+/** One club's run over the window. The summary means are what 'sortable by run quality' sorts on. */
+export interface TeamFixtures {
+  team_id: number;
+  /** Short club name, e.g. ARS. */
+  team: string;
+  /** Full club name. */
+  name: string;
+  /** Mean overall difficulty across the fixtures actually scheduled in the window. Blanks contribute nothing rather than counting as maximally hard — a blank is flagged separately so a view can penalise it on its own terms. Null when the club has no fixture at all in the window. */
+  mean_difficulty?: number | null;
+  /** As `mean_difficulty`, for the attacking half of the scale. */
+  mean_attack_difficulty?: number | null;
+  /** As `mean_difficulty`, for the defensive half of the scale. */
+  mean_defence_difficulty?: number | null;
+  /** One entry per gameweek in the window, always present and always in ascending order — including the gameweeks this club blanks, which is exactly the entry that would otherwise be invisible. */
+  gameweeks: FixtureGameweek[];
+}
+
+/** One club, one gameweek. A double is two fixtures here; a blank is none. */
+export interface FixtureGameweek {
+  gameweek: number;
+  /** This club has two or more fixtures in this gameweek. */
+  is_double: boolean;
+  /** This club has no fixture in this gameweek. */
+  is_blank: boolean;
+  fixtures: FixtureEntry[];
+}
+
+/** One fixture, rated from the perspective of the club whose row it sits in. */
+export interface FixtureEntry {
+  opponent_id: number;
+  /** Short club name of the opposition. */
+  opponent: string;
+  at_home: boolean;
+  /** UTC. The browser renders local zones itself (DL-11). Null for a fixture with no confirmed time. */
+  kickoff_utc?: string | null;
+  /** Goals the model expects this club to score. The derivation behind the difficulty score, published so the score is checkable (DP-09). */
+  expected_goals_for: number;
+  /** Goals the model expects this club to concede. */
+  expected_goals_against: number;
+  /** Overall difficulty: the mean of the attacking and defensive scores. Lower is easier. */
+  difficulty: number;
+  /** Difficulty for this club's attackers, from expected goals for. Published separately because a high-scoring game between two good sides is a good fixture for forwards and a bad one for defenders, and collapsing that into one number is most of what is wrong with a single FDR figure. */
+  attack_difficulty: number;
+  /** Difficulty for this club's defenders and goalkeeper, from expected goals against. */
+  defence_difficulty: number;
+}
+
+/** The fixture ticker: a team-by-gameweek difficulty grid built from the model's own expected goals rather than FPL's static preseason FDR (DL-37). Covers the same gameweek window plan.json does, so the ticker and the plan cannot disagree about how far ahead 'ahead' is. Doubles and blanks come from the same fixture-counting the chip calendar uses, not from a second derivation of the same fact. */
+export interface Fixtures {
+  contract_version: 1;
+  /** First gameweek in the grid — the next one to be played. */
+  from_gameweek: number;
+  /** Last gameweek in the grid, inclusive. Clipped at the end of the season. */
+  to_gameweek: number;
+  scale: DifficultyScale;
+  model: FixtureModel;
+  teams: TeamFixtures[];
+}
+
+/** Which league this is, and how much of it was read. Published because 'you are 4th' means something different in a league of 8 than in one of 800,000, and because the rows here are the top of a table rather than all of it. */
+export interface LeagueMeta {
+  /** The FPL classic league ID, as configured. */
+  id: number;
+  name: string;
+  /** Rows in `entries`. The first page of the standings, capped at what the API returns per page — not necessarily the whole league. */
+  entries_published: number;
+  /** How many of those entries have a `squad`. Below `squad_limit` means squads were asked for and not available, which is normal before a gameweek is scored. */
+  squads_published: number;
+  /** The configured budget for how many entries' squads to fetch. Zero means squads were never requested, so an absent squad says nothing about availability — the tunable behind the cost, named rather than buried (DP-06). */
+  squad_limit: number;
+}
+
+/** One manager's row in the table, with their squad when it was read. */
+export interface LeagueEntry {
+  entry_id: number;
+  /** The team name, as it appears on the league's own public page. */
+  entry_name: string;
+  /** The manager's display name, as it appears on the league's own public page. */
+  player_name: string;
+  rank: number;
+  /** Rank at the previous update. Zero for an entry that had none. Null when not reported. */
+  last_rank?: number | null;
+  /** Points scored in the latest scored gameweek. Null when not reported. */
+  event_total?: number | null;
+  /** Points for the season to date. */
+  total: number;
+  /** This row is the configured team. **The comparison is anchored on this row and no other**: differentials are measured against the squad actually fielded, never against the squad the optimiser recommended, because a differential against a team you do not own is not a differential (DP-09). At most one entry has this set, and none does when no team is configured or the owner is not in this league. */
+  is_owner: boolean;
+  squad?: LeagueSquad | null;
+}
+
+/** A manager's fifteen for the published gameweek, as the public picks endpoint reports them. Carries no prices: the endpoint does not report another manager's purchase or selling price, and this project will never authenticate to obtain one (Invariant 4). */
+export interface LeagueSquad {
+  /** All fifteen, ascending. What overlap and differentials are computed from. */
+  player_ids: number[];
+  /** The eleven who started, in squad order. */
+  starting_ids: number[];
+  /** Null when the picks carried no captain flag. */
+  captain_id: number | null;
+  vice_captain_id: number | null;
+}
+
+/** A classic mini-league: its table, and the squads of the entries near the top of it (E6-S10, FR-32). Published only when a league is configured — when it is not, this file is absent from the published directory entirely, which is a different and more honest statement than an empty table. The comparison itself (overlap, differentials, captain divergence) is derived in the app from these facts rather than precomputed here, so the reader can see what it was derived from (DP-09, DP-10). */
+export interface League {
+  contract_version: 1;
+  league: LeagueMeta;
+  /** The gameweek every published squad is from — the most recent one with a final score. Null before any gameweek has been scored, when no manager has picks to read (DL-20) and the table is the only thing this artefact can carry. */
+  gameweek: number | null;
+  entries: LeagueEntry[];
+}

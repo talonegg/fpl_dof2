@@ -1,0 +1,442 @@
+/* Squad builder and plan timeline (E6-S7).
+
+   Colour arrives only through a token from `tokens.css`. A literal here would be right in one theme
+   and wrong in the other, which is the same defect as a hardcoded club limit in a `.tsx` file: the
+   value is correct in exactly one situation and nobody can find it when the other one is wrong.
+
+   The builder is two columns on a laptop and one on a phone — the squad list and the picker are both
+   readable stacked, so there is no wide artefact needing its own scroll box here. */
+
+.builder,
+.timeline {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  margin-bottom: var(--space-5);
+}
+
+.builder h2,
+.timeline h2 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-lg);
+}
+
+.builder h3,
+.timeline h3 {
+  margin: var(--space-4) 0 var(--space-2);
+  font-size: var(--font-size-base);
+}
+
+/* --- Summary ------------------------------------------------------------------------------- */
+
+.builder-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  background: var(--bg-panel-alt);
+  border-radius: var(--radius-sm);
+}
+
+.builder-summary > div {
+  display: flex;
+  flex-direction: column;
+}
+
+.builder-figure {
+  font-size: var(--font-size-lg);
+  font-weight: 600;
+  color: var(--text);
+}
+
+.builder-over {
+  color: var(--value-negative);
+}
+
+.builder-label {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.builder-basis,
+.builder-honesty {
+  margin: var(--space-3) 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+/* --- Legality ------------------------------------------------------------------------------ */
+
+.builder-legal {
+  margin: var(--space-3) 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--accent);
+  background: var(--bg-panel-alt);
+  font-size: var(--font-size-sm);
+}
+
+.builder-violations {
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  border-radius: var(--radius-sm);
+}
+
+.builder-violations h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+.builder-violations ul,
+.builder-infeasible ul {
+  margin: 0;
+  padding-left: var(--space-5);
+  font-size: var(--font-size-sm);
+}
+
+.builder-infeasible {
+  margin: var(--space-3) 0;
+  padding: var(--space-3);
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  border-radius: var(--radius-sm);
+}
+
+.builder-infeasible h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+.builder-run,
+.builder-unknown {
+  margin: var(--space-3) 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+/* --- Actions ------------------------------------------------------------------------------- */
+
+.builder-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.builder button,
+.timeline select {
+  font: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--text);
+  background: var(--bg-panel-alt);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+  cursor: pointer;
+}
+
+.builder button:hover {
+  border-color: var(--accent);
+}
+
+.builder button[aria-pressed="true"] {
+  background: var(--nav-active-bg);
+  border-color: var(--accent);
+}
+
+.builder button:focus-visible,
+.builder input:focus-visible,
+.builder select:focus-visible,
+.timeline select:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* --- The two columns ----------------------------------------------------------------------- */
+
+.builder-columns {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+@media (min-width: 900px) {
+  .builder-columns {
+    grid-template-columns: 3fr 2fr;
+  }
+}
+
+.builder-group {
+  margin-bottom: var(--space-3);
+}
+
+.builder-group h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.builder-group-count {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.builder-empty {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin: 0 0 var(--space-2);
+}
+
+/* --- A squad row --------------------------------------------------------------------------- */
+
+.builder-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-1) var(--space-2);
+  align-items: center;
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--space-2);
+  background: var(--bg-panel);
+}
+
+/* Starting and locked are marked by a border, not by colour alone — the same rule the fixture
+   ticker follows, and the reason every row also carries its state as button text. */
+.builder-row-starting {
+  border-left: 3px solid var(--accent);
+}
+
+.builder-row-locked {
+  border-color: var(--accent);
+  background: var(--row-selected-bg);
+}
+
+.builder-row-name {
+  font-weight: 600;
+}
+
+.builder-row-sub,
+.builder-row-xp {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.builder-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  grid-column: 1 / -1;
+}
+
+.builder-armband {
+  display: inline-block;
+  margin-left: var(--space-1);
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-pill);
+  background: var(--badge-vice-bg);
+  color: var(--badge-vice-fg);
+  font-size: var(--font-size-xs);
+}
+
+/* --- The picker ---------------------------------------------------------------------------- */
+
+.builder-picker {
+  background: var(--bg-panel-alt);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+}
+
+.builder-picker h3 {
+  margin-top: 0;
+}
+
+.builder-needed {
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin: 0 0 var(--space-2);
+}
+
+.builder-picker-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: flex-end;
+  margin-bottom: var(--space-3);
+}
+
+.builder-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.builder-field input,
+.builder-field select {
+  font: inherit;
+  font-size: var(--font-size-sm);
+  color: var(--text);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  padding: var(--space-1) var(--space-2);
+}
+
+.builder-candidates,
+.builder-banned ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.builder-candidates > li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.builder-candidate-name {
+  font-weight: 600;
+}
+
+.builder-candidate-sub,
+.builder-candidate-xp {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.builder-banned {
+  margin-top: var(--space-3);
+}
+
+.builder-banned h4 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-sm);
+}
+
+.builder-banned li {
+  font-size: var(--font-size-sm);
+  padding: var(--space-1) 0;
+}
+
+/* --- The plan timeline --------------------------------------------------------------------- */
+
+.timeline-field {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+  margin-bottom: var(--space-3);
+}
+
+.timeline-weeks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+}
+
+.timeline-week {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  background: var(--bg-panel-alt);
+}
+
+.timeline-week-head {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+  margin-bottom: var(--space-2);
+}
+
+.timeline-gw {
+  font-weight: 700;
+}
+
+.timeline-chip,
+.timeline-tag {
+  display: inline-block;
+  margin-left: var(--space-1);
+  padding: 0 var(--space-2);
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: var(--font-size-xs);
+}
+
+.timeline-moves {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+.timeline-in {
+  font-weight: 600;
+}
+
+.timeline-hold {
+  color: var(--text-muted);
+}
+
+.timeline-figures {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.timeline-figures dt {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.timeline-figures dd {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.timeline-note,
+.timeline-note-inline,
+.timeline-unavailable {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.timeline-note {
+  margin: var(--space-2) 0 0;
+}
+
+.timeline-expiry,
+.timeline-windows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: var(--font-size-sm);
+}
+
+.timeline-expiry > li,
+.timeline-windows > li {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+
+/* Urgency is carried by the border and by the words "this is the last chance", never by colour
+   alone — a reader who cannot see the tint still reads the sentence. */
+.timeline-expiry-urgent {
+  background: var(--warn-bg);
+  border-left: 3px solid var(--warn-border);
+}

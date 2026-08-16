@@ -1174,6 +1174,464 @@ measured, and waiting on one honest piece of engineering to reach production.
 
 ---
 
+## DL-35 — The web app routes on the hash, and published data is loaded once into a React context
+
+**Date:** 2026-08-15 · **Status:** Accepted · **Arose in:** E6-S1 (FR-34)
+
+E6-S1 turns the single flat page into a routed application, which forces two choices that later
+stories will build on and that are expensive to reverse once eight views depend on them.
+
+**1. `react-router-dom` v6, using `HashRouter` rather than `BrowserRouter`.** The router itself is
+an ordinary npm dependency — no service, no tier, no running cost, so Invariant 3 is not engaged —
+and three transitive packages is a proportionate cost for the routing every remaining E6 story
+needs. The *hash* is the load-bearing part: hosting is GitHub Pages (OD-02, closed by
+[DL-12](#dl-12--public-repository)) with `vite.config.ts` set to a relative `base`, so the app must
+work from an unknown path prefix with **no server able to rewrite unknown paths to `index.html`**.
+Path routing on that substrate makes a deep link or a refresh a real 404 — either a broken URL or
+the `404.html` copy trick, which is a workaround for having no server in a project whose first
+architectural commitment is that there is no server. Hash routing needs neither, keeps every route
+reachable when the app is opened from a file or an offline cache, and means E6-S9's service worker
+has exactly one document to cache. The cost is uglier URLs; that is the whole cost.
+
+**2. Published artefacts are fetched once, at the application root, into a React context.** All six
+artefacts are already loaded together by the current page and total well under the NFR-04 budget, so
+per-route fetching would buy nothing and cost a re-fetch on every navigation. The promise is
+memoised at module scope, so navigation between routes never touches the network again; route
+components consume it through a `useData()` hook and never call `fetch` themselves. No state
+library is introduced — context plus hooks is sufficient at this size, and a smaller dependency
+surface is a first-paint budget kept.
+
+**Consequences.** `web/src/data/` is now the only place in the web app allowed to fetch, which is
+where Invariant 8 is enforced by structure rather than by remembering. E6-S9's offline story gets a
+single cache-warming seam (`loadPublishedData`) and a single document to serve. The loading and
+error states are rendered once by the shell, so DP-15 degradation behaviour is written once rather
+than in each of eight views. Reversal, if hosting ever grows a rewrite rule, is a one-line change
+from `HashRouter` to `BrowserRouter`.
+
+---
+
+## DL-36 — The scout table virtualises on `@tanstack/react-virtual`, and hands a comparison selection over in the URL
+
+**Date:** 2026-08-15 · **Status:** Accepted · **Arose in:** E6-S2 (FR-27, FR-28, NFR-04)
+
+E6-S2 builds the scout table over the full ~700-player set. Three choices in it are load-bearing for
+later stories and awkward to reverse, so they are recorded rather than left to be inferred from the
+code.
+
+**1. Virtualisation is a dependency, not a hand-roll: `@tanstack/react-virtual`.** ~700 rows across
+up to eighteen columns is roughly 12,600 cells, and the epic already states plainly that rendering
+them naively will not meet NFR-04. The library is an ordinary npm package with no runtime dependency
+of its own beyond a small reactive core — no service, no tier, no running cost, so Invariant 3 is not
+engaged — and it is ~4 KB gzipped, which is nothing against a 3 MB first-paint budget. A hand-rolled
+windowing loop would be a second implementation of scroll-offset arithmetic that nobody tests as
+hard as its authors test theirs. **Q-06 stays resolved as the epic scopes it**: plain JSON plus
+client-side `filter`/`sort` over an in-memory array, no DuckDB-WASM on the scout path. Confirming
+that by measurement on a real phone remains an E6 definition-of-done item, not something this story
+claims to have done.
+
+**2. The comparison selection travels in the hash query string, `#/compare?compare=1,2,3`.** The
+scout view and the comparison view (E6-S4) are separate routes that must agree on which two-to-four
+players are being compared, and they were built concurrently. A URL parameter is the version of that
+seam a human can read, edit, bookmark and paste into a message — which is the DP-10 argument applied
+to a UI seam — and it costs no shared mutable state between two routes that otherwise know nothing
+about each other. `web/src/data/comparison.ts` owns the parsing, the clamping to the two-to-four
+range and the link construction, so neither route hand-writes the format. The *in-progress* selection
+on the scout page is additionally mirrored to `localStorage` under `fpl-dof.compare-selection`, so
+ticking three players, wandering off to a player detail page and coming back does not lose the work;
+that mirror is a convenience, and the URL is the contract.
+
+**3. Saved filter presets are named `localStorage` entries under `fpl-dof.scout-presets`, and are
+read defensively.** They are a personal convenience on a single device, not published data: there is
+no account, no server and nothing to sync to (NFR-11), so anything beyond browser storage would mean
+inventing infrastructure this project has committed to not having. Storage that is absent, full,
+disabled by private browsing, or holding a shape written by an older version of the app degrades to
+"no saved presets" and never to an error — DP-15 at the smallest possible scale, and the reason the
+reader loses a convenience rather than the page.
+
+**Consequences.** The column set is data (`web/src/components/scout/columns.ts`), so E6-S3 and E6-S4
+can reuse the accessors and formatters rather than restating how a component is rendered. `minutes`,
+`form` and the fixture run named in the E6-S2 story are **not in the published `players.json`
+contract** and are therefore not columns yet; `start_probability` stands in for minutes and is
+labelled as the forecast it is, and the remaining two are marked in the code as awaiting the
+`history.json` and `fixtures.json` artefacts. Adding them is a column-definition entry each once
+those artefacts land, which is the shape this was built for.
+
+---
+
+## DL-37 — Two new contract artefacts: `history.json` for per-player trends, `fixtures.json` for a model-derived difficulty grid
+
+**Date:** 2026-08-15 · **Status:** Accepted · **Arose in:** E6-S3, E6-S5 and E6-S8, none of which
+can be built against contract v1 as it stands
+
+Three E6 stories need data the published contract does not carry. DL-36 already records the scout
+table marking two of its columns as awaiting exactly these files. This adds both, and settles four
+questions that are cheap now and expensive once eight views depend on them.
+
+**1. `history.json` carries the current season only, and it is empty until GW1 is scored.**
+
+The silver `player_gameweek` table is populated across the three backfilled seasons (DL-34) and
+carries everything the trend charts want. Publishing all of it would be ~86,000 rows and several
+megabytes. Publishing the current season is ~26,000 rows at season end and is what E6-S5 actually
+asks for — "over time" means over this season, because a chart mixing 2024/25's scoring regime with
+this one's is a chart that misleads (DL-18's trap, one level up). Prior-season evidence is not
+discarded; it already reaches the model as a **prior** (DL-31), which is the honest place for it.
+
+The consequence is that **today the artefact is empty**: it is preseason, no gameweek has been
+scored, and `player_gameweek` has no 2026/27 rows. That is the same normal-preseason state as
+`week.json` and `plan.json` (DL-20), and the payload says so explicitly — `season` and
+`gameweeks_played` are top-level fields so a view can render "no gameweeks played yet" rather than
+an empty axis. Rejected alternative: publishing last season alongside, so the charts have something
+to draw in August. It doubles the payload permanently to solve a problem that lasts three weeks,
+and it puts two scoring regimes on one axis.
+
+**2. Price and ownership come from `price_history`, emitted on change, not per gameweek.**
+
+`player_gameweek.selected_by` is a raw manager *count*, not a percentage, and it only exists for
+gameweeks that have been played. The `price_history` table is the daily accumulator and carries
+`selected_by_percent` properly — and it has real rows now, preseason, which is when price movement
+is most watched. So each player carries **two** series: `gameweeks` (performance, from
+`player_gameweek`) and `prices` (price and ownership, from `price_history`). Ownership is published
+only as a percentage, in one place, because the same artefact carrying two differently-scaled
+ownership numbers is how a wrong chart gets drawn and never noticed.
+
+A daily observation per player per day is ~176,000 points over a season, which is larger than the
+performance series it accompanies. Points are therefore emitted **on change**: the first
+observation, the last, and any observation where the price moved or ownership moved by at least
+`publish.history.ownership_change_threshold` (default 0.5 percentage points, a named tunable per
+DP-06). Price and ownership are step functions, so this is close to lossless and bounds the artefact
+at roughly 3 MB fully populated.
+
+**3. `history.json` is lazy-loaded by route, not part of the eager `Promise.all`.**
+
+DL-35 loads the six existing artefacts as one unit because they are small and wanted by more than
+one view. This one is neither: fully populated it is larger than the other six combined, and only
+the trend-bearing views want it. Putting it in the shell's eager load would spend the whole NFR-04
+3 MB initial-payload budget on data the dashboard never reads. It gets its own fetch function with
+its own module-scope promise cache, so it is fetched at most once per session and only when a view
+that needs it mounts. `fixtures.json` is small enough to have gone either way and is lazy for
+symmetry, so both trend artefacts follow one rule rather than two.
+
+**4. `fixtures.json` difficulty is M2's expected goals, on a documented 1–5 scale anchored to the
+league mean.**
+
+FPL's own FDR is a static preseason integer; E6-S8's entire point is to beat it. The signal already
+exists: `TeamStrengthModel` (M2) fits multiplicative attack and defence ratings from goals and
+expected goals, and DL-34 left it **built, tested and dark** because the backtest scores every
+fixture at league-average opposition and therefore cannot measure it.
+
+Using it here is a different and much lower bar, and the distinction matters. DP-08 and DP-12 gate
+promoting a model change that **alters a recommendation**. This changes no recommendation: the
+optimiser, the plan and `players.json` are untouched, and the grid is a **descriptive label on a
+fixture**. A difficulty rating that says Arsenal at home to a promoted side is easier than Arsenal
+away at Liverpool is a claim the reader can check against their own eyes every weekend, which is
+the opposite of an unfalsifiable one. `forecast.expected_goals.team_strength_from_xg` stays off for
+the model; the ticker reads M2 regardless, and the artefact names the model it used so the reader
+knows what they are looking at (DP-09).
+
+**The scale, so it can be argued with (DP-10).** For each fixture the model gives expected goals for
+and against. Each is turned into a difficulty by its ratio to the league mean:
+
+```
+attack_difficulty  = 3 - k · ln(expected_goals_for / league_mean)
+defence_difficulty = 3 + k · ln(expected_goals_against / league_mean)
+difficulty         = mean of the two
+k                  = 2 / ln(publish.fixtures.difficulty_anchor_ratio)
+```
+
+clipped to [1, 5]. So **3 is exactly a league-average fixture**, lower is easier, and the anchor is
+a single named tunable with a stated meaning: at the default of 2.0, a side expected to score twice
+the league mean scores a 1 for attack. Attack and defence are published separately as well as
+combined, because a high-scoring game between two good sides is a good fixture for forwards and a
+bad one for defenders, and collapsing that into one number is most of what is wrong with FDR. The
+raw expected goals are published alongside the scores, so the derivation is visible rather than
+asserted (DP-09).
+
+The grid covers `decision.horizon.gameweeks` gameweeks from the next one — the same window
+`plan.json` covers, so the ticker and the plan cannot disagree about how far ahead "ahead" is.
+Doubles and blanks reuse `optimise.chips.gameweek_shapes`, the function the chip calendar already
+counts fixtures per club per gameweek with, rather than re-deriving a second answer to the same
+question.
+
+**Consequences.** Contract v1 grows from six artefacts to eight; both are additive, so no version
+bump and no stale client breaks (DP-04). `ARTEFACTS` gains two entries and the TypeScript types are
+regenerated from the schemas as usual. E6-S3, E6-S5 and E6-S8 are unblocked without touching the
+forecast or the optimiser. The `$defs` in both schemas are named distinctly from the existing ones
+because the generator emits every `$def` into one flat TypeScript namespace, so a second `player`
+would silently collide.
+
+---
+
+## DL-38 — Q-06 confirmed by measurement, and the app caches its shell and its data under opposite rules
+
+**Date:** 2026-08-16 · **Status:** Accepted · **Arose in:** E6-S9 (FR-34, NFR-04, NFR-14)
+
+E6-S9 closes the epic's definition of done, and two of its items are decisions rather than work: what
+the offline story actually caches, and whether the scout table's design bet survives being measured.
+
+### 1. Q-06 is confirmed — plain JSON and client-side filtering, no query engine on the scout path
+
+[Q-06](../04-conceptual-design.md#15-open-design-questions) was resolved *provisionally, by scoping*
+in 2026-08-09 and left flagged "confirm by measurement on a phone". [DL-36](#dl-36--the-scout-table-virtualises-on-tanstackreact-virtual-and-hands-a-comparison-selection-over-in-the-url)
+deliberately did not tick it, because a desktop Chromium run is not that measurement. It has now been
+measured, and the bet holds with a very large margin.
+
+**Method.** Playwright's `devices["Pixel 5"]` — a 393 px viewport, mobile user agent and touch — with
+Chrome DevTools Protocol network emulation at Lighthouse's mobile profile (1.6 Mbps down, 150 ms RTT)
+and a 4× CPU throttle, against the built and served site carrying the real published data: 587
+players. No physical handset was available, and NFR-04 states its budget against *simulated* mobile
+4G, so this is the sanctioned instrument rather than a substitute for one. It runs as phase 4 of
+`web/verify/browser-check.mjs`, so it is repeatable and not a one-off reading.
+
+**Measured, against NFR-04's budgets:**
+
+| Quantity | Budget | Measured |
+| --- | --- | --- |
+| First contentful paint, p95 of 10 cold loads | < 2500 ms | **1044 ms** |
+| Initial payload (document + code + eager data) | ≤ 3 MB | **155 KiB** — code 106 KiB, data 48 KiB |
+| Scout search, worst of 5 edits over 587 players | < 150 ms | **31 ms** |
+| Scout sort, worst of 4 toggles | < 150 ms | **77 ms** |
+| Rows in the DOM at rest | virtualised | **15 of 587** |
+
+**Verdict: confirmed, and not marginally.** Filtering and sorting the full player set in JavaScript
+costs tens of milliseconds on throttled emulated phone hardware — a fifth of the interaction budget
+at worst. The whole initial payload is **5% of the 3 MB budget**, of which the player data is 36 KiB;
+a DuckDB-WASM download is measured in megabytes and would have landed on the first-paint path to
+replace a 31 ms filter with a query engine. There is no version of this trade that pays.
+
+Two things this does *not* say, because DP-12 asks what a measurement is being compared against. It
+does not say a query engine is never warranted — the multi-season history views are still where the
+data could genuinely justify one, and Q-06's scoping of DuckDB-WASM to that path is untouched. And it
+does not generalise past 587 rows: the margin is wide enough that the conclusion would survive several
+times the player set, but the number that would falsify this is a dataset large enough to push a
+client-side `filter` past ~150 ms, and if the contract ever carries per-player history into the scout
+table that is worth re-running rather than assuming.
+
+### 2. The shell is precached; the published data is network-first. Never the other way round
+
+The service worker (`vite-plugin-pwa`, an ordinary build-time npm package — no service, no tier, so
+Invariant 3 is not engaged) caches two things under two different rules, because they have opposite
+obligations:
+
+- **The shell** — document, hashed JS and CSS, icons — is **precached**. Its filenames carry content
+  hashes, so a precached shell cannot go stale: a new build produces new names and activation evicts
+  the old ones.
+- **The published artefacts** are **network-first, and are deliberately not precached**. They live at
+  stable URLs under `data/v1/`, so a precache entry would pin one publication for the life of the
+  bundle and the app would show last month's prices with complete confidence. Network-first means
+  online readers always get the newest publication and offline readers get the last one that reached
+  them — which is exactly "offline access to last-published data" and nothing beyond it.
+
+Staleness is never silent: the header renders `meta.generated_at` as "As at …" on every view, so a
+cached publication announces its own age (DP-15). `registerType: "autoUpdate"`, because a
+decision-support app must not serve last week's bundle to someone standing at a deadline.
+
+**Invariant 8 is not weakened.** Every route matches this origin's own published artefacts. The
+worker introduces no request the app was not already making, and the verification asserts zero
+external requests with the worker active.
+
+**One non-obvious consequence: the page warms its own cache.** A service worker does not control the
+page that registered it until after that page's fetches have gone out, so on a genuinely first visit
+the six artefacts never pass through the worker, nothing is written, and a reader who installs the app
+and immediately loses signal gets an empty shell. This was observed, not theorised — the first
+verification run cached nothing and the offline check failed. `web/src/data/offline.ts` fixes it by
+writing the missing artefacts into the same cache directly from the page, which needs no worker in
+control and no message passing; the two sides share only a cache name, imported by `vite.config.ts`
+rather than restated. It costs one extra fetch per artefact on a cold visit and nothing thereafter.
+This is the seam `published.ts` was written to expect.
+
+### 3. Two contrast defects, found by measuring rather than looking
+
+An audit of every token pairing the app renders, in both themes, found two real WCAG AA failures —
+and both were invisible to inspection, which is the point:
+
+- **`--border` at 1.43:1 on a white panel** was the visual boundary of the scout search box, the sort
+  select, the filter buttons and the squad builder's inputs. Under WCAG 1.4.11 the outline that says
+  "this is a control" is a user-interface component and owes 3:1. Fixed by splitting the token:
+  `--border` stays a quiet hairline for separators and chart gridlines, where 3:1 would be a heavy
+  and wrong-looking rule, and a new `--border-strong` bounds controls at 3.4–4.4:1 in both themes.
+- **`--fdr-blank-fg` at 4.41:1** missed AA for normal text by a hair. Darkened.
+
+The audit is now `web/src/theme/contrast.ts` and its tests, not a report: the pairing table names
+where each pair renders, both palettes are checked on every run, and the checker is itself tested by
+being shown to fail (DP-13). It also caught a class of defect nobody had checked for — the dark
+palette is written twice, once under `prefers-color-scheme` and once under `[data-theme]`, and
+nothing previously required the two copies to agree.
+
+**Consequences.** `web/verify/browser-check.mjs` grows from one phase to four — layout, accessibility,
+progressive web app, performance — and is the repeatable instrument for all of it, including the
+offline check, which passes only if the app opens and renders eleven starters with the network off.
+Its stale route assertions, which still named the placeholders E6-S4, S7 and S8 replaced, now name the
+delivered views. Q-06 moves from provisionally resolved to resolved by measurement.
+
+---
+
+## DL-39 — Behaviour implemented twice is pinned by one corpus in `contracts/conformance/`, read by both toolchains
+
+**Date:** 2026-08-16 · **Status:** Accepted · **Arose in:** E6-S7 follow-up (FR-31, Invariant 9, DP-13)
+
+E6-S7 shipped `web/src/components/squad/legality.ts` as a deliberate mirror of
+`pipeline/src/fpl_dof/rules/legality.py` — same violation codes, same `detail` keys — and left the
+cross-language conformance test open against E6's definition of done. This closes it, and names the
+pattern, because legality is not the last thing this project will implement twice.
+
+### The rule
+
+**Where one behaviour is implemented in both languages, the cases the two must agree on are written
+once, in `contracts/conformance/`, and read by both test suites.** Never two copies. A corpus copied
+into `pipeline/tests/` and `web/src/` catches nothing: the two files drift together with the two
+implementations, and a green suite on each side means only that each agrees with itself.
+
+`contracts/` was already the place where the two halves of the project agree about *data*; `v1/` holds
+the JSON Schemas for the published artefacts. `conformance/` is the same idea applied to *behaviour*,
+and sits beside it rather than inside it because it is a test input and not part of the published
+contract — nothing reads it at runtime, and it is not versioned with the artefacts.
+
+`legality-corpus.json` is the first one. Twenty-six cases: a ruleset, a squad built from a shared
+player pool, and the **exact ordered list of `(code, detail)` pairs** the validators must return.
+Read by `pipeline/tests/test_legality_conformance.py` and
+`web/src/components/squad/legality.conformance.test.ts`. Both tests assert that every violation code
+the validator can emit appears somewhere in the corpus, so a thirteenth code fails on both sides
+until it is covered.
+
+**Prose is outside the contract.** `message` is written for a reader and each language phrases it for
+its own audience; asserting on it would make a copy-editing change a cross-language build failure and
+teach everyone to weaken the test. Codes and detail keys are the machine-readable part, and they are
+what is pinned.
+
+**Two rulesets, and the second is not FPL.** `twelve_a_side` — twelve players, eight starting, two per
+club, sixty million — is a game nobody plays. It is there because a validator carrying a literal `15`
+or `3` passes every realistic case and fails there. The case
+`twelve-a-side-rejects-the-legal-fifteen` is Invariant 9 stated once: the same fifteen the corpus
+calls legal, judged under other rules, must produce a different answer. Rule values in the corpus are
+test *input*, not configuration; Invariant 2 forbids literals in code, and nothing reads this file at
+runtime.
+
+### It found a real disagreement on its first run, which is the argument for having built it
+
+Twenty-five of the twenty-six cases agreed immediately. The twenty-sixth: a `bench_order` that names
+one substitute **twice**. The Python validator compares the given order against the expected
+substitutes **as a set**, so a repeated id is not a violation; the TypeScript mirror compared sorted
+lists and reported one. Both files had been reviewed, both suites were green, and neither could have
+found this alone.
+
+**The TypeScript side changed**, per Invariant 9: `legality.py` reads the rules configuration the
+contract publishes and is the authority, so it is what a mirror is measured against, not the other
+way round. The change is recorded at the code site rather than left to look like a preference.
+
+**This leaves both sides lax about a repeated substitute, and that is recorded rather than hidden.**
+Set comparison accepts `[15, 15, 25, 33]` where the substitutes are `{15, 25, 33}`. It is not
+reachable — `draft.ts` derives the bench order from the squad and never accepts one from a caller,
+and the optimiser emits a permutation — so this is a latent looseness, not a defect anyone can
+trigger. Tightening `legality.py` to a multiset comparison is a one-line change and the corpus case
+is already written to catch it; it is left for the owner rather than made unilaterally to the module
+everything else trusts. **If the Python side is tightened, the corpus expectation for
+`bench-order-names-a-substitute-twice` changes with it and the TypeScript mirror follows.**
+
+### Consequences
+
+E6's definition of done is closed on the legality item. The pattern is available for the next
+double implementation — `sellingPrice`/`selling_price` is already mirrored and would be a corpus of
+arithmetic pairs, and any future client-side scoring preview would be another. The cost of adding a
+case is one JSON object; the cost of not having the corpus was a disagreement that survived review of
+both files.
+
+---
+
+## DL-40 — The mini-league is an optional artefact that is absent by default, and its comparison is anchored on the squad actually fielded
+
+**Date:** 2026-08-16 · **Status:** Accepted · **Serves:** FR-32, NFR-11, NFR-15 · **Story:**
+[E6-S10](epics/E6-web-application.md#e6-s10--mini-league-view--05-day--fr-32--could-have)
+
+### Context
+
+E6-S10 asks for standings, squad overlap, differentials held by each side, and captain divergence.
+The FPL adapter already had `fetch_league_standings` and had done since E0 — declared, tested against
+the live API, and **wired to a `request.league_id` that nothing ever set**. No configuration field
+existed, so the resource had never once been fetched in a real run. The feature had ingestion support
+and no data.
+
+Three decisions followed, and each one had a plausible alternative that is worse in a way worth
+recording.
+
+### Decision 1 — absent, not empty, and absence is the default state
+
+`entry.league_id` is a new optional configuration field, unset by default. When it is unset the
+pipeline fetches no league, writes no `league.json`, and the publish stage **removes a stale one**.
+
+The alternative was the `week.json`/`plan.json` pattern: always publish, carry a `skipped` flag and a
+`skipped_reason`. That pattern is right for those two because there genuinely is a weekly run that
+was skipped, and the reason is a fact about this run. Here there is no run to skip — there is a
+configuration field nobody filled in, which is a fact about the *installation* and does not change
+week to week. A file that exists solely to say "you have not configured me" is a worse statement than
+no file, and it would have to be published on every run for a season to keep saying it.
+
+**The removal is the part that matters and it was extended beyond this artefact.** The stage
+previously deleted a stale `week.json` or `plan.json` from `data/web/v1/` but not from
+`web/public/data/v1/`, which is the copy the browser actually reads. A league unconfigured after
+having been configured would have left the old table live and believed. Stale-file removal now
+covers both directories for all three optional artefacts.
+
+### Decision 2 — the comparison is anchored on the owner's fielded squad, never on `squad.json`
+
+`squad.json` is what the optimiser recommends. It is usually *not* what the owner fielded. Anchoring
+overlap on it was the cheap option — it is already loaded, non-nullable, in the app shell — and it
+would have reported players the owner does not own as players the owner is differentiating with. The
+number would have looked entirely reasonable and been about a squad that does not exist. That is the
+silent, plausible wrongness DP-13 says to spend the effort avoiding.
+
+So the anchor is the owner's own row in the league, from the picks endpoint. **When there is no such
+row the comparison is refused rather than approximated**, and the artefact carries enough to say
+which of three reasons applies: no gameweek scored yet, no team configured or not a member of this
+league, or the owner's squad outside the fetch budget. The view prints the reason (DP-09, DP-15).
+
+### Decision 3 — the artefact carries the squads; the app derives the comparison
+
+Overlap, differentials and captain divergence are set arithmetic over two lists of fifteen. They are
+computed in `web/src/components/league/league.ts`, not precomputed in the publisher.
+
+Precomputing would have put an unarguable answer in the payload immediately next to its own inputs,
+and would have fixed one framing of the question — against the fifteen rather than the starting XI —
+into the contract. Deriving in the app keeps the answer next to what it came from (DP-10) and costs
+nothing: the whole comparison is two set differences over thirty integers.
+
+**Differentials are never summed across directions.** A player only the rival holds is exposure; a
+player only the owner holds is a bet. One count cannot say both, so two are published.
+
+### What this costs, and the budget that bounds it
+
+Standings are one request. Squads are **one request per entry**, so `entry.league_rival_limit`
+(default 20, max 50) is a named, defaulted tunable rather than a literal (DP-06), and only the top of
+the table is read. A public classic league can hold hundreds of thousands of entries; the standings
+endpoint paginates at 50 and this reads **one page**, deliberately, rather than following `has_next`
+into an unbounded crawl of a server this project is a guest on (NFR-10).
+
+Rivals' picks land in a **new `league_pick` silver table, not in `entry_pick`**. The shapes are
+nearly identical and reuse was tempting. But `entry_pick` is where the weekly decision reads the
+owner's squad from, and admitting a hundred rivals' rows to it would make every downstream
+consumer's correctness depend on remembering an `entry_id` filter. The failure mode is a legal,
+plausible squad built from somebody else's players.
+
+### What is not built, and why
+
+**No historical league data and no rank projection.** Only the latest scored gameweek's squads are
+read. A season of every rival's picks is 20 entries × 38 gameweeks of requests for a view nobody
+asked for, and the story is a half-day could-have.
+
+**Nothing here reaches a model or the optimiser.** Rival ownership is not a feature and does not
+enter the objective. That would be a real modelling decision about differential strategy, it belongs
+with the risk dial (DL-25), and it would need its own evidence (DP-08). This is a view.
+
+### Consequences
+
+The state that is actually tested is the unconfigured one, because that is the state the repository
+is in: `/league` renders a first-class "no mini-league configured" page naming the setting and what
+it would unlock. The populated path is covered by fixtures, including the two cases most able to
+mislead — a rival whose squad was never fetched, and a captain that was never published — neither of
+which may render as a zero or as agreement. `FPL_DOF_LEAGUE_ID` was already promised in
+[INPUTS-REQUIRED §8](epics/INPUTS-REQUIRED.md#8-environment-variables) and is now wired.
+
+---
+
 ## Open decisions
 
 Decisions deliberately deferred, with the point at which each must be resolved.

@@ -1,17 +1,7 @@
+@import "./tokens.css";
+
 :root {
-  color-scheme: light dark;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --bg: #0f1720;
-  --bg-panel: #1a2632;
-  --bg-panel-alt: #223142;
-  --text: #eef2f6;
-  --text-muted: #9fb0bf;
-  --accent: #3ddc97;
-  --warn-bg: #4a2e0a;
-  --warn-border: #d98c1f;
-  --danger-bg: #4a1010;
-  --danger-border: #d94040;
-  --border: #2c3a48;
 }
 
 * {
@@ -33,7 +23,13 @@ body {
 }
 
 button,
-input {
+input,
+select {
   font-family: inherit;
   font-size: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }

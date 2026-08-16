@@ -30,6 +30,14 @@ ARTEFACTS: dict[str, str] = {
     "squad": "squad.schema.json",
     "week": "week.schema.json",
     "plan": "plan.schema.json",
+    # The two trend artefacts (DL-37). Additive, so contract v1 does not bump: a client that has
+    # never heard of them keeps working, which is the whole point of versioning the seam (DP-04).
+    # Both are fetched lazily by the routes that need them, never in the app shell's eager load.
+    "history": "history.schema.json",
+    "fixtures": "fixtures.schema.json",
+    # The mini-league (E6-S10). Written only when a league is configured, and it is not by default:
+    # unlike every other artefact here, its *absence* is the normal published state.
+    "league": "league.schema.json",
 }
 
 

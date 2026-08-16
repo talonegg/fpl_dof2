@@ -55,6 +55,17 @@ class IngestRequest:
     that cannot expose it simply ignores the field."""
 
     league_id: int | None = None
+    """A classic mini-league to read standings for, when one is configured. As with ``entry_id``, a
+    game concept rather than a source concept; an adapter with no notion of a league ignores it."""
+
+    league_rival_limit: int = 0
+    """How many of that league's entries to fetch squads for, from the top of the table down.
+
+    Defaults to **none**: standings are a single request, and squads are one request per entry per
+    gameweek. An adapter asked for a league without being given a budget fetches the cheap half and
+    stops, rather than inferring permission to make hundreds of requests.
+    """
+
     seasons: tuple[str, ...] = ()
     """Historical seasons to backfill. Empty means current season only."""
 

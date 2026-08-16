@@ -1,0 +1,347 @@
+/* --- Comparison view (E6-S4, FR-28) ---------------------------------------------------------
+   Colour comes from `tokens.css` and nowhere else: a literal here would be right in one theme and
+   wrong in the other.
+
+   Layout, in one paragraph. Two to four players sit in the columns of one table, attributes in the
+   rows. On a laptop the whole thing fits and there is nothing to do. On a phone the alternative to
+   four columns of 70px is not four columns of 70px — it is a horizontal scroll with the attribute
+   labels pinned to the left edge, so the row you are reading stays named while you swipe between
+   players. Two visible columns at a time on a 390px screen is a comparison; four crushed ones is a
+   spreadsheet nobody can read. The verdict above it is prose in a single column at every width,
+   because it is the part you read rather than scan. */
+
+.compare {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.compare-title {
+  margin: 0;
+  font-size: var(--font-size-xl);
+}
+
+.compare-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-4);
+}
+
+.compare-change,
+.compare-cta {
+  color: var(--accent);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.compare-cta {
+  align-self: flex-start;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  padding: var(--space-2) var(--space-4);
+  text-decoration: none;
+}
+
+.compare-lede,
+.compare-note,
+.compare-empty-how {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  max-width: 60ch;
+}
+
+.compare-note {
+  border-left: 3px solid var(--warn-border);
+  background: var(--warn-bg);
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+}
+
+/* --- The empty and invalid state -------------------------------------------------------------- */
+
+.compare-empty {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  gap: var(--space-4);
+}
+
+/* --- The verdict ------------------------------------------------------------------------------ */
+
+.compare-verdict {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--accent);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+}
+
+.compare-verdict-headline {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-lg);
+  max-width: 70ch;
+}
+
+.compare-verdict-lines {
+  margin: 0;
+  display: grid;
+  gap: var(--space-3);
+}
+
+.compare-verdict-line dt {
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.compare-verdict-line dd {
+  margin: var(--space-1) 0 0;
+  max-width: 74ch;
+}
+
+/* "Too close to call" is a finding, not a missing answer — it is muted, never hidden. */
+.compare-verdict-line-level dd {
+  color: var(--text-muted);
+}
+
+.compare-level-tag {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 0.05rem 0.5rem;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: var(--font-size-xs);
+}
+
+.compare-caveats {
+  margin-top: var(--space-4);
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.compare-caveats summary {
+  cursor: pointer;
+  color: var(--accent);
+}
+
+.compare-caveats ul {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-5);
+  display: grid;
+  gap: var(--space-2);
+  max-width: 74ch;
+}
+
+/* --- The table -------------------------------------------------------------------------------- */
+
+.compare-scroll {
+  overflow-x: auto;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.compare-table th,
+.compare-table td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--border);
+  text-align: right;
+  vertical-align: top;
+}
+
+/* The attribute column stays put while the player columns scroll under a thumb. */
+.compare-row-label,
+.compare-corner {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  text-align: left;
+  font-weight: 500;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  min-width: 8.5rem;
+}
+
+.compare-group th {
+  position: sticky;
+  left: 0;
+  text-align: left;
+  background: var(--bg-panel-alt);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-weight: 600;
+}
+
+.compare-player-head {
+  background: var(--bg-panel);
+  min-width: 9rem;
+  display: table-cell;
+}
+
+.compare-player-name {
+  display: block;
+  font-size: var(--font-size-base);
+  font-weight: 700;
+  color: var(--text);
+}
+
+.compare-player-meta {
+  display: block;
+  font-size: var(--font-size-xs);
+  font-weight: 400;
+  color: var(--text-muted);
+  margin-top: 0.1rem;
+}
+
+.compare-remove {
+  margin-top: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  padding: 0.05rem 0.55rem;
+  cursor: pointer;
+}
+
+.compare-remove:hover:not(:disabled) {
+  border-color: var(--danger-border);
+  color: var(--text);
+}
+
+.compare-remove:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.compare-cell {
+  white-space: nowrap;
+}
+
+/* The lead is carried by the word "best" as well as the fill, so it survives a monochrome screen
+   and a reader who cannot separate the two hues (NFR-14). */
+.compare-cell-lead {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  font-weight: 600;
+}
+
+.compare-lead-mark {
+  display: block;
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.compare-xp-mean {
+  font-weight: 600;
+}
+
+.compare-xp-sd {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+
+/* --- The trend and forecast section (E6-S5) --------------------------------------------------- */
+
+/* The charts scale themselves: each is an SVG with a fixed viewBox and `width: 100%`, so nothing
+   here measures a container and nothing overflows a 390px screen. The section therefore needs no
+   `overflow-x: auto` of its own — unlike `.compare-scroll` above, whose table has a real minimum
+   width in `rem` and genuinely cannot fit. `min-width: 0` is the guard that matters: without it a
+   flex item refuses to shrink below its content and the charts would push the page sideways. */
+.compare-trends {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.compare-trends .compare-note {
+  margin-bottom: var(--space-4);
+}
+
+.compare-trends > h2 {
+  margin: 0 0 var(--space-3);
+  font-size: var(--font-size-lg);
+}
+
+/* A plain muted note, as against `.compare-note`, which is a warning box. "No gameweek has been
+   scored yet" is an ordinary state and must not be styled as a problem (DP-15). */
+.compare-subnote {
+  margin: 0 0 var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  max-width: 70ch;
+}
+
+/* --- The slot E6-S8 fills --------------------------------------------------------------------- */
+
+.compare-pending {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.compare-pending h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-base);
+  color: var(--text);
+}
+
+.compare-pending p {
+  margin: 0;
+  max-width: 70ch;
+}
+
+.compare-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 640px) {
+  .compare-title {
+    font-size: var(--font-size-lg);
+  }
+
+  .compare-table th,
+  .compare-table td {
+    padding: var(--space-2);
+  }
+
+  /* Narrow enough that two player columns and the pinned labels share a 390px screen. */
+  .compare-player-head {
+    min-width: 7.5rem;
+  }
+
+  .compare-row-label,
+  .compare-corner {
+    min-width: 7rem;
+  }
+}

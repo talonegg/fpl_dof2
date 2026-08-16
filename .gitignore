@@ -20,8 +20,12 @@ web/public/data/
 # Browser verification output — regenerate with `npm run verify:browser`.
 web/verify/screenshots/
 
-# Data (local working data, not committed)
-data/
+# Data (local working data, not committed).
+# Anchored to the repository root on purpose: an unanchored `data/` matches *any* directory of that
+# name at any depth, which silently swallowed the whole of `web/src/data/` — the app's data layer —
+# so E6-S1's `DataProvider.tsx` and `published.ts` were never actually tracked. A gitignore rule that
+# hides source is exactly the kind of failure nothing goes red for.
+/data/
 *.parquet
 *.duckdb
 

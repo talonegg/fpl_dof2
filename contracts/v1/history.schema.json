@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/talonegg/fpl_dof2/contracts/v1/history.schema.json",
+  "title": "History",
+  "description": "Per-player time series for the current season: what each player actually did, gameweek by gameweek, and how their price and ownership moved. Measured history, not forecast — so unlike players.json these numbers carry no uncertainty, because inventing an error bar for something that was counted would be worse than having none (DL-37). Lazy-loaded by route: it is larger than the other artefacts combined once the season is under way, and only the trend-bearing views want it.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "season", "gameweeks_played", "players"],
+  "properties": {
+    "contract_version": { "type": "integer", "const": 1 },
+    "season": {
+      "type": "string",
+      "description": "The season every series here belongs to, e.g. 2026/27. One season only: a chart mixing two scoring regimes on one axis is a chart that misleads (DL-37)."
+    },
+    "gameweeks_played": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 38,
+      "description": "How many gameweeks have been scored. Zero before the season starts, which is a normal state and not a failure (DL-20) — a view should say 'no gameweeks played yet' rather than render an empty axis."
+    },
+    "observed_from": {
+      "type": ["string", "null"],
+      "description": "Date of the earliest price observation, ISO 8601. Null when nothing has been observed yet. FPL publishes only the current price, so history exists only for days something recorded it — nothing can reconstruct the days nobody watched."
+    },
+    "observed_to": {
+      "type": ["string", "null"],
+      "description": "Date of the most recent price observation, ISO 8601. Null when nothing has been observed yet."
+    },
+    "players": { "type": "array", "items": { "$ref": "#/$defs/player_history" } }
+  },
+  "$defs": {
+    "player_history": {
+      "type": "object",
+      "description": "One player's two series. Keyed by the same `id` as players.json, so a view joins on it directly.",
+      "additionalProperties": false,
+      "required": ["id", "gameweeks", "prices"],
+      "properties": {
+        "id": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Matches `id` in players.json. This is FPL's element id, which is reassigned between seasons — safe here precisely because this artefact is one season."
+        },
+        "gameweeks": {
+          "type": "array",
+          "description": "Performance by gameweek, ascending. Empty until the first gameweek is scored. A player with two fixtures in one gameweek appears once per fixture, so a double gameweek is two entries with the same `gw`.",
+          "items": { "$ref": "#/$defs/history_gameweek" }
+        },
+        "prices": {
+          "type": "array",
+          "description": "Price and ownership, ascending by date, emitted only when something changed. Price and ownership are step functions, so the omitted days are the days the value was unchanged — carry the last value forward to fill them.",
+          "items": { "$ref": "#/$defs/history_price" }
+        }
+      }
+    },
+    "history_gameweek": {
+      "type": "object",
+      "description": "What a player did in one fixture. Field names are abbreviated deliberately: at ~700 players over 38 gameweeks the key names are a material fraction of the payload.",
+      "additionalProperties": false,
+      "required": ["gw", "pts", "mins", "goals", "assists", "price"],
+      "properties": {
+        "gw": { "type": "integer", "minimum": 1, "maximum": 38 },
+        "pts": { "type": "integer", "description": "FPL points actually scored in this fixture." },
+        "mins": { "type": "integer", "minimum": 0, "maximum": 120 },
+        "goals": { "type": "integer", "minimum": 0, "description": "Goals actually scored." },
+        "assists": { "type": "integer", "minimum": 0, "description": "Assists actually made." },
+        "xg": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Expected goals for this fixture. Absent means not measured, which is not the same claim as zero (DL-18) — a chart must not plot an absent value as a nil return."
+        },
+        "xa": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Expected assists for this fixture. Absent means not measured."
+        },
+        "dc": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Defensive Contribution actions counted for this player's position. Absent means not measured — the component did not exist before 2025/26."
+        },
+        "dc_pts": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Points actually awarded for those actions. All-or-nothing at a per-position threshold, computed from the same rules configuration the pipeline scores with, never from a literal (Invariant 2). Absent whenever `dc` is."
+        },
+        "price": { "type": "number", "exclusiveMinimum": 0, "description": "Price at this gameweek, in £m." }
+      }
+    },
+    "history_price": {
+      "type": "object",
+      "description": "One price/ownership observation. Emitted only on change, plus the first and last observation of the season.",
+      "additionalProperties": false,
+      "required": ["on", "price", "owned"],
+      "properties": {
+        "on": { "type": "string", "description": "Observation date, ISO 8601 (YYYY-MM-DD)." },
+        "price": { "type": "number", "exclusiveMinimum": 0, "description": "In £m." },
+        "owned": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 100,
+          "description": "Ownership as a percentage of all managers, as FPL publishes it. This is the only ownership figure in this artefact and it is always a percentage — the per-gameweek `selected_by` in the source table is a raw manager count on a different scale, and carrying both is how a wrong chart gets drawn (DL-37)."
+        }
+      }
+    }
+  }
+}

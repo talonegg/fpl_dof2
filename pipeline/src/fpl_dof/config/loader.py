@@ -37,6 +37,7 @@ ENV_MAP: dict[str, tuple[str, ...]] = {
     "FPL_DOF_TIMEZONE": ("runtime", "timezone"),
     "FPL_DOF_USER_AGENT_CONTACT": ("http", "user_agent_contact"),
     "FPL_DOF_TEAM_ID": ("entry", "team_id"),
+    "FPL_DOF_LEAGUE_ID": ("entry", "league_id"),
 }
 
 LOCAL_OVERRIDE_ENV = "FPL_DOF_CONFIG_FILE"

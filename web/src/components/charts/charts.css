@@ -1,0 +1,149 @@
+/* Chart presentation. Every colour is a token from `tokens.css` — a hex code here is a defect
+   (E6-S1), and it is a worse one in a chart than anywhere else, because a series colour chosen for
+   the light theme is usually invisible against the dark background rather than merely ugly. */
+
+.chart {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-panel);
+}
+
+.chart-title {
+  margin-bottom: var(--space-2);
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* The SVG carries a fixed viewBox and is scaled to whatever width it is given, so the chart is
+   responsive without any component ever measuring a container. */
+.chart-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.chart-gridline {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.chart-axis {
+  stroke: var(--text-muted);
+  stroke-width: 1;
+}
+
+.chart-axis-label {
+  fill: var(--text-muted);
+  font-size: 11px;
+}
+
+.chart-line {
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+.chart-bar {
+  fill: var(--accent);
+}
+
+.chart-bar-negative {
+  fill: var(--value-negative);
+}
+
+.chart-empty,
+.chart-summary {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-4);
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.chart-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* The swatch repeats the variant's shape as well as its colour, so the legend is usable by a reader
+   who cannot tell the two strokes apart by hue (NFR-14). */
+.chart-legend-swatch {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: var(--radius-pill);
+  background: var(--text-muted);
+}
+
+.chart-variant-0 .chart-legend-swatch {
+  background: var(--accent);
+  border-radius: var(--radius-pill);
+}
+
+.chart-variant-1 .chart-legend-swatch {
+  background: var(--focus-ring);
+  border-radius: 0;
+}
+
+.chart-variant-2 .chart-legend-swatch {
+  background: var(--text-muted);
+  border-radius: 0;
+  transform: rotate(45deg);
+}
+
+.chart-variant-3 .chart-legend-swatch {
+  background: var(--warn-border);
+  border-radius: 0;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+/* --- Interval chart: forecasts, where the band is the mark ------------------------------------ */
+
+/* The band carries the visual weight. It is the accent at low opacity rather than a grey, so it
+   reads as "this is the forecast" and not as a chart background. */
+.chart-band {
+  fill: color-mix(in srgb, var(--accent) 26%, transparent);
+  stroke: color-mix(in srgb, var(--accent) 55%, transparent);
+  stroke-width: 1;
+}
+
+.chart-band-cap {
+  stroke: var(--accent);
+  stroke-width: 1;
+}
+
+/* The mean is an annotation on the band, deliberately thinner than the band is tall. It must be
+   findable and must not be the first thing read. */
+.chart-band-mean {
+  stroke: var(--text);
+  stroke-width: 2;
+}
+
+.chart-band-missing {
+  fill: var(--text-muted);
+  font-size: 11px;
+  font-style: italic;
+}
+
+.chart-readout {
+  margin: var(--space-2) 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: var(--space-1);
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}

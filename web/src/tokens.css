@@ -1,0 +1,236 @@
+/* Design tokens — the only place in the web app where a colour literal may appear (E6-S1, FR-34).
+   Anything outside this file that needs a colour uses `var(--…)`. A hex code in a component
+   stylesheet is a defect, for the same reason a hardcoded club limit in a `.tsx` file is: the value
+   is right in exactly one theme, and nobody can find it when the other theme is wrong.
+
+   Naming
+   ------
+   Colour       `--<role>`               semantic role, never a hue: `--accent`, not `--green`.
+                                          Pairs that sit on a fill carry `-bg` / `-fg`.
+   Spacing      `--space-1` … `--space-6`  0.25rem → 2rem, four-point scale.
+   Radius       `--radius-sm|md|lg|pill`
+   Type size    `--font-size-xs|sm|base|lg|xl`
+   Layout       `--shell-max-width`, `--header-height`
+
+   Themes
+   ------
+   The light palette is defined on bare `:root`, so a colour always has a value even if every media
+   query and attribute selector is ignored. Dark values are redefined twice — once under
+   `prefers-color-scheme: dark` (the default, honouring the operating system) and once under
+   `[data-theme="dark"]` (the manual override, which must win in both directions). `ThemeProvider`
+   stamps `data-theme` on `<html>`; with no stored preference it stamps nothing and the system
+   decides. Never give a colour its only definition inside a media query. */
+
+:root {
+  /* --- Scale: identical in both themes ------------------------------------------------------ */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+
+  --radius-sm: 0.4rem;
+  --radius-md: 0.6rem;
+  --radius-lg: 0.75rem;
+  --radius-pill: 999px;
+
+  --font-size-xs: 0.72rem;
+  --font-size-sm: 0.85rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.05rem;
+  --font-size-xl: 1.5rem;
+
+  --shell-max-width: 1200px;
+
+  /* --- Colour: light ------------------------------------------------------------------------ */
+  --bg: #f4f7fa;
+  --bg-panel: #ffffff;
+  --bg-panel-alt: #eaeff5;
+  --border: #cfd9e3;
+  /* The boundary of an interactive control — text inputs, selects, filter and toggle buttons.
+     Separate from `--border` because the two have different obligations (E6-S9, NFR-14): a
+     decorative rule between panels carries no meaning and may be quiet, but the outline that tells
+     a reader "this is a box you can type in" is a user-interface component under WCAG 1.4.11 and
+     must clear 3:1 against the surface behind it. `--border` is 1.43:1 on a white panel, which is
+     why it may keep being a hairline separator and may not keep bounding a search box. Verified by
+     `src/theme/contrast.test.ts`, which fails the build if either obligation stops being met. */
+  --border-strong: #74828f;
+
+  --text: #101a24;
+  --text-muted: #4d5c6b;
+
+  --accent: #0c6b48;
+  --on-accent: #ffffff;
+  --focus-ring: #1f6feb;
+
+  --warn-bg: #fbf0dc;
+  --warn-border: #9a6408;
+  --danger-bg: #fbe9e9;
+  --danger-border: #a92a2a;
+
+  --nav-bg: #ffffff;
+  --nav-active-bg: #e2ece7;
+
+  /* The pitch stays green in both themes — it is a pitch — but the light theme uses a lighter
+     surface so the cards sitting on it keep their contrast. */
+  --pitch-from: #2e7d4f;
+  --pitch-to: #1e5d39;
+
+  --badge-vice-bg: #0b5f8a;
+  --badge-vice-fg: #ffffff;
+
+  --row-selected-bg: #d9ece3;
+
+  --value-positive: #0f6b3f;
+  --value-negative: #a8452a;
+
+  --confidence-high-bg: #d7f0e0;
+  --confidence-high-fg: #14532d;
+  --confidence-medium-bg: #f6ecd0;
+  --confidence-medium-fg: #6b4f0a;
+  --confidence-low-bg: #f8ded6;
+  --confidence-low-fg: #7a2e18;
+  --confidence-none-bg: #e4e8ec;
+  --confidence-none-fg: #4d5c6b;
+
+  /* Fixture difficulty, easiest to hardest (E6-S8). Five bands rather than a continuous ramp,
+     because a shade is only readable against its neighbours. Never the sole carrier of the
+     meaning: every cell also shows the score and names its band. */
+  --fdr-1-bg: #a8e6c1;
+  --fdr-1-fg: #0d3d24;
+  --fdr-2-bg: #d6f0d8;
+  --fdr-2-fg: #1d4a2b;
+  --fdr-3-bg: #e6eaef;
+  --fdr-3-fg: #33414f;
+  --fdr-4-bg: #fadfc9;
+  --fdr-4-fg: #6b3413;
+  --fdr-5-bg: #f6bdb2;
+  --fdr-5-fg: #66201a;
+  --fdr-blank-bg: #eef1f4;
+  /* Darkened from #64717d, which measured 4.41:1 and missed AA for normal text by a hair — the
+     kind of miss that only a measurement finds, since it looks identical (E6-S9). */
+  --fdr-blank-fg: #5b6874;
+
+  color-scheme: light;
+}
+
+/* --- Colour: dark, when the system asks for it and the reader has not overridden it ---------- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1720;
+    --bg-panel: #1a2632;
+    --bg-panel-alt: #223142;
+    --border: #2c3a48;
+    --border-strong: #6b7f94;
+
+    --text: #eef2f6;
+    --text-muted: #9fb0bf;
+
+    --accent: #3ddc97;
+    --on-accent: #05261a;
+    --focus-ring: #7fd8ff;
+
+    --warn-bg: #4a2e0a;
+    --warn-border: #d98c1f;
+    --danger-bg: #4a1010;
+    --danger-border: #d94040;
+
+    --nav-bg: #16212c;
+    --nav-active-bg: #24413a;
+
+    --pitch-from: #143d24;
+    --pitch-to: #0e2a19;
+
+    --badge-vice-bg: #7fd8ff;
+    --badge-vice-fg: #052030;
+
+    --row-selected-bg: #24413a;
+
+    --value-positive: #7fe6ac;
+    --value-negative: #e69d7f;
+
+    --confidence-high-bg: #1f4d33;
+    --confidence-high-fg: #7fe6ac;
+    --confidence-medium-bg: #4a3c14;
+    --confidence-medium-fg: #e6c97f;
+    --confidence-low-bg: #4a2620;
+    --confidence-low-fg: #e69d7f;
+    --confidence-none-bg: #3a3a3a;
+    --confidence-none-fg: #b3b3b3;
+
+    --fdr-1-bg: #1d5c3b;
+    --fdr-1-fg: #b8f0cf;
+    --fdr-2-bg: #23402f;
+    --fdr-2-fg: #9fd9b4;
+    --fdr-3-bg: #2a3644;
+    --fdr-3-fg: #b9c5d1;
+    --fdr-4-bg: #4d3320;
+    --fdr-4-fg: #f0c4a4;
+    --fdr-5-bg: #5a2622;
+    --fdr-5-fg: #f2b0a4;
+    --fdr-blank-bg: #1e2833;
+    --fdr-blank-fg: #8996a3;
+
+    color-scheme: dark;
+  }
+}
+
+/* --- Colour: dark, chosen explicitly. Must also win when the system prefers light. ----------- */
+:root[data-theme="dark"] {
+  --bg: #0f1720;
+  --bg-panel: #1a2632;
+  --bg-panel-alt: #223142;
+  --border: #2c3a48;
+  --border-strong: #6b7f94;
+
+  --text: #eef2f6;
+  --text-muted: #9fb0bf;
+
+  --accent: #3ddc97;
+  --on-accent: #05261a;
+  --focus-ring: #7fd8ff;
+
+  --warn-bg: #4a2e0a;
+  --warn-border: #d98c1f;
+  --danger-bg: #4a1010;
+  --danger-border: #d94040;
+
+  --nav-bg: #16212c;
+  --nav-active-bg: #24413a;
+
+  --pitch-from: #143d24;
+  --pitch-to: #0e2a19;
+
+  --badge-vice-bg: #7fd8ff;
+  --badge-vice-fg: #052030;
+
+  --row-selected-bg: #24413a;
+
+  --value-positive: #7fe6ac;
+  --value-negative: #e69d7f;
+
+  --confidence-high-bg: #1f4d33;
+  --confidence-high-fg: #7fe6ac;
+  --confidence-medium-bg: #4a3c14;
+  --confidence-medium-fg: #e6c97f;
+  --confidence-low-bg: #4a2620;
+  --confidence-low-fg: #e69d7f;
+  --confidence-none-bg: #3a3a3a;
+  --confidence-none-fg: #b3b3b3;
+
+  --fdr-1-bg: #1d5c3b;
+  --fdr-1-fg: #b8f0cf;
+  --fdr-2-bg: #23402f;
+  --fdr-2-fg: #9fd9b4;
+  --fdr-3-bg: #2a3644;
+  --fdr-3-fg: #b9c5d1;
+  --fdr-4-bg: #4d3320;
+  --fdr-4-fg: #f0c4a4;
+  --fdr-5-bg: #5a2622;
+  --fdr-5-fg: #f2b0a4;
+  --fdr-blank-bg: #1e2833;
+  --fdr-blank-fg: #8996a3;
+
+  color-scheme: dark;
+}

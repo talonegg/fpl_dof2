@@ -956,6 +956,30 @@ class EntryConfig(_Section):
             "reconstruction that disagrees with reality; normally false."
         ),
     )
+    league_id: int | None = Field(
+        default=None,
+        gt=0,
+        description=(
+            "A classic mini-league to compare against, from the URL /leagues/{id}/standings/c. "
+            "Overridable via FPL_DOF_LEAGUE_ID. "
+            "Public, not a secret (NFR-11). **Unset is the normal state**: leave it unset and no "
+            "league is fetched, no league artefact is published, and the app says so plainly "
+            "(E6-S10, DP-15). A game concept, not a source concept — the adapter that knows which "
+            "URL exposes it lives in sources/ (Invariant 1)."
+        ),
+    )
+    league_rival_limit: int = Field(
+        default=20,
+        ge=0,
+        le=50,
+        description=(
+            "How many entries, from the top of the standings down, to fetch squads for. Each one "
+            "costs a request per scored gameweek read, so this is the knob that decides what "
+            "rival analysis costs; 0 publishes standings alone with no overlap. The cap exists "
+            "because a public league can have hundreds of thousands of entries and fetching them "
+            "would be both useless and rude to an API this project is a guest on."
+        ),
+    )
 
 
 class TransferConfig(_Section):
@@ -1099,6 +1123,61 @@ class QualityConfig(_Section):
     )
 
 
+class HistoryArtefactConfig(_Section):
+    """How the per-player trend series is compacted on the way out (DL-37, E6-S3/S5)."""
+
+    ownership_change_threshold: float = Field(
+        default=0.5,
+        ge=0,
+        le=100,
+        description=(
+            "Emit a price/ownership observation when ownership has moved at least this many "
+            "percentage points since the last one emitted, or whenever the price changed at all. "
+            "A daily observation per player is ~176,000 points over a season, most of them "
+            "identical to the one before; price and ownership are step functions, so emitting on "
+            "change is close to lossless. Lower keeps more detail and costs payload; 0 emits every "
+            "observation. Set at 0.5 because that is roughly the resolution an ownership trend is "
+            "read at, and finer movement is noise on a chart this size."
+        ),
+    )
+
+
+class FixtureTickerConfig(_Section):
+    """How a fixture's expected goals become a 1-5 difficulty (DL-37, E6-S8)."""
+
+    difficulty_anchor_ratio: float = Field(
+        default=2.0,
+        gt=1,
+        description=(
+            "Sets the steepness of the difficulty scale: a side the model expects to score this "
+            "multiple of the league mean scores `minimum` (1.0) for attack, and the same ratio "
+            "conceded scores `maximum` (5.0) for defence. A league-average fixture is always 3.0 "
+            "regardless of this value, because the scale is anchored on the ratio to the league "
+            "mean rather than on a rank within the window. Higher makes the scale flatter and the "
+            "extremes rarer. Two is chosen because doubling the league mean is roughly what the "
+            "best attack against the worst defence actually produces, so the top of the scale is "
+            "reachable but not routine."
+        ),
+    )
+    minimum: float = Field(
+        default=1.0,
+        description="Easiest score. FPL's own FDR runs 1-5, and matching it keeps the "
+        "grid legible to anyone who has ever read a fixture ticker.",
+    )
+    maximum: float = Field(default=5.0, description="Hardest score. Scores are clipped to this.")
+    neutral: float = Field(
+        default=3.0,
+        description="Where a league-average fixture lands. The midpoint of the published range.",
+    )
+
+
+class PublishConfig(_Section):
+    """Tunables that shape published artefacts rather than the models behind them."""
+
+    history: HistoryArtefactConfig = HistoryArtefactConfig()
+    fixtures: FixtureTickerConfig = FixtureTickerConfig()
+
+
 class Config(_Section):
     """The whole configuration, as one immutable object threaded through every stage."""
 
@@ -1114,3 +1193,4 @@ class Config(_Section):
     quality: QualityConfig = QualityConfig()
     backtest: BacktestConfig = BacktestConfig()
     decision: DecisionConfig = DecisionConfig()
+    publish: PublishConfig = PublishConfig()

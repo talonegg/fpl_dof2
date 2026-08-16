@@ -1,0 +1,277 @@
+/* Fixture ticker (E6-S8).
+
+   Colour arrives only through a token from `tokens.css`, including the five difficulty bands
+   (`--fdr-1-bg` … `--fdr-5-bg`) — a literal here would be right in one theme and wrong in the other.
+
+   The grid is wide by construction: twenty clubs by up to eight gameweeks does not fit a 390px
+   phone and never will. So it scrolls inside its own box, with the club column pinned, and the page
+   body keeps its promise never to scroll sideways. */
+
+.ticker {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+}
+
+/* Loading, absent and error all render the same shaped panel as the grid itself, so the route
+   never flashes an unstyled block on its way to a ticker. */
+.ticker-status {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  color: var(--text-muted);
+}
+
+.ticker-status h2 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-lg);
+  color: var(--text);
+}
+
+.ticker-head h2 {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+
+.ticker-window {
+  margin: var(--space-1) 0 0;
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.ticker-unrated {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-3);
+  background: var(--warn-bg);
+  border-left: 4px solid var(--warn-border);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+}
+
+/* ---------- Controls ---------- */
+
+.ticker-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.ticker-control {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+.ticker-control select {
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  color: var(--text);
+  font-size: var(--font-size-sm);
+}
+
+.ticker-metric-help {
+  margin: var(--space-2) 0 0;
+  font-size: var(--font-size-sm);
+  color: var(--text-muted);
+}
+
+/* ---------- Legend ---------- */
+
+.ticker-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ticker-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-xs);
+}
+
+.ticker-legend-label {
+  color: var(--text-muted);
+}
+
+/* ---------- Grid ---------- */
+
+.ticker-scroll {
+  overflow-x: auto;
+  margin-top: var(--space-4);
+}
+
+.ticker-grid {
+  border-collapse: separate;
+  border-spacing: 0;
+  width: 100%;
+  font-size: var(--font-size-sm);
+}
+
+.ticker-caption {
+  caption-side: top;
+  text-align: left;
+  padding-bottom: var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.ticker-grid th,
+.ticker-grid td {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.ticker-grid thead th {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: var(--font-size-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+/* The club column stays put while the gameweeks scroll under it — a shaded cell with the club
+   scrolled off the screen belongs to nobody. */
+.ticker-club,
+.ticker-club-head {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+}
+
+.ticker-club {
+  font-weight: 600;
+}
+
+.ticker-club-short {
+  display: block;
+}
+
+.ticker-club-name {
+  display: block;
+  font-weight: 400;
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.ticker-cell {
+  min-width: 5.5rem;
+}
+
+/* A double gets both chips stacked and a label above them, so it can never be mistaken for a
+   single fixture rendered twice or for one fixture silently dropped. */
+.ticker-cell-double {
+  background: var(--bg-panel-alt);
+}
+
+.ticker-double-flag {
+  display: block;
+  font-size: var(--font-size-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: var(--space-1);
+}
+
+.ticker-chip {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+}
+
+.ticker-chip + .ticker-chip {
+  margin-top: var(--space-1);
+}
+
+.ticker-chip[data-band="1"] {
+  background: var(--fdr-1-bg);
+  color: var(--fdr-1-fg);
+}
+
+.ticker-chip[data-band="2"] {
+  background: var(--fdr-2-bg);
+  color: var(--fdr-2-fg);
+}
+
+.ticker-chip[data-band="3"] {
+  background: var(--fdr-3-bg);
+  color: var(--fdr-3-fg);
+}
+
+.ticker-chip[data-band="4"] {
+  background: var(--fdr-4-bg);
+  color: var(--fdr-4-fg);
+}
+
+.ticker-chip[data-band="5"] {
+  background: var(--fdr-5-bg);
+  color: var(--fdr-5-fg);
+}
+
+/* Dashed, so a blank is distinguishable from a shaded fixture without relying on colour at all. */
+.ticker-chip[data-band="blank"] {
+  background: var(--fdr-blank-bg);
+  color: var(--fdr-blank-fg);
+  border: 1px dashed var(--border);
+}
+
+.ticker-opponent {
+  font-weight: 600;
+}
+
+.ticker-venue {
+  font-weight: 400;
+}
+
+.ticker-score {
+  font-variant-numeric: tabular-nums;
+}
+
+.ticker-band-label {
+  font-weight: 600;
+}
+
+.ticker-mean-absent,
+.ticker-counts {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.ticker-provenance {
+  margin: var(--space-4) 0 0;
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  line-height: 1.5;
+}
+
+/* Below the phone breakpoint the full club name costs a column the grid cannot spare; the short
+   name is the one every FPL ticker uses anyway. */
+@media (max-width: 640px) {
+  .ticker-club-name {
+    display: none;
+  }
+
+  .ticker-cell {
+    min-width: 5rem;
+  }
+}
