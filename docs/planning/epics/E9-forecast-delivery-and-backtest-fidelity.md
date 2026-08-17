@@ -3,7 +3,7 @@
 **Objective:** OBJ-1, OBJ-7 · **Target:** first, ahead of E10–E12 · **Estimate:** 2–3 days
 **Depends on:** E3 (harness, component chain), E7 (live publish path)
 **Repays debt:** D-25 · **Implements:** [Model Improvement Plan §5 X1, §3 D1](../05-model-improvement-plan.md)
-**Status:** Planned
+**Status:** Delivered — E9-S1 and E9-S2 both landed; the E10–E12 gate in §1 is clear
 
 ---
 
@@ -41,13 +41,19 @@ Build the horizon scorer the component chain lacks, and switch the published for
 `xp_v1`. The scorer takes the component outputs (M1–M8) and a fixture horizon and produces the
 per-gameweek expected points and **modelled variance** (Invariant 6) the contract already carries.
 
-- The forecast stage publishes `xp_v1`; `xp_v0` remains available behind a flag as the documented
-  cold-start fallback (DP-15 — degrade, never break — for the preseason path where M2 has no ratings).
+- The forecast stage publishes `xp_v1`; `xp_v0` remains the documented cold-start fallback (DP-15 —
+  degrade, never break — for the preseason path where M2 has no ratings).
 - **Parity test:** the live horizon scorer must reproduce the backtest's single-gameweek `xp_v1`
   numbers under league-average opposition, to a stated tolerance. This is what proves the shipped
   model and the graded model are the same object rather than two implementations that drift.
-- Ships **dark then promoted** (DP-08): published behind a flag, compared against `xp_v0` on the live
-  path for the shadow window before it becomes the default the app reads.
+- ~~Ships **dark then promoted** (DP-08): published behind a flag, compared against `xp_v0` on the
+  live path for the shadow window before it becomes the default the app reads.~~ **Superseded by
+  [DL-46](../00-decision-log.md#dl-46)**, which found this sentence in direct conflict with the one
+  above it. Closing D-25 is the bug fix DP-08 names as its own exception — `xp_v1` was already
+  selected and graded, and the defect was that a *less-capable* model shipped — so `xp_v1` becomes
+  the default publish target directly, with no `enabled` flag and no shadow window (there is no live
+  season to shadow against before GW1). [DL-21](../00-decision-log.md#dl-21)'s guardrail, restated
+  on every model card, is what bounds the live blast radius instead.
 
 **Acceptance:** the app's ranking is produced by `xp_v1`; the parity test is green; the model card
 states which model is published and from which date.
@@ -67,15 +73,15 @@ depends on — it is not "better", it is "now measurable".
 
 ## 3. Definition of done
 
-- [ ] `xp_v1` is the model the live pipeline publishes; `xp_v0` is retained as the documented
+- [x] `xp_v1` is the model the live pipeline publishes; `xp_v0` is retained as the documented
       cold-start fallback only
-- [ ] Parity test proves the live horizon scorer reproduces the backtest's `xp_v1` single-GW numbers
+- [x] Parity test proves the live horizon scorer reproduces the backtest's `xp_v1` single-GW numbers
       under league-average opposition
-- [ ] **D-25 closed** in the debt register ([E0 §6](E0-steel-thread-gw1.md#6-technical-debt-register))
-- [ ] The backtest carries fixtures in every fold frame, with knowability stamps, and reports
+- [x] **D-25 closed** in the debt register ([E0 §6](E0-steel-thread-gw1.md#6-technical-debt-register))
+- [x] The backtest carries fixtures in every fold frame, with knowability stamps, and reports
       fixture-conditioned breakdowns
-- [ ] Model card names the published model and the date it became the default
-- [ ] The DL-21 guardrail is restated unchanged: no −8 hit, chip or wildcard on `xp_v1` alone until
+- [x] Model card names the published model and the date it became the default
+- [x] The DL-21 guardrail is restated unchanged: no −8 hit, chip or wildcard on `xp_v1` alone until
       top-20 precision beats B0
 
 ## 4. The honest question

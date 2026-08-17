@@ -30,9 +30,18 @@ import pandas as pd
 
 from fpl_dof.config.models import BacktestConfig, ForecastConfig
 from fpl_dof.forecast import baselines
-from fpl_dof.forecast.features import TARGET, LeakageError, assert_no_look_ahead, build_features
+from fpl_dof.forecast.features import (
+    FIXTURE_AT_HOME,
+    FIXTURE_OPPONENT,
+    FIXTURE_TEAM,
+    TARGET,
+    LeakageError,
+    assert_no_look_ahead,
+    build_features,
+)
 from fpl_dof.forecast.metrics import MetricSet, evaluate
-from fpl_dof.forecast.models import RATE_COMPONENTS
+from fpl_dof.forecast.models import RATE_COMPONENTS, TeamStrengthModel
+from fpl_dof.forecast.xp_v1 import team_matches
 from fpl_dof.frames import as_int
 from fpl_dof.obs.logging import get_logger
 
@@ -42,6 +51,14 @@ MODEL_COLUMN = "predicted"
 B0_COLUMN = "b0"
 MEAN_COLUMN = "b_mean"
 FORM_COLUMN = "b_form"
+
+#: How hard each scored observation's fixture was, as a ratio to an even fixture (E9-S2).
+#:
+#: Attached **after** the predictions, from a team-strength model the harness fits for itself on the
+#: same pre-deadline window. Deliberately not read off the graded predictor's own M2: a conditioning
+#: variable taken from the model under test changes meaning whenever the model does, and the whole
+#: purpose of the breakdown is to compare a fixture change against what came before it.
+FIXTURE_DIFFICULTY_COLUMN = "fixture_difficulty_ratio"
 
 #: What actually happened in the gameweek a fold predicts. **Available to ``fit``, never to
 #: ``predict``.**
@@ -94,6 +111,10 @@ class BacktestResult:
     mean_baseline: MetricSet
     model_free: MetricSet
     warnings: tuple[str, ...] = field(default=())
+    fixture_coverage: float = float("nan")
+    """Share of scored observations whose fixture the harness could resolve. Anything below 1.0 is
+    a population scored against league-average opposition, and it is reported rather than assumed
+    away (DP-15)."""
 
     @property
     def beats_b0(self) -> bool:
@@ -139,6 +160,9 @@ class BacktestResult:
             "model_free": self.model_free.as_dict(),
             "beats_b0": self.beats_b0,
             "beats_model_free": self.beats_model_free,
+            "fixture_coverage": (
+                None if self.fixture_coverage != self.fixture_coverage else self.fixture_coverage
+            ),
             "verdict": self.verdict(),
             "warnings": list(self.warnings),
         }
@@ -253,6 +277,10 @@ def walk_forward(
         merged["season"] = season
         merged["gameweek"] = gameweek
         merged["played"] = (merged["minutes"] > 0).astype(float)
+        # Added after the prediction and after the rebinding merge above, so it reaches neither the
+        # predictor's view nor the cached frame later folds train on. It conditions the report, it
+        # is not an input to anything.
+        merged[FIXTURE_DIFFICULTY_COLUMN] = fixture_difficulty(merged, past)
         folds.append(
             Fold(
                 season=season,
@@ -275,6 +303,19 @@ def walk_forward(
         warnings.append("no player met the minutes threshold; metrics fall back to all rows")
         scored = predictions
 
+    resolved = (
+        float(scored[FIXTURE_OPPONENT].notna().mean())
+        if FIXTURE_OPPONENT in scored.columns and not scored.empty
+        else 0.0
+    )
+    if resolved < 1.0:
+        # Never silent. A harness that quietly reverts to league-average opposition reports
+        # perfectly ordinary-looking numbers that mean something else entirely (DP-15).
+        warnings.append(
+            f"{(1 - resolved) * 100:.1f}% of scored observations carried no resolvable fixture "
+            "and were predicted against league-average opposition"
+        )
+
     def measure(name: str, predicted: str, baseline: str) -> MetricSet:
         return evaluate(
             scored,
@@ -284,6 +325,8 @@ def walk_forward(
             baseline=baseline,
             top_n=backtest_config.top_n_precision,
             captaincy_pool=backtest_config.captaincy_pool,
+            fixture_difficulty=FIXTURE_DIFFICULTY_COLUMN,
+            fixture_band_ratio=backtest_config.fixture_difficulty_band_ratio,
         )
 
     # Each model is measured against the next-simpler thing, so the chain reads as a ladder:
@@ -296,6 +339,7 @@ def walk_forward(
         mean_baseline=measure("mean", MEAN_COLUMN, MEAN_COLUMN),
         model_free=measure("model-free (trailing 6)", FORM_COLUMN, B0_COLUMN),
         warnings=tuple(warnings),
+        fixture_coverage=resolved,
     )
 
     log.info(
@@ -308,6 +352,7 @@ def walk_forward(
             "model_free_spearman": result.model_free.spearman,
             "beats_b0": result.beats_b0,
             "beats_model_free": result.beats_model_free,
+            "fixture_coverage": resolved,
         },
     )
     return result
@@ -344,9 +389,105 @@ def fold_rows(
     ][[column for column in wanted if column in history.columns]]
     if outcomes.empty:
         return pd.DataFrame()
-    return features.drop(columns=["price"], errors="ignore").merge(
+    merged = features.drop(columns=["price"], errors="ignore").merge(
         outcomes, on="player_code", how="inner"
     )
+    return attach_fixtures(merged, history, season, gameweek)
+
+
+def fixture_calendar(history: pd.DataFrame, season: str, gameweek: int) -> pd.DataFrame:
+    """Who plays whom, and where, in one gameweek. A projection of the published calendar.
+
+    Built from the archive's *fixture* columns only — never from whether a given player happens to
+    have a row. The calendar is published weeks ahead and is genuinely knowable at the deadline;
+    who was picked is not, and reading the second while claiming the first is exactly the shape of
+    look-ahead Invariant 5 exists to prevent.
+
+    Keyed on ``(team, fixture)`` rather than on ``(team, gameweek)`` because a double gameweek is
+    two fixtures for the same club and the harness scores each of them against its own outcome.
+    """
+    empty = pd.DataFrame(
+        columns=["_team_key", "_fixture_key", FIXTURE_TEAM, FIXTURE_OPPONENT, FIXTURE_AT_HOME]
+    )
+    needed = {"season", "gameweek", "team_id", "fixture_id", "opponent_team_id", "was_home"}
+    if history.empty or not needed <= set(history.columns):
+        return empty
+    window = history[(history["season"] == season) & (history["gameweek"] == gameweek)]
+    fixtures = window[["team_id", "fixture_id", "opponent_team_id", "was_home"]].dropna(
+        subset=["team_id", "fixture_id", "opponent_team_id"]
+    )
+    if fixtures.empty:
+        return empty
+    calendar = pd.DataFrame(
+        {
+            "_team_key": _as_key(fixtures["team_id"]),
+            "_fixture_key": _as_key(fixtures["fixture_id"]),
+            FIXTURE_OPPONENT: _as_key(fixtures["opponent_team_id"]),
+            FIXTURE_AT_HOME: fixtures["was_home"].astype("boolean"),
+        }
+    )
+    calendar[FIXTURE_TEAM] = calendar["_team_key"]
+    return calendar.drop_duplicates(subset=["_team_key", "_fixture_key"]).reset_index(drop=True)
+
+
+def attach_fixtures(
+    merged: pd.DataFrame, history: pd.DataFrame, season: str, gameweek: int
+) -> pd.DataFrame:
+    """Give every fold row the fixture it was played under, or a stated absence.
+
+    The fixture columns are aliases rather than the outcome's own ``team_id`` and ``fixture_id``.
+    Those two stay in :data:`OUTCOME_COLUMNS` and stay stripped: a naive read of a fold row cannot
+    tell that ``team_id`` came from the calendar rather than from the result, and the test that
+    asserts no outcome column reaches a prediction is worth more than the one column it costs.
+    """
+    calendar = fixture_calendar(history, season, gameweek)
+    if merged.empty or calendar.empty or not {"team_id", "fixture_id"} <= set(merged.columns):
+        merged = merged.copy()
+        merged[FIXTURE_TEAM] = pd.Series(pd.NA, index=merged.index, dtype="Int64")
+        merged[FIXTURE_OPPONENT] = pd.Series(pd.NA, index=merged.index, dtype="Int64")
+        merged[FIXTURE_AT_HOME] = pd.Series(pd.NA, index=merged.index, dtype="boolean")
+        return merged
+
+    keyed = merged.copy()
+    keyed["_team_key"] = _as_key(keyed["team_id"])
+    keyed["_fixture_key"] = _as_key(keyed["fixture_id"])
+    joined = keyed.merge(calendar, on=["_team_key", "_fixture_key"], how="left")
+    return joined.drop(columns=["_team_key", "_fixture_key"])
+
+
+def fixture_difficulty(merged: pd.DataFrame, past: pd.DataFrame) -> pd.Series:
+    """How hard each row's fixture looked *at the deadline*, from pre-deadline evidence only.
+
+    A team-strength model fitted here rather than borrowed from the predictor. Borrowing would be
+    cheaper and would make the band mean "where this model thought the fixture was hard", which
+    changes with every model change and so cannot compare one to the next — which is the only thing
+    a fixture-conditioned breakdown is for (E9-S2, the gate E11 rests on).
+
+    Rows with no resolvable fixture get NaN, and :func:`~fpl_dof.forecast.metrics.evaluate` bands
+    them as ``unresolved`` rather than dropping them.
+    """
+    if merged.empty:
+        return pd.Series(dtype=float)
+    if not {FIXTURE_TEAM, FIXTURE_OPPONENT, FIXTURE_AT_HOME} <= set(merged.columns):
+        return pd.Series(float("nan"), index=merged.index, dtype=float)
+    strength = TeamStrengthModel().fit(team_matches(past))
+    values = [
+        float("nan")
+        if pd.isna(team) or pd.isna(opponent) or pd.isna(at_home)
+        else strength.fixture_difficulty_ratio(int(team), int(opponent), at_home=bool(at_home))
+        for team, opponent, at_home in zip(
+            merged[FIXTURE_TEAM],
+            merged[FIXTURE_OPPONENT],
+            merged[FIXTURE_AT_HOME],
+            strict=True,
+        )
+    ]
+    return pd.Series(values, index=merged.index, dtype=float)
+
+
+def _as_key(values: pd.Series) -> pd.Series:
+    """A nullable integer join key. Merging int64 against float64 is an error, not a coercion."""
+    return pd.to_numeric(values, errors="coerce").astype("Int64")
 
 
 def training_rows(
@@ -381,6 +522,7 @@ def training_rows(
 
 __all__ = [
     "B0_COLUMN",
+    "FIXTURE_DIFFICULTY_COLUMN",
     "FORM_COLUMN",
     "MEAN_COLUMN",
     "MODEL_COLUMN",
@@ -388,7 +530,10 @@ __all__ = [
     "BacktestResult",
     "Fold",
     "Predictor",
+    "attach_fixtures",
     "deadlines_for",
+    "fixture_calendar",
+    "fixture_difficulty",
     "fold_rows",
     "training_rows",
     "walk_forward",

@@ -36,6 +36,13 @@ class MetricSet:
     spearman: float
     spearman_by_position: dict[str, float] = field(default_factory=dict)
     spearman_by_price_band: dict[str, float] = field(default_factory=dict)
+    spearman_by_fixture_band: dict[str, float] = field(default_factory=dict)
+    """Rank correlation split by how hard the fixture was. The axis E11 is graded on (E9-S2)."""
+
+    calibration_by_fixture_band: dict[str, float] = field(default_factory=dict)
+    """Calibration slope on the same split. A fixture model can rank well and still be scaled
+    wrongly in the fixtures it is supposed to help, and only the slope shows that."""
+
     top_n_precision: float = 0.0
     captaincy_hit_rate: float = 0.0
     calibration_slope: float = float("nan")
@@ -54,6 +61,12 @@ class MetricSet:
             "spearman_by_position": {k: _clean(v) for k, v in self.spearman_by_position.items()},
             "spearman_by_price_band": {
                 k: _clean(v) for k, v in self.spearman_by_price_band.items()
+            },
+            "spearman_by_fixture_band": {
+                k: _clean(v) for k, v in self.spearman_by_fixture_band.items()
+            },
+            "calibration_by_fixture_band": {
+                k: _clean(v) for k, v in self.calibration_by_fixture_band.items()
             },
             "top_n_precision": _clean(self.top_n_precision),
             "captaincy_hit_rate": _clean(self.captaincy_hit_rate),
@@ -155,6 +168,32 @@ def price_band(price: float, edges: tuple[float, ...] = (5.0, 7.5, 10.0)) -> str
     return f">={edges[-1]:.1f}"
 
 
+#: The label a row gets when its fixture could not be resolved. Kept in the breakdown rather than
+#: dropped, so a harness silently falling back to league-average opposition shows up as a band
+#: rather than as an absence nobody notices (DP-15).
+UNRESOLVED_FIXTURE_BAND = "unresolved"
+
+
+def fixture_difficulty_band(ratio: float, band_ratio: float) -> str:
+    """Coarse bands over :meth:`TeamStrengthModel.fixture_difficulty_ratio`.
+
+    Three bands from *one* tunable, because the easy and hard edges are the same departure from
+    even in opposite directions: ``band_ratio`` and its reciprocal. Two separately configured edges
+    would be one tunable and a bug waiting to happen — the same reasoning the published fixture
+    ticker's steepness is derived rather than set (DL-37).
+
+    Bands rather than quantiles so the label means the same thing across gameweeks and across runs.
+    """
+    if ratio is None or (isinstance(ratio, float) and np.isnan(ratio)) or pd.isna(ratio):
+        return UNRESOLVED_FIXTURE_BAND
+    value = float(ratio)
+    if value < 1.0 / band_ratio:
+        return "easy"
+    if value >= band_ratio:
+        return "hard"
+    return "average"
+
+
 def evaluate(
     frame: pd.DataFrame,
     *,
@@ -166,6 +205,8 @@ def evaluate(
     captaincy_pool: int = 1,
     minutes_probability: str | None = None,
     played: str | None = None,
+    fixture_difficulty: str | None = None,
+    fixture_band_ratio: float | None = None,
 ) -> MetricSet:
     """Every tier-2 metric for one model, against one baseline column."""
     usable = frame.dropna(subset=[predicted, actual]).copy()
@@ -203,6 +244,16 @@ def evaluate(
     else:
         by_band = {}
 
+    by_fixture: dict[str, float] = {}
+    calibration_by_fixture: dict[str, float] = {}
+    if fixture_difficulty and fixture_band_ratio and fixture_difficulty in usable.columns:
+        usable["_fixture_band"] = usable[fixture_difficulty].map(
+            lambda value: fixture_difficulty_band(value, fixture_band_ratio)
+        )
+        for band, group in usable.groupby("_fixture_band"):
+            by_fixture[str(band)] = spearman(group[predicted], group[actual])
+            calibration_by_fixture[str(band)] = calibration_slope(group[predicted], group[actual])
+
     brier = float("nan")
     if minutes_probability and played and minutes_probability in usable.columns:
         brier = brier_score(usable[minutes_probability], usable[played])
@@ -216,6 +267,8 @@ def evaluate(
         spearman=spearman(usable[predicted], usable[actual]),
         spearman_by_position=by_position,
         spearman_by_price_band=by_band,
+        spearman_by_fixture_band=by_fixture,
+        calibration_by_fixture_band=calibration_by_fixture,
         top_n_precision=top_n_precision(usable, n=top_n, predicted=predicted, actual=actual),
         captaincy_hit_rate=captaincy_hit_rate(
             usable, predicted=predicted, actual=actual, pool=captaincy_pool
@@ -226,11 +279,13 @@ def evaluate(
 
 
 __all__ = [
+    "UNRESOLVED_FIXTURE_BAND",
     "MetricSet",
     "brier_score",
     "calibration_slope",
     "captaincy_hit_rate",
     "evaluate",
+    "fixture_difficulty_band",
     "price_band",
     "spearman",
     "top_n_precision",

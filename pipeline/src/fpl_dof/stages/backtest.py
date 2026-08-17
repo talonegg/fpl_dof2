@@ -84,6 +84,7 @@ def run(ctx: StageContext) -> StageResult:
             "mae_skill_score": _round(result.model.mae_skill_score),
             "beats_b0": str(result.beats_b0),
             "beats_model_free": str(result.beats_model_free),
+            "fixture_coverage": _round(result.fixture_coverage),
             "prior_season_prior": str(ctx.config.forecast.features.prior_season.enabled),
             "prior_season_rows": 0 if metrics is None else len(metrics),
         },
@@ -175,14 +176,46 @@ def _card(result: BacktestResult, ctx: StageContext) -> str:
 
     lines += [
         "",
+        "### Spearman and calibration by fixture difficulty (E9-S2)",
+        "",
+        "How hard the fixture was, as the ratio of the goals M2 expects *against* the player's",
+        "club to the goals it expects *for* them: 1.0 is even, and the bands cut at",
+        f"{ctx.config.backtest.fixture_difficulty_band_ratio:g} and its reciprocal. The strength",
+        "model used for the banding is fitted by the harness on pre-deadline matches only, and",
+        "separately from the graded model, so the bands mean the same thing from one run to the",
+        "next. This is the axis a fixture change (E11) has to show up on.",
+        "",
+        f"Fixtures resolved: {_pct(result.fixture_coverage)} of scored observations. The remainder",
+        "were scored against league-average opposition and are banded `unresolved`.",
+        "",
+        "| Band | Model Spearman | B0 Spearman | Model calibration |",
+        "| --- | --- | --- | --- |",
+    ]
+    fixture_bands = sorted(
+        set(result.model.spearman_by_fixture_band) | set(result.b0.spearman_by_fixture_band)
+    )
+    for band in fixture_bands:
+        lines.append(
+            f"| {band} | {_fmt(result.model.spearman_by_fixture_band.get(band, float('nan')))} "
+            f"| {_fmt(result.b0.spearman_by_fixture_band.get(band, float('nan')))} "
+            f"| {_fmt(result.model.calibration_by_fixture_band.get(band, float('nan')))} |"
+        )
+    if not fixture_bands:
+        lines.append("| — | — | — | — |")
+
+    lines += [
+        "",
         "## Known limits of this measurement",
         "",
         "- **Defensive Contribution exists in 2025/26 only.** Any fold before it cannot use M4, so",
         "  the model is measured without its best component over most of the window. D-11.",
         "- **No season used the 2026/27 BPS matrix.** M8 is structural rather than trained, and",
         "  bonus accuracy measured here is against a scoring regime that no longer applies.",
-        "- **Opponent strength is league-average within the backtest.** The harness carries no",
-        "  fixture table, so M2 contributes less here than it does at inference.",
+        "- **Opponent strength is real, where the calendar could supply it (E9-S2).** Each fold",
+        "  row is scored against the fixture it was actually played under; the share above says",
+        "  how often that succeeded, and the `unresolved` band is what was left on league-average",
+        "  opposition. Before E9-S2 every prediction here was league-average, so numbers from",
+        "  earlier runs are not comparable on the fixture axis.",
         "- **The deadline is approximated by the gameweek's earliest kickoff**, which is up to",
         "  90 minutes later than FPL's published deadline. Conservative: it can only exclude",
         "  information, never admit it.",
@@ -198,3 +231,7 @@ def _card(result: BacktestResult, ctx: StageContext) -> str:
 
 def _fmt(value: float) -> str:
     return "—" if value != value else f"{value:.3f}"
+
+
+def _pct(value: float) -> str:
+    return "—" if value != value else f"{value * 100:.1f}%"

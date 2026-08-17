@@ -17,6 +17,7 @@ from typing import Any
 
 import pandas as pd
 
+from fpl_dof.forecast.xp_v0 import MODEL_NAME as XP_V0_NAME
 from fpl_dof.frames import as_float, as_int
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.obs.manifest import RunManifest, git_sha, read_manifest, utcnow
@@ -194,12 +195,26 @@ def _meta(
         "deadline_utc": deadline,
         "horizon_gameweeks": as_int(forecast["horizon_gameweeks"].iloc[0]),
         "model": {
-            "name": "xp_v0",
+            # Read from the artefact rather than written here. Which model ran is decided at
+            # forecast time and can change between runs (DL-46); a literal in the publisher is a
+            # claim about the past that nothing keeps true.
+            "name": _model_name(forecast),
             "r_squared_on_price": round(regression.r_squared, 4),
             "price_dependence": regression.verdict.value,
         },
         "counts": {"players": len(forecast), "teams": len(teams)},
     }
+
+
+def _model_name(forecast: pd.DataFrame) -> str:
+    """Which model produced this frame, from the frame's own provenance column.
+
+    Falls back to the cold-start model's name for a forecast written before that column existed,
+    which is what it would in fact have been (DP-15).
+    """
+    if "model" not in forecast.columns or forecast.empty:
+        return XP_V0_NAME
+    return str(forecast["model"].iloc[0])
 
 
 def _iso(moment: dt.datetime) -> str:

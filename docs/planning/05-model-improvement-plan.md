@@ -104,8 +104,12 @@ and anchored on the ratio to the league mean — good — but it inherits M2's b
 
 ### 4.0 Prerequisite — the backtest must carry fixtures (D1)
 
-Restated because it gates this whole section: **no change in §4 is measurable until D1 lands.** With
-league-average opposition, M2's attack/defence ratings never enter a scored prediction.
+Restated because it gates this whole section: **no change in §4 was measurable until D1 landed.**
+With league-average opposition, M2's attack/defence ratings never entered a scored prediction.
+**D1 is delivered by [E9-S2](epics/E9-forecast-delivery-and-backtest-fidelity.md)**: fold frames
+carry the fixture each observation was played under (stamped `AT_DEADLINE`, built from the calendar
+rather than from who was picked), and the harness reports Spearman and calibration by
+fixture-difficulty band. §4's gates are now evaluable.
 
 | # | Change | Why | Gate |
 | --- | --- | --- | --- |

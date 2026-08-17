@@ -45,6 +45,17 @@ log = get_logger(__name__)
 PRIOR_SEASON_PREFIX = "prior_season_"
 PRIOR_SEASON_MINUTES = f"{PRIOR_SEASON_PREFIX}minutes"
 
+#: The fixture an observation is played under, named once so the harness that attaches it and the
+#: model that reads it cannot disagree about the spelling (E9-S2).
+#:
+#: Deliberately **not** ``was_home``. That name is already taken by a rolling feature describing the
+#: player's *previous* match, and quietly widening it to mean the upcoming fixture would change a
+#: number every backtest has already reported without changing its name. Two meanings, two names.
+FIXTURE_TEAM = "fixture_team_id"
+FIXTURE_OPPONENT = "fixture_opponent_team_id"
+FIXTURE_AT_HOME = "fixture_at_home"
+FIXTURE_COLUMNS: tuple[str, ...] = (FIXTURE_TEAM, FIXTURE_OPPONENT, FIXTURE_AT_HOME)
+
 
 class LeakageError(RuntimeError):
     """A feature used a match that had not been played when it claims to have been knowable.
@@ -166,6 +177,29 @@ def specs(config: FeatureConfig) -> tuple[FeatureSpec, ...]:
             name="was_home",
             knowability=Knowability.AT_DEADLINE,
             summary="Home advantage, known as soon as the fixture is",
+            source_columns=("was_home",),
+        ),
+        # The upcoming fixture (E9-S2). Attached by the caller that knows which gameweek is being
+        # predicted — the harness from the archive's calendar, the live path from the fixture
+        # table — rather than by build_features, which describes a player and not a gameweek.
+        # AT_DEADLINE because the calendar is published weeks ahead and revised only by
+        # postponement: it is a snapshot of a schedule, not an accumulation of results.
+        FeatureSpec(
+            name=FIXTURE_TEAM,
+            knowability=Knowability.AT_DEADLINE,
+            summary="The club whose fixture this observation is played under",
+            source_columns=("team_id",),
+        ),
+        FeatureSpec(
+            name=FIXTURE_OPPONENT,
+            knowability=Knowability.AT_DEADLINE,
+            summary="The opponent in the fixture being predicted, from the published calendar",
+            source_columns=("opponent_team_id",),
+        ),
+        FeatureSpec(
+            name=FIXTURE_AT_HOME,
+            knowability=Knowability.AT_DEADLINE,
+            summary="Venue of the fixture being predicted, from the published calendar",
             source_columns=("was_home",),
         ),
         FeatureSpec(
@@ -445,6 +479,10 @@ def training_frame(
 
 
 __all__ = [
+    "FIXTURE_AT_HOME",
+    "FIXTURE_COLUMNS",
+    "FIXTURE_OPPONENT",
+    "FIXTURE_TEAM",
     "PRIOR_SEASON_MINUTES",
     "PRIOR_SEASON_PREFIX",
     "TARGET",

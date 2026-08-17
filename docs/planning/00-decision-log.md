@@ -2012,6 +2012,77 @@ Q-16) are carried on the open-questions list; Q-13 and Q-04 are pulled into E12 
 
 ---
 
+## DL-46 — E9-S1 ships `xp_v1` as the default publish, not a dark-launched flag: closing D-25 is a bug fix, not a model promotion
+
+**Date:** 2026-08-16 · **Status:** Accepted · **Serves:** OBJ-1, OBJ-7, FR-12, FR-13 ·
+**Builds on:** [DL-21](#dl-21), [DL-33](#dl-33), [DL-34](#dl-34), [DL-45](#dl-45)
+
+### Context
+
+[E9-S1](epics/E9-forecast-delivery-and-backtest-fidelity.md#e9-s1--fixture-aware-horizon-scorer-xp_v1-on-the-live-path--15-days--fr-12-fr-13--closes-d-25)
+reads, in the same paragraph, both "the forecast stage publishes `xp_v1`" and "ships dark then
+promoted (DP-08): published behind a flag … for the shadow window before it becomes the default the
+app reads." Those two sentences conflict on inspection. [DP-08](../DESIGN-PRINCIPLES.md) requires a
+new model behaviour to run six shadow gameweeks with live rolling accuracy not degrading before
+promotion — impossible before GW1, since there is no live season yet to shadow against, and it is
+explicitly violated by "a flag is added and immediately defaulted on." Before writing any code this
+needs a resolution, per the project convention of recording significant decisions ahead of
+implementation.
+
+### Decision
+
+**Closing D-25 is the bug-fix exception DP-08 names, not a model promotion, and `xp_v1` ships as the
+default publish target when E9-S1 lands.**
+
+The reasoning: DP-08 governs *introducing new model behaviour*. `xp_v1` is not new — it was already
+selected and measured. [DL-21](#dl-21) backtested it against B0, a mean baseline and a model-free
+trailing-form baseline over 72 folds and recorded the verdict as accepted; [DL-34](#dl-34) backtested
+and promoted its xG component the same way. D-25's entry names the gap precisely: *"the improved model
+is not the one that ships"* — the defect is that the pipeline publishes a different, less-capable
+model (`xp_v0`) than the one already evidenced. Fixing that mismatch does not introduce a new,
+unproven candidate; it makes the shipped artefact match the already-graded one. That is DP-08's stated
+exception: *"a bug fix is not a model change and does not wait."*
+
+The standing safety net is [DL-21](#dl-21)'s guardrail, restated unchanged by this epic's definition of
+done: **no −8 hit, chip or wildcard is justified by `xp_v1` alone until top-20 precision beats B0.**
+That constraint — not a shadow-mode flag — is what bounds the live blast radius of a still-unproven-at-the-head
+model while E10 does the discrimination work.
+
+Concretely:
+
+- `stages/forecast.py` publishes `xp_v1` by default once E9-S1 lands. There is no `enabled: false`
+  flag gating `xp_v1` behind a manual promotion step — that would misapply DP-08 to a delivery bug and
+  stall D-25 indefinitely, since no in-season shadow window exists before GW1 to satisfy it.
+- `xp_v0` is retained as a **named, visible** fallback (DP-15) for the genuine cold-start case — when
+  `player_gameweek` history is too thin for M1–M8 to fit (pre-season, or a fresh current-season table
+  with too few completed gameweeks). The fallback firing is recorded in the model card and the stage
+  metrics, never silent.
+- The published model's name and the date it became default are recorded in `meta.model` (contract)
+  and the model card, so the fallback state is always visible to the app and the owner (DP-15).
+- The DL-21 guardrail is restated verbatim in the model card and remains binding.
+
+### Rejected alternatives
+
+**Add a `published_model` flag defaulting to `xp_v0`, promote to `xp_v1` after six live shadow
+gameweeks post-GW1.** Rejected — this is the literal DP-08 mechanism, but it leaves D-25 open through
+GW1 through GW6, defeating the epic's own stated purpose ("no story in E10–E12 may start until E9's
+definition of done holds") for a full six gameweeks with no corresponding new evidence being generated,
+since the backtest evidence is already in hand. **Treat this as a genuine model promotion requiring a
+fresh six-gameweek shadow run.** Rejected for the same reason — there is nothing left to learn from
+shadowing that DL-21's 72-fold backtest did not already measure at the single-gameweek grain; what E9-S1
+adds is the horizon scorer and fixture awareness, which are covered by the parity test against the
+already-graded numbers, not by a new promotion gate.
+
+### Consequences
+
+E9-S1's acceptance criterion ("the app's ranking is produced by `xp_v1`") is achieved on merge, gated
+only by the parity test being green and the fallback being visible — not by calendar time. The E9 epic
+text's "ships dark then promoted" phrasing is superseded by this entry for the specific case of D-25;
+DP-08's shadow-mode mechanism remains the binding rule for any subsequent E10–E12 change that alters
+what `xp_v1` computes, which is a genuine new-behaviour case.
+
+---
+
 ## Open decisions
 
 Decisions deliberately deferred, with the point at which each must be resolved.

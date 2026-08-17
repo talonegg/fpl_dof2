@@ -15,10 +15,14 @@ M2 is a multiplicative `league_mean × attack(team) × defence(opponent) × home
 from **goals**; in preseason every rating is the neutral 1.0, so the live path falls back to FPL's
 static 1–5 FDR. Its xG variant (`team_strength_from_xg`) is built but **dark**.
 
-**None of this is measurable until [E9-S2](E9-forecast-delivery-and-backtest-fidelity.md) puts
+~~**None of this is measurable until [E9-S2](E9-forecast-delivery-and-backtest-fidelity.md) puts
 fixtures into the backtest.** With league-average opposition, M2's attack/defence ratings never enter
-a scored prediction. **No story in this epic may start until E9-S2's definition of done holds.** This
-is the restated §4.0 prerequisite from the improvement plan, made a hard gate.
+a scored prediction. **No story in this epic may start until E9-S2's definition of done holds.**~~
+**Gate cleared.** [E9-S2](E9-forecast-delivery-and-backtest-fidelity.md) joins each fold row's real
+opponent and venue from the published calendar, scores it through `fixture_opposition`, and reports
+Spearman and calibration split by fixture-difficulty band. Every "Backtest: …" gate below is now a
+sentence that can be evaluated. Note the two things it does *not* say: the fixture-band numbers from
+E9-S2 are a **baseline to beat, not a pass**, and no run predating it is comparable on this axis.
 
 ## 1. Stories
 
