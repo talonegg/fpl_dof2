@@ -28,12 +28,21 @@ from dataclasses import dataclass
 import pandas as pd
 
 from fpl_dof.config.models import ForecastConfig
-from fpl_dof.forecast.features import PRIOR_SEASON_MINUTES, PRIOR_SEASON_PREFIX
+from fpl_dof.forecast.features import (
+    FIXTURE_AT_HOME,
+    FIXTURE_OPPONENT,
+    FIXTURE_TEAM,
+    PRIOR_SEASON_MINUTES,
+    PRIOR_SEASON_PREFIX,
+)
 from fpl_dof.forecast.models import ComponentModels, MinutesDistribution
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.rules.models import GameRules, Position
 
 log = get_logger(__name__)
+
+#: What this model calls itself wherever a published artefact has to say which model ran.
+MODEL_NAME = "xp_v1"
 
 #: Components reported in the decomposition, in the order the UI shows them.
 COMPONENT_ORDER = (
@@ -60,6 +69,66 @@ class PlayerForecast:
     @property
     def standard_deviation(self) -> float:
         return math.sqrt(max(0.0, self.variance))
+
+
+@dataclass(frozen=True, slots=True)
+class Opposition:
+    """The fixture seam: everything about the other side a single-fixture forecast needs.
+
+    Exactly two numbers, because those are the only two things :func:`forecast_player` ever asks
+    about an opponent. Naming them as one object is what lets the live horizon scorer and the
+    backtest predictor be *told* about opposition in the same words rather than each computing it
+    for itself — which is precisely how the shipped model and the graded model drift apart (D-25).
+    """
+
+    clean_sheet_probability: float
+    goals_conceded_mean: float
+
+
+def league_average_opposition(models: ComponentModels) -> Opposition:
+    """Opposition with no identity — the honest assumption when the fixture is unknown.
+
+    Inventing a specific opponent where none is known would add noise that looks like signal. Since
+    E9-S2 this is a **fallback** rather than the backtest's normal condition: a fold row whose
+    fixture the calendar cannot resolve is scored here, counted, and reported (DP-15). It remains
+    the condition the E9-S1 parity test holds both paths to, because it is the one opposition both
+    can be put under by construction.
+    """
+    mean = models.team_strength.league_mean_goals
+    return Opposition(clean_sheet_probability=math.exp(-mean), goals_conceded_mean=mean)
+
+
+def fixture_opposition(
+    models: ComponentModels, *, team_id: int, opponent_id: int, at_home: bool
+) -> Opposition:
+    """Opposition for a real fixture, from M2's attack and defence ratings."""
+    return Opposition(
+        clean_sheet_probability=models.team_strength.clean_sheet_probability(
+            team_id, opponent_id, at_home=at_home
+        ),
+        goals_conceded_mean=models.team_strength.expected_goals(
+            opponent_id, team_id, at_home=not at_home
+        ),
+    )
+
+
+def row_opposition(models: ComponentModels, row: pd.Series) -> Opposition | None:
+    """The real fixture's opposition for one feature row, or ``None`` when it cannot be resolved.
+
+    ``None`` rather than a quiet league-average default, so the caller has to decide what to do
+    about it and can count how often it happened. A fallback nobody counts is a fallback that
+    becomes the norm without anyone noticing.
+    """
+    team = row.get(FIXTURE_TEAM)
+    opponent = row.get(FIXTURE_OPPONENT)
+    at_home = row.get(FIXTURE_AT_HOME)
+    if team is None or opponent is None or at_home is None:
+        return None
+    if pd.isna(team) or pd.isna(opponent) or pd.isna(at_home):
+        return None
+    return fixture_opposition(
+        models, team_id=int(team), opponent_id=int(opponent), at_home=bool(at_home)
+    )
 
 
 def _poisson_survival(threshold: int, mean: float) -> float:
@@ -238,6 +307,31 @@ def forecast_player(
     )
 
 
+def score_player(
+    row: pd.Series,
+    models: ComponentModels,
+    rules: GameRules,
+    config: ForecastConfig,
+    *,
+    opposition: Opposition,
+    status_multiplier: float = 1.0,
+) -> PlayerForecast:
+    """:func:`forecast_player`, told about the opponent as one object rather than two loose floats.
+
+    The single call every caller outside this module should use. It exists so that "which
+    opposition was this scored under" is a decision made once, by name, at each call site.
+    """
+    return forecast_player(
+        row,
+        models,
+        rules,
+        config,
+        clean_sheet_probability=opposition.clean_sheet_probability,
+        goals_conceded_mean=opposition.goals_conceded_mean,
+        status_multiplier=status_multiplier,
+    )
+
+
 class ComponentPredictor:
     """Adapts the component models to the backtest's predictor interface.
 
@@ -263,21 +357,31 @@ class ComponentPredictor:
             raise RuntimeError("predict() called before fit(); the harness always fits first")
         models = self.models
 
+        # Each row is scored against **its own** fixture, which is what puts M2's attack and
+        # defence ratings into a graded prediction at all (E9-S2). A row the calendar cannot place
+        # falls back to league-average opposition — the honest assumption when the fixture is
+        # unknown — and the fallback is counted and logged rather than absorbed (DP-15).
+        default = league_average_opposition(models)
         predictions = []
+        unresolved = 0
         for _, row in features.iterrows():
-            # Without a fixture table in the backtest frame, league-average opposition is the
-            # honest assumption: inventing a specific opponent would add noise that looks like
-            # signal. E4 supplies real fixtures at inference time.
-            clean_sheet = math.exp(-models.team_strength.league_mean_goals)
-            forecast = forecast_player(
+            opposition = row_opposition(models, row)
+            if opposition is None:
+                unresolved += 1
+                opposition = default
+            forecast = score_player(
                 row,
                 models,
                 self.rules,
                 self.config,
-                clean_sheet_probability=clean_sheet,
-                goals_conceded_mean=models.team_strength.league_mean_goals,
+                opposition=opposition,
             )
             predictions.append(forecast.expected_points)
+        if unresolved:
+            log.info(
+                "xp_v1.league_average_fallback",
+                extra={"rows": len(features), "unresolved": unresolved},
+            )
         return pd.Series(predictions, index=features.index, dtype=float)
 
 
@@ -363,8 +467,13 @@ def team_matches(history: pd.DataFrame, *, use_xg: bool = False) -> pd.DataFrame
 __all__ = [
     "COMPONENT_ORDER",
     "ComponentPredictor",
+    "Opposition",
     "PlayerForecast",
+    "fixture_opposition",
     "forecast_player",
+    "league_average_opposition",
+    "row_opposition",
+    "score_player",
     "team_matches",
     "to_frame",
 ]

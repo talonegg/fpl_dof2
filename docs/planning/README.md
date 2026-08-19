@@ -24,6 +24,7 @@ Read in order. Each builds on the one before.
 | 02 | [Project Plan and Blueprint](02-project-plan-and-blueprint.md) | The seven design principles, the season calendar, and the RAID log. ⚠️ **Its phase plan, milestones and estimates are superseded by the epics** — the document opens with a table saying which sections are still live |
 | 03 | [Solution Architecture](03-solution-architecture.md) | How it is structured, what it is built with, where it runs, and how it stays free |
 | 04 | [Conceptual Design](04-conceptual-design.md) | Every logical component: sources, data layer, models, optimiser, UX, orchestration, testing, observability |
+| 05 | [Model Improvement Plan](05-model-improvement-plan.md) | **Post-backtest research: why the forecast loses to recent form, and a prioritised set of gated experiments to fix discrimination at the head — plus the UI-entered, never-persisted team/league ID design** ([DL-43](00-decision-log.md#dl-43), [DL-44](00-decision-log.md#dl-44)) |
 | — | [AI Tooling Plan](ai/README.md) | How Claude Code is configured to build it: `CLAUDE.md`, path-scoped rules, skills, subagents and enforcement hooks |
 | — | **[Implementation Plan (Epics)](epics/README.md)** | **The plan of record: steel thread to GW1, then eight incremental epics, with a prioritisation framework and the [inputs needed from you](epics/INPUTS-REQUIRED.md)** |
 
@@ -73,5 +74,8 @@ Full rationale and rejected alternatives in the [Decision Log](00-decision-log.m
 | How the forecast actually works | [Design §5](04-conceptual-design.md#5-analytical-models) |
 | How the optimiser is formulated | [Design §6](04-conceptual-design.md#6-decision-engine) |
 | How the model gets judged, and against what | [Charter §5 tier 2](01-project-charter.md#tier-2--model-quality-obj-7) |
+| **How the forecast gets better, in leverage order** | **[Model Improvement Plan](05-model-improvement-plan.md)** |
+| How that plan is scheduled as work (epics E9–E13) | [Epics §7 — the model-improvement programme](epics/README.md#7-the-model-improvement-programme-e9e13) ([DL-45](00-decision-log.md#dl-45)) |
+| How the team/league IDs are entered without being committed | [Model Improvement Plan §7](05-model-improvement-plan.md#7-fpl-team-and-league-ids--ui-entry-never-persisted-dl-44) |
 | How to add a new data source later | [Design §14](04-conceptual-design.md#14-extensibility) |
 | What could go wrong | [Plan §6 — RAID log](02-project-plan-and-blueprint.md#6-raid-log) |

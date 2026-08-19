@@ -9,6 +9,7 @@ behaviour change otherwise, and this project cannot afford silent behaviour chan
 
 from __future__ import annotations
 
+import datetime as dt
 from pathlib import Path
 from typing import Literal
 
@@ -445,8 +446,48 @@ class FeatureConfig(_Section):
     prior_season: PriorSeasonConfig = PriorSeasonConfig()
 
 
+class PublishedModelConfig(_Section):
+    """Which expected-points model reaches the app, and when it became the default (DL-46).
+
+    The model *names* are not tunables — they are facts about which code exists — so neither
+    ``xp_v1`` nor ``xp_v0`` appears here as a switchable value. DL-46 is explicit that there is no
+    `enabled` flag gating ``xp_v1`` behind a promotion step: closing D-25 is the bug fix DP-08 names
+    as its exception, not the introduction of an unproven model.
+
+    What *is* tunable is the boundary between the two, and the date a reader of the model card needs
+    in order to know which model produced the numbers in front of them (DP-09, DP-15).
+    """
+
+    default_since: dt.date = Field(
+        default=dt.date(2026, 8, 17),
+        description=(
+            "The date `xp_v1` became the model the pipeline publishes, printed on every model "
+            "card. Recorded rather than computed: taking today's date would have every run claim "
+            "the model was promoted this morning, which is the opposite of provenance. Update it "
+            "only when the published model actually changes, and record why in the decision log."
+        ),
+    )
+    cold_start_minimum_gameweeks: int = Field(
+        default=4,
+        ge=1,
+        description=(
+            "Completed gameweeks of current-season history below which the run falls back to the "
+            "cold-start `xp_v0`. Four, to match `backtest.minimum_training_matches`: the "
+            "walk-forward harness refuses to *score* a deadline with less history than this, and "
+            "publishing a model at a point its own grader declines to grade is precisely the "
+            "shipped-is-not-graded mismatch E9 exists to close. Below it, a fitted component chain "
+            "is reporting its priors with a fitted model's confidence, and `xp_v0`'s priors are "
+            "built from several seasons rather than from three matches."
+        ),
+    )
+
+
 class ForecastConfig(_Section):
-    """The v0 expected-points model. Every tunable is here; none is in code (DP-06)."""
+    """The expected-points models. Every tunable is here; none is in code (DP-06).
+
+    Most of what follows is ``xp_v0``'s — the cold-start model, retained as the documented fallback.
+    ``published`` decides which of the two the app actually reads.
+    """
 
     horizon_gameweeks: int = Field(default=6, ge=1, le=38)
     horizon_discount: float = Field(
@@ -503,6 +544,7 @@ class ForecastConfig(_Section):
     uncertainty: UncertaintyConfig = UncertaintyConfig()
     features: FeatureConfig = FeatureConfig()
     expected_goals: ExpectedGoalsConfig = ExpectedGoalsConfig()
+    published: PublishedModelConfig = PublishedModelConfig()
 
 
 class ChipReplayConfig(_Section):
@@ -595,6 +637,21 @@ class BacktestConfig(_Section):
         default=1,
         gt=0,
         description="How many top picks count as a captaincy hit. One is the honest test.",
+    )
+    fixture_difficulty_band_ratio: float = Field(
+        default=1.15,
+        gt=1,
+        description=(
+            "Where the fixture-difficulty breakdown cuts (E9-S2). A fixture is `hard` when M2 "
+            "expects the opposition to score at least this multiple of what it expects the "
+            "player's own club to score, `easy` at the reciprocal, and `average` between. One "
+            "number rather than two edges, because the two are the same departure from even in "
+            "opposite directions and configuring them separately invites them to disagree. Set "
+            "at 1.15 because home advantage alone is worth roughly 1.25 either way, so a wider "
+            "cut would put every neutral fixture in one band and measure nothing; narrower puts "
+            "ordinary fixtures at the extremes. This bands the *report*, never a prediction — "
+            "changing it cannot change a forecast, only how the evidence is sliced."
+        ),
     )
 
 

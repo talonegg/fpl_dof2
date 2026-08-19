@@ -1,4 +1,4 @@
-# Expected-points v0 (cold start) and the squad optimiser.
+# The expected-points models and the squad optimiser.
 #
 # Every number here is a modelling choice, not a game rule. Game rules come from the API and live
 # in the rules module; nothing in this file is an FPL constant.
@@ -75,6 +75,21 @@ forecast:
   expected_goals:
     enabled: true
     team_strength_from_xg: false
+
+  # Which model the app reads (E9-S1, DL-46). xp_v1 — the component chain the walk-forward backtest
+  # actually grades — is the default publish target, because D-25's defect was that the shipped
+  # model was not the graded one. That is a delivery bug, which DP-08 names as its own exception,
+  # not a new model needing a shadow window; there is no flag here gating it behind a promotion.
+  #
+  # xp_v0 remains as the cold-start fallback and nothing else. It fires only when the current season
+  # has fewer completed gameweeks than the figure below, and when it fires it is named in the model
+  # card and in the stage metrics — never silently (DP-15).
+  #
+  # The DL-21 guardrail is unchanged by any of this: no -8 hit, chip or wildcard on xp_v1 alone
+  # until top-20 precision beats B0.
+  published:
+    default_since: 2026-08-17
+    cold_start_minimum_gameweeks: 4
 
 optimiser:
   bench_weight: 0.15

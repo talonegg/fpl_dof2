@@ -228,6 +228,21 @@ class TeamStrengthModel:
         conceded = self.expected_goals(opponent_id, team_id, at_home=not at_home)
         return float(math.exp(-conceded))
 
+    def fixture_difficulty_ratio(self, team_id: int, opponent_id: int, *, at_home: bool) -> float:
+        """How hard this fixture looks: goals expected against, over goals expected for.
+
+        One scalar rather than two, because a breakdown split on attack and defence difficulty at
+        once is a table nobody reads. **1.0 is a fixture the ratings and the venue make exactly
+        even**, above 1 is harder, and the scale is multiplicative in the same way the ratings are,
+        so halving and doubling are equal and opposite.
+
+        Both halves come from :meth:`expected_goals`, which is the point: the number used to *band*
+        a fixture cannot drift away from the ratings the forecast was actually scored under.
+        """
+        scored = self.expected_goals(team_id, opponent_id, at_home=at_home)
+        conceded = self.expected_goals(opponent_id, team_id, at_home=not at_home)
+        return conceded / scored if scored > 0 else float("nan")
+
     def describe(self) -> dict[str, object]:
         return {
             "teams": len(self.attack),

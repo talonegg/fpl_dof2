@@ -30,6 +30,10 @@ from fpl_dof.forecast.backtest import (
     walk_forward,
 )
 from fpl_dof.forecast.features import (
+    FIXTURE_AT_HOME,
+    FIXTURE_COLUMNS,
+    FIXTURE_OPPONENT,
+    FIXTURE_TEAM,
     TARGET,
     Knowability,
     build_features,
@@ -37,10 +41,12 @@ from fpl_dof.forecast.features import (
     specs,
 )
 from fpl_dof.forecast.metrics import (
+    UNRESOLVED_FIXTURE_BAND,
     brier_score,
     calibration_slope,
     captaincy_hit_rate,
     evaluate,
+    fixture_difficulty_band,
     spearman,
     top_n_precision,
 )
@@ -51,6 +57,34 @@ from fpl_dof.rules.models import GameRules
 
 SEASON = "2025/26"
 POSITIONS = ("GKP", "DEF", "MID", "FWD")
+TEAMS = (1, 2, 3, 4, 5, 6)
+
+
+def round_robin(gameweek: int) -> dict[int, tuple[int, bool, int]]:
+    """A **coherent** calendar: club -> (opponent, at home, fixture id), one fixture each.
+
+    Worth the twelve lines. The fixture this file used before E9-S2 derived the opponent from the
+    *player* rather than the club, so two players of the same side could face different opponents
+    in the same gameweek — a calendar that cannot exist, and one that would let a fixture join look
+    like it worked while joining nothing real. A harness test built on an impossible schedule
+    grades the join, not the fixture.
+    """
+    fixed, rotating = TEAMS[0], list(TEAMS[1:])
+    shift = (gameweek - 1) % len(rotating)
+    order = rotating[shift:] + rotating[:shift]
+    half = len(TEAMS) // 2
+    left = [fixed, *order[: half - 1]]
+    right = list(reversed(order[half - 1 :]))
+
+    schedule: dict[int, tuple[int, bool, int]] = {}
+    for home, away in zip(left, right, strict=True):
+        # Venues alternate by gameweek so every club is measured both home and away.
+        if gameweek % 2 == 0:
+            home, away = away, home
+        fixture_id = gameweek * 100 + min(home, away)
+        schedule[home] = (away, True, fixture_id)
+        schedule[away] = (home, False, fixture_id)
+    return schedule
 
 
 def make_history(
@@ -64,11 +98,14 @@ def make_history(
     rng = np.random.default_rng(seed)
     rows = []
     start = pd.Timestamp("2025-08-15T18:00:00Z")
+    calendar = {gameweek: round_robin(gameweek) for gameweek in range(1, gameweeks + 1)}
     for player in range(1, players + 1):
         rate = 2.0 + (player % 8)
+        team = (player % 6) + 1
         for gameweek in range(1, gameweeks + 1):
             kickoff = start + pd.Timedelta(days=7 * (gameweek - 1))
             minutes = int(rng.integers(0, 91))
+            opponent, at_home, fixture_id = calendar[gameweek][team]
             rows.append(
                 {
                     "season": season,
@@ -77,17 +114,20 @@ def make_history(
                     "player_id": player,
                     "web_name": f"P{player}",
                     "position": POSITIONS[player % 4],
-                    "team_id": (player % 6) + 1,
-                    "opponent_team_id": ((player + gameweek) % 6) + 1,
-                    "fixture_id": gameweek * 100 + player,
+                    "team_id": team,
+                    "opponent_team_id": opponent,
+                    "fixture_id": fixture_id,
                     "kickoff_time": kickoff,
-                    "was_home": gameweek % 2 == 0,
+                    "was_home": at_home,
                     "minutes": minutes,
                     "starts": 1 if minutes >= 60 else 0,
-                    "goals_scored": int(rng.integers(0, 2)),
+                    # A deterministic per-club offset on top of the noise, so M2 has real attack
+                    # and defence ratings to contribute and a fixture is genuinely easier or
+                    # harder than another rather than only different.
+                    "goals_scored": int(rng.integers(0, 2)) + (1 if team >= 5 else 0),
                     "assists": int(rng.integers(0, 2)),
                     "clean_sheets": int(rng.integers(0, 2)),
-                    "goals_conceded": int(rng.integers(0, 3)),
+                    "goals_conceded": int(rng.integers(0, 3)) + (6 - team) // 2,
                     "own_goals": 0,
                     "penalties_saved": 0,
                     "penalties_missed": 0,
@@ -328,6 +368,179 @@ def test_every_fold_is_stamped_at_its_own_deadline() -> None:
         assert (stamps == fold.deadline).all()
         deadlines.add(fold.deadline)
     assert len(deadlines) == len(result.folds)
+
+
+# --- fixtures in the fold frames (E9-S2) ------------------------------------------------------
+
+
+def test_every_fold_row_carries_the_fixture_it_was_played_under() -> None:
+    """E9-S2's premise. Without this the harness cannot see M2 at all.
+
+    Checked against the calendar rather than against itself: the opponent on the row must be the
+    opponent that club actually faced in that gameweek, and the venue must be the one the fixture
+    gave the two sides opposite answers to.
+    """
+    result = _walk(RateFromFeatures())
+    predictions = result.predictions
+
+    for column in FIXTURE_COLUMNS:
+        assert column in predictions.columns
+    assert predictions[FIXTURE_OPPONENT].notna().all()
+    assert result.fixture_coverage == pytest.approx(1.0)
+
+    for row in predictions.itertuples():
+        team = as_int(getattr(row, FIXTURE_TEAM))
+        opponent, at_home, _ = round_robin(as_int(row.gameweek))[team]
+        assert as_int(getattr(row, FIXTURE_OPPONENT)) == opponent
+        assert bool(getattr(row, FIXTURE_AT_HOME)) is at_home
+        assert team != opponent
+
+
+def test_the_fixture_columns_are_declared_knowable_at_the_deadline() -> None:
+    """Invariant 5, stated as a declaration rather than left to a comment.
+
+    The calendar is published weeks ahead, so ``AT_DEADLINE`` is the truthful stamp — but only
+    because these columns are built from the fixture calendar. Reading them off "did this player
+    have a row" would be a different, unknowable question wearing the same name.
+    """
+    declared = {spec.name: spec for spec in specs(FeatureConfig())}
+    for column in FIXTURE_COLUMNS:
+        assert declared[column].knowability is Knowability.AT_DEADLINE
+        assert declared[column].is_input
+        assert column in input_features(FeatureConfig())
+
+    # The pre-existing rolling `was_home` means the *previous* match and is a different feature.
+    assert "was_home" not in FIXTURE_COLUMNS
+
+
+def test_the_fixture_columns_reach_the_predictor_and_the_outcome_still_does_not() -> None:
+    """The two halves of the same claim: the fixture is an input, the result is never one."""
+    recorder = ColumnRecorder()
+    _walk(recorder)
+
+    assert set(FIXTURE_COLUMNS) <= recorder.seen
+    assert not recorder.seen & set(OUTCOME_COLUMNS)
+    # `team_id` stays an outcome column and stays stripped; the alias is what survives.
+    assert "team_id" not in recorder.seen
+
+
+def test_a_double_gameweek_is_scored_once_per_fixture() -> None:
+    """The deliberate choice: one prediction per fixture, not one per gameweek.
+
+    Each fold row already owns exactly one outcome — the points scored in *that* match — so scoring
+    per fixture compares like with like. Aggregating to a gameweek total would need the outcomes
+    summed too, and would grade a double against a number no single fixture produced.
+    """
+    history = make_history()
+    extra = history[(history["gameweek"] == 6) & (history["team_id"] == 1)].copy()
+    extra["fixture_id"] = 9_999
+    extra["opponent_team_id"] = 3
+    extra["was_home"] = False
+    extra["kickoff_time"] = extra["kickoff_time"] + pd.Timedelta(days=2)
+    doubled = pd.concat([history, extra], ignore_index=True)
+
+    result = walk_forward(
+        doubled,
+        RateFromFeatures(),
+        forecast_config=ForecastConfig(),
+        backtest_config=BacktestConfig(minimum_training_matches=3),
+        seasons=(SEASON,),
+    )
+    fold = next(fold for fold in result.folds if fold.gameweek == 6)
+    rows = fold.predictions
+    team_one = rows[rows[FIXTURE_TEAM] == 1]
+    counted = team_one.groupby("player_code").size()
+    assert (counted == 2).all()
+    # Two fixtures, two different opponents, each with its own outcome to be graded against.
+    assert set(team_one[FIXTURE_OPPONENT].dropna().astype(int)) == {
+        round_robin(6)[1][0],
+        3,
+    }
+    assert rows[FIXTURE_OPPONENT].notna().all()
+
+
+def test_real_opposition_moves_the_prediction(game_rules: GameRules) -> None:
+    """The companion to E9-S1's "the parity test can fail".
+
+    A fixture join that reached the frame but never reached the arithmetic would pass every test
+    above and change nothing. So: the same players, the same fitted components, two fixtures — the
+    numbers must differ, and in the direction the ratings imply.
+    """
+    predictor = ComponentPredictor(ForecastConfig(), game_rules)
+    _walk(predictor)
+    models = predictor.models
+    assert models is not None
+    models.team_strength.attack[1] = 2.0
+    models.team_strength.defence[2] = 2.0
+
+    history = make_history()
+    deadline = pd.Timestamp("2025-10-01T00:00:00Z")
+    past = history[history["kickoff_time"] < deadline]
+    features = build_features(
+        past,
+        as_of=deadline,
+        config=FeatureConfig(),
+        positions=past[["player_code", "position"]],
+    )
+
+    league_average = predictor.predict(features)
+    easy = predictor.predict(
+        features.assign(
+            **{FIXTURE_TEAM: 1, FIXTURE_OPPONENT: 2, FIXTURE_AT_HOME: True},
+        )
+    )
+    hard = predictor.predict(
+        features.assign(
+            **{FIXTURE_TEAM: 2, FIXTURE_OPPONENT: 1, FIXTURE_AT_HOME: False},
+        )
+    )
+
+    assert not np.allclose(easy.to_numpy(), league_average.to_numpy())
+    assert float(easy.sum()) > float(hard.sum())
+
+
+def test_the_report_carries_a_fixture_conditioned_breakdown() -> None:
+    """E9-S2's acceptance criterion, and the gate E11 depends on."""
+    result = _walk(RateFromFeatures())
+
+    bands = result.model.spearman_by_fixture_band
+    assert len(bands) >= 2, bands
+    assert UNRESOLVED_FIXTURE_BAND not in bands
+    assert set(result.model.calibration_by_fixture_band) == set(bands)
+    assert any(not np.isnan(value) for value in bands.values())
+
+    published = result.model.as_dict()
+    assert published["spearman_by_fixture_band"] == {
+        band: (None if np.isnan(value) else round(value, 5)) for band, value in bands.items()
+    }
+    assert "calibration_by_fixture_band" in published
+    assert result.as_dict()["fixture_coverage"] == pytest.approx(1.0)
+
+
+def test_the_bands_cut_at_the_configured_ratio_and_its_reciprocal() -> None:
+    """DP-06: one named, defaulted, justified tunable — not two edges free to disagree."""
+    ratio = BacktestConfig().fixture_difficulty_band_ratio
+    assert fixture_difficulty_band(1.0, ratio) == "average"
+    assert fixture_difficulty_band(ratio * 1.01, ratio) == "hard"
+    assert fixture_difficulty_band(1.0 / ratio * 0.99, ratio) == "easy"
+    assert fixture_difficulty_band(float("nan"), ratio) == UNRESOLVED_FIXTURE_BAND
+
+
+def test_an_unresolvable_fixture_falls_back_visibly_rather_than_silently() -> None:
+    """DP-15. Degrading to league-average opposition is allowed; doing it quietly is not."""
+    history = make_history()
+    history["opponent_team_id"] = pd.NA
+
+    result = walk_forward(
+        history,
+        RateFromFeatures(),
+        forecast_config=ForecastConfig(),
+        backtest_config=BacktestConfig(minimum_training_matches=3),
+        seasons=(SEASON,),
+    )
+    assert result.fixture_coverage == pytest.approx(0.0)
+    assert any("league-average opposition" in warning for warning in result.warnings)
+    assert set(result.model.spearman_by_fixture_band) == {UNRESOLVED_FIXTURE_BAND}
 
 
 def test_a_model_with_real_signal_beats_the_constant_baseline() -> None:

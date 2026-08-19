@@ -1842,6 +1842,247 @@ watching a real week happen, not by more local simulation.
 
 ---
 
+## DL-43 — The next model work is delivery then discrimination, not accuracy; the plan is a set of gated experiments
+
+**Date:** 2026-08-16 · **Status:** Accepted · **Serves:** OBJ-1, OBJ-7, FR-12, FR-37 · **Arose in:**
+the 2026-08-16 research pass · **Plan:** [05-model-improvement-plan.md](05-model-improvement-plan.md)
+
+### The finding this decision is built on
+
+The first backtest ([DL-21](#dl-21)) said `xp_v1` beats price and loses to trailing form, with the
+best MAE and the worst top-20 precision of anything measured. A research pass over the shipped code
+found three structural facts that reframe what "improve the model" means, none of which is a modelling
+subtlety:
+
+1. **The graded model is not the shipped model.** The backtest grades `xp_v1`; the pipeline publishes
+   `xp_v0`, which consumes none of the xG signal DL-34 measured and promoted. The gap is
+   [D-25](epics/E0-steel-thread-gw1.md#6-technical-debt-register). Until it closes, every measured
+   improvement is undelivered. This is the highest-leverage item and it is one wiring seam, not a
+   model.
+2. **The backtest is blind to fixtures.** The harness carries league-average opposition, so M2 fixture
+   difficulty — the whole of the fixture axis — is untestable until a fixture table is joined into the
+   fold frames. That plumbing is a prerequisite, not an improvement.
+3. **Two positions are unranked.** GKP Spearman 0.04, DEF 0.16. Any improvement must be measured per
+   position or a forwards-only gain hides the two hard cases.
+
+### The decision
+
+The improvement programme is delivered in leverage order — **X1 ship `xp_v1` live → D1 fixtures into
+the backtest → X2 minutes calibration → then discrimination at the head** — and **every change is a
+falsifiable experiment gated by the E8 §5 bar** (held-out backtest improves, six shadow gameweeks do
+not degrade, the change is explicable in advance). The target metric is **top-20 precision and
+captaincy separation, not MAE**: MAE is already the best in the table and is measuring the wrong thing
+for a tool used only at the head of its ranking (DL-21). The full table of changes, their gates and
+their sequencing is [05-model-improvement-plan.md](05-model-improvement-plan.md).
+
+### Rejected alternatives
+
+**Adopt the model-free benchmark, which wins on Spearman.** Rejected for the reason DL-21 already
+gave: trailing form has calibration slope 0.39 and the worst MAE — a momentum signal that buys at the
+top of the price rise. Winning on rank correlation is not being better to own.
+
+**Tune for MAE or for overall Spearman.** Rejected — both are already competitive and neither is what
+the tool is used for. Optimising them further is optimising the wrong loss.
+
+**A single blended monolith instead of the component chain.** Not rejected, but demoted to a *shadow
+benchmark* (X6, Q-04): the chain's explainability is a product requirement (DP-10), so a monolith
+that is merely more accurate does not replace it without an explicit decision weighing that trade.
+
+### Consequences
+
+D-13 (forecast does not beat the model-free benchmark at the head) gets a route to closure that is a
+plan rather than an aspiration. The DL-21 guardrail is unchanged: no −8 hit, chip or wildcard is
+justified by `xp_v1` alone until top-20 precision beats B0. Three new open questions — Q-14
+(evidence-adaptive shrinkage), Q-15 (goalkeeper formulation), Q-16 (auto-dispatch of a run from the
+browser) — are recorded in the plan.
+
+---
+
+## DL-44 — FPL team and league IDs are runtime inputs entered in the UI, never persisted in the repository
+
+**Date:** 2026-08-16 · **Status:** Accepted · **Serves:** NFR-11, NFR-13, FR-32 · **Arose in:**
+the 2026-08-16 research pass · **Builds on:** [DL-40](#dl-40--the-mini-league-is-an-optional-artefact-that-is-absent-by-default-and-its-comparison-is-anchored-on-the-squad-actually-fielded)
+
+### Context
+
+The owner asked that the FPL team ID and mini-league ID be **enterable through the UI** and **never
+persisted in the code**. Today they live in `entry.team_id` / `entry.league_id` in
+`config/local.yaml` — which is gitignored, so nothing is committed, but the values still live in a
+file the owner hand-edits, and there is no UI path at all. The IDs are **public** (NFR-11), not
+secrets; the concern is persistence and single-user assumption, not confidentiality.
+
+**The binding constraint is Invariant 8** — the browser never calls an external API. The SPA reads
+published static artefacts only; it cannot fetch the owner's picks or a league's standings itself, and
+the FPL API sends no CORS headers that would let it. So "enter the ID and see your data" cannot mean
+"the browser fetches it", and DL-03 forbids adding a backend that could.
+
+### Decision
+
+The two IDs are treated as **two genuinely different things that normally coincide** for a single
+user:
+
+1. **Pipeline input — a GitHub Actions repository variable, not committed config.** The pipeline reads
+   `FPL_DOF_TEAM_ID` / `FPL_DOF_LEAGUE_ID` from the environment via the overrides already declared on
+   `EntryConfig`. In CI these come from repository **variables** (the correct home for a non-secret
+   identifier); `config/local.yaml` stays the local-dev path and remains gitignored. Nothing about the
+   owner's identity enters git.
+2. **Browser input — a Settings view backed by `localStorage`.** The owner types the IDs in the app;
+   the values live in `localStorage` only, never transmitted, never committed. Within Invariant 8 the
+   setting does two things: it **personalises already-published artefacts** (highlights the owner's
+   league row, badges the owned squad, filters the scout to owned players — saying so plainly when the
+   published league was built for a different ID, as DL-40 does for the absent league), and it
+   **composes an owner-triggered `workflow_dispatch` deep link** so the repo owner can dispatch a run
+   with those IDs. No token ever reaches the client (Invariant 10, NFR-13).
+
+### Rejected alternatives
+
+**Let the browser call the FPL API with the entered ID.** Rejected outright — Invariant 8, and CORS
+would block it regardless. **Add a tiny backend / serverless function to proxy it.** Rejected — DL-03
+(no runtime backend, zero cost, NFR-01). **Keep the IDs in committed config with a code edit per
+change.** Rejected — that is exactly the persistence the owner asked to remove, and it hard-codes a
+single user into the wrong layer. **Auto-dispatch a run from the browser on save.** Deferred to Q-16:
+it needs either a client-held token (forbidden) or an owner-mediated flow, and whether the convenience
+is worth the surface is an owner-and-security decision, not a default.
+
+### Consequences
+
+Implementation is a sequenced follow-up, not built by this decision: a Settings story on E6's surface
+(`localStorage`, league-row highlighting), a documented repository-variable path in E7's workflows,
+and a charter requirement naming UI entry of the IDs. `FPL_DOF_TEAM_ID` / `FPL_DOF_LEAGUE_ID` are
+already promised in [INPUTS-REQUIRED §8](epics/INPUTS-REQUIRED.md#8-environment-variables); this
+decision makes the browser-entry half of them a first-class design rather than an env var only.
+
+---
+
+## DL-45 — The model-improvement plan is scheduled as five gated epics, E9–E13
+
+**Date:** 2026-08-16 · **Status:** Accepted · **Serves:** OBJ-1, OBJ-7, OBJ-5, FR-12, FR-37 ·
+**Builds on:** [DL-43](#dl-43), [DL-44](#dl-44), [DL-21](#dl-21)
+
+### Context
+
+[DL-43](#dl-43) accepted the [Model Improvement Plan](05-model-improvement-plan.md) as a programme of
+falsifiable, gated experiments; [DL-44](#dl-44) settled the team/league ID design. The plan was a
+research document, not a build schedule. To make it actionable it has to enter the plan of record —
+the [epics](epics/README.md) — as scheduled work with dependencies, acceptance criteria and promotion
+gates, rather than living only as prose.
+
+### Decision
+
+The plan's items are decomposed into **five new epics** appended to the epic register, ordered by
+leverage rather than by area:
+
+- **[E9](epics/E9-forecast-delivery-and-backtest-fidelity.md) — Forecast delivery + backtest
+  fidelity** (X1, D1). First, and it **gates E10–E12**: closes D-25 so the *shipped* model is the
+  *graded* model, and puts fixtures into the backtest so the fixture axis becomes testable. These are
+  plumbing, not modelling, and they are the highest-leverage work in the programme.
+- **[E10](epics/E10-discrimination-at-the-head.md) — Discrimination at the head** (X2/close D-14, X3,
+  X4, X5, X6). Optimises top-20 precision and captaincy separation *per position*, not MAE.
+- **[E11](epics/E11-fixture-difficulty-and-market-signal.md) — Fixture difficulty + market signal**
+  (F1–F5, D3/close OD-03). Depends on E9-S2.
+- **[E12](epics/E12-data-widening-for-priors.md) — Data widening for priors** (D2/resolve Q-13, D4,
+  D5). Low-urgency; feeds E10 and E11 from already-permitted sources, no new scraping.
+- **[E13](epics/E13-runtime-personalisation-ids.md) — Runtime personalisation** (plan §7, realising
+  DL-44). Independent of the model epics; realises the E6/E7 stories the plan proposed, collected here
+  because E6 has already shipped.
+
+**The governing rule is unchanged:** nothing promotes by argument. Every modelling change clears the
+[E8 §5 bar](epics/E8-in-season-operations.md#5-the-bar-for-changing-the-model-mid-season) — held-out
+backtest improves, six shadow gameweeks do not degrade, explicable in advance — and the DL-21
+guardrail on hits/chips/wildcards stands until top-20 precision beats B0.
+
+### Rejected alternatives
+
+**Fold the work into existing epics (E3/E5/E6/E7).** Rejected — those epics are built and marked done;
+reopening them hides a distinct, evidence-gated programme inside closed work and loses the leverage
+ordering. The one exception is honoured by cross-reference: E13 explicitly realises the E6/E7 stories
+§7 proposed. **Leave the plan as prose.** Rejected — a research document is not a schedule; without
+dependencies and acceptance criteria in the plan of record, the work is not actionable and its gates
+are not enforceable. **One large "model v2" epic.** Rejected — it would bury E9's gating role and let
+untestable fixture work start before the backtest can see fixtures.
+
+### Consequences
+
+The epic register grows from nine to fourteen; the [epics README §7](epics/README.md#7-the-model-improvement-programme-e9e13)
+carries the programme, its item-to-epic map, and the E9 gate. The build-pace guidance
+([DL-23](#dl-23)) applies unchanged: these are ceilings, and the season clock plus evidence pace the
+work, not build time. E9 aside, none of E10–E13 is urgent against a dated constraint, and the §4
+"stop building after ~GW30" rule applies to them. Three open questions from the plan (Q-14, Q-15,
+Q-16) are carried on the open-questions list; Q-13 and Q-04 are pulled into E12 and E10 respectively.
+
+---
+
+## DL-46 — E9-S1 ships `xp_v1` as the default publish, not a dark-launched flag: closing D-25 is a bug fix, not a model promotion
+
+**Date:** 2026-08-16 · **Status:** Accepted · **Serves:** OBJ-1, OBJ-7, FR-12, FR-13 ·
+**Builds on:** [DL-21](#dl-21), [DL-33](#dl-33), [DL-34](#dl-34), [DL-45](#dl-45)
+
+### Context
+
+[E9-S1](epics/E9-forecast-delivery-and-backtest-fidelity.md#e9-s1--fixture-aware-horizon-scorer-xp_v1-on-the-live-path--15-days--fr-12-fr-13--closes-d-25)
+reads, in the same paragraph, both "the forecast stage publishes `xp_v1`" and "ships dark then
+promoted (DP-08): published behind a flag … for the shadow window before it becomes the default the
+app reads." Those two sentences conflict on inspection. [DP-08](../DESIGN-PRINCIPLES.md) requires a
+new model behaviour to run six shadow gameweeks with live rolling accuracy not degrading before
+promotion — impossible before GW1, since there is no live season yet to shadow against, and it is
+explicitly violated by "a flag is added and immediately defaulted on." Before writing any code this
+needs a resolution, per the project convention of recording significant decisions ahead of
+implementation.
+
+### Decision
+
+**Closing D-25 is the bug-fix exception DP-08 names, not a model promotion, and `xp_v1` ships as the
+default publish target when E9-S1 lands.**
+
+The reasoning: DP-08 governs *introducing new model behaviour*. `xp_v1` is not new — it was already
+selected and measured. [DL-21](#dl-21) backtested it against B0, a mean baseline and a model-free
+trailing-form baseline over 72 folds and recorded the verdict as accepted; [DL-34](#dl-34) backtested
+and promoted its xG component the same way. D-25's entry names the gap precisely: *"the improved model
+is not the one that ships"* — the defect is that the pipeline publishes a different, less-capable
+model (`xp_v0`) than the one already evidenced. Fixing that mismatch does not introduce a new,
+unproven candidate; it makes the shipped artefact match the already-graded one. That is DP-08's stated
+exception: *"a bug fix is not a model change and does not wait."*
+
+The standing safety net is [DL-21](#dl-21)'s guardrail, restated unchanged by this epic's definition of
+done: **no −8 hit, chip or wildcard is justified by `xp_v1` alone until top-20 precision beats B0.**
+That constraint — not a shadow-mode flag — is what bounds the live blast radius of a still-unproven-at-the-head
+model while E10 does the discrimination work.
+
+Concretely:
+
+- `stages/forecast.py` publishes `xp_v1` by default once E9-S1 lands. There is no `enabled: false`
+  flag gating `xp_v1` behind a manual promotion step — that would misapply DP-08 to a delivery bug and
+  stall D-25 indefinitely, since no in-season shadow window exists before GW1 to satisfy it.
+- `xp_v0` is retained as a **named, visible** fallback (DP-15) for the genuine cold-start case — when
+  `player_gameweek` history is too thin for M1–M8 to fit (pre-season, or a fresh current-season table
+  with too few completed gameweeks). The fallback firing is recorded in the model card and the stage
+  metrics, never silent.
+- The published model's name and the date it became default are recorded in `meta.model` (contract)
+  and the model card, so the fallback state is always visible to the app and the owner (DP-15).
+- The DL-21 guardrail is restated verbatim in the model card and remains binding.
+
+### Rejected alternatives
+
+**Add a `published_model` flag defaulting to `xp_v0`, promote to `xp_v1` after six live shadow
+gameweeks post-GW1.** Rejected — this is the literal DP-08 mechanism, but it leaves D-25 open through
+GW1 through GW6, defeating the epic's own stated purpose ("no story in E10–E12 may start until E9's
+definition of done holds") for a full six gameweeks with no corresponding new evidence being generated,
+since the backtest evidence is already in hand. **Treat this as a genuine model promotion requiring a
+fresh six-gameweek shadow run.** Rejected for the same reason — there is nothing left to learn from
+shadowing that DL-21's 72-fold backtest did not already measure at the single-gameweek grain; what E9-S1
+adds is the horizon scorer and fixture awareness, which are covered by the parity test against the
+already-graded numbers, not by a new promotion gate.
+
+### Consequences
+
+E9-S1's acceptance criterion ("the app's ranking is produced by `xp_v1`") is achieved on merge, gated
+only by the parity test being green and the fallback being visible — not by calendar time. The E9 epic
+text's "ships dark then promoted" phrasing is superseded by this entry for the specific case of D-25;
+DP-08's shadow-mode mechanism remains the binding rule for any subsequent E10–E12 change that alters
+what `xp_v1` computes, which is a genuine new-behaviour case.
+
+---
+
 ## Open decisions
 
 Decisions deliberately deferred, with the point at which each must be resolved.
