@@ -45,6 +45,37 @@ log = get_logger(__name__)
 PRIOR_SEASON_PREFIX = "prior_season_"
 PRIOR_SEASON_MINUTES = f"{PRIOR_SEASON_PREFIX}minutes"
 
+#: The fixture an observation is played under, named once so the harness that attaches it and the
+#: model that reads it cannot disagree about the spelling (E9-S2).
+#:
+#: Deliberately **not** ``was_home``. That name is already taken by a rolling feature describing the
+#: player's *previous* match, and quietly widening it to mean the upcoming fixture would change a
+#: number every backtest has already reported without changing its name. Two meanings, two names.
+FIXTURE_TEAM = "fixture_team_id"
+FIXTURE_OPPONENT = "fixture_opponent_team_id"
+FIXTURE_AT_HOME = "fixture_at_home"
+FIXTURE_COLUMNS: tuple[str, ...] = (FIXTURE_TEAM, FIXTURE_OPPONENT, FIXTURE_AT_HOME)
+
+
+def congestion_feature_name(config: FeatureConfig) -> str:
+    """How many matches the player's club has just played. The rotation signal (E10-S1).
+
+    The window is in the name, the way the rolling features carry theirs, so a model card can say
+    which window a coefficient belongs to without a lookup and two differently-configured runs
+    cannot quietly compare different quantities under one column name.
+    """
+    return f"matches_last{config.congestion_window_days}d"
+
+
+def absence_feature_name(config: FeatureConfig) -> str:
+    """Share of the recent window the player missed entirely. The injury-return signal (E10-S1).
+
+    Deliberately a share of *recent* matches rather than a run length: a player who missed three of
+    the last four and played the fourth is mid-return, and a run counted backwards from the last
+    match would call that zero.
+    """
+    return f"absence_share_last{config.return_window_matches}"
+
 
 class LeakageError(RuntimeError):
     """A feature used a match that had not been played when it claims to have been knowable.
@@ -156,6 +187,21 @@ def specs(config: FeatureConfig) -> tuple[FeatureSpec, ...]:
             summary="Rest, and a proxy for having been out of the side",
             source_columns=("kickoff_time",),
         ),
+        # E10-S1's two minutes signals. Computed always and *consumed* only behind
+        # `discrimination.minutes_v2`: a feature that exists is inert, a feature that is read is
+        # model behaviour, and only the second is what DP-08 gates.
+        FeatureSpec(
+            name=congestion_feature_name(config),
+            knowability=Knowability.BEFORE_DEADLINE,
+            summary="Matches the club has played in the recent window. Fixture density",
+            source_columns=("kickoff_time",),
+        ),
+        FeatureSpec(
+            name=absence_feature_name(config),
+            knowability=Knowability.BEFORE_DEADLINE,
+            summary="Share of the recent window missed entirely. A spell out, not a rested week",
+            source_columns=("minutes", "kickoff_time"),
+        ),
         FeatureSpec(
             name="price",
             knowability=Knowability.AT_DEADLINE,
@@ -166,6 +212,29 @@ def specs(config: FeatureConfig) -> tuple[FeatureSpec, ...]:
             name="was_home",
             knowability=Knowability.AT_DEADLINE,
             summary="Home advantage, known as soon as the fixture is",
+            source_columns=("was_home",),
+        ),
+        # The upcoming fixture (E9-S2). Attached by the caller that knows which gameweek is being
+        # predicted — the harness from the archive's calendar, the live path from the fixture
+        # table — rather than by build_features, which describes a player and not a gameweek.
+        # AT_DEADLINE because the calendar is published weeks ahead and revised only by
+        # postponement: it is a snapshot of a schedule, not an accumulation of results.
+        FeatureSpec(
+            name=FIXTURE_TEAM,
+            knowability=Knowability.AT_DEADLINE,
+            summary="The club whose fixture this observation is played under",
+            source_columns=("team_id",),
+        ),
+        FeatureSpec(
+            name=FIXTURE_OPPONENT,
+            knowability=Knowability.AT_DEADLINE,
+            summary="The opponent in the fixture being predicted, from the published calendar",
+            source_columns=("opponent_team_id",),
+        ),
+        FeatureSpec(
+            name=FIXTURE_AT_HOME,
+            knowability=Knowability.AT_DEADLINE,
+            summary="Venue of the fixture being predicted, from the published calendar",
             source_columns=("was_home",),
         ),
         FeatureSpec(
@@ -322,6 +391,13 @@ def build_features(
         row["days_since_last_match"] = float(
             (moment - pd.Timestamp(last["kickoff_time"])).total_seconds() / 86400.0
         )
+
+        # Fixture density, and a recent absence. Both read only rows already filtered to before the
+        # deadline, so they inherit the knowability of everything else built here (Invariant 5).
+        window_start = moment - pd.Timedelta(days=config.congestion_window_days)
+        row[congestion_feature_name(config)] = float((group["kickoff_time"] >= window_start).sum())
+        returning = group.tail(config.return_window_matches)
+        row[absence_feature_name(config)] = float((returning["minutes"] <= 0).mean())
         row["price"] = float(last["price"])
         row["was_home"] = bool(last["was_home"])
         rows.append(row)
@@ -445,14 +521,20 @@ def training_frame(
 
 
 __all__ = [
+    "FIXTURE_AT_HOME",
+    "FIXTURE_COLUMNS",
+    "FIXTURE_OPPONENT",
+    "FIXTURE_TEAM",
     "PRIOR_SEASON_MINUTES",
     "PRIOR_SEASON_PREFIX",
     "TARGET",
     "FeatureSpec",
     "Knowability",
     "LeakageError",
+    "absence_feature_name",
     "assert_no_look_ahead",
     "build_features",
+    "congestion_feature_name",
     "input_features",
     "prior_season_feature_names",
     "prior_season_ratios",

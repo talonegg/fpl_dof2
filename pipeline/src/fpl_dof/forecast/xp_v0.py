@@ -34,12 +34,12 @@ adding information beyond price.
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
 
 import numpy as np
 import pandas as pd
 
 from fpl_dof.config.models import ForecastConfig
+from fpl_dof.forecast.inputs import ForecastInputs
 from fpl_dof.frames import as_int, gameweek_column, gameweek_sd_column
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.rules.models import GameRules, Position
@@ -59,14 +59,8 @@ RATE_COLUMNS = (
 
 CONFIDENCE_ORDER = ("high", "medium", "low", "none")
 
-
-@dataclass(frozen=True, slots=True)
-class ForecastInputs:
-    players: pd.DataFrame
-    teams: pd.DataFrame
-    fixtures: pd.DataFrame
-    gameweeks: pd.DataFrame
-    history: pd.DataFrame
+#: What this model calls itself wherever a published artefact has to say which model ran.
+MODEL_NAME = "xp_v0"
 
 
 def poisson_survival(threshold: int, mean: float) -> float:
@@ -251,7 +245,13 @@ def fixture_multipliers(
     return pd.DataFrame(rows)
 
 
-def _confidence(minutes: pd.Series, config: ForecastConfig) -> pd.Series:
+def confidence_tier(minutes: pd.Series, config: ForecastConfig) -> pd.Series:
+    """Weighted minutes of evidence -> one of four tiers.
+
+    Public because ``xp_v1`` reports the same four tiers over its own evidence base, and two
+    definitions of "how much do we know about this player" would be two different scales printed
+    under one set of names.
+    """
     return pd.Series(
         np.select(
             [
@@ -326,7 +326,7 @@ def build_forecast(
     frame["availability"] = availability.clip(0.0, 1.0)
     frame["start_probability"] = (frame["start_probability_raw"] * frame["availability"]).clip(0, 1)
 
-    frame["confidence"] = _confidence(frame["evidence_minutes"], config)
+    frame["confidence"] = confidence_tier(frame["evidence_minutes"], config)
 
     # --- horizon ---
     upcoming = inputs.gameweeks[~inputs.gameweeks["finished"]].sort_values("gameweek")

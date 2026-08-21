@@ -11,10 +11,18 @@ why the test that matters compares the same footballer across two seasons.
 null, never zero, because zero is a claim that the player did no defending — the trap DL-18
 records, and the one that systematically underrates the players the model is supposed to beat
 intuition on.
+
+**Cross-season *club* identity, which is the same failure again and went unnoticed for longer.**
+This adapter wrote ``team_id: None`` on every row for the whole of E9 and E10, so the backtest's
+fixture calendar was empty and every historical observation was scored against league-average
+opposition while the code read as though it were using real fixtures (D-26, DL-51). FPL renumbers
+clubs every season exactly as it renumbers players, so the repair is keyed on the stable club
+``code`` and the test that matters is, again, the one that compares across two seasons.
 """
 
 from __future__ import annotations
 
+import csv
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -24,6 +32,7 @@ import pytest
 import respx
 
 from fpl_dof.config.models import HttpConfig, RateLimitConfig
+from fpl_dof.forecast.backtest import fixture_calendar
 from fpl_dof.silver.tables import Table, columns_for, validate
 from fpl_dof.sources.base import IngestRequest
 from fpl_dof.sources.bronze import BronzeStore
@@ -45,6 +54,7 @@ def recorded_archive() -> Iterator[respx.MockRouter]:
             for path, name in (
                 (f"{slug}/gws/merged_gw.csv", "merged_gw"),
                 (f"{slug}/players_raw.csv", "players_raw"),
+                (f"{slug}/teams.csv", "teams"),
             ):
                 body = (FIXTURES / f"{slug}_{name}.csv").read_text(encoding="utf-8")
                 mock.get(f"{BASE}/{path}").mock(return_value=httpx.Response(200, text=body))
@@ -78,10 +88,10 @@ def test_a_finished_season_is_cached_for_a_year(
 ) -> None:
     """A completed season is immutable; re-fetching it cannot produce a different answer."""
     first = adapter.ingest(REQUEST)
-    assert first.network_calls == 4  # two files for each of two seasons
+    assert first.network_calls == 6  # three files for each of two seasons
     second = adapter.ingest(REQUEST)
     assert second.network_calls == 0
-    assert second.cache_hits == 4
+    assert second.cache_hits == 6
 
 
 def test_conformance_produces_a_valid_per_gameweek_table(
@@ -118,6 +128,160 @@ def test_the_join_key_is_the_stable_code_not_the_season_local_id(
 
     # The codes are real FPL codes, not row numbers dressed up as identity.
     assert frame["player_code"].min() > 1000
+
+
+def _club_table(slug: str) -> list[dict[str, str]]:
+    with (FIXTURES / f"{slug}_teams.csv").open(encoding="utf-8-sig") as handle:
+        return list(csv.DictReader(handle))
+
+
+def test_every_row_names_the_club_it_was_played_for(
+    recorded_archive: respx.MockRouter, adapter: ArchiveAdapter
+) -> None:
+    """D-26, the regression guard. ``team_id: None`` on every row is what this exists to catch.
+
+    It is a null column that breaks nothing loudly: ``fixture_calendar`` drops rows with no club,
+    so it returns an empty calendar, ``attach_fixtures`` takes its stated-absence branch, and the
+    entire backtest scores against league-average opposition while every line of code involved
+    reads as though it were consuming real fixtures. Nothing goes red — DP-13's case exactly.
+    """
+    adapter.ingest(REQUEST)
+    frame = adapter.conform(REQUEST).tables[Table.PLAYER_GAMEWEEK.value]
+
+    assert frame["team_id"].notna().all(), "a row that does not know its club has no fixture"
+    assert frame["opponent_team_id"].notna().all()
+    assert (frame["team_id"] != frame["opponent_team_id"]).all(), "a club cannot play itself"
+
+
+def test_the_club_key_is_stable_across_seasons_like_the_player_key(
+    recorded_archive: respx.MockRouter, adapter: ArchiveAdapter
+) -> None:
+    """The club half of DL-19, and the reason a season-local id would not do.
+
+    Promotion and relegation reshuffle an alphabetical ordering, so between two seasons roughly
+    half of the twenty season-local ids point at a different club. Pooling team form on one would
+    hand Liverpool's record to Leicester. This fixture pair contains a club that appears in both
+    seasons **under a different season-local id**, which is the only condition under which the
+    mistake is visible at all.
+    """
+    adapter.ingest(REQUEST)
+    frame = adapter.conform(REQUEST).tables[Table.PLAYER_GAMEWEEK.value]
+
+    early = {row["name"]: row for row in _club_table("2022-23")}
+    late = {row["name"]: row for row in _club_table("2025-26")}
+
+    # A club with rows in both seasons *and renumbered between them*. Without both properties, a
+    # season-local id would pass this test and the bug would stay invisible.
+    resolved = frame.dropna(subset=["team_id"])
+    seen_in = {int(str(code)): set(group["season"]) for code, group in resolved.groupby("team_id")}
+    renumbered = sorted(
+        name
+        for name in set(early) & set(late)
+        if int(early[name]["id"]) != int(late[name]["id"])
+        and seen_in.get(int(early[name]["code"])) == set(SEASONS)
+    )
+    assert renumbered, "this fixture pair cannot demonstrate the bug it guards against"
+
+    for name in renumbered:
+        code = int(early[name]["code"])
+        assert code == int(late[name]["code"])
+        seasons = set(frame.loc[frame["team_id"] == code, "season"])
+        assert seasons == set(SEASONS), (
+            f"{name} is not the same club in both seasons under id {code}"
+        )
+        # And the number written is the stable code, not either season's local id.
+        assert code not in {int(early[name]["id"]), int(late[name]["id"])}
+
+    written = set(frame["team_id"].dropna().astype(int))
+    codes = {int(row["code"]) for row in early.values()} | {
+        int(row["code"]) for row in late.values()
+    }
+    assert written <= codes, "a club id reached silver that is not a stable FPL club code"
+
+
+def test_a_club_and_its_opponent_are_expressed_in_one_id_space(
+    recorded_archive: respx.MockRouter, adapter: ArchiveAdapter
+) -> None:
+    """Both sides of a fixture must be the same kind of number, or the join pairs strangers.
+
+    ``team_id`` comes from a club *name* and ``opponent_team_id`` from a season-local *integer*.
+    They are resolved through the same club list precisely so that the fixture self-join — which
+    matches one row's club against another row's opponent — means what it says.
+    """
+    adapter.ingest(REQUEST)
+    frame = adapter.conform(REQUEST).tables[Table.PLAYER_GAMEWEEK.value]
+
+    for season, group in frame.groupby("season"):
+        teams = set(group["team_id"].dropna().astype(int))
+        opponents = set(group["opponent_team_id"].dropna().astype(int))
+        assert opponents & teams, f"{season}: no opponent is anybody's club, so the spaces differ"
+
+
+def test_the_fixture_calendar_is_no_longer_empty(
+    recorded_archive: respx.MockRouter, adapter: ArchiveAdapter
+) -> None:
+    """The consumer, not the column. D-26's cost was paid here, so it is checked here.
+
+    Asserting on ``team_id`` alone would not have caught the original defect being *harmless*; the
+    thing that mattered is that the harness's calendar was empty for every gameweek it ever ran.
+    """
+    adapter.ingest(REQUEST)
+    frame = adapter.conform(REQUEST).tables[Table.PLAYER_GAMEWEEK.value]
+
+    built = 0
+    for key, _ in frame.groupby(["season", "gameweek"]):
+        season, gameweek = key
+        built += len(fixture_calendar(frame, str(season), int(str(gameweek))))
+    assert built > 0, "every fold would score against league-average opposition (D-26)"
+
+
+def test_a_missing_club_list_costs_the_fixtures_and_not_the_season(
+    adapter: ArchiveAdapter,
+) -> None:
+    """DP-15, in the honest direction.
+
+    Without the club list the rows are still worth having for per-90 rates, so the season is kept.
+    What it must not do is fall back to the season-local id: that number would be silently wrong
+    rather than visibly absent, and would pool one club's form into another's. Null, and said.
+    """
+    slug = "2025-26"
+    with respx.mock(assert_all_called=False) as mock:
+        for path, name in (
+            (f"{slug}/gws/merged_gw.csv", "merged_gw"),
+            (f"{slug}/players_raw.csv", "players_raw"),
+        ):
+            body = (FIXTURES / f"{slug}_{name}.csv").read_text(encoding="utf-8")
+            mock.get(f"{BASE}/{path}").mock(return_value=httpx.Response(200, text=body))
+        mock.get(f"{BASE}/{slug}/teams.csv").mock(return_value=httpx.Response(404))
+
+        request = IngestRequest(run_id="run-1", seasons=("2025/26",))
+        adapter.ingest(request)
+        conformed = adapter.conform(request)
+
+    frame = conformed.tables[Table.PLAYER_GAMEWEEK.value]
+    assert len(frame) > 0, "the season's player rows are still evidence for a per-90 rate"
+    assert frame["team_id"].isna().all()
+    assert frame["opponent_team_id"].isna().all(), "a season-local id here would be silently wrong"
+    assert any("no club list" in warning for warning in conformed.warnings)
+
+
+def test_a_club_list_without_the_stable_code_refuses_rather_than_guessing(
+    adapter: ArchiveAdapter,
+) -> None:
+    """The club analogue of the ``code`` refusal above, and for the same reason."""
+    body = (FIXTURES / "2025-26_teams.csv").read_text(encoding="utf-8")
+    lines = body.splitlines()
+    header = lines[0].split(",")
+    index = header.index("code")
+    stripped = "\n".join(
+        ",".join(part for position, part in enumerate(line.split(",")) if position != index)
+        for line in lines
+    )
+
+    with respx.mock(assert_all_called=False) as mock:
+        mock.get(f"{BASE}/2025-26/teams.csv").mock(return_value=httpx.Response(200, text=stripped))
+        with pytest.raises(SourceContractError, match="cross-season identity"):
+            adapter.fetch_teams("2025/26", IngestRequest(run_id="run-1"))
 
 
 def test_defensive_contribution_is_null_before_it_existed(

@@ -38,17 +38,19 @@ buried:
   rather than the one it was scheduled for. Both arms of the comparison see the identical calendar,
   so it cannot favour either; it is noted because it is the one input here that a live run would
   know more accurately than the replay does.
-* **Club identity is reconstructed.** The archive carries ``opponent_team_id`` but no ``team_id``;
-  a fixture has exactly two clubs, so a player's club is the one that is not his opponent. Without
-  it there is no club cap, no fixture-varying forecast and no within-match correlation, and the
-  experiment would degenerate into the tied case the unit test already covers.
+* **Club identity is stated, and reconstructed only where it is not.** The archive adapter resolves
+  each row's club to FPL's stable code from the season's own club list (D-26); it used to carry
+  ``opponent_team_id`` and no ``team_id`` at all, and this replay filled the gap itself. The
+  reconstruction survives as a fallback — a fixture has exactly two clubs, so a player's club is
+  the one that is not his opponent — but it no longer overwrites a club the source has resolved.
+  Without a club there is no club cap, no fixture-varying forecast and no within-match correlation,
+  and the experiment would degenerate into the tied case the unit test already covers.
 
 The output is a finding, not an artefact. Nothing in the weekly pipeline reads it.
 """
 
 from __future__ import annotations
 
-import math
 import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
@@ -65,9 +67,9 @@ from fpl_dof.config.models import (
 )
 from fpl_dof.forecast.backtest import deadlines_for, fold_rows, training_rows
 from fpl_dof.forecast.features import TARGET, build_features
+from fpl_dof.forecast.horizon import fixture_index_from_history, horizon_frame
 from fpl_dof.forecast.models import ComponentModels, fit_components
-from fpl_dof.forecast.xp_v1 import forecast_player
-from fpl_dof.frames import as_float, as_int, gameweek_column, gameweek_sd_column
+from fpl_dof.frames import as_float, as_int
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.optimise.plan import DecisionPlan, build_plan
 from fpl_dof.optimise.squad import InfeasibleError, optimise_squad
@@ -187,15 +189,27 @@ class ReplayResult:
 
 
 def attach_team_ids(history: pd.DataFrame) -> pd.DataFrame:
-    """Fill in the club the archive does not carry.
+    """Fill in any club the source did not resolve — and only those.
 
-    A fixture has exactly two clubs and every row names its *opponent*, so the pair of distinct
-    opponent ids in a fixture is the pair of clubs, and a row's club is whichever of the two is not
-    its own opponent. Fixtures that do not resolve to exactly two clubs are left null rather than
-    guessed at — a wrong club silently breaks the three-per-club limit and the within-match
-    correlation at once.
+    The archive adapter now states the club directly, resolved from the season's own club list to
+    FPL's stable code (D-26). This stays as the fallback for a row the source could not resolve,
+    and **only fills where ``team_id`` is null**: a reconstruction that overwrote a stated club
+    would silently rewrite it into the season-local id space, which is a different space from the
+    ``opponent_team_id`` beside it, and the fixture join would then pair every club with a
+    stranger. The source wins wherever it has an answer.
+
+    Where it does run: a fixture has exactly two clubs and every row names its *opponent*, so the
+    pair of distinct opponent ids in a fixture is the pair of clubs, and a row's club is whichever
+    of the two is not its own opponent. Fixtures that do not resolve to exactly two clubs are left
+    null rather than guessed at — a wrong club silently breaks the three-per-club limit and the
+    within-match correlation at once.
     """
     frame = history.copy()
+    if "team_id" not in frame.columns:
+        frame["team_id"] = pd.array([None] * len(frame), dtype="Int64")
+    stated = frame["team_id"]
+    if stated.notna().all() and len(frame):
+        return frame
     usable = frame.dropna(subset=["fixture_id", "opponent_team_id"])
     pairs: dict[tuple[str, int], set[int]] = {}
     for row in usable.itertuples():
@@ -211,7 +225,9 @@ def attach_team_ids(history: pd.DataFrame) -> pd.DataFrame:
         opponent = as_int(row.opponent_team_id)
         others = clubs - {opponent}
         resolved.append(others.pop() if len(others) == 1 else None)
-    frame["team_id"] = pd.array(resolved, dtype="Int64")
+    reconstructed = pd.array(resolved, dtype="Int64")
+    frame["team_id"] = stated.combine_first(pd.Series(reconstructed, index=frame.index))
+    frame["team_id"] = frame["team_id"].astype("Int64")
     return frame
 
 
@@ -329,8 +345,10 @@ def _replay_one(
     # Team strength is fitted on the raw per-gameweek rows rather than on ``training``: the
     # walk-forward training frame carries features and outcomes but no fixture or club, which is
     # why the harness's own report says opposition there is league-average. Reconstructed club ids
-    # (see ``attach_team_ids``) are what make a real fixture-varying horizon possible here. Club
-    # ids in the archive are season-local, so this must never reach across seasons.
+    # (see ``attach_team_ids``) are what make a real fixture-varying horizon possible here. ``past``
+    # is already filtered to one season above, which is what keeps this safe regardless of source:
+    # the archive writes a stable club code and the live feed writes a season-local id (D-26), two
+    # different spaces that only agree not to collide *within* one season.
     models = fit_components(training, _team_matches(past), forecast_config, rules)
     players = _forecast_frame(
         past,
@@ -395,11 +413,27 @@ def _forecast_frame(
 
     ``player_id`` is the archive's cross-season ``player_code``. The season-local element id is
     reassigned every year and would attribute one player's plan to whoever inherited his number.
+
+    The scoring itself lives in :mod:`fpl_dof.forecast.horizon`, which the live pipeline also uses.
+    It was written here first, for this experiment; keeping a private copy once the live path needed
+    the same arithmetic would have been two implementations of one model drifting apart (D-25).
     """
     identity = (
         past.sort_values("kickoff_time")
         .groupby("player_code")
         .last()[["web_name", "position", "team_id", "price"]]
+    )
+    # A replay has no manager, no news and no ownership, so these are stated once as the assumptions
+    # they are rather than smuggled in as data. Both arms of the comparison see them identically.
+    identity = identity.assign(
+        player_id=identity.index,
+        status="a",
+        chance_of_playing_next_round=None,
+        news="",
+        selected_by_percent=0.0,
+        start_probability=1.0,
+        start_floor=0.0,
+        confidence="medium",
     )
     features = build_features(
         past,
@@ -409,111 +443,19 @@ def _forecast_frame(
     )
     if features.empty:
         raise InfeasibleError(f"no features could be built at {deadline}")
-    fixtures = _fixture_index(history, season, horizon)
 
-    rows: list[dict[str, object]] = []
-    for _, feature_row in features.iterrows():
-        code = as_int(feature_row["player_code"])
-        if code not in identity.index:
-            continue
-        known = identity.loc[code]
-        if _missing(known["team_id"]):
-            continue
-        team_id = as_int(known["team_id"])
-        row: dict[str, object] = {
-            "player_id": code,
-            "player_code": code,
-            "web_name": str(known["web_name"]),
-            "position": str(known["position"]),
-            "team_id": team_id,
-            "price": as_float(known["price"]),
-            "status": "a",
-            "chance_of_playing_next_round": None,
-            "news": "",
-            "selected_by_percent": 0.0,
-            "start_probability": 1.0,
-            "start_floor": 0.0,
-            "confidence": "medium",
-        }
-
-        total_mean = 0.0
-        total_variance = 0.0
-        for week in horizon:
-            mean, variance = _week_forecast(
-                feature_row,
-                fixtures.get((team_id, week), ()),
-                team_id=team_id,
-                models=models,
-                rules=rules,
-                forecast_config=forecast_config,
-            )
-            row[gameweek_column(week)] = round(mean, 4)
-            row[gameweek_sd_column(week)] = round(math.sqrt(max(0.0, variance)), 4)
-            total_mean += mean
-            total_variance += variance
-        row["xp_next"] = row[gameweek_column(horizon[0])]
-        row["xp_next_sd"] = row[gameweek_sd_column(horizon[0])]
-        row["xp_horizon"] = round(total_mean, 4)
-        row["xp_horizon_sd"] = round(math.sqrt(max(0.0, total_variance)), 4)
-        rows.append(row)
-
-    frame = pd.DataFrame(rows)
+    frame = horizon_frame(
+        features,
+        identity=identity,
+        horizon=horizon,
+        fixtures=fixture_index_from_history(history, season, horizon),
+        models=models,
+        rules=rules,
+        config=forecast_config,
+    )
     if frame.empty:
         raise InfeasibleError(f"no player could be forecast at {deadline}")
     return frame
-
-
-def _week_forecast(
-    feature_row: pd.Series,
-    fixtures: Sequence[tuple[int, bool]],
-    *,
-    team_id: int,
-    models: ComponentModels,
-    rules: GameRules,
-    forecast_config: ForecastConfig,
-) -> tuple[float, float]:
-    """One player, one gameweek. A blank scores nothing; a double is two fixtures added.
-
-    Adding the variances treats a double gameweek's two matches as independent, which is very
-    nearly true and is the direction that understates rather than overstates the spread.
-    """
-    if not fixtures:
-        return 0.0, 0.0
-    mean = 0.0
-    variance = 0.0
-    for opponent_id, at_home in fixtures:
-        forecast = forecast_player(
-            feature_row,
-            models,
-            rules,
-            forecast_config,
-            clean_sheet_probability=models.team_strength.clean_sheet_probability(
-                team_id, opponent_id, at_home=at_home
-            ),
-            goals_conceded_mean=models.team_strength.expected_goals(
-                opponent_id, team_id, at_home=not at_home
-            ),
-        )
-        mean += forecast.expected_points
-        variance += forecast.variance
-    return mean, variance
-
-
-def _fixture_index(
-    history: pd.DataFrame, season: str, horizon: Sequence[int]
-) -> dict[tuple[int, int], tuple[tuple[int, bool], ...]]:
-    """(club, gameweek) -> the fixtures that club plays. The real historical calendar.
-
-    Read from the *fixture* columns of the archive, never from whether a given player has a row:
-    the calendar is published weeks ahead and is knowable at the deadline, whereas who was picked
-    is not.
-    """
-    window = history[(history["season"] == season) & (history["gameweek"].isin(list(horizon)))]
-    index: dict[tuple[int, int], set[tuple[int, bool]]] = {}
-    for row in window.dropna(subset=["team_id", "opponent_team_id"]).itertuples():
-        key = (as_int(row.team_id), as_int(row.gameweek))
-        index.setdefault(key, set()).add((as_int(row.opponent_team_id), bool(row.was_home)))
-    return {key: tuple(sorted(value)) for key, value in index.items()}
 
 
 def _fixture_frame(history: pd.DataFrame, season: str, horizon: Sequence[int]) -> pd.DataFrame:

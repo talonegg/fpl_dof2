@@ -1,0 +1,418 @@
+# Penalty and set-piece duty — a committed, hand-maintained reference table (E12-S2, D4).
+#
+# ---------------------------------------------------------------------------------------------
+# OWNER MAINTENANCE NOTE — read this before trusting anything below, and especially at a season
+# start. It is the point of the file.
+# ---------------------------------------------------------------------------------------------
+#
+# WHAT THIS IS. Who takes a club's penalties is large, lumpy, highly identifiable points from a
+# small number of players, and nothing else in the model knows it: the goal-involvement rate fits a
+# per-90 blind to *why* a player scores. This file is curated knowledge, like `rules.yaml` — not an
+# ingested feed. Nothing outside `config/defaults/` and the forecast reads it, so no Invariant-1 or
+# scraping question arises. It is the single source the E10-S3 duty term reads.
+#
+# WHAT IT IS NOT. It is not a measurement, and it is not maintained by anything automatic. Duty
+# changes in preseason friendlies, after a transfer, after two misses, and in the first weeks of a
+# season more than at any other time. **Every entry below is a claim that was true when it was
+# written and may not be true today.** Review the whole file at a season start and after any
+# January window; the model term is off by default and must stay off until you have.
+#
+# HOW TO MAINTAIN IT. Each entry says when the duty became *publicly knowable* (`known_from`) and,
+# where it has lapsed, when (`known_until`). The forecast asks only "was this duty active at the
+# deadline being scored", so the dates are what keep a backtest honest:
+#
+#   **Never enter a `known_from` earlier than the date the assignment was publicly known.**
+#
+# That is Invariant 5 restated for a hand-maintained file. A table written today and applied to a
+# 2024 gameweek is look-ahead, and look-ahead is the single easiest way to produce a model that
+# looks excellent and is worthless. The historical entries below obey a mechanical version of the
+# rule: an entry may assert a season only if the player was FPL's own recorded first taker for the
+# same club **at the end of the previous season**, which is evidence that existed before the season
+# it is applied to. Entries that were wrong in hindsight (Toney left in January; Eze lost the duty)
+# are kept deliberately — they are what a manager would have believed, which is the thing being
+# graded.
+#
+# CONFIDENCE. Every entry carries a tier, and the tier scales the term's contribution rather than
+# gating it, so a doubtful entry moves a forecast a little instead of either everything or nothing:
+#
+#   confirmed   — the player finished the previous season as FPL's own recorded first taker for
+#                 this club. The strongest evidence available before a ball is kicked.
+#   likely      — FPL's `penalties_order` in a pre-season snapshot. FPL carries these forward from
+#                 last season and they are routinely stale for promoted clubs and new signings.
+#   unconfirmed — owner-entered from a press report, a friendly or a manager's comment. Use this
+#                 tier for anything you are typing in yourself; it is the honest default for a
+#                 human addition.
+#
+# The weights the tiers map to are in `forecast.discrimination.penalties.confidence_weights`.
+#
+# ABSENCE MEANS UNKNOWN, NOT "NO DUTY". Most players have no entry and the term is a no-op for
+# them, which is correct: it does not subtract anything from a player this file has never heard of.
+# Coverage is reported in the backtest card so a thin table is visible rather than silent (DP-15).
+#
+# WHY FPL'S OWN FIELD IS NOT READ DIRECTLY. `bootstrap-static` publishes `penalties_order`,
+# `direct_freekicks_order` and `corners_and_indirect_freekicks_order`, and the archive's season-end
+# snapshots carry them too — which is where every entry below was seeded from, rather than from
+# anybody's recollection. Consuming that field *as a feed* means conforming it through the source
+# layer and into silver, which is a source-layer change and an E12 decision, not something to
+# smuggle into a forecast module (Invariant 1). Until that happens this file is the seam, and its
+# `basis` field says which snapshot each entry came from so a reviewer can re-derive it.
+#
+# SET PIECES ARE MODELLED AS PENALTIES ONLY, FOR NOW. `duty` accepts `direct_free_kicks` and
+# `corners`, and the loader validates them, but no entries are seeded and the model consumes
+# neither: there is nothing in silver carrying set-piece volume, so a corner-taker assist uplift
+# would be an invented number rather than a modelled one (DP-09), and adding it alongside the
+# penalty term would make one experiment measure two changes (DL-49). Seed them when a story
+# exists that can grade them.
+#
+# See DL-50 for the reasoning, and E12-S2 for what this file is accepted against.
+forecast:
+  duty:
+    entries:
+      # --- 2024/25 and 2025/26: asserted from the previous season's final `penalties_order` -------
+      # These exist so the backtest window has duty at all. Each is knowable before the season it
+      # covers; none is a hindsight correction.
+      - player_code: 223340
+        name: "Saka"
+        club: "Arsenal"
+        duty: penalties
+        order: 1
+        known_from: 2024-08-01
+        known_until: 2026-08-16
+        confidence: confirmed
+        basis: fpl_penalties_order_prior_season_final
+      - player_code: 144485
+        name: "Toney"
+        club: "Brentford"
+        duty: penalties
+        order: 1
+        known_from: 2024-08-01
+        known_until: 2025-08-01
+        confidence: confirmed
+        basis: fpl_penalties_order_prior_season_final
+      - player_code: 475168
+        name: "João Pedro"
+        club: "Brighton"
+        duty: penalties
+        order: 1
+        known_from: 2024-08-01
+        known_until: 2025-08-01
+        confidence: confirmed
+        basis: fpl_penalties_order_prior_season_final
+      - player_code: 244851
+        name: "Palmer"
+        club: "Chelsea"
+        duty: penalties
+        order: 1
+        known_from: 2024-08-01
+        known_until: 2026-08-16
+        confidence: confirmed
+        basis: fpl_penalties_order_prior_season_final
+      - player_code: 232413
+        name: "Eze"
+        club: "Crystal Palace"
+        duty: penalties
+        order: 1
+        known_from: 2024-08-01
+        known_until: 2025-08-01
+        confidence: confirmed
+        basis: fpl_penalties_order_prior_season_final
+      - player_code: 177815
+        name: "Calvert-Lewin"
+        club: "Everton"
+        duty: penalties
+        order: 1
+        known_from: 2024-08-01
+        known_until: 2025-08-01
+        confidence: confirmed
+        basis: fpl_penalties_order_prior_season_final
+      - player_code: 47431
+        name: "Willian"
+        club: "Fulham"
+        duty: penalties
+        order: 1
+        known_from: 2024-08-01
+        known_until: 2025-08-01
+        confidence: confirmed
+        basis: fpl_penalties_order_prior_season_final
+      - player_code: 223094
+        name: "Haaland"
+        club: "Man City"
+        duty: penalties
+        order: 1
+        known_from: 2024-08-01
+        known_until: 2026-08-16
+        confidence: confirmed
+        basis: fpl_penalties_order_prior_season_final
+      - player_code: 141746
+        name: "B.Fernandes"
+        club: "Man Utd"
+        duty: penalties
+        order: 1
+        known_from: 2024-08-01
+        known_until: 2026-08-16
+        confidence: confirmed
+        basis: fpl_penalties_order_prior_season_final
+      - player_code: 75115
+        name: "Wilson"
+        club: "Newcastle"
+        duty: penalties
+        order: 1
+        known_from: 2024-08-01
+        known_until: 2025-08-01
+        confidence: confirmed
+        basis: fpl_penalties_order_prior_season_final
+      - player_code: 222531
+        name: "Gibbs-White"
+        club: "Nott'm Forest"
+        duty: penalties
+        order: 1
+        known_from: 2024-08-01
+        known_until: 2025-08-01
+        confidence: confirmed
+        basis: fpl_penalties_order_prior_season_final
+      - player_code: 85971
+        name: "Son"
+        club: "Spurs"
+        duty: penalties
+        order: 1
+        known_from: 2024-08-01
+        known_until: 2026-08-16
+        confidence: confirmed
+        basis: fpl_penalties_order_prior_season_final
+      - player_code: 101178
+        name: "Ward-Prowse"
+        club: "West Ham"
+        duty: penalties
+        order: 1
+        known_from: 2024-08-01
+        known_until: 2025-08-01
+        confidence: confirmed
+        basis: fpl_penalties_order_prior_season_final
+      - player_code: 184754
+        name: "Hee Chan"
+        club: "Wolves"
+        duty: penalties
+        order: 1
+        known_from: 2024-08-01
+        known_until: 2026-08-16
+        confidence: confirmed
+        basis: fpl_penalties_order_prior_season_final
+      - player_code: 178301
+        name: "Watkins"
+        club: "Aston Villa"
+        duty: penalties
+        order: 1
+        known_from: 2025-08-01
+        known_until: 2026-08-16
+        confidence: confirmed
+        basis: fpl_penalties_order_prior_season_final
+      - player_code: 222683
+        name: "Kluivert"
+        club: "Bournemouth"
+        duty: penalties
+        order: 1
+        known_from: 2025-08-01
+        known_until: 2026-08-16
+        confidence: confirmed
+        basis: fpl_penalties_order_prior_season_final
+      - player_code: 231747
+        name: "Mateta"
+        club: "Crystal Palace"
+        duty: penalties
+        order: 1
+        known_from: 2025-08-01
+        known_until: 2026-08-16
+        confidence: confirmed
+        basis: fpl_penalties_order_prior_season_final
+      - player_code: 156689
+        name: "Andreas"
+        club: "Fulham"
+        duty: penalties
+        order: 1
+        known_from: 2025-08-01
+        known_until: 2026-08-16
+        confidence: confirmed
+        basis: fpl_penalties_order_prior_season_final
+      - player_code: 60689
+        name: "Wood"
+        club: "Nott'm Forest"
+        duty: penalties
+        order: 1
+        known_from: 2025-08-01
+        known_until: 2026-08-16
+        confidence: confirmed
+        basis: fpl_penalties_order_prior_season_final
+      - player_code: 224024
+        name: "L.Paquetá"
+        club: "West Ham"
+        duty: penalties
+        order: 1
+        known_from: 2025-08-01
+        known_until: 2026-08-16
+        confidence: confirmed
+        basis: fpl_penalties_order_prior_season_final
+
+      # --- 2026/27: FPL's own pre-season `penalties_order`, snapshot 2026-08-16 ------------------
+      # `likely`, not `confirmed`: not a ball has been kicked, FPL carries the field forward, and the
+      # promoted clubs' entries in particular are the ones to check first. **Confirm these against
+      # the opening gameweeks before the flag is ever turned on.**
+      - player_code: 223340
+        name: "Saka"
+        club: "Arsenal"
+        duty: penalties
+        order: 1
+        known_from: 2026-08-16
+        confidence: likely
+        basis: fpl_penalties_order_bootstrap_2026-08-16
+      - player_code: 195546
+        name: "Buendía"
+        club: "Aston Villa"
+        duty: penalties
+        order: 1
+        known_from: 2026-08-16
+        confidence: likely
+        basis: fpl_penalties_order_bootstrap_2026-08-16
+      - player_code: 560262
+        name: "Kroupi.Jr"
+        club: "Bournemouth"
+        duty: penalties
+        order: 1
+        known_from: 2026-08-16
+        confidence: likely
+        basis: fpl_penalties_order_bootstrap_2026-08-16
+      - player_code: 502500
+        name: "Thiago"
+        club: "Brentford"
+        duty: penalties
+        order: 1
+        known_from: 2026-08-16
+        confidence: likely
+        basis: fpl_penalties_order_bootstrap_2026-08-16
+      - player_code: 60307
+        name: "Groß"
+        club: "Brighton"
+        duty: penalties
+        order: 1
+        known_from: 2026-08-16
+        confidence: likely
+        basis: fpl_penalties_order_bootstrap_2026-08-16
+      - player_code: 244851
+        name: "Palmer"
+        club: "Chelsea"
+        duty: penalties
+        order: 1
+        known_from: 2026-08-16
+        confidence: likely
+        basis: fpl_penalties_order_bootstrap_2026-08-16
+      - player_code: 176412
+        name: "Wright"
+        club: "Coventry City"
+        duty: penalties
+        order: 1
+        known_from: 2026-08-16
+        confidence: likely
+        basis: fpl_penalties_order_bootstrap_2026-08-16
+      - player_code: 231747
+        name: "Mateta"
+        club: "Crystal Palace"
+        duty: penalties
+        order: 1
+        known_from: 2026-08-16
+        confidence: likely
+        basis: fpl_penalties_order_bootstrap_2026-08-16
+      - player_code: 440993
+        name: "Ndiaye"
+        club: "Everton"
+        duty: penalties
+        order: 1
+        known_from: 2026-08-16
+        confidence: likely
+        basis: fpl_penalties_order_bootstrap_2026-08-16
+      - player_code: 551466
+        name: "Gonzalo"
+        club: "Fulham"
+        duty: penalties
+        order: 1
+        known_from: 2026-08-16
+        confidence: likely
+        basis: fpl_penalties_order_bootstrap_2026-08-16
+      - player_code: 169432
+        name: "McBurnie"
+        club: "Hull City"
+        duty: penalties
+        order: 1
+        known_from: 2026-08-16
+        confidence: likely
+        basis: fpl_penalties_order_bootstrap_2026-08-16
+      - player_code: 443261
+        name: "Clarke"
+        club: "Ipswich Town"
+        duty: penalties
+        order: 1
+        known_from: 2026-08-16
+        confidence: likely
+        basis: fpl_penalties_order_bootstrap_2026-08-16
+      - player_code: 177815
+        name: "Calvert-Lewin"
+        club: "Leeds"
+        duty: penalties
+        order: 1
+        known_from: 2026-08-16
+        confidence: likely
+        basis: fpl_penalties_order_bootstrap_2026-08-16
+      - player_code: 219168
+        name: "Isak"
+        club: "Liverpool"
+        duty: penalties
+        order: 1
+        known_from: 2026-08-16
+        confidence: likely
+        basis: fpl_penalties_order_bootstrap_2026-08-16
+      - player_code: 223094
+        name: "Haaland"
+        club: "Man City"
+        duty: penalties
+        order: 1
+        known_from: 2026-08-16
+        confidence: likely
+        basis: fpl_penalties_order_bootstrap_2026-08-16
+      - player_code: 141746
+        name: "B.Fernandes"
+        club: "Man Utd"
+        duty: penalties
+        order: 1
+        known_from: 2026-08-16
+        confidence: likely
+        basis: fpl_penalties_order_bootstrap_2026-08-16
+      - player_code: 470313
+        name: "Woltemade"
+        club: "Newcastle"
+        duty: penalties
+        order: 1
+        known_from: 2026-08-16
+        confidence: likely
+        basis: fpl_penalties_order_bootstrap_2026-08-16
+      - player_code: 60689
+        name: "Wood"
+        club: "Nott'm Forest"
+        duty: penalties
+        order: 1
+        known_from: 2026-08-16
+        confidence: likely
+        basis: fpl_penalties_order_bootstrap_2026-08-16
+      - player_code: 154566
+        name: "Solanke"
+        club: "Spurs"
+        duty: penalties
+        order: 1
+        known_from: 2026-08-16
+        confidence: likely
+        basis: fpl_penalties_order_bootstrap_2026-08-16
+      - player_code: 547027
+        name: "Diarra"
+        club: "Sunderland"
+        duty: penalties
+        order: 1
+        known_from: 2026-08-16
+        confidence: likely
+        basis: fpl_penalties_order_bootstrap_2026-08-16

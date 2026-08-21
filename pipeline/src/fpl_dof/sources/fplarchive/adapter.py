@@ -21,12 +21,30 @@ across seasons.
 **Absence of measurement is preserved as null.** Defensive Contribution columns do not exist before
 2025/26. They arrive here as null, never zero — zero would say the player did no defending, which
 is the trap DL-18 records.
+
+**The club join has the same shape as the player join, and used to be missing entirely.** This
+adapter once wrote ``team_id: None`` on every row, which silently emptied the backtest's fixture
+calendar and scored every historical observation against league-average opposition (D-26, DL-51).
+The club is not absent from the archive — ``merged_gw.csv`` carries the club *name* on every row
+and ``teams.csv`` carries the season's club list — it was simply never resolved.
+
+**And the club key is the stable ``code``, for exactly DL-19's reason.** FPL renumbers teams every
+season as well as players: between consecutive seasons **eight to ten of the twenty season-local
+ids point at a different club**, because promotion and relegation reshuffle an alphabetical
+ordering. ``team_id`` 11 is Liverpool in 2023/24, Leicester in 2024/25 and Leeds in 2025/26. Any
+model that pools team form across seasons — and :class:`~fpl_dof.forecast.models.TeamStrengthModel`
+does — would attribute one club's record to another. ``teams.csv`` carries FPL's own ``code``,
+which is stable across every season the archive publishes, so that is what both ``team_id`` and
+``opponent_team_id`` are expressed in here. The two must be in the same space or the fixture
+self-join pairs a club with a stranger; relabelling both is a bijection within a season, so every
+within-season consumer is unaffected.
 """
 
 from __future__ import annotations
 
 import csv
 import io
+from dataclasses import dataclass
 from typing import Any, ClassVar
 
 import pandas as pd
@@ -88,12 +106,45 @@ REQUIRED_GAMEWEEK_COLUMNS = (
     "was_home",
     "opponent_team",
     "fixture",
+    # The club the row belongs to. Named as required rather than read opportunistically: a season
+    # whose club column silently vanished would take the fixture calendar down with it and nothing
+    # downstream would say so, which is precisely how D-26 survived unnoticed.
+    "team",
 )
+
+#: The club list's own columns. ``code`` is the cross-season identity and is therefore as
+#: load-bearing here as ``code`` is in ``players_raw.csv``.
+REQUIRED_TEAM_COLUMNS = ("id", "code", "name", "short_name")
 
 
 def season_slug(season: str) -> str:
     """``2025/26`` -> ``2025-26``. The archive's own directory naming."""
     return season.replace("/", "-")
+
+
+def _normalise(name: str) -> str:
+    """Club names are compared case- and whitespace-insensitively, and never fuzzily.
+
+    ``merged_gw.csv`` and ``teams.csv`` come from the same upstream dump and agree exactly today.
+    Normalising guards against a stray space; anything further would be entity resolution, and a
+    fuzzy club match is R-10 with twenty candidates instead of six hundred.
+    """
+    return " ".join(name.split()).casefold()
+
+
+@dataclass(frozen=True, slots=True)
+class Clubs:
+    """One season's clubs, keyed both ways, resolving to the stable cross-season ``code``."""
+
+    season: str
+    by_local_id: dict[int, int]
+    by_name: dict[str, int]
+
+    def code_for_local_id(self, local_id: int | None) -> int | None:
+        return None if local_id is None else self.by_local_id.get(local_id)
+
+    def code_for_name(self, name: str | None) -> int | None:
+        return None if not name else self.by_name.get(_normalise(name))
 
 
 @register
@@ -123,6 +174,12 @@ class ArchiveAdapter(SourceAdapter):
         Resource(
             name="players",
             summary="Season player list, carrying the stable cross-season code",
+            cache_ttl_seconds=_YEAR,
+            fast_path=False,
+        ),
+        Resource(
+            name="teams",
+            summary="Season club list: the season-local id, the name, and the stable club code",
             cache_ttl_seconds=_YEAR,
             fast_path=False,
         ),
@@ -200,6 +257,25 @@ class ArchiveAdapter(SourceAdapter):
                 )
         return rows
 
+    def fetch_teams(self, season: str, request: IngestRequest) -> list[dict[str, str]]:
+        rows = self._fetch_csv(
+            "teams",
+            f"{season_slug(season)}/teams.csv",
+            season_slug(season),
+            request,
+        )
+        for column in REQUIRED_TEAM_COLUMNS:
+            if column not in rows[0]:
+                raise SourceContractError(
+                    f"{season} club list has no {column!r} column, so the club a row belongs to "
+                    "cannot be resolved to a cross-season identity and the fixture join would be "
+                    "silently empty (D-26)",
+                    source=self.name,
+                    resource="teams",
+                    key=season_slug(season),
+                )
+        return rows
+
     # --- conform -------------------------------------------------------------------------
 
     def _seasons(self, request: IngestRequest) -> tuple[str, ...]:
@@ -243,11 +319,57 @@ class ArchiveAdapter(SourceAdapter):
             )
         return mapping
 
+    def _clubs(self, teams: list[dict[str, str]], warnings: list[str], season: str) -> Clubs:
+        """Season-local id -> stable code, and club name -> stable code.
+
+        Both directions are needed because the archive states the club two different ways: a row
+        names *its own* club as a string and *its opponent* as a season-local integer. They must
+        end up in one id space, and the only space that survives a promotion is the code.
+        """
+        by_local_id: dict[int, int] = {}
+        by_name: dict[str, int] = {}
+        for row in teams:
+            local_id = _as_int(row.get("id"))
+            code = _as_int(row.get("code"))
+            if local_id is None or code is None:
+                continue
+            by_local_id[local_id] = code
+            for alias in (row.get("name"), row.get("short_name")):
+                if alias:
+                    by_name[_normalise(alias)] = code
+        if not by_local_id:
+            raise SourceContractError(
+                f"{season} club list resolved to no clubs at all",
+                source=self.name,
+                resource="teams",
+                key=season_slug(season),
+            )
+        if len(set(by_local_id.values())) != len(by_local_id):
+            # Two clubs sharing a code would merge two clubs' records into one, which is DL-19's
+            # failure with twenty rows instead of six hundred.
+            raise SourceContractError(
+                f"{season} club list has duplicate club codes, so club identity is not unique",
+                source=self.name,
+                resource="teams",
+                key=season_slug(season),
+            )
+        warnings.append(
+            f"{season}: club identity resolved for {len(by_local_id)} clubs via the stable code"
+        )
+        return Clubs(season=season, by_local_id=by_local_id, by_name=by_name)
+
     def _season_frame(
-        self, season: str, gameweeks: list[dict[str, str]], identity: dict[int, tuple[int, str]]
+        self,
+        season: str,
+        gameweeks: list[dict[str, str]],
+        identity: dict[int, tuple[int, str]],
+        clubs: Clubs | None,
+        warnings: list[str],
     ) -> pd.DataFrame:
         rows = []
         unmatched = 0
+        unresolved_team = 0
+        unresolved_opponent = 0
         for record in gameweeks:
             element = _as_int(record.get("element"))
             if element is None:
@@ -263,6 +385,19 @@ class ArchiveAdapter(SourceAdapter):
             position = _POSITION_ALIASES.get(
                 str(record.get("position") or "").upper(), position_from_list
             )
+            # Unresolvable stays null rather than falling back to the season-local id. A row whose
+            # club is null is dropped by the fixture calendar and is visibly absent; a row carrying
+            # a season-local id in a code-keyed column is invisibly *wrong*, and would pool one
+            # club's form into another's. Absence beats a plausible mistake (DP-15).
+            team_code = None if clubs is None else clubs.code_for_name(record.get("team"))
+            opponent_code = (
+                None
+                if clubs is None
+                else clubs.code_for_local_id(_as_int(record.get("opponent_team")))
+            )
+            if clubs is not None:
+                unresolved_team += team_code is None
+                unresolved_opponent += opponent_code is None
             rows.append(
                 {
                     "season": season,
@@ -271,8 +406,8 @@ class ArchiveAdapter(SourceAdapter):
                     "player_id": element,
                     "web_name": str(record.get("name") or ""),
                     "position": position,
-                    "team_id": None,
-                    "opponent_team_id": _as_int(record.get("opponent_team")),
+                    "team_id": team_code,
+                    "opponent_team_id": opponent_code,
                     "fixture_id": _as_int(record.get("fixture")),
                     "kickoff_time": record.get("kickoff_time") or None,
                     "was_home": str(record.get("was_home", "")).strip().lower() == "true",
@@ -301,6 +436,22 @@ class ArchiveAdapter(SourceAdapter):
                 "fplarchive.unmatched_elements",
                 extra={"season": season, "rows": unmatched},
             )
+        if unresolved_team or unresolved_opponent:
+            # Loud, and counted. A club column that half-resolves produces a fixture calendar that
+            # half-exists, and a backtest quietly measured on the other half.
+            log.warning(
+                "fplarchive.unresolved_clubs",
+                extra={
+                    "season": season,
+                    "team_rows": unresolved_team,
+                    "opponent_rows": unresolved_opponent,
+                },
+            )
+            warnings.append(
+                f"{season}: {unresolved_team} row(s) name a club the season's club list does not "
+                f"contain and {unresolved_opponent} name an unknown opponent; their fixtures do "
+                "not enter the backtest"
+            )
         frame = pd.DataFrame(rows, columns=columns_for(Table.PLAYER_GAMEWEEK))
         frame["kickoff_time"] = pd.to_datetime(frame["kickoff_time"], utc=True, format="mixed")
         return frame
@@ -316,8 +467,20 @@ class ArchiveAdapter(SourceAdapter):
             except SourceNotFoundError, OfflineWithoutSnapshotError:
                 warnings.append(f"no archive snapshot for {season}; skipping it")
                 continue
+            try:
+                teams = self.fetch_teams(season, request)
+            except SourceNotFoundError, OfflineWithoutSnapshotError:
+                # DP-15: the season's player rows are still worth having for per-90 rates. What it
+                # loses is every fixture, and that is said rather than left to be inferred from a
+                # backtest that quietly scores against league-average opposition (D-26).
+                teams = None
+                warnings.append(
+                    f"{season}: no club list, so team_id and opponent_team_id stay null and this "
+                    "season contributes no fixture to the backtest"
+                )
+            clubs = None if teams is None else self._clubs(teams, warnings, season)
             identity = self._identity(players, warnings, season)
-            frames.append(self._season_frame(season, gameweeks, identity))
+            frames.append(self._season_frame(season, gameweeks, identity, clubs, warnings))
 
         if not frames:
             return Conformed(tables={}, warnings=warnings)
@@ -334,6 +497,7 @@ class ArchiveAdapter(SourceAdapter):
         before_hits = self.fetcher.cache_hits
 
         seasons = 0
+        clubs = 0
         for season in self._seasons(request):
             try:
                 self.fetch_gameweeks(season, request)
@@ -345,12 +509,26 @@ class ArchiveAdapter(SourceAdapter):
                 report.warnings.append(f"no snapshot for {season}; run without --offline once")
                 continue
             seasons += 1
+            # Snapshotted in the same pass so an offline conform has it, but its absence costs the
+            # season its fixtures rather than the season itself.
+            try:
+                self.fetch_teams(season, request)
+            except SourceNotFoundError:
+                report.warnings.append(
+                    f"archive has no club list for {season}; no fixtures from it"
+                )
+                continue
+            except OfflineWithoutSnapshotError:
+                report.warnings.append(f"no club-list snapshot for {season}; no fixtures from it")
+                continue
+            clubs += 1
 
         report.resources["merged_gameweeks"] = seasons
         report.resources["players"] = seasons
+        report.resources["teams"] = clubs
         report.network_calls = self.fetcher.network_calls - before_calls
         report.cache_hits = self.fetcher.cache_hits - before_hits
-        log.info("fplarchive.ingest.done", extra={"seasons": seasons})
+        log.info("fplarchive.ingest.done", extra={"seasons": seasons, "club_lists": clubs})
         return report
 
 
@@ -377,4 +555,10 @@ def _optional(value: Any) -> float | None:
     return _as_float(value)
 
 
-__all__ = ["DEFAULT_SEASONS", "ArchiveAdapter", "season_slug"]
+__all__ = [
+    "DEFAULT_SEASONS",
+    "REQUIRED_TEAM_COLUMNS",
+    "ArchiveAdapter",
+    "Clubs",
+    "season_slug",
+]

@@ -9,6 +9,7 @@ behaviour change otherwise, and this project cannot afford silent behaviour chan
 
 from __future__ import annotations
 
+import datetime as dt
 from pathlib import Path
 from typing import Literal
 
@@ -411,6 +412,461 @@ class ExpectedGoalsConfig(_Section):
     )
 
 
+class MinutesV2Config(_Section):
+    """How M1 reacts to congestion and to a return from absence (E10-S1).
+
+    Separated from the flag that switches it on: the flag says *whether* the candidate runs, these
+    say *how hard* it pushes. Every one is a rotation prior chosen before the backtest measured it,
+    which is why they are here and named rather than inline (DP-06) — the backtest is what settles
+    them, and a number nobody can find is a number nobody can settle.
+
+    All three adjustments only ever move probability **out of the 60+ state**. None of them can
+    change P(play) computed from history, because neither congestion nor a completed return is
+    evidence that a player is unavailable — they are evidence about how long he stays on.
+    """
+
+    congestion_baseline_matches: float = Field(
+        default=2.0,
+        gt=0,
+        description=(
+            "Matches a club plays in the congestion window under a normal cadence. Two in a "
+            "fortnight is one a week — the schedule a side with no midweek commitment keeps. "
+            "Density is measured as the excess over this, so a normal fortnight adjusts nothing."
+        ),
+    )
+    congestion_rotation_strength: float = Field(
+        default=0.12,
+        ge=0,
+        le=1,
+        description=(
+            "Share of the 60+ state given up per extra match above the baseline cadence. 0.12 is "
+            "a deliberately timid prior: it says a side playing one extra match in a fortnight "
+            "rotates a given starter about an eighth of the time, which is well below what a "
+            "manager rotating three of eleven would imply. Timid because the backtest has not yet "
+            "measured it, and an over-strong rotation prior damages exactly the nailed starters "
+            "the head of the ranking is made of."
+        ),
+    )
+    return_ramp_strength: float = Field(
+        default=0.5,
+        ge=0,
+        le=1,
+        description=(
+            "Share of the 60+ state given up by a player who missed the whole recent window and is "
+            "available again. A half, because the observed pattern is a substitute appearance or "
+            "two before a full start, not an immediate 90 — and not more than a half, because the "
+            "player is by construction an established starter and will get there."
+        ),
+    )
+    return_established_appearance_rate: float = Field(
+        default=0.5,
+        ge=0,
+        le=1,
+        description=(
+            "Long-run appearance rate above which a recent run of blanks reads as an *absence* "
+            "rather than as a fringe player being a fringe player. Below it there is nothing to "
+            "return to and the ramp would be double-counting what the fitted band already knows."
+        ),
+    )
+    availability_start_penalty: float = Field(
+        default=0.5,
+        ge=0,
+        le=1,
+        description=(
+            "How much harder a partial availability flag hits the 60+ state than the 1-59 state, "
+            "on the live path only. A player at 50% who does play is far likelier to be eased in "
+            "from the bench than to start and finish, and scaling both states equally — what the "
+            "default chain does — prices him as a full starter half the time. P(play) is left "
+            "exactly where the flag puts it; only its split between the two playing states moves."
+        ),
+    )
+
+
+class AdaptiveShrinkageConfig(_Section):
+    """How much of a rate's prior weight enough evidence is allowed to remove (E10-S2).
+
+    :class:`ShrinkageConfig` sets one prior weight for everybody: a player's own per-90 rate carries
+    half the weight once he has ``rate_prior_minutes`` of evidence, whoever he is. That constant is
+    what [DL-21] measured as a **calibration slope of 0.70** — the head of the ranking compressed
+    toward the position prior, which is the one part of the ranking anybody acts on. A nailed
+    starter with two seasons behind him is being told he is probably average in exactly the way a
+    player with three appearances should be.
+
+    So the prior weight becomes a **function of evidence** instead of a constant. Below
+    :attr:`onset_minutes` nothing changes at all — that is where shrinkage earns its keep and where
+    a thin sample really is noise dressed as evidence. Above it the prior is scaled down linearly,
+    reaching ``1 - strength`` of its usual weight at :attr:`full_minutes` and staying there. The
+    shape is a straight line between two named points because it is a shape you can argue with
+    (DP-10): a reader can say "a player with a season and a half behind him should not still be
+    half prior" and see exactly which number to move.
+
+    The evidence measure is the one the shrinkage already uses — recent minutes per match times
+    matches observed — which is *both* of the quantities E10-S2 names, minutes played and sample
+    size, in one number. A second definition of "how much do we know about this player" would be a
+    second scale printed under one set of names.
+    """
+
+    strength: float = Field(
+        default=0.4,
+        ge=0,
+        le=1,
+        description=(
+            "Share of the prior's weight removed at full evidence. 0 reproduces the flat prior "
+            "exactly; 1 would let a well-observed player's own rate stand alone, with no pull "
+            "toward his position at all. **0.4 is where the trade turns on the backtest, and was "
+            "found there rather than chosen** (Q-14): top-20 precision rises to it and falls after "
+            "it. It is not a value shown to be *better* — the rise is smaller than the noise in "
+            "the measure and the calibration slope degrades throughout. Read DL-49 before turning "
+            "the flag on; the honest summary is that this parameter has an optimum and the optimum "
+            "does not help."
+        ),
+    )
+    onset_minutes: float = Field(
+        default=600.0,
+        ge=0,
+        description=(
+            "Evidence below which shrinkage is untouched. Deliberately the same number as "
+            "`confidence_minutes_medium`, and deliberately not the same parameter: that one tiers "
+            "the uncertainty band shown to a human, this one shapes a rate. Coupling them would "
+            "mean a shrinkage sweep silently re-tiered every published uncertainty band, which is "
+            "how one experiment ends up measuring two changes."
+        ),
+    )
+    full_minutes: float = Field(
+        default=1800.0,
+        gt=0,
+        description=(
+            "Evidence at and above which the full `strength` applies. Matches "
+            "`confidence_minutes_high` for the same reason and with the same caveat as "
+            "`onset_minutes`: twenty full matches is what this project already calls knowing a "
+            "player well, and inventing a second threshold for it would invite the two to drift."
+        ),
+    )
+
+
+class DutyEntryConfig(_Section):
+    """One player's spell of penalty or set-piece duty at one club (E12-S2, D4).
+
+    Curated knowledge rather than a measurement, so every field a reviewer needs to *disbelieve* the
+    entry is present: who, where, when it became publicly knowable, when it lapsed, how strong the
+    evidence was, and which snapshot it was seeded from (DP-09).
+
+    ``player_code`` and not ``player_id``, because FPL reassigns element IDs every season and the
+    code is stable for a career — a duty table keyed on the reassigned number would attribute one
+    player's penalties to whoever inherited his shirt.
+    """
+
+    player_code: int = Field(gt=0, description="FPL's stable per-career player code.")
+    name: str = Field(
+        description="Web name, for a human reading the file. Never used to match a player."
+    )
+    club: str = Field(
+        description="Club at the time of the spell, for a human reading the file. Not matched on."
+    )
+    duty: Literal["penalties", "direct_free_kicks", "corners"] = Field(
+        default="penalties",
+        description=(
+            "Which dead ball. Only `penalties` is consumed by a model today; the other two are "
+            "accepted and validated so the file can be completed ahead of a story that grades "
+            "them, and are deliberately unseeded until one exists."
+        ),
+    )
+    order: int = Field(
+        default=1,
+        ge=1,
+        description=(
+            "Where the player stands in the club's queue for this duty. Only order 1 contributes: "
+            "a second taker takes some share of them, but nothing here knows what share, and "
+            "inventing one would be a number with no basis (DP-09)."
+        ),
+    )
+    known_from: dt.date = Field(
+        description=(
+            "The date the assignment became **publicly knowable** — not the date it was typed in. "
+            "This is Invariant 5 for a hand-maintained file: a table written today and applied to "
+            "a gameweek from two years ago is look-ahead, and the backtest is what it corrupts."
+        )
+    )
+    known_until: dt.date | None = Field(
+        default=None,
+        description=(
+            "The date the spell lapsed, exclusive, or null while it still holds. Half-open "
+            "`[known_from, known_until)` so a handover on one date needs no gap and creates no "
+            "overlap."
+        ),
+    )
+    confidence: Literal["confirmed", "likely", "unconfirmed"] = Field(
+        default="unconfirmed",
+        description=(
+            "How strong the evidence is. Scales the term rather than gating it, so a doubtful "
+            "entry moves a forecast a little instead of either everything or nothing. The default "
+            "is the weakest tier deliberately: an entry typed in by hand with no tier stated is an "
+            "entry nobody has checked."
+        ),
+    )
+    basis: str = Field(
+        default="",
+        description="Which snapshot or report this came from, so a reviewer can re-derive it.",
+    )
+
+    @model_validator(mode="after")
+    def _window_is_ordered(self) -> DutyEntryConfig:
+        if self.known_until is not None and self.known_until <= self.known_from:
+            raise ValueError(
+                f"duty entry for player_code {self.player_code} ends on or before it starts "
+                f"({self.known_from} to {self.known_until})"
+            )
+        return self
+
+
+class DutyConfig(_Section):
+    """The committed penalty and set-piece duty reference table (E12-S2, D4, DL-50).
+
+    Lives in its own ``config/defaults/duty.yaml`` — one hand-editable file with an owner
+    maintenance note in it, reviewable on its own, exactly as the rules seed is. It is **the single
+    source the E10-S3 duty term reads**; no module reaches past it to a feed.
+
+    An empty table is a valid table and the term is a no-op under it (DP-15). Absence of an entry
+    means *unknown*, never *no duty*, which is why nothing here subtracts anything from a player the
+    file has never heard of.
+    """
+
+    entries: tuple[DutyEntryConfig, ...] = Field(
+        default=(),
+        description=(
+            "Every known spell of duty. Order is irrelevant; the lookup is by player and date."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _spells_do_not_overlap(self) -> DutyConfig:
+        """One player may not hold one duty at one order twice at the same moment.
+
+        A silent overlap would make the answer depend on which entry the loader happened to see
+        first, which is the kind of wrongness that never throws (DP-13).
+        """
+        spells: dict[tuple[int, str, int], list[tuple[dt.date, dt.date]]] = {}
+        horizon = dt.date.max
+        for entry in self.entries:
+            key = (entry.player_code, entry.duty, entry.order)
+            window = (entry.known_from, entry.known_until or horizon)
+            for start, end in spells.setdefault(key, []):
+                if window[0] < end and start < window[1]:
+                    raise ValueError(
+                        f"duty entries for player_code {entry.player_code} ({entry.duty}, order "
+                        f"{entry.order}) overlap: {start}..{end} and {window[0]}..{window[1]}"
+                    )
+            spells[key].append(window)
+        return self
+
+
+class PenaltyDutyConfig(_Section):
+    """What a penalty taker's duty is worth, and how much of it the model is missing (E10-S3).
+
+    **The arithmetic.** A penalty is worth ``conversion`` times the position's goal points, and
+    costs ``(1 - conversion)`` times ``penalties_missed`` when it fails; a club is awarded
+    ``penalties_per_team_match`` of them per match. Every one of those scoring values comes from the
+    rules (Invariant 2); only the two football rates are here.
+
+    **Why the term is not simply that number.** A taker's own fitted per-90 already contains his
+    penalties — they are goals, and M3 observes goals. What shrinkage does is pull that rate toward
+    a position prior which contains almost none, so the part of his duty the model loses is exactly
+    the part shrinkage replaced. The term therefore restores the prior's share of the contribution
+    and no more, which is why it is largest for a newly appointed taker with a thin record and
+    smallest for a well-observed one — and why it cannot double-count a player's own penalty history
+    back onto him.
+    """
+
+    penalties_per_team_match: float = Field(
+        default=0.13,
+        ge=0,
+        description=(
+            "Penalties a club is awarded per match. About 100 per 380-match season is 0.13 per "
+            "team-match. A cross-check against the archive's own missed-penalty counts implies "
+            "0.08-0.10, but it reaches that only by assuming a conversion rate and by assuming "
+            "FPL's `penalties_missed` counts every failure, which the saved-versus-missed totals "
+            "suggest it does not — so the direct figure is used and the discrepancy is recorded "
+            "rather than averaged away. Swept on the backtest, not settled here."
+        ),
+    )
+    conversion_rate: float = Field(
+        default=0.78,
+        ge=0,
+        le=1,
+        description=(
+            "Share of penalties scored. Long-run top-flight conversion sits close to this and "
+            "moves little between seasons; it is flat across takers deliberately, because a "
+            "per-taker conversion rate fitted on the handful of penalties a player takes in a "
+            "season is noise with a name on it."
+        ),
+    )
+    strength: float = Field(
+        default=1.0,
+        ge=0,
+        description=(
+            "Multiplier on the whole term. 1.0 is the formulation as argued — restore exactly the "
+            "share of the penalty contribution shrinkage removed — and is the value to keep unless "
+            "the backtest says otherwise. Above 1 the term starts adding penalty return the "
+            "player's own rate already carries, so a swept optimum above 1 is evidence that "
+            "something else is being compensated for, not that takers are worth more."
+        ),
+    )
+    confidence_weights: dict[str, float] = Field(
+        default_factory=lambda: {"confirmed": 1.0, "likely": 0.6, "unconfirmed": 0.25},
+        description=(
+            "How much of the term each confidence tier earns. A tier scales rather than gates so a "
+            "doubtful entry is worth a little rather than all-or-nothing, and so the owner is not "
+            "forced to choose between asserting something they are unsure of and saying nothing. "
+            "A tier absent from this mapping contributes zero — an unknown tier is not a licence."
+        ),
+    )
+
+
+class GoalkeeperConfig(_Section):
+    """How a goalkeeper's saves are estimated when ``gkp_v2`` is on (E10-S4).
+
+    **The finding this answers.** GKP Spearman is 0.04 — a whole position essentially unranked
+    ([DL-21]). Three of the five things a goalkeeper scores for already come from M2: the clean
+    sheet, the goals conceded and, through them, most of the bonus. The one that does not is
+    **saves**, and it is not small — a keeper averages three a match, which is a point, against a
+    clean-sheet expectation worth about 1.2. Saves are estimated by the same generic shrunk per-90
+    used for every outfield rate stat, which is blind to the thing that actually produces them.
+
+    **What actually produces a save is a shot, and nothing in this project counts shots.** The
+    silver model carries no shot column on ``player_gameweek`` at all; ``shots`` exists only on the
+    advanced-metrics table, it is a *player's own* shots taken, and no scraped source is enabled by
+    default. So opponent shot volume is not available and is not invented (the same call
+    [DL-48](../../../docs/planning/00-decision-log.md) made about European rotation). What is
+    available is M2's **expected goals conceded** for the fixture, and it is used as the proxy,
+    stated rather than substituted silently (DP-09, DP-10): more expected goals against a side
+    means more shots faced by its keeper, because the one is computed from the other upstream.
+
+    **Why the generic per-90 is wrong here, as a measurement rather than an argument.** Across the
+    archive's regular goalkeepers, saves per 90 have a standard deviation of 0.64 on a mean of 3.1.
+    Saves per unit of expected goal conceded have a standard deviation of 0.21 on a mean of 2.1. So
+    **half the spread between goalkeepers' save rates is the defence in front of them, not them** —
+    and the generic rate hands all of it to the keeper and then applies it identically to every
+    fixture. A keeper of a leaky side is priced for saves he will not face when the fixture is kind.
+
+    **Two formulations, because Q-15 asks for two.** Both end by scaling to the fixture; they differ
+    in whether the keeper's own level is measured net of the defence he has been playing behind.
+    See :attr:`mode`. Neither adds a variance term: the saves component contributes none today, in
+    either arm, so the comparison measures one change rather than two ([DL-49]'s own argument).
+    """
+
+    mode: Literal["separate", "fixture_weighted"] = Field(
+        default="separate",
+        description=(
+            "Which formulation the candidate runs, and the two halves of Q-15's falsifier. "
+            "`separate` is the fully separate model: a keeper's own level is his save rate divided "
+            "by the pressure he actually faced, shrunk toward the goalkeeper population, and then "
+            "multiplied back by the pressure M2 expects in *this* fixture — so his history enters "
+            "only as shot-stopping per unit of defence, and the defence comes from M2. "
+            "`fixture_weighted` is the lighter touch: keep the existing shrunk per-90 exactly as "
+            "it is and re-weight it by that same fixture factor. The first changes how goalkeepers "
+            "rank against each other, the second only how one goalkeeper's weeks rank against each "
+            "other, which is why they are different experiments and not two strengths of one."
+        ),
+    )
+    fixture_weight: float = Field(
+        default=1.0,
+        ge=0,
+        le=1,
+        description=(
+            "How far the fixture's expected goals conceded, as a ratio to the league mean, is "
+            "allowed to move the save rate. 0 reproduces today's fixture-blind rate exactly and is "
+            "the identity for the `fixture_weighted` arm; 1 applies the ratio in full. Between "
+            "them the factor is `1 + w * (ratio - 1)`, which is a straight line through the "
+            "average fixture — a shape a reader can disagree with in the terms it is stated in "
+            "(DP-10). Damping is not cosmetic: M2's per-fixture expectation is noisier than the "
+            "league-average pressure a keeper has actually faced over a season, so applying it in "
+            "full is a claim that the fixture is as well measured as the history."
+        ),
+    )
+    prior_minutes: float = Field(
+        default=900.0,
+        gt=0,
+        description=(
+            "Minutes at which a keeper's pressure-adjusted rate carries half the weight against "
+            "the goalkeeper population's. Deliberately the same arithmetic as `RateModel` and "
+            "deliberately its own parameter: ten full matches is what this project already calls "
+            "half-known, but the quantity being shrunk here is a *normalised* rate whose "
+            "between-keeper spread is half that of the raw one, so it may well deserve a different "
+            "number and must be free to take one without moving every outfield rate with it."
+        ),
+    )
+
+
+class DiscriminationConfig(_Section):
+    """E10's candidate model behaviours, each behind its own flag, all off (DP-08, DL-47).
+
+    E10 attacks the finding [DL-21] recorded: `xp_v1` has the best MAE and the worst top-20
+    precision of anything measured, so it avoids error and fails to discriminate — backwards for a
+    tool whose whole job is the head of the ranking. Every story in that epic is therefore **new
+    model behaviour**, not a delivery bug, which is the case DP-08 exists for: it lands flagged,
+    is graded by the backtest against the flag being off, and is promoted only once the E8 §5 bar
+    is met — including six live shadow gameweeks, which cannot exist before the season does.
+
+    So each flag here defaults to ``False`` and the shipped configuration leaves it there. With
+    every flag off the component chain reproduces its previous output exactly; that is a
+    regression test in each story's own test module (`tests/test_minutes_calibration.py`,
+    `test_adaptive_shrinkage.py`, `test_duty.py`, `test_goalkeeper.py`), not an assertion made
+    here — each asserts flag-off equivalence for its own component, since a single shared test
+    would have to import every story's internals into one file for no benefit.
+
+    **The naming scheme, for the stories still to land.** One ``bool`` per promotable story, named
+    for the story (`minutes_v2` is E10-S1; `adaptive_shrinkage`, `duty_term` and `gkp_v2` follow for
+    S2 to S4). Tunables a flag needs live in a sibling section named for the *component* they tune,
+    not for the story — so S2's would be `shrinkage`, S4's `goalkeeper`, and none of them collides
+    with the flag beside it.
+    """
+
+    minutes_v2: bool = Field(
+        default=False,
+        description=(
+            "Whether M1 applies the E10-S1 rotation, injury-return and availability-split "
+            "adjustments. Off until the backtest measures it (DP-08, DP-12, DL-47). The toggle is "
+            "what makes the before/after a single configuration change rather than a diff."
+        ),
+    )
+    minutes: MinutesV2Config = MinutesV2Config()
+
+    adaptive_shrinkage: bool = Field(
+        default=False,
+        description=(
+            "Whether M3-M7's shrinkage weight is a function of evidence rather than a constant "
+            "(E10-S2). Off until the E8 §5 bar is met, which needs six live shadow gameweeks that "
+            "cannot exist before the season does (DP-08, DL-47). The backtest evidence for it is "
+            "in DL-49; what is missing is the live half, not the measured half."
+        ),
+    )
+    shrinkage: AdaptiveShrinkageConfig = AdaptiveShrinkageConfig()
+
+    duty_term: bool = Field(
+        default=False,
+        description=(
+            "Whether penalty duty is an explicit additive term at the horizon scorer (E10-S3), "
+            "read from the committed reference table at `forecast.duty`. Off until the E8 §5 bar "
+            "is met (DP-08, DL-47, DL-50). The flag decides whether the table reaches the model at "
+            "all: with it off the component chain never sees a duty assignment, which is what "
+            "makes the before/after one configuration change rather than a diff."
+        ),
+    )
+    penalties: PenaltyDutyConfig = PenaltyDutyConfig()
+
+    gkp_v2: bool = Field(
+        default=False,
+        description=(
+            "Whether a goalkeeper's saves are estimated from the pressure M2 expects in his "
+            "fixture rather than from a fixture-blind shrunk per-90 (E10-S4). Off until the E8 §5 "
+            "bar is met (DP-08, DL-47). The flag decides whether the goalkeeper model is fitted at "
+            "all: with it off nothing in the chain knows the formulation exists, which is what "
+            "makes the before/after one configuration change rather than a diff."
+        ),
+    )
+    goalkeeper: GoalkeeperConfig = GoalkeeperConfig()
+
+
 class FeatureConfig(_Section):
     """The feature store. Windows are configuration because the right length is an empirical
     question the backtest is supposed to answer, not a constant to be asserted."""
@@ -442,11 +898,72 @@ class FeatureConfig(_Section):
         ge=0,
         description="Below this, a per-90 rate is noise dressed as evidence and is shrunk hard.",
     )
+    congestion_window_days: int = Field(
+        default=14,
+        gt=0,
+        description=(
+            "Days before the deadline over which fixture density is counted (E10-S1). A fortnight "
+            "holds two matches at a normal cadence and four when a club is playing midweek, so it "
+            "separates a congested run from an ordinary one without being so long that a single "
+            "postponement dominates it. Counted on the player's own rows, which is the club's "
+            "calendar seen from where the model already stands — no team join, nothing new to "
+            "keep in step."
+        ),
+    )
+    return_window_matches: int = Field(
+        default=4,
+        gt=0,
+        description=(
+            "Matches examined for a recent absence (E10-S1). Four is roughly a month: long enough "
+            "that a rested week is not read as an injury, short enough that a spell finished two "
+            "months ago no longer counts as a return."
+        ),
+    )
     prior_season: PriorSeasonConfig = PriorSeasonConfig()
 
 
+class PublishedModelConfig(_Section):
+    """Which expected-points model reaches the app, and when it became the default (DL-46).
+
+    The model *names* are not tunables — they are facts about which code exists — so neither
+    ``xp_v1`` nor ``xp_v0`` appears here as a switchable value. DL-46 is explicit that there is no
+    `enabled` flag gating ``xp_v1`` behind a promotion step: closing D-25 is the bug fix DP-08 names
+    as its exception, not the introduction of an unproven model.
+
+    What *is* tunable is the boundary between the two, and the date a reader of the model card needs
+    in order to know which model produced the numbers in front of them (DP-09, DP-15).
+    """
+
+    default_since: dt.date = Field(
+        default=dt.date(2026, 8, 17),
+        description=(
+            "The date `xp_v1` became the model the pipeline publishes, printed on every model "
+            "card. Recorded rather than computed: taking today's date would have every run claim "
+            "the model was promoted this morning, which is the opposite of provenance. Update it "
+            "only when the published model actually changes, and record why in the decision log."
+        ),
+    )
+    cold_start_minimum_gameweeks: int = Field(
+        default=4,
+        ge=1,
+        description=(
+            "Completed gameweeks of current-season history below which the run falls back to the "
+            "cold-start `xp_v0`. Four, to match `backtest.minimum_training_matches`: the "
+            "walk-forward harness refuses to *score* a deadline with less history than this, and "
+            "publishing a model at a point its own grader declines to grade is precisely the "
+            "shipped-is-not-graded mismatch E9 exists to close. Below it, a fitted component chain "
+            "is reporting its priors with a fitted model's confidence, and `xp_v0`'s priors are "
+            "built from several seasons rather than from three matches."
+        ),
+    )
+
+
 class ForecastConfig(_Section):
-    """The v0 expected-points model. Every tunable is here; none is in code (DP-06)."""
+    """The expected-points models. Every tunable is here; none is in code (DP-06).
+
+    Most of what follows is ``xp_v0``'s — the cold-start model, retained as the documented fallback.
+    ``published`` decides which of the two the app actually reads.
+    """
 
     horizon_gameweeks: int = Field(default=6, ge=1, le=38)
     horizon_discount: float = Field(
@@ -503,6 +1020,13 @@ class ForecastConfig(_Section):
     uncertainty: UncertaintyConfig = UncertaintyConfig()
     features: FeatureConfig = FeatureConfig()
     expected_goals: ExpectedGoalsConfig = ExpectedGoalsConfig()
+    discrimination: DiscriminationConfig = DiscriminationConfig()
+    duty: DutyConfig = DutyConfig()
+    """The committed penalty/set-piece duty table (E12-S2). Reference knowledge, not a tunable, and
+    it sits here rather than at the top level because the forecast is its only consumer — a section
+    nothing outside one package reads is a section that belongs to that package."""
+
+    published: PublishedModelConfig = PublishedModelConfig()
 
 
 class ChipReplayConfig(_Section):
@@ -561,10 +1085,102 @@ class ChipReplayConfig(_Section):
     )
 
 
+class MonolithConfig(_Section):
+    """The shadow monolith's hyperparameters (E10-S5, DL-53). **Not a promotion candidate.**
+
+    A gradient-boosted regressor fitted on the same feature store the component chain reads, scored
+    by the same harness on the same folds, and reported alongside B0 and the model-free benchmark.
+    Its only job is to answer one question every run: *how much accuracy is the chain's
+    explainability costing?* If the gap at the head is small, DP-10's preference for the formulation
+    you can argue with is free; if it is large, that is a trade the project is making and DP-10 says
+    it must be an explicit decision rather than an assumption.
+
+    **There is deliberately no flag here**, and its absence is the design. Every other E10 story
+    ships behind a `discrimination` bool that a future promotion review can flip
+    ([DL-47](../../../docs/planning/00-decision-log.md#dl-47)); this one has nothing to flip because
+    the epic is explicit that it is "never promoted over the chain without an explicit DP-10
+    decision". It always runs and always reports.
+
+    **And it lives in `BacktestConfig` rather than `ForecastConfig` for the same reason.** Nothing
+    on the forecast, optimise or publish path reads this section, so there is no configuration by
+    which the monolith could reach a published ranking — the guarantee is structural rather than a
+    default somebody could change.
+
+    The values below are ordinary, unswept defaults, and that is the honest setting for a *ceiling*
+    measurement: a monolith tuned against the same folds it is scored on would be reporting its own
+    overfitting as the chain's deficit. If the gap ever matters enough to argue about, the answer is
+    a held-out tuning season, not a sweep of these numbers (DP-12).
+    """
+
+    learning_rate: float = Field(
+        default=0.05,
+        gt=0,
+        le=1,
+        description=(
+            "Shrinkage applied to each boosting stage. Low and slow with many iterations rather "
+            "than fast and few, because the target is the noisiest quantity in the project and a "
+            "large step size fits a gameweek's luck."
+        ),
+    )
+    max_iterations: int = Field(
+        default=400,
+        gt=0,
+        description=(
+            "Boosting stages. Fixed rather than early-stopped: early stopping holds out a random "
+            "slice of the training window, which in a walk-forward harness means a different "
+            "amount of evidence per fold and a benchmark whose capacity drifts with the calendar."
+        ),
+    )
+    max_leaf_nodes: int = Field(
+        default=31,
+        gt=1,
+        description=(
+            "Tree size, and so the highest order of interaction the monolith can represent. The "
+            "library default. Raising it is how a ceiling measurement quietly becomes a memoriser."
+        ),
+    )
+    min_samples_leaf: int = Field(
+        default=50,
+        gt=0,
+        description=(
+            "Rows required in a leaf. Deliberately well above the library default of 20: a leaf "
+            "holding twenty player-gameweeks of a target whose standard deviation is around three "
+            "points is a leaf fitted to noise."
+        ),
+    )
+    l2_regularisation: float = Field(
+        default=1.0,
+        ge=0,
+        description=(
+            "L2 penalty on leaf values. Non-zero because the head of the ranking is exactly where "
+            "leaves are thinnest, and an unpenalised leaf there is a confident extrapolation from "
+            "a handful of hauls."
+        ),
+    )
+    random_seed: int = Field(
+        default=7,
+        description=(
+            "Seed for the binning subsample. Fixed so two runs on one archive report one gap "
+            "(DP-11); the fit is otherwise deterministic, so this is the only channel through "
+            "which it could vary."
+        ),
+    )
+    minimum_training_rows: int = Field(
+        default=200,
+        gt=0,
+        description=(
+            "Below this many training rows, boosting is fitting noise. The monolith degrades to "
+            "the training mean and says so on its card rather than reporting a confident number "
+            "from nothing (DP-15) — early folds and any thin-history test fixture take this path."
+        ),
+    )
+
+
 class BacktestConfig(_Section):
     """Walk-forward replay. The measurement that makes every later change evaluable (FR-37)."""
 
     chip_replay: ChipReplayConfig = ChipReplayConfig()
+    monolith: MonolithConfig = MonolithConfig()
     training_seasons: tuple[str, ...] = Field(
         default=("2022/23", "2023/24", "2024/25", "2025/26"),
         description="Seasons available to the harness. Which of them a component may use is a "
@@ -595,6 +1211,21 @@ class BacktestConfig(_Section):
         default=1,
         gt=0,
         description="How many top picks count as a captaincy hit. One is the honest test.",
+    )
+    fixture_difficulty_band_ratio: float = Field(
+        default=1.15,
+        gt=1,
+        description=(
+            "Where the fixture-difficulty breakdown cuts (E9-S2). A fixture is `hard` when M2 "
+            "expects the opposition to score at least this multiple of what it expects the "
+            "player's own club to score, `easy` at the reciprocal, and `average` between. One "
+            "number rather than two edges, because the two are the same departure from even in "
+            "opposite directions and configuring them separately invites them to disagree. Set "
+            "at 1.15 because home advantage alone is worth roughly 1.25 either way, so a wider "
+            "cut would put every neutral fixture in one band and measure nothing; narrower puts "
+            "ordinary fixtures at the extremes. This bands the *report*, never a prediction — "
+            "changing it cannot change a forecast, only how the evidence is sliced."
+        ),
     )
 
 

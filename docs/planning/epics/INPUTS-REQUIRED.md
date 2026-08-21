@@ -164,12 +164,20 @@ Complete set across all epics. **None are needed for E0** beyond the optional on
 | `FPL_DOF_TIMEZONE` | Local rendering zone | E1 | No | `Australia/Sydney` |
 | `FPL_DOF_TEAM_ID` | Your FPL entry ID | **E1** | No — public | `1234567` |
 | `FPL_DOF_LEAGUE_ID` | Mini-league for rival analysis (§6a). Optional — unset is the normal state | E6 | No | `987654` |
-| `ODDS_API_KEY` | Bookmaker odds provider | E5 | **Yes** | — |
+| `ODDS_API_KEY` | Bookmaker odds provider | E5 / **E11-S5** | **Yes** | — |
 | `FPL_DOF_ODDS_CREDIT_BUDGET` | Monthly request cap, enforced in the adapter | E5 | No | `450` |
 
 **Handling:** non-secrets go in a committed `.env.example` and a gitignored `.env`. The one secret
 (`ODDS_API_KEY`) goes in `.env` locally and GitHub Actions secrets in CI — never in a settings file,
 never in the client bundle (NFR-13). The secret-scan hook in `.claude/hooks/` already guards commits.
+
+**Team and league IDs in CI, and UI entry ([DL-44](../00-decision-log.md#dl-44), built by
+[E13](E13-runtime-personalisation-ids.md)).** `FPL_DOF_TEAM_ID` / `FPL_DOF_LEAGUE_ID` are non-secret
+identifiers. In CI they come from GitHub Actions repository **variables** (not secrets, not committed
+config); locally they stay in gitignored config. Once E13 ships, they are also enterable in the app's
+Settings view — stored in browser `localStorage` only, used to personalise already-published artefacts
+and to compose an owner-triggered `workflow_dispatch` link. **Nothing about the owner's identity is
+committed to the repository, ever** (Invariant 8, Invariant 10, NFR-11).
 
 ---
 
