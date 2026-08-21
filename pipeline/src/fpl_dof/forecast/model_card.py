@@ -49,12 +49,15 @@ COLD_START_WEAKNESS = (
 )
 
 BACKTESTED_WEAKNESS = (
-    "Minutes-model calibration is unmeasured",
-    "The Brier-score plumbing exists (`forecast.metrics.brier_score`), but the backtest harness "
-    "does not yet pass minutes probabilities through it, so `minutes_brier` is always null and "
-    "E3-S3's own acceptance criterion — calibration curves and Brier score reported — is not "
-    "actually satisfied. Tracked as debt D-14, found in the post-E3 audit rather than closed "
-    "by it.",
+    "Minutes are measured now, and they are still the largest single error source",
+    "Since E10-S1 the backtest reports the Brier score for the `{0, 1-59, 60+}` distribution, per "
+    "position and per observed band, against the E0 status-flag haircut — so debt **D-14** is "
+    "closed and E3-S3's acceptance criterion is satisfied by an actual number rather than by a "
+    "ticked box. Measuring it is not improving it: every other component is multiplied by these "
+    "probabilities, so read the minutes section of the backtest report before trusting a forecast "
+    "for anyone whose minutes are in doubt. The candidate M1 that adds rotation, injury-return and "
+    "availability-split behaviour is flagged off by default and is not what produced this card "
+    "(DP-08, DL-47).",
 )
 
 #: True of whichever model ran.
@@ -197,16 +200,29 @@ def write_model_card(
         if isinstance(graded, Mapping) and isinstance(b0, Mapping) and isinstance(free, Mapping):
             add("| Model | MAE | Spearman | Top-20 precision |")
             add("| --- | --- | --- | --- |")
-            for label, metrics in (
+            rows: list[tuple[str, Mapping[str, object]]] = [
                 ("This forecast", graded),
                 ("B0 — price + position", b0),
                 ("Model-free — trailing 6", free),
-            ):
+            ]
+            # E10-S5. The shadow monolith sits in the same table as the baselines rather than in a
+            # footnote, because DP-10's trade is only decided honestly if the reader sees the
+            # number at the same moment they see the model's own.
+            monolith = backtest.get("monolith")
+            if isinstance(monolith, Mapping):
+                rows.append(("Monolith — shadow benchmark, never published", monolith))
+            # Read the precision column as "of the twenty players ranked highest in a gameweek,
+            # this share were genuinely in that gameweek's top twenty". Until E10-S2 it was pooled
+            # across every gameweek at once, where it is 0.00 for any model and says nothing about
+            # this one (DL-49) — so a card produced before that change is not comparable here.
+            for label, metrics in rows:
                 add(
                     f"| {label} | {metrics.get('mae')} | {metrics.get('spearman')} | "
                     f"{metrics.get('top_n_precision')} |"
                 )
             add("")
+            for line in _explainability_lines(backtest):
+                add(line)
             if not backtest.get("beats_model_free", True):
                 add(
                     "**The head of the ranking is where this is weakest, and the head is where the "
@@ -308,6 +324,27 @@ def write_model_card(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
+
+
+def _explainability_lines(backtest: Mapping[str, object]) -> list[str]:
+    """What the chain's interpretability costs, in the card a human reads before a deadline.
+
+    [DP-10](../../../docs/DESIGN-PRINCIPLES.md) requires that a materially better monolith makes
+    the interpretability trade a *recorded decision* rather than an assumption. A number that lives
+    only in `backtest.json` is not a decision anybody is making — it is a field nobody opens — so
+    the sentence the harness writes is reproduced here verbatim rather than reworded, because two
+    wordings of one finding is two chances to word one of them reassuringly (E10-S5, DL-53).
+
+    Absent for a card produced before E10-S5, and absent is printed as nothing rather than as a
+    zero gap: "not measured" and "no cost" are opposite claims.
+    """
+    gap = backtest.get("explainability_gap")
+    if not isinstance(gap, Mapping):
+        return []
+    statement = gap.get("statement")
+    if not isinstance(statement, str) or not statement:
+        return []
+    return [statement, ""]
 
 
 def _published_statement(model: str, since: dt.date, fallback_reason: str | None) -> str:

@@ -262,7 +262,7 @@ pattern in this season's noise.
 
 | ID | Question | Bears on | Resolve by |
 | --- | --- | --- | --- |
-| Q-14 | Does evidence-adaptive shrinkage (X3) widen the head of the ranking without overfitting, and at what confidence threshold does the trade turn? | X3 | Backtest, per position |
+| ~~Q-14~~ | ~~Does evidence-adaptive shrinkage (X3) widen the head of the ranking without overfitting, and at what confidence threshold does the trade turn?~~ — **Answered on the backtest: the trade turns at a shrinkage strength of ≈0.4, and it does not widen the head.** The gain there is +0.0035 ± 0.0023 over 72 folds and the top 20 changes in 11 of them; the calibration slope degrades monotonically because shrinking less must lower it at fixed information content. See [DL-49](00-decision-log.md#dl-49) | X3 | Resolved |
 | Q-15 | Is the goalkeeper position better served by a fully separate formulation (X5) or by the same chain with a saves-and-shots emphasis? | X5 | Backtest |
 | Q-16 | Should the mini-league / team ID entered in the browser ever be allowed to *seed* a `workflow_dispatch` automatically, or must every run stay owner-initiated? | §7 | Owner decision; security review |
 

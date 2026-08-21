@@ -3,7 +3,13 @@
 **Objective:** OBJ-1, OBJ-7 · **Target:** first, ahead of E10–E12 · **Estimate:** 2–3 days
 **Depends on:** E3 (harness, component chain), E7 (live publish path)
 **Repays debt:** D-25 · **Implements:** [Model Improvement Plan §5 X1, §3 D1](../05-model-improvement-plan.md)
-**Status:** Delivered — E9-S1 and E9-S2 both landed; the E10–E12 gate in §1 is clear
+**Status:** Delivered — E9-S1 and E9-S2 both landed, but S2's acceptance was **only actually met on
+2026-08-21**. Its code shipped in E9; the archive supplied no `team_id`, so the join resolved
+nothing and the harness ran on league-average opposition throughout
+([DL-51](../00-decision-log.md#dl-51), D-26). Fixed at the source in
+[DL-52](../00-decision-log.md#dl-52): fixture coverage is now 1.0 and the §1 gate is clear.
+**Every E10 number recorded before that date was measured under league-average opposition** and is
+re-based by it
 
 ---
 
@@ -79,7 +85,15 @@ depends on — it is not "better", it is "now measurable".
       under league-average opposition
 - [x] **D-25 closed** in the debt register ([E0 §6](E0-steel-thread-gw1.md#6-technical-debt-register))
 - [x] The backtest carries fixtures in every fold frame, with knowability stamps, and reports
-      fixture-conditioned breakdowns
+      fixture-conditioned breakdowns — **un-ticked on 2026-08-21 by
+      [DL-51](../00-decision-log.md#dl-51), and re-ticked the same day by
+      [DL-52](../00-decision-log.md#dl-52), which fixed the cause rather than the symptom.** The
+      plumbing was correct all along and the breakdown was written; the archive adapter supplied no
+      `team_id`, so the join resolved **nothing** and every fold ran on league-average opposition,
+      reported as an `unresolved` band and a 0.0% coverage warning that nobody read. With the club
+      resolved at the source, **fixture coverage is 1.0**, all 114 gameweeks build a calendar, and
+      M2 fits 2,280 real matches where it previously fitted none. Re-ticked on the measurement, not
+      on the code having been written
 - [x] Model card names the published model and the date it became the default
 - [x] The DL-21 guardrail is restated unchanged: no −8 hit, chip or wildcard on `xp_v1` alone until
       top-20 precision beats B0

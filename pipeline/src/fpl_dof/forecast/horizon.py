@@ -144,10 +144,8 @@ def minutes_for(
     Asked of the model directly rather than read off a scored fixture, because a player whose club
     has a blank gameweek still has expected minutes — his club simply is not playing.
     """
-    return models.minutes.predict(
-        str(feature_row["position"]),
-        float(feature_row.get("appearance_rate") or 0.0),
-        status_multiplier=status_multiplier,
+    return models.minutes.predict_row(
+        feature_row, str(feature_row["position"]), status_multiplier=status_multiplier
     )
 
 

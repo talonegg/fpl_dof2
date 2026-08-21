@@ -38,10 +38,13 @@ buried:
   rather than the one it was scheduled for. Both arms of the comparison see the identical calendar,
   so it cannot favour either; it is noted because it is the one input here that a live run would
   know more accurately than the replay does.
-* **Club identity is reconstructed.** The archive carries ``opponent_team_id`` but no ``team_id``;
-  a fixture has exactly two clubs, so a player's club is the one that is not his opponent. Without
-  it there is no club cap, no fixture-varying forecast and no within-match correlation, and the
-  experiment would degenerate into the tied case the unit test already covers.
+* **Club identity is stated, and reconstructed only where it is not.** The archive adapter resolves
+  each row's club to FPL's stable code from the season's own club list (D-26); it used to carry
+  ``opponent_team_id`` and no ``team_id`` at all, and this replay filled the gap itself. The
+  reconstruction survives as a fallback — a fixture has exactly two clubs, so a player's club is
+  the one that is not his opponent — but it no longer overwrites a club the source has resolved.
+  Without a club there is no club cap, no fixture-varying forecast and no within-match correlation,
+  and the experiment would degenerate into the tied case the unit test already covers.
 
 The output is a finding, not an artefact. Nothing in the weekly pipeline reads it.
 """
@@ -186,15 +189,27 @@ class ReplayResult:
 
 
 def attach_team_ids(history: pd.DataFrame) -> pd.DataFrame:
-    """Fill in the club the archive does not carry.
+    """Fill in any club the source did not resolve — and only those.
 
-    A fixture has exactly two clubs and every row names its *opponent*, so the pair of distinct
-    opponent ids in a fixture is the pair of clubs, and a row's club is whichever of the two is not
-    its own opponent. Fixtures that do not resolve to exactly two clubs are left null rather than
-    guessed at — a wrong club silently breaks the three-per-club limit and the within-match
-    correlation at once.
+    The archive adapter now states the club directly, resolved from the season's own club list to
+    FPL's stable code (D-26). This stays as the fallback for a row the source could not resolve,
+    and **only fills where ``team_id`` is null**: a reconstruction that overwrote a stated club
+    would silently rewrite it into the season-local id space, which is a different space from the
+    ``opponent_team_id`` beside it, and the fixture join would then pair every club with a
+    stranger. The source wins wherever it has an answer.
+
+    Where it does run: a fixture has exactly two clubs and every row names its *opponent*, so the
+    pair of distinct opponent ids in a fixture is the pair of clubs, and a row's club is whichever
+    of the two is not its own opponent. Fixtures that do not resolve to exactly two clubs are left
+    null rather than guessed at — a wrong club silently breaks the three-per-club limit and the
+    within-match correlation at once.
     """
     frame = history.copy()
+    if "team_id" not in frame.columns:
+        frame["team_id"] = pd.array([None] * len(frame), dtype="Int64")
+    stated = frame["team_id"]
+    if stated.notna().all() and len(frame):
+        return frame
     usable = frame.dropna(subset=["fixture_id", "opponent_team_id"])
     pairs: dict[tuple[str, int], set[int]] = {}
     for row in usable.itertuples():
@@ -210,7 +225,9 @@ def attach_team_ids(history: pd.DataFrame) -> pd.DataFrame:
         opponent = as_int(row.opponent_team_id)
         others = clubs - {opponent}
         resolved.append(others.pop() if len(others) == 1 else None)
-    frame["team_id"] = pd.array(resolved, dtype="Int64")
+    reconstructed = pd.array(resolved, dtype="Int64")
+    frame["team_id"] = stated.combine_first(pd.Series(reconstructed, index=frame.index))
+    frame["team_id"] = frame["team_id"].astype("Int64")
     return frame
 
 
@@ -328,8 +345,10 @@ def _replay_one(
     # Team strength is fitted on the raw per-gameweek rows rather than on ``training``: the
     # walk-forward training frame carries features and outcomes but no fixture or club, which is
     # why the harness's own report says opposition there is league-average. Reconstructed club ids
-    # (see ``attach_team_ids``) are what make a real fixture-varying horizon possible here. Club
-    # ids in the archive are season-local, so this must never reach across seasons.
+    # (see ``attach_team_ids``) are what make a real fixture-varying horizon possible here. ``past``
+    # is already filtered to one season above, which is what keeps this safe regardless of source:
+    # the archive writes a stable club code and the live feed writes a season-local id (D-26), two
+    # different spaces that only agree not to collide *within* one season.
     models = fit_components(training, _team_matches(past), forecast_config, rules)
     players = _forecast_frame(
         past,

@@ -76,6 +76,43 @@ forecast:
     enabled: true
     team_strength_from_xg: false
 
+  # E10's discrimination candidates (DL-47). Every flag here is off and stays off in the shipped
+  # configuration: these are genuine new model behaviours, not delivery bugs, so DP-08 applies in
+  # full — flagged, graded by the backtest against the flag being off, and promoted only once the
+  # E8 §5 bar is met, which includes six live shadow gameweeks that cannot exist before the season
+  # does. Turning one on here is what starts that story's shadow clock.
+  #
+  # minutes_v2 (E10-S1) adds three adjustments to M1: a rotation prior on fixture density, an
+  # injury-return ramp, and a live availability haircut that hits starting harder than appearing.
+  # The tunables are in the pydantic defaults and are not repeated here — listing them twice is how
+  # they drift.
+  # adaptive_shrinkage (E10-S2) makes M3-M7's prior weight a function of how much evidence a player
+  # has, so a nailed starter is pulled toward his position prior less hard than a newcomer. Off, and
+  # off with a stronger reason than DP-08 alone: DL-49 ran the Q-14 sweep and found the trade turns
+  # at a strength of 0.4 without clearing the bar — the precision gain there is inside the noise and
+  # the calibration slope degrades by construction. The flag exists so the finding is re-checkable,
+  # not because it is waiting for a promotion.
+  # duty_term (E10-S3) makes penalty duty an explicit additive term at the horizon scorer, reading
+  # the committed reference table in `duty.yaml`. Off, and off with the same shape of reason S2
+  # carries: DL-50 measured it and it does not clear the bar. The term restores only the share of a
+  # taker's penalty return that shrinkage removed, which is why it is largest for a newly appointed
+  # taker and near-inert for a well-observed one — and the head of the ranking is made of
+  # well-observed players. **Confirm the 2026/27 entries in `duty.yaml` against the opening
+  # gameweeks before ever turning this on**; they are FPL's own pre-season field, which is stale for
+  # promoted clubs and new signings by construction.
+  # gkp_v2 (E10-S4) estimates a goalkeeper's saves from the pressure M2 expects in his fixture
+  # rather than from a fixture-blind shrunk per-90 — the position's clean sheet and concession
+  # points already come from M2, and saves were the one part that did not. Off, and off with the
+  # same shape of reason S2 and S3 carry: DL-51 measured both halves of Q-15's falsifier and
+  # neither cleared the stated bar. Note what the model reads for *pressure*: nothing in silver
+  # counts shots, so expected goals conceded stands in for them, and that substitution is an
+  # argument rather than a detail — read DL-51 before turning this on.
+  discrimination:
+    minutes_v2: false
+    adaptive_shrinkage: false
+    duty_term: false
+    gkp_v2: false
+
   # Which model the app reads (E9-S1, DL-46). xp_v1 — the component chain the walk-forward backtest
   # actually grades — is the default publish target, because D-25's defect was that the shipped
   # model was not the graded one. That is a delivery bug, which DP-08 names as its own exception,

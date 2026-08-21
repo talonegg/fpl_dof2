@@ -150,6 +150,26 @@ def _poisson_survival(threshold: int, mean: float) -> float:
     return max(0.0, min(1.0, 1.0 - below))
 
 
+def _evidence_minutes(row: pd.Series) -> float:
+    """How much of this player the shrinkage considers itself to have seen.
+
+    One definition, read by the rates and by the duty term, because two spellings of "how much do we
+    know about this player" is how the shrinkage and the thing correcting for it drift apart.
+
+    **A missing rate is zero evidence, not `nan`.** Before this function existed, the equivalent
+    inline expression used `if minutes:` as its guard, which `nan` passes (`bool(nan)` is `True` in
+    Python) — so a missing `minutes_mean_last6` used to produce `nan * matches_observed = nan`
+    rather than `0.0`, silently propagating into `RateModel.predict`. The shipped feature store
+    never actually emits that combination (a non-empty group always carries a real
+    `minutes_mean_last6`), so this was dormant either way — recorded here so a future change to
+    `build_features` doesn't quietly resurrect the old, worse behaviour.
+    """
+    minutes = row.get("minutes_mean_last6")
+    if minutes is None or pd.isna(minutes):
+        return 0.0
+    return float(minutes) * float(row.get("matches_observed") or 0)
+
+
 def _rate(
     models: ComponentModels,
     column: str,
@@ -164,12 +184,72 @@ def _rate(
     # expected-goals statistic when that component was fitted through xG (ExpectedGoalsConfig). Read
     # the rolling per-90 of exactly that column so fit and inference agree on the signal.
     observed = row.get(f"{model.column}_per90_last6")
-    minutes = row.get("minutes_mean_last6")
-    total_minutes = float(minutes) * float(row.get("matches_observed") or 0) if minutes else 0.0
+    total_minutes = _evidence_minutes(row)
     value = float(observed) if observed is not None and not pd.isna(observed) else float("nan")
     ratio, ratio_minutes = _prior_season(row, column, config)
     return model.predict(
         position, value, total_minutes, prior_ratio=ratio, prior_ratio_minutes=ratio_minutes
+    )
+
+
+def _penalty_duty_points(
+    models: ComponentModels,
+    row: pd.Series,
+    rules: GameRules,
+    config: ForecastConfig,
+    position: Position,
+) -> float:
+    """Points per full match from penalty duty that the fitted goal rate has lost (E10-S3, DL-50).
+
+    Zero — a true no-op, not a small number — for every player the reference table has never heard
+    of, for every row that cannot say which deadline it is being scored at, and whenever the
+    candidate flag is off. Absence of an entry means *unknown*, so nothing is added and nothing is
+    taken away.
+
+    **The formulation, in one sentence you can disagree with** (DP-10): a club wins
+    ``penalties_per_team_match`` penalties a match, its taker converts ``conversion_rate`` of them
+    for the position's goal points and concedes the missed-penalty points on the rest, and the model
+    is missing exactly the share of that which shrinkage replaced with a position prior containing
+    almost no penalty duty at all.
+
+    That last clause is the whole design. A taker's penalties are goals and M3 observes goals, so
+    adding his full penalty return on top of his own fitted rate would count it twice and inflate
+    precisely the players at the head of the ranking — the failure mode that looks like a win on
+    top-20 precision and is a bias. Scaling by :meth:`RateModel.prior_share` means the term is
+    largest for a **newly appointed** taker, whose record contains no penalties yet and whose duty
+    is therefore genuinely new information, and smallest for one the model has watched take forty of
+    them. That is where the information actually is.
+
+    **What it still overstates**, recorded rather than hidden: the position prior is not
+    penalty-free — it is every player's penalties smeared across the position — so the premium a
+    taker holds over it is slightly less than his full penalty contribution. The effect is small —
+    a score or so of takers among several hundred outfield players — and correcting it would need a
+    penalty-free goal rate, which nothing in silver supplies.
+    """
+    table = models.duty
+    if table is None:
+        return 0.0
+    code = row.get("player_code")
+    if code is None or pd.isna(code):
+        return 0.0
+    assignment = table.penalty_duty(int(code), row.get("as_of"))
+    if assignment is None or not assignment.contributes:
+        return 0.0
+
+    tuning = config.discrimination.penalties
+    scoring = rules.scoring
+    per_penalty = (
+        tuning.conversion_rate * scoring.goals_scored[position]
+        + (1.0 - tuning.conversion_rate) * scoring.penalties_missed
+    )
+    goals_model = models.rates.get("goals_scored")
+    prior_share = 1.0 if goals_model is None else goals_model.prior_share(_evidence_minutes(row))
+    return (
+        tuning.strength
+        * assignment.weight
+        * prior_share
+        * tuning.penalties_per_team_match
+        * per_penalty
     )
 
 
@@ -211,18 +291,27 @@ def forecast_player(
     """
     position = Position(str(row["position"]))
     scoring = rules.scoring
-    minutes = models.minutes.predict(
-        position.value,
-        float(row.get("appearance_rate") or 0.0),
-        status_multiplier=status_multiplier,
-    )
+    minutes = models.minutes.predict_row(row, position.value, status_multiplier=status_multiplier)
 
     goal_rate = _rate(models, "goals_scored", position.value, row, config)
     assist_rate = _rate(models, "assists", position.value, row, config)
     defcon_rate = _rate(models, "defensive_contribution", position.value, row, config)
     save_rate = _rate(models, "saves", position.value, row, config)
+    if position is Position.GKP and models.goalkeeper is not None:
+        # E10-S4. The generic per-90 above is what the goalkeeper model is *given*, not what it
+        # necessarily returns: under `separate` it uses its own pressure-adjusted level and keeps
+        # the fitted rate only as the fallback for a keeper it has never seen. Either way the
+        # fixture is what scales it, which is the whole point — a save is a shot faced, and how
+        # many shots a keeper faces is the fixture rather than his own history (DL-51).
+        save_rate = models.goalkeeper.save_rate(
+            row.get("player_code"),
+            save_rate,
+            goals_conceded_mean=goals_conceded_mean,
+            league_mean_goals=models.team_strength.league_mean_goals,
+        )
     card_rate = _rate(models, "yellow_cards", position.value, row, config)
     bps_rate = _rate(models, "bps", position.value, row, config)
+    duty_points_per_90 = _penalty_duty_points(models, row, rules, config, position)
 
     states: list[tuple[float, float, float, dict[str, float]]] = []
     for probability, played_minutes, appearance_points, long_play in (
@@ -238,7 +327,12 @@ def forecast_player(
 
         goals = goal_rate * share
         assists = assist_rate * share
-        components["goals"] = goals * scoring.goals_scored[position]
+        # Penalty duty lands **inside** the goals component rather than beside it, because a
+        # penalty is a goal: a taker's decomposition should read as a larger goal threat, which is
+        # what he has. A separate component would also be a change to the published web contract
+        # for a candidate that is off by default, which is a poor trade (DP-04).
+        duty_points = duty_points_per_90 * share
+        components["goals"] = goals * scoring.goals_scored[position] + duty_points
         components["assists"] = assists * scoring.assists
 
         if long_play:
@@ -272,6 +366,11 @@ def forecast_player(
         # point — this need not be precise to be far better than a fixed coefficient.
         conditional_variance = (
             goals * (scoring.goals_scored[position] ** 2)
+            # Same Poisson stand-in as the line above it, written as mean-times-points because the
+            # duty term is already in points: for a count `n` scoring `v`,
+            # `n * v**2 == (n * v) * v`.
+            # Invariant 6 — a component that moves the mean and not the band is a contract breach.
+            + duty_points * scoring.goals_scored[position]
             + assists * (scoring.assists**2)
             + (clean_sheet_probability * (1 - clean_sheet_probability) if long_play else 0.0)
             * (scoring.clean_sheets[position] ** 2)
@@ -346,6 +445,48 @@ class ComponentPredictor:
         self.rules = rules
         self.models: ComponentModels | None = None
 
+    @property
+    def long_play_minutes(self) -> int:
+        """The 60-minute threshold, from the rules this predictor was built with (Invariant 2).
+
+        Exposed so the harness can band an *observation* the same way M1 bands a prediction,
+        without the harness having to hold an opinion about a scoring rule.
+        """
+        return int(self.rules.scoring.long_play_minutes)
+
+    @property
+    def squad_composition(self) -> dict[str, int]:
+        """How many of each position an FPL squad holds, from the rules this predictor was built
+        with (Invariant 2).
+
+        Exposed for the same reason as :attr:`long_play_minutes`: the harness splits its
+        head-of-ranking metrics per position and needs to know how deep each position's head goes,
+        and "two goalkeepers in fifteen" is a rule rather than something a metric may assume.
+        """
+        return {position.value: count for position, count in self.rules.squad.composition.items()}
+
+    def minutes_probabilities(self, features: pd.DataFrame) -> pd.DataFrame:
+        """M1's distribution for each row — the same one :meth:`predict` scored through.
+
+        Recomputed rather than stashed during :meth:`predict`. Stashing would be marginally faster
+        and would make the reported calibration depend on the order the harness happened to call
+        two methods in; recomputing is a dictionary lookup per row and cannot go stale.
+        """
+        if self.models is None:
+            raise RuntimeError("minutes_probabilities() called before fit()")
+        rows = [
+            self.models.minutes.predict_row(row, str(row["position"]))
+            for _, row in features.iterrows()
+        ]
+        return pd.DataFrame(
+            {
+                "none": [row.none for row in rows],
+                "short": [row.short for row in rows],
+                "long": [row.long for row in rows],
+            },
+            index=features.index,
+        )
+
     def fit(self, training: pd.DataFrame) -> None:
         from fpl_dof.forecast.models import fit_components
 
@@ -398,26 +539,44 @@ def _team_matches(history: pd.DataFrame, *, use_xg: bool = False) -> pd.DataFram
     expected-goals-conceded figure, so the sum/max reconstruction holds unchanged. Falls back to
     actual goals when the xG columns are
     absent, which keeps a partial archive working (DP-15).
+
+    **A fixture is identified by season as well as number.** The archive numbers fixtures 1..380
+    within a season, so ``fixture_id`` 12 exists once per season and grouping without the season
+    merges two different matches into one — summing a club's goals across both and halving its
+    match count. The defect was inert only for as long as ``team_id`` was null and every row was
+    dropped here (D-26); repairing the club made it reachable, so the key is repaired with it.
     """
     for_column, against_column = (
         ("expected_goals", "expected_goals_conceded")
         if use_xg
         else ("goals_scored", "goals_conceded")
     )
-    needed = {"team_id", "fixture_id", for_column, against_column, "kickoff_time"}
+    needed = {"season", "team_id", "fixture_id", for_column, against_column, "kickoff_time"}
     empty = pd.DataFrame(
-        columns=["team_id", "fixture_id", "goals_for", "goals_against", "kickoff_time"]
+        columns=["season", "team_id", "fixture_id", "goals_for", "goals_against", "kickoff_time"]
     )
     if history.empty or not needed <= set(history.columns):
         # xG requested but not in this archive: fall back rather than return nothing, so M2 still
         # fits on actual goals (DP-15). A genuinely empty history still returns empty.
-        if use_xg and not history.empty:
+        if (
+            use_xg
+            and not history.empty
+            and not {for_column, against_column} <= set(history.columns)
+        ):
             return _team_matches(history, use_xg=False)
+        if not history.empty:
+            # Not a degradation worth absorbing quietly: with no matches the team-strength model is
+            # unfitted and every fixture becomes league-average, which is the exact condition D-26
+            # left in place unnoticed for the whole of E10.
+            log.warning(
+                "xp_v1.team_matches_unavailable",
+                extra={"missing": sorted(needed - set(history.columns))},
+            )
         return empty
     played = history[history["minutes"] > 0]
     if played.empty:
         return empty
-    grouped = played.groupby(["team_id", "fixture_id"], dropna=True).agg(
+    grouped = played.groupby(["season", "team_id", "fixture_id"], dropna=True).agg(
         goals_for=(for_column, "sum"),
         goals_against=(against_column, "max"),
         kickoff_time=("kickoff_time", "min"),
