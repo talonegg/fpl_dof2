@@ -501,8 +501,68 @@ def test_the_model_card_drops_the_stale_no_backtesting_claim_once_backtested(
     )
     text = path.read_text(encoding="utf-8")
     assert "No backtesting" not in text
+    # D-14 is named as closed rather than as outstanding (E10-S1). The stale form of the claim —
+    # that the Brier score is never computed — would be a false statement on the one document a
+    # human actually reads before a deadline.
     assert "D-14" in text
     assert "Brier" in text
+    assert "always null" not in text
+
+
+def test_the_card_carries_the_explainability_trade_in_words(
+    inputs: ForecastInputs, game_rules: GameRules, tmp_path: Path
+) -> None:
+    """E10-S5/DL-53. DP-10 requires the trade be *visible*, and the card is what a human reads.
+
+    Reproduced verbatim from the harness rather than reworded here, because two wordings of one
+    finding is two chances to word one of them reassuringly. The monolith row appears in the same
+    table as B0 for the same reason: the reader should meet the gap at the moment they meet the
+    model's own number, not three documents later.
+    """
+    result = build_forecast(inputs, game_rules, CONFIG)
+    statement = "**The explainability trade, measured (E10-S5).** The gap is 0.040."
+    path = write_model_card(
+        tmp_path / "model-card.md",
+        forecast=result,
+        regression=regress_xp_on_price(result),
+        config=CONFIG,
+        rules=game_rules,
+        run_id="run-1",
+        model=V1_MODEL_NAME,
+        backtest={
+            "verdict": "beats B0, loses to model-free",
+            "monolith": {"mae": 1.9, "spearman": 0.27, "top_n_precision": 0.16},
+            "explainability_gap": {"top_n_precision": 0.04, "statement": statement},
+        },
+    )
+    text = path.read_text(encoding="utf-8")
+    assert statement in text
+    assert "Monolith — shadow benchmark, never published" in text
+
+
+def test_a_card_from_before_the_monolith_existed_claims_no_gap_rather_than_a_zero_one(
+    inputs: ForecastInputs, game_rules: GameRules, tmp_path: Path
+) -> None:
+    """ "Not measured" and "explainability is free" are opposite claims (DP-09, DP-15).
+
+    A `backtest.json` written before E10-S5 carries no monolith at all, and a card reading it must
+    stay silent rather than print a zero gap — which is the most reassuring possible way to report
+    that nothing was measured.
+    """
+    result = build_forecast(inputs, game_rules, CONFIG)
+    path = write_model_card(
+        tmp_path / "model-card.md",
+        forecast=result,
+        regression=regress_xp_on_price(result),
+        config=CONFIG,
+        rules=game_rules,
+        run_id="run-1",
+        model=V1_MODEL_NAME,
+        backtest={"verdict": "beats B0, loses to model-free"},
+    )
+    text = path.read_text(encoding="utf-8")
+    assert "explainability trade" not in text
+    assert "Monolith" not in text
 
 
 def test_a_stale_backtest_does_not_retire_the_no_backtesting_claim_on_an_xp_v0_card(

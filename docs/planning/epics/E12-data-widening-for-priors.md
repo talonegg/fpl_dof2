@@ -3,7 +3,8 @@
 **Objective:** OBJ-1 · **Target:** feeds E10/E11, low urgency · **Estimate:** 3–4 days
 **Depends on:** E9-S2 (fixtures in the backtest) · **Implements:**
 [Model Improvement Plan §3 D2, D4, D5](../05-model-improvement-plan.md) · **Resolves:** Q-13
-**Status:** Planned
+**Status:** In progress — S2 (the duty reference table) landed early to unblock
+[E10-S3](E10-discrimination-at-the-head.md); S1 and S3 planned
 
 ---
 
@@ -60,6 +61,34 @@ currently unmodelled (Design §M3).
 **Acceptance:** the file exists, is documented, has an owner-maintenance note, and is the single
 source the E10 duty term reads.
 
+**Outcome — 2026-08-21 · met.** [DL-50](../00-decision-log.md#dl-50).
+`pipeline/src/fpl_dof/config/defaults/duty.yaml` holds 40 spells of penalty duty behind
+`forecast.duty`, validated by `DutyConfig`, read only by `forecast/duty.py`, and consumed only by
+E10-S3's term. Every entry carries a `basis` naming the snapshot it was seeded from, a confidence
+tier that **scales** the term rather than gating it, and `known_from`/`known_until` dates — the
+last of these being the half of the design that matters, because a table written today and applied
+to a 2024 gameweek is Invariant 5 broken by a config file rather than by a feature.
+
+**Nothing in the file was written from recollection.** The historical spells are FPL's own
+`penalties_order` as it stood at the *end of the previous season*, so every one was knowable before
+the season it is applied to; the 2026/27 spells are FPL's own pre-season `penalties_order` and are
+tiered `likely` rather than `confirmed` because the field is carried forward and is stale for
+promoted clubs and new signings by construction.
+
+**Set pieces are recorded as a schema and deliberately left unseeded.** `direct_free_kicks` and
+`corners` validate and no entries exist: nothing in silver carries set-piece volume, so a
+corner-taker assist uplift would be an invented number (DP-09), and shipping it beside the penalty
+term would make one experiment measure two changes ([DL-49](../00-decision-log.md#dl-49)).
+
+**A finding for this epic rather than for E10:** the official `bootstrap-static` feed *already
+publishes* `penalties_order`, `direct_freekicks_order` and `corners_and_indirect_freekicks_order`
+for all twenty clubs, and the archive's season-end snapshots carry them too. Conforming that field
+through the source layer into silver would make most of this file redundant and is squarely E12's
+own scope (Invariant 1) — it is **not** in this story, and the file is the seam until it happens.
+The `set_piece_notes` endpoint is separately ingested already and is unusable as a duty signal: it
+is free prose, and at the 2026/27 season start every one of the twenty rows reads *"Check back for
+additional notes soon"*.
+
 ### E12-S3 — Re-measure the prior-season prior with real advanced history · 1 day · promotes `prior_season`
 `features.prior_season` is built but **dark**. The [DL-31](../00-decision-log.md#dl-31) probe moved
 Spearman by ~0.001 — but it used official-feed *totals* as a stand-in, not xG/DefCon. S1 changes the
@@ -77,7 +106,9 @@ improvement with real xG/DefCon inputs; otherwise it stays dark with the null re
 
 - [ ] DefCon history reconstructed from the BPS breakdown under the 2026/27 regime — **Q-13 resolved**
 - [ ] M4 present across the widened backtest window, with DEF/DM Spearman improvement reported
-- [ ] Penalty/set-piece duty reference table committed, documented, owner-maintained (**D4**)
+- [x] Penalty/set-piece duty reference table committed, documented, owner-maintained (**D4**) —
+      `config/defaults/duty.yaml`, 40 penalty spells, every entry carrying its provenance and the
+      dates that keep a backtest honest. [DL-50](../00-decision-log.md#dl-50)
 - [ ] Prior-season prior re-measured with real inputs and either promoted on evidence or left dark
       with the null result recorded (DP-08)
 - [ ] No new scraping introduced; D-23's refusals remain respected

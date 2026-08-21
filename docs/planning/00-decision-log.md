@@ -2083,6 +2083,1461 @@ what `xp_v1` computes, which is a genuine new-behaviour case.
 
 ---
 
+## DL-47 — E10's discrimination changes are genuine model behaviour, not a bug fix: they ship flagged and shadow-compared, not defaulted on, and the epic's promotion checkbox stays open until six live gameweeks exist
+
+**Date:** 2026-08-20 · **Status:** Accepted · **Serves:** OBJ-1, OBJ-7, FR-10, FR-12 ·
+**Builds on:** [DL-21](#dl-21), [DL-46](#dl-46), [E8 §5](epics/E8-in-season-operations.md#5-the-bar-for-changing-the-model-mid-season), DP-08
+
+### Context
+
+[DL-46](#dl-46) closed D-25 as DP-08's named bug-fix exception and, in its own consequences section,
+was explicit that this did **not** extend to E10: *"DP-08's shadow-mode mechanism remains the binding
+rule for any subsequent E10–E12 change that alters what `xp_v1` computes, which is a genuine
+new-behaviour case."* DP-08 itself is unambiguous about what that mechanism requires: a flag, shadow
+publication of the candidate's predictions "without letting them influence anything," and promotion
+only once **all three** E8 §5 conditions hold — including **at least six live shadow gameweeks**.
+GW1 is tomorrow (2026-08-21). There is no live season yet, so condition 2 cannot be satisfied by any
+amount of work done today. This has to be resolved before writing E10's code, per the same
+before-not-after convention DL-46 followed.
+
+### Decision
+
+**E10's five stories land as flagged, additive variants inside the existing `xp_v1` chain, default
+`False`, so the app's published ranking and the optimiser's inputs are byte-identical to today's until
+a future, separate promotion decision.** Concretely:
+
+- `ForecastConfig` gains a `discrimination` section (one bool per promotable story: `minutes_v2`
+  (S1), `adaptive_shrinkage` (S2), `duty_term` (S3), `gkp_v2` (S4) — all default `False`, each named,
+  defaulted and justified per DP-06). `xp_v1` with every flag `False` reproduces today's output
+  exactly; this is a regression test, not an assertion.
+- The **backtest harness** is where this epic's evidence is generated and where each story's stated
+  Acceptance criterion is actually checked: it runs the standard grid once per candidate flag (and
+  once with the flag off) and reports the comparison — Brier score, top-20 precision, calibration
+  slope, per position, per DL-21's own convention of grading against a baseline, never absolutely.
+  This satisfies E8 §5 condition 1 (held-out backtest regression) for every story this session.
+- S5 (the blended monolith) is a standing shadow benchmark, not a promotion candidate at all — it has
+  no flag, because the epic text is explicit it is "never promoted... without an explicit DP-10
+  decision." It always runs and always reports the head-of-ranking gap.
+- The **live forecast path** computes each `True`-flagged candidate alongside the default chain and
+  carries it in the model card as a labelled comparison figure — DP-08's "publishing a candidate's
+  predictions for comparison without letting them influence anything" — but `optimise` and the
+  published ranking read only the default (flags-`False`) chain regardless of what the model card
+  shows. Turning a flag on in the live config is what starts that story's six-shadow-gameweek clock;
+  none is turned on by this change.
+
+### Rejected alternatives
+
+**Treat E10 like D-25 and default the improvements on, reasoning that a backtest-verified change is
+evidence enough.** Rejected on the DL-46 entry's own terms: D-25's exception applied because `xp_v1`
+was *already* selected and graded and the defect was that a worse model shipped in its place. E10's
+stories are not that — they are new formulations (evidence-adaptive shrinkage, a GKP-specific chain,
+a duty additive term, a rebuilt M1) that have never been graded against **held-out** live data at all,
+which is exactly the case DP-08 exists for.
+
+**Build a fully parallel `xp_v2` model and switch the app over once the backtest looks good.**
+Rejected — it duplicates the entire chain for four largely-orthogonal improvements, is a much larger
+surface to keep in sync, and still would not satisfy E8 §5's six-live-gameweek condition any sooner;
+the flagged-variant design gets the same shadow guarantee with a fraction of the duplication.
+
+**Skip E10 entirely until GW7 or so, when six shadow gameweeks could plausibly exist.** Rejected —
+nothing stops the backtest-side development, testing and evidence-gathering from happening now, and
+delaying it would mean the flags do not even exist to be turned on when the season starts generating
+the live evidence DP-08 asks for. The part that is genuinely gated by calendar time (live promotion)
+is deferred; the part that is not (implementation, backtest verification, shadow wiring) is not.
+
+### Consequences
+
+- E10's own DoD line — *"each promoted change cleared the E8 §5 bar"* — **stays unticked** by this
+  work, honestly, for the same reason [DL-22](#dl-22) and [DL-23](#dl-23) record: a checkbox is only
+  as trustworthy as what verifies it, and nothing can verify six live gameweeks before six gameweeks
+  have been played. Every other DoD line — the metric being reported per position, the reference table
+  existing, the shadow benchmark reporting the gap — is fully closeable now and is expected to close
+  in this pass.
+- A follow-up, out of this epic's scope, is the actual promotion review after GW6 or so: reading the
+  live shadow comparison the model card has been carrying since GW1, checking all three E8 §5
+  conditions, and flipping the flags that earn it. That review is not started here.
+- The DL-21 guardrail (no −8 hit, chip or wildcard justified by `xp_v1` alone until top-20 precision
+  beats B0) is untouched and remains the operative safety net for the live-default chain throughout.
+
+---
+
+## DL-48 — D-14 closed: the minutes Brier is measured on the whole population against a reconstructed E0 haircut, and the `minutes_v2` candidate improves calibration everywhere except where E10 needs it
+
+**Date:** 2026-08-20 · **Status:** Accepted · **Serves:** OBJ-1, OBJ-7, FR-10 ·
+**Builds on:** [DL-21](#dl-21), [DL-22](#dl-22), [DL-47](#dl-47), DP-08, DP-12, DP-13 ·
+**Closes:** D-14 · **Bears on:** [Q-08](04-conceptual-design.md#15-open-design-questions)
+
+### Context
+
+[E10-S1](epics/E10-discrimination-at-the-head.md#e10-s1--minutes-calibration-then-a-better-m1--2-days--fr-10--closes-d-14)
+says *measure first, then improve*, and its acceptance criterion is a Brier score **beating the E0
+status-flag haircut** — the bar E3-S3 set and [DL-22](#dl-22) found had never actually been checked,
+because `minutes_brier` was null in every report the harness had ever produced. Implementing that
+raised four questions that are judgement calls rather than implementation detail, and one of them
+turns out to change what the number means. They are recorded here with the evidence they produced.
+
+### Decision
+
+**1. The minutes Brier is measured on every prediction, not on the scored subset.**
+Every accuracy metric in the harness is computed on rows passing `minimum_minutes_for_scoring`,
+because scoring a *points* forecast against a player who did not feature measures the minutes model
+twice and flatters both. Calibration is the exact opposite case: **60% of the archive's rows are
+non-appearances**, and those rows are the thing being calibrated. Scored only where somebody played,
+every minutes model on earth reports a superb number, because the answer is always yes. So the two
+metrics deliberately run on two populations — 54,045 observations for calibration against 21,712 for
+accuracy — and the report says so in the section itself rather than leaving a reader to assume they
+match.
+
+**2. The Brier is the multiclass form over `{0, 1-59, 60+}`, not three binary scores.**
+What the optimiser consumes is the *distribution*: it multiplies every rate by the 60+ mass and adds
+appearance points on the 1-59 mass. A model can be well calibrated on "did he play" and badly wrong
+about how long, and only the joint form scores both. Zero is perfect, 2 is the worst possible.
+
+**3. The E0 status-flag haircut is reconstructed as start rate × availability, with availability
+1.0 on every historical row — and the reconstruction is deliberately the *strongest* honest version
+of the baseline.** The archive carries no status flag, so a literal replay is impossible. Setting
+availability to 1.0 is faithful rather than a straw man, and the model card has said so since E0:
+*"nearly every player is flagged available, so the availability haircut does almost nothing."* What
+E0's minutes estimate actually rested on was the start rate, so that is reproduced in full and
+**unshrunk** — a nailed starter reads as a nailed starter instead of being pulled toward a group
+prior — and where starts were never recorded (before 2022/23) the appearance rate stands in rather
+than the row being dropped, so both sides are scored on one population. Every one of those choices
+moves the bar *up*. A baseline worth beating should be hard to beat.
+
+**4. European rotation (Q-08) is not implemented, because the data to implement it does not exist —
+and it is not invented.** Q-08 asks how aggressively to model rotation for clubs in UEFA
+competition. Nothing in the silver model carries a European fixture, a competition label or a
+midweek non-Premier-League match: the `fixture` table is the FPL calendar and nothing else, and
+`player_gameweek` is one row per Premier League fixture. Deriving "this club is in Europe" from
+league position or from a hardcoded club list would be exactly the invented fact DP-09 and Invariant
+2 exist to prevent, and adding a European feed is a **new data source** — an Invariant 1 question and
+an E12 question, not something to smuggle into a minutes model. **Q-08 stays open.** What is
+implemented instead is the *observable* half of the same effect: fixture density counted from the
+calendar the project already has, which is what a midweek European tie looks like from inside the
+Premier League data — an extra match in the fortnight. A club playing Thursdays shows up in that
+count without anybody asserting which competition it was.
+
+**5. The injury-return ramp is a share of missed matches over a recent window, gated on being an
+established starter — not a run length.** A player who missed three of the last four and played the
+fourth is mid-return, and a run counted backwards from his last match would call that zero. The gate
+on long-run appearance rate is what stops the ramp firing on a fringe player, who has nothing to
+return *to* and whose fitted appearance band already knows he does not start; ramping him too would
+count one fact twice and push down exactly the wrong players. Neither this nor the congestion
+adjustment may move P(play): both say how long a player stays on, not whether he is picked, and if
+either could move P(play) it would be indistinguishable from availability news — the one thing M1 is
+built to keep separate.
+
+### The evidence
+
+The standard grid, 72 folds over 2024/25 and 2025/26, run once with the flag off and once on. **The
+flags-off run reproduces [DL-34](#dl-34)'s recorded numbers to five decimal places** (MAE 1.92655,
+Spearman 0.23070, MAE-skill 0.01957), which is the regression guarantee DL-47 asked for, measured
+rather than asserted.
+
+| | haircut | `minutes_v2` **off** | `minutes_v2` **on** |
+| --- | --- | --- | --- |
+| **Minutes Brier** (54,045 obs) | 0.44476 | **0.35877** | **0.34822** |
+| Skill vs haircut | — | +0.193 | +0.217 |
+| Brier, GKP / DEF / MID / FWD | 0.318 / 0.441 / 0.472 / 0.471 | 0.159 / 0.365 / 0.394 / 0.396 | 0.149 / 0.355 / 0.384 / 0.386 |
+| MAE (21,712 obs) | — | 1.92655 | 1.92340 |
+| Spearman | — | 0.23070 | 0.24075 |
+| Calibration slope | — | 0.70117 | 0.72663 |
+| **Top-20 precision** | — | **0.00** | **0.00** |
+
+**D-14 is closed: M1 beats the status-flag haircut, in every position, with the flag off.** That is
+E3-S3's acceptance criterion met by a number rather than by a ticked box, and it needed no model
+change at all — which is why it was worth doing first.
+
+**The candidate improves every aggregate and does not touch the thing E10 exists for.** Brier,
+Spearman, MAE and calibration slope all move the right way, in every position, and top-20 precision
+stays at 0.00. Per DP-12 the movements are small and none is yet shown to exceed the noise in a
+72-fold sample.
+
+**And the finding worth more than the improvement is in the by-band split**, which is exactly why
+E10-S1 asked for it:
+
+| Observed band | haircut | off | on |
+| --- | --- | --- | --- |
+| `none` | 0.38401 | 0.18991 | **0.15644** |
+| `short` | 1.03756 | 1.01050 | 0.99266 |
+| `long` | 0.29804 | **0.42122** | **0.46437** |
+
+**M1 beats the haircut overall by being far better about who does not play, and is meaningfully
+*worse* than E0's crude heuristic about the players who actually lasted the hour** — and the
+candidate makes that half worse still, because every one of its adjustments moves mass *out* of the
+60+ state. The head of the ranking is made of players who play 60+ minutes. So the aggregate gain is
+bought in the half of the distribution that decides nothing, at the cost of the half that decides
+everything, and this is the same compression [DL-21](#dl-21) found at the head showing up in the
+minutes component: **the model is systematically under-confident about full starts.** That is a
+finding about direction, not a number to tune, and it is the case for
+[E10-S2](epics/E10-discrimination-at-the-head.md#e10-s2--reduce-over-shrinkage-at-the-head--2-days--fr-12--bears-on-q-14)
+rather than against it.
+
+### Rejected alternatives
+
+**Score the minutes Brier on the same population as the accuracy metrics.** Rejected — it is the
+degenerate measurement described above, and it is very close to how `minutes_brier` would have been
+wired if the null field had simply been plumbed through `evaluate` without asking what it was
+measuring. The number would have looked plausible and meant nothing, which is the DP-13 failure mode
+exactly.
+
+**Take the haircut as availability alone (P(play) = 1.0 for everyone), on the grounds that E0's
+status flag really was that weak.** Rejected — it is technically defensible and it is a straw man.
+E0 had a start-probability model; leaving it out would have let M1 clear the bar without doing
+anything, and a baseline chosen so the model beats it is not a baseline (DP-12).
+
+**Promote `minutes_v2` on this evidence, since every aggregate improved.** Rejected on DP-08 and on
+DL-47's own terms. There is no live shadow window before GW1, the gains are small, and the by-band
+split says the candidate moves the *wrong* half of the distribution for this epic's purpose. "It
+improved" is not a finding; "it improved at the head" would be, and this did not.
+
+### Consequences
+
+- **D-14 is closed** and the model card's D-14 weakness is rewritten from "calibration is unmeasured"
+  to what is now true. Leaving the old text would be a false claim on the one document a human reads
+  before a deadline.
+- `discrimination.minutes_v2` **stays `False`** in the shipped configuration. Its six-shadow-gameweek
+  clock has not started, and E10's promotion checkbox stays open exactly as DL-47 said it would.
+- The `long`-band deficit is the concrete, measured target E10-S2 should be graded against, and it
+  gives that story a falsifier it did not have: if evidence-adaptive shrinkage is doing what it
+  claims, the `long`-band Brier improves rather than the aggregate.
+- **Q-08 remains open** and is now blocked on a data question rather than a modelling one: it cannot
+  be answered until some source carries European fixtures, which is an E12 scope decision.
+- Both distributions and the observed band are written to `backtest-predictions.parquet`, so the
+  comparison is re-checkable from the evidence rather than only from the report.
+
+---
+
+## DL-49 — E10-S2: top-20 precision was pooled across every gameweek and therefore pinned at zero; fixing it makes the head measurable, and once it is measurable, evidence-adaptive shrinkage does not move it
+
+**Date:** 2026-08-21 · **Status:** Accepted · **Serves:** OBJ-1, OBJ-7, FR-12 ·
+**Builds on:** [DL-13](#dl-13), [DL-21](#dl-21), [DL-46](#dl-46), [DL-47](#dl-47), [DL-48](#dl-48),
+DP-08, DP-10, DP-12, DP-13 · **Answers:** [Q-14](05-model-improvement-plan.md#9-new-open-questions-raised-by-this-plan)
+
+### Context
+
+[E10-S2](epics/E10-discrimination-at-the-head.md#e10-s2--reduce-over-shrinkage-at-the-head--2-days--fr-12--bears-on-q-14)
+asks for shrinkage to become evidence-adaptive so that the elite spread out instead of collapsing
+toward the position prior, and states its falsifier in advance: **the confidence threshold at which
+the trade turns is found on the backtest, not chosen** (Q-14). Its acceptance criterion is that
+top-20 precision and the calibration slope improve without MAE regressing past a stated bound.
+
+Implementing that required looking at the metric it is graded on first, and the metric turned out to
+be the more important half — the same shape of finding [DL-48](#dl-48) reported for S1, and for the
+same reason: *measure first*.
+
+### Decision
+
+**1. Top-20 precision and the captaincy hit rate are computed per gameweek and averaged, not pooled
+across the whole backtest. This is a defect being fixed, not a metric being redefined.**
+
+The harness reported `top_n_precision: 0.00` for every model in every run it had ever produced, and
+that is not a fact about any model. Pooled over 72 folds the twenty highest *observed* scores are
+twenty individual 18-to-25-point hauls in twenty different gameweeks; the highest a calibrated
+expectation of a single gameweek can ever be is about six. The two sets cannot intersect, so the
+answer is 0.00 for the model, for B0, for the trailing-six benchmark and for any model that could
+ever be written. **A metric that cannot move cannot grade anything**, and DL-21 named this one as
+*the* decision-relevant measure. The captaincy hit rate had the identical defect: pooled, it asks
+whether the single highest-predicted row in two seasons was the single highest-scoring one, which is
+one observation, not 72.
+
+That this is a bug rather than a change of definition is settled by the project's own documents
+rather than by preference. DP-12 already reasons about this metric as *"the captaincy hit rate over
+one season is n=38, so the standard error is around 8 points"* — n=38 is only true if each gameweek
+contributes one observation. And the object a manager acts on is one gameweek's ranking; "the top 20"
+across two seasons is not a thing anybody chooses from. So this lands **unflagged**, on DP-08's named
+bug-fix exception and the same reasoning [DL-46](#dl-46) applied to D-25: the graded quantity was not
+the quantity anybody intended to grade.
+
+**2. Each position's head goes as deep as that position goes into a squad.**
+E10 grades every metric per position, and a flat top-20 applied inside a position is not a head at
+both ends of the pitch: barely twenty goalkeepers feature in a gameweek, so "the top 20 goalkeepers"
+is *all* of them and every model scores about 0.98. The depth is therefore the overall head size
+split by the squad composition — 3/7/7/4 for a top-20 — which is both the same relative depth
+everywhere and the honest answer to "how far down this position do I actually shop?". The
+composition is an FPL rule and arrives from the predictor's own `GameRules` rather than being
+written into a metric (Invariant 2, DP-05), by the same route S1 gave the harness the 60-minute
+threshold.
+
+**3. Evidence-adaptive shrinkage is a straight ramp on the prior's weight between two named points,
+and it reuses the evidence measure and the confidence scale that already exist.**
+`RateModel.predict` weights a player on himself by `m / (m + prior_minutes)`. The candidate replaces
+the constant with `prior_minutes × (1 - strength × ramp(m))`, where `ramp` is zero below
+`onset_minutes`, one at and above `full_minutes`, and linear between. Below the onset nothing
+changes at all: shrinkage exists so that three appearances are not read as a rate, and relaxing
+*that* would not be reducing over-shrinkage at the head, it would be deleting the mechanism.
+
+The evidence `m` is the quantity the shrinkage already used — recent minutes per match times matches
+observed — which is *both* of the things E10-S2 names, minutes played and sample size, in one number;
+a second definition of "how much do we know about this player" would be a second scale printed under
+one set of names. The two ramp endpoints default to 600 and 1800, the values `confidence_minutes_medium`
+and `confidence_minutes_high` already carry, but they are **separate parameters** deliberately: those
+two tier the uncertainty band shown to a human, and coupling them would mean a shrinkage sweep
+silently re-tiered every published band, which is one experiment measuring two changes.
+
+A straight line rather than a fitted curve because the shape is a claim about players and a reader
+has to be able to disagree with it in the terms it is stated in (DP-10). *"Nothing changes below ten
+full matches, and by twenty the prior counts for 60% of what it did"* is a sentence you can argue
+with; a logistic in two fitted coefficients is not.
+
+**4. The MAE-regression tripwire is a relative regression of more than 1%, i.e. MAE above 1.9458.**
+Stated before the sweep and stated here because the acceptance criterion demands a bound rather than
+a judgement. 1% is not arbitrary: the model's entire measured edge over B0 is an MAE skill score of
+**+0.0196**, so a 1% MAE regression consumes half of the only advantage the model has ever been
+shown to have. Past that line the change would be buying head-of-ranking movement with the model's
+one demonstrated strength, which is the trade DL-21 already warned is going the wrong way. **The
+bound held everywhere** — the worst arm in the sweep regressed MAE by 0.29% — so it was never the
+binding constraint. The criterion failed on its own terms, not on the tripwire.
+
+### The evidence
+
+The standard grid, 72 folds over 2024/25 and 2025/26, once per arm. **The flag-off arm reproduces
+[DL-48](#dl-48)'s recorded numbers to five decimal places** (MAE 1.92655, Spearman 0.23070,
+calibration slope 0.70117, minutes Brier 0.35877), which is the regression guarantee DL-47 asked for,
+measured rather than asserted.
+
+**What the metric fix alone revealed**, before any model change:
+
+| Top-20 precision | pooled (before) | per gameweek (after) |
+| --- | --- | --- |
+| `xp_v1` | 0.00 | **0.12708** |
+| B0 (price + position) | 0.00 | **0.16597** |
+| model-free (trailing 6) | 0.00 | **0.14444** |
+
+**The model is worse than price at the head, by 0.039 ± 0.010** (paired over 72 folds, so roughly
+four standard errors). That is [DL-21](#dl-21)'s central finding stated for the first time as a
+number that can move, rather than as a zero that never could.
+
+**The Q-14 sweep.** Strength swept with the endpoints fixed, then the endpoints swept at strength
+0.6:
+
+| Arm | strength | onset | full | MAE | ΔMAE | Spearman | Calibration slope | Top-20 precision |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| **off** | — | — | — | 1.92655 | — | 0.23070 | **0.70117** | 0.12708 |
+| | 0.2 | 600 | 1800 | 1.92714 | +0.03% | 0.23078 | 0.69717 | 0.12986 |
+| | **0.4** | 600 | 1800 | 1.92793 | +0.07% | 0.23081 | 0.69218 | **0.13056** |
+| | 0.6 | 600 | 1800 | 1.92897 | +0.13% | 0.23085 | 0.68598 | 0.12639 |
+| | 0.8 | 600 | 1800 | 1.93030 | +0.19% | 0.23085 | 0.67830 | 0.12569 |
+| | 1.0 | 600 | 1800 | 1.93206 | +0.29% | 0.23080 | 0.66881 | 0.12639 |
+| | 0.6 | 0 | 1800 | 1.92994 | +0.18% | 0.23051 | 0.68158 | 0.12778 |
+| | 0.6 | 300 | 1800 | 1.92940 | +0.15% | 0.23076 | 0.68399 | 0.12778 |
+| | 0.6 | 1200 | 1800 | 1.92850 | +0.10% | 0.23080 | 0.68804 | 0.12361 |
+| | 0.6 | 600 | **900** | 1.93031 | +0.20% | 0.23085 | 0.67965 | **0.13125** |
+| | 0.6 | 600 | 3600 | 1.92760 | +0.05% | 0.23106 | 0.69370 | 0.12708 |
+
+**Q-14 is answered: the trade turns at a strength of about 0.4, and it was found on the backtest.**
+Top-20 precision rises from 0.12708 to 0.12986 to 0.13056 and then falls away; a steeper ramp
+(600→900 at strength 0.6) is marginally higher again at 0.13125. That is a real turning point and it
+is where the shipped default now sits.
+
+**Per position, because a gain confined to one position is not a gain** (E10 §0). Head depth is
+3/7/7/4 by squad composition:
+
+| | GKP | DEF | MID | FWD |
+| --- | --- | --- | --- | --- |
+| Precision, flag **off** | 0.14815 | 0.09127 | 0.13889 | 0.15972 |
+| Precision, **strength 0.4** | 0.14815 | 0.09524 | 0.13690 | 0.15625 |
+| Precision, **B0** | **0.19444** | **0.13294** | **0.17659** | **0.25000** |
+| Calibration slope, off | 0.16463 | 0.62512 | 0.83022 | 0.73098 |
+| Calibration slope, strength 0.4 | 0.16032 | 0.61990 | 0.81421 | 0.71483 |
+
+**B0 beats the model at the head in all four positions**, and the candidate improves precision in
+exactly one of them (DEF, by 0.004) while degrading MID and FWD and leaving GKP untouched. The
+calibration slope falls in all four. There is no position in which this change is a gain.
+
+**And it does not clear the acceptance criterion, for two separate reasons.**
+
+*The precision gain is inside the noise.* Per-fold precision has a standard deviation of 0.076 over
+72 folds, so the standard error of the mean is 0.0090 and the best arm's gain of +0.0042 is under
+half of one. Paired fold by fold — the fair test, since both arms see the same 72 gameweeks — the
+optimum arm gains **+0.00347 with a standard error of 0.00228, t = 1.52**, and the steeper arm
++0.00417 at t = 1.14. Neither reaches two standard errors. More tellingly: **at the optimum the
+top-20 changed at all in only 11 of 72 gameweeks**, and in those it moved one player. A change that
+leaves 61 of 72 heads identical has not touched the thing the season is decided on — E10 §3's own
+honest question, *"would I captain differently because of this change?"*, answers itself.
+**"It improved" is not a finding** (DP-12).
+
+*The calibration slope moves the wrong way, monotonically, in every position.* 0.70117 → 0.69218 at
+the precision optimum, and down to 0.66881 at full strength; GKP, DEF, MID and FWD all fall together
+at every arm. This is not noise, it is arithmetic, and it exposes a **misreading in the epic's own
+premise** that matters more than the experiment:
+
+> The calibration slope is the regression of actual on predicted, so it equals
+> `corr × sd(actual) / sd(predicted)`. Here that is `0.1925 × 2.942 / 0.808 = 0.701`, exactly the
+> reported figure. **A slope below 1 means predictions are too *spread out* for their information
+> content, not compressed** — which is what `metrics.calibration_slope`'s own docstring has said
+> since E3. Shrinking less raises `sd(predicted)` and therefore *lowers* the slope unless the
+> correlation rises in proportion. It did not: Spearman moved from 0.23070 to 0.23085, in the fourth
+> decimal place. So *"shrink less in order to improve the calibration slope"* is self-contradicting
+> at fixed information content, and every arm of the sweep demonstrates it.
+
+The sense in which the head genuinely *is* compressed — `sd(predicted)` of 0.81 against `sd(actual)`
+of 2.94 — is not a defect at all. A conditional expectation of a noisy target **must** have lower
+variance than the target; that is the variance decomposition, not a modelling failure. B0 settles it
+from the other direction: B0's slope is **0.606**, further from 1 than the model's 0.701, and B0 is
+nonetheless *better* at the head (0.166 against 0.127). Slope-toward-one and head precision are not
+the same axis, and E10-S2's acceptance criterion assumed they were.
+
+**What the numbers say the deficiency actually is: correlation, not scale.** The model's Pearson
+correlation with outcomes is 0.19. Rescaling what a model knows cannot add to what it knows, and
+adaptive shrinkage is a rescaling. Nothing in this sweep is a reason to doubt the *direction* of
+DL-21's finding — the head is where the model is weakest, and it is measurably worse than price
+there — only the mechanism S2 proposed for fixing it.
+
+### Rejected alternatives
+
+**Leave `top_n_precision` pooled and grade S2 on Spearman instead.** Rejected. The pooled figure is
+not a conservative measurement of the head, it is not a measurement of anything, and DL-21's own
+guardrail — no −8 hit, chip or wildcard justified by `xp_v1` alone until top-20 precision beats B0 —
+was being evaluated against `0.00 > 0.00`. It happened to give the safe answer, for no reason. A
+safety net that holds by accident is not a safety net (DP-13). *The guardrail's verdict is unchanged
+by the fix: 0.127 still does not beat 0.166. It is now unchanged for a measured reason.*
+
+**Report the pooled and per-gameweek figures side by side, to preserve continuity with earlier
+runs.** Rejected — the pooled column would be a zero in every row forever, and a column of zeros on
+the card a human reads before a deadline invites exactly one wrong inference: that the model gets
+nothing right at the head. It gets 12.7% right at the head and is beaten by price. Those are
+different claims and only one of them is true.
+
+**Set the shipped `strength` to 0, so that turning the flag on is inert.** Rejected as dishonest
+plumbing. A flag whose "on" state does nothing hides the finding instead of recording it; the
+default sits at the measured turn point, 0.4, and the parameter's description says in as many words
+that the optimum exists and does not help.
+
+**Promote the 0.4 arm anyway, since top-20 precision is the epic's target metric and it did rise.**
+Rejected on DP-08, DP-12 and DL-48's precedent in one move. The rise is under half a standard error,
+the calibration slope — the criterion's other half — degrades monotonically, and there is no live
+shadow window before GW1. This is precisely the case where a change "only improves the metric" by
+finding a pattern in the noise of a 72-fold sample.
+
+**Also make the prior-season ratio's shrinkage (`RateModel._prior_scale`) evidence-adaptive.**
+Rejected as scope, and recorded so the omission is a decision rather than an oversight. That is a
+different mechanism answering a different question — how far a *prior* moves toward last season's
+ratio, rather than how far a *player* moves toward his position — and sweeping both at once would
+have produced a grid in which no single number could be attributed. It remains available if a future
+story wants it.
+
+### Consequences
+
+- **E10-S2's acceptance criterion is not met, and the DoD line stays unticked.** Top-20 precision
+  moved within its own noise and the calibration slope moved the wrong way. `adaptive_shrinkage`
+  **stays `False`** in the shipped configuration; its six-shadow-gameweek clock has not started, and
+  the published ranking and the optimiser's inputs are byte-identical to before this change.
+- **The acceptance criterion itself should be revisited before S3 and S4 are graded.** "Calibration
+  slope improves" is not a coherent goal for a change that widens the predicted distribution, and it
+  is not a proxy for discrimination at the head — B0 has a worse slope and a better head. The
+  measurable statement of what E10 wants is *top-20 precision, per position, against B0*, and that
+  is now reported every run.
+- **The finding redirects the rest of the epic.** If the binding constraint is correlation rather
+  than scale, then the remaining stories are the right shape and this one was not: S3 adds
+  information (penalty and set-piece duty), S4 adds information (opponent shot volume for
+  goalkeepers, whose slope of 0.16 and precision of 0.148 against B0's 0.194 make it the worst
+  position on every axis), and S5 measures how much information the chain is leaving on the table at
+  all. Rescaling was always going to be the cheapest thing to try and the least likely to work.
+- The per-position head-of-ranking table is written to `backtest-card.md` on every run and the
+  aggregate reaches `model-card.md`, so the number the DL-21 guardrail turns on is now visible on
+  the document a human reads before a deadline rather than only in `backtest.json`.
+- **A model card or backtest report produced before this change is not comparable on
+  `top_n_precision` or `captaincy_hit_rate`.** The card says so in place rather than leaving a reader
+  to discover it by finding a 0.00 in an archived run.
+
+---
+
+## DL-50 — E10-S3 and E12-S2: penalty duty is a dated, provenance-carrying reference file rather than anybody's recollection, and as an additive term it separates midfielders and blurs forwards
+
+**Date:** 2026-08-21 · **Status:** Accepted · **Serves:** OBJ-1, OBJ-7, FR-12 ·
+**Builds on:** [DL-21](#dl-21), [DL-47](#dl-47), [DL-48](#dl-48), [DL-49](#dl-49),
+DP-06, DP-08, DP-09, DP-10, DP-12, DP-13, DP-15 · **Closes:** D4 (E12-S2)
+
+### Context
+
+[E10-S3](epics/E10-discrimination-at-the-head.md) asks for penalty and set-piece duty as an explicit
+additive term at the horizon scorer, reading a committed reference table built as **D4** in
+[E12-S2](epics/E12-data-widening-for-priors.md). Penalties are large, lumpy, highly identifiable
+points from a small number of players and are currently unmodelled: `RateModel` fits a per-90 blind
+to *why* a player scores.
+
+[DL-49](#dl-49) redirected this story before it started. It found the binding constraint is
+**correlation, not scale** — the model's Pearson correlation with outcomes is 0.19, and rescaling
+what a model knows cannot add to what it knows. S3 is the first story in the epic that adds
+*information* rather than rescaling, so it is the first real test of that redirection. DL-49 also
+said in as many words that S2's acceptance criterion should be revisited before S3 is graded,
+because "the calibration slope improves" is not a coherent goal; the measurable statement of what
+E10 wants is **top-20 precision, per position, against B0**, and that is what is used here.
+
+The reference table raised the harder questions, and they are questions of honesty rather than of
+implementation. A hand-maintained file is written in the present and read in the past.
+
+### Decision
+
+**1. Nothing in the duty table is written from recollection, and every entry says where it came
+from.** Duty at a season start is exactly the fast-moving, low-stakes-to-get-quietly-wrong fact
+DP-09 exists to guard. So every entry carries a `basis` naming the snapshot it was seeded from, and
+each was seeded from an FPL field this project already holds rather than from anybody's memory of
+who takes penalties:
+
+- **The 2024/25 and 2025/26 spells** are FPL's own `penalties_order == 1` as it stood in the
+  archive's **season-end snapshot of the previous season**, kept only where the player was still at
+  the same club. Fourteen spells for 2024/25, twelve for 2025/26.
+- **The 2026/27 spells** are FPL's own pre-season `penalties_order` from the `bootstrap-static`
+  snapshot of 2026-08-16 — all twenty clubs — tiered `likely` rather than `confirmed`, because not a
+  ball has been kicked, FPL carries the field forward, and it is stale for promoted clubs and new
+  signings by construction.
+
+**2. The dates are the design, not metadata.** Each entry is a half-open spell
+`[known_from, known_until)` and the lookup is against the deadline being scored. **A table written
+today and applied to a 2024 gameweek is Invariant 5 broken by a config file rather than by a
+feature** — the same fatal error wearing different clothes, and the one nothing in the metrics would
+show. The historical entries obey a mechanical version of the rule that makes the claim checkable
+rather than trusted: *an entry may assert a season only if the player was FPL's recorded first taker
+for the same club at the end of the previous season*, which is evidence that demonstrably existed
+before the season it is applied to.
+
+The consequence is deliberate and worth stating: **entries that hindsight shows were wrong are kept.**
+Toney was Brentford's recorded taker and left in January; Eze was Palace's and lost the duty; Willian
+and Ward-Prowse barely featured. Filtering those out would be exactly the look-ahead the dates
+exist to prevent — they are what a manager would have believed at that season's first deadline,
+which is the thing being graded.
+
+**3. Confidence scales the term rather than gating it.** Three tiers — `confirmed` (1.0), `likely`
+(0.6), `unconfirmed` (0.25) — and the weights are configuration, so the scorer never holds an
+opinion about what "likely" is worth. Scaling rather than gating is what lets the owner record a
+doubtful assignment instead of choosing between asserting something they are unsure of and saying
+nothing at all. `unconfirmed` is the pydantic default deliberately: an entry typed in by hand with
+no tier stated is an entry nobody has checked. A tier absent from the mapping contributes **zero** —
+an unknown tier is not a licence.
+
+**4. Absence of an entry means unknown, never "no duty."** Most players have no entry and never
+will. The term is additive, so an unlisted player has nothing added rather than something taken
+away, and the entry count is printed on the backtest card — because a table that has quietly emptied
+through a bad override produces a candidate that is inert, and **an inert candidate grades as *no
+effect* when it means *not measured*** (DP-15).
+
+**5. The additive term restores only the share of a taker's penalty return that shrinkage removed.**
+The formulation, stated so it can be disagreed with (DP-10): a club wins
+`penalties_per_team_match` penalties a match; the taker converts `conversion_rate` of them for the
+position's goal points and concedes the missed-penalty points on the rest — every scoring value from
+the rules, never a literal (Invariant 2) — and the model is missing exactly the share of that which
+shrinkage replaced with a position prior containing almost no penalty duty.
+
+That last clause is the whole design. **A taker's penalties are goals, and M3 observes goals**, so
+adding his full penalty return on top of his own fitted rate would count it twice and inflate
+precisely the players at the head of the ranking — which would look like a win on top-20 precision
+and would be a bias. Scaling by `RateModel.prior_share` makes the term largest for a **newly
+appointed** taker, whose record contains no penalties and whose duty is therefore genuinely new
+information, and smallest for one the model has watched take forty of them. That is where the
+information actually is.
+
+It lands **inside** the `goals` component rather than beside it, because a penalty is a goal and a
+taker's decomposition should read as the larger goal threat he is. A new component would also be a
+change to the published web contract for a candidate that is off by default (DP-04). It carries a
+matching variance contribution: a term that moved the mean and not the band would hand the optimiser
+a player who looks both better *and safer* than he is (Invariant 6).
+
+**6. Penalties only. Set pieces are a validated schema with no entries, and that is a decision.**
+`direct_free_kicks` and `corners` load and validate; nothing consumes them and nothing is seeded.
+Nothing in silver carries set-piece volume, so a corner-taker assist uplift would be an invented
+number rather than a modelled one (DP-09), and shipping it beside the penalty term would make one
+experiment measure two changes — [DL-49](#dl-49)'s own argument, applied to this story.
+
+**7. The table lives at `forecast.duty`, in its own `config/defaults/duty.yaml`.** Its own file
+because E12-S2 asks for something hand-editable and separately reviewable with an owner-maintenance
+note in it, as `rules.yaml` is. Under `forecast` because the forecast is its only consumer, and a
+section nothing outside one package reads belongs to that package — which also means the flag can
+gate the table at `fit_components` with no plumbing at any call site, exactly as S1 and S2 gate
+theirs. It reaches the config through the existing `defaults/*.yaml` glob; no loader change was
+needed.
+
+**8. Grading uses `strength` as the sweep knob, and strength 4 is approximately the uncorrected
+term.** 1.0 is the formulation as argued. The measured uplift at 1.0 averages 0.075 points and at
+4.0 averages 0.30 — which is close to a taker's *full* penalty contribution — so the sweep happens
+to span "with the double-count correction" to "with essentially none of it", and reads as an
+argument about the correction rather than about penalties.
+
+### The evidence
+
+The standard grid, 72 folds over 2024/25 and 2025/26, once per arm. **The flag-off arm reproduces
+[DL-48](#dl-48)'s and [DL-49](#dl-49)'s recorded numbers to five decimal places** (MAE 1.92655,
+Spearman 0.23070, calibration slope 0.70117, top-20 precision 0.12708), which is the regression
+guarantee DL-47 asked for, measured rather than asserted.
+
+| Arm | MAE | Spearman | Calibration slope | Top-20 precision |
+| --- | --- | --- | --- | --- |
+| **off** | 1.92655 | 0.23070 | 0.70117 | 0.12708 |
+| strength 1.0 | 1.92653 | 0.23090 | 0.70164 | 0.13056 |
+| strength 2.0 | 1.92656 | 0.23104 | 0.70167 | 0.13125 |
+| strength 4.0 | 1.92697 | 0.23110 | 0.70045 | 0.13194 |
+| B0 (price + position) | — | — | 0.606 | **0.16597** |
+
+DL-49's MAE tripwire (a relative regression past 1%, i.e. MAE above 1.9458) was nowhere near
+binding: the worst arm regresses MAE by **0.02%**, and at strength 1.0 MAE fractionally *improves*.
+The calibration slope barely moves, which is the first arm of this epic where it does not move the
+wrong way — consistent with DL-49's arithmetic, since this change adds correlation rather than
+widening the distribution.
+
+**Per position, which is where the finding is** (head depth 3/7/7/4 by squad composition):
+
+| | GKP | DEF | MID | FWD |
+| --- | --- | --- | --- | --- |
+| Precision, flag **off** | 0.14815 | 0.09127 | 0.13889 | 0.15972 |
+| strength 1.0 | 0.14815 | 0.09127 | **0.14484** | *0.15625* |
+| strength 2.0 | 0.14815 | 0.09127 | **0.14683** | *0.15278* |
+| strength 4.0 | 0.14815 | 0.09127 | **0.15079** | *0.14931* |
+| B0 | **0.19444** | **0.13294** | **0.17659** | **0.25000** |
+
+Paired fold by fold — the fair test, since every arm sees the same 72 gameweeks:
+
+| Arm | Overall Δ | t | MID Δ | t | FWD Δ | t | Heads that moved |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| strength 1.0 | +0.00347 | 1.52 | **+0.00595** | 1.76 | −0.00347 | −1.00 | 8 of 72 |
+| strength 2.0 | +0.00417 | 1.51 | **+0.00794** | **2.04** | −0.00694 | −1.42 | 13 of 72 |
+| strength 4.0 | +0.00486 | 1.31 | **+0.01190** | **2.18** | −0.01042 | −1.35 | 18 of 72 |
+
+**The term separates midfielders and blurs forwards, monotonically, at every strength.** MID is the
+only position that improves and it is the only movement in the epic so far to clear two standard
+errors; FWD degrades every time, never significantly, but never once in the other direction. GKP and
+DEF are untouched because no goalkeeper or defender is in the table — correct rather than a bug, and
+visible rather than assumed.
+
+**The reading, and it is the point of the story.** Among forwards, penalty duty is *already priced
+in by everything else*: nearly every leading forward takes his club's penalties, so duty adds no
+separation within that head and the term only reshuffles a four-deep ranking, on average wrongly.
+Among midfielders it separates, because most midfielders do not take penalties and the handful who
+do — Palmer, Saka, Fernandes, Son — are exactly the ones whose returns run ahead of a position prior
+built mostly from midfielders who score rarely. **The information is in the contrast with the prior,
+not in the penalty.**
+
+**How little it touches.** 937 of 55,585 predictions changed (602 in the scored subset): 603 MID
+rows across 12 players and 334 FWD rows across 8, over 26 distinct takers, 14 active in 2024/25 and
+12 in 2025/26. At the argued strength the average changed forecast moves by 0.075 points.
+
+**And the acceptance criterion, which is "top-20 precision among attackers improves", is not met.**
+It improves among midfielders and falls among forwards, and [E10 §0](epics/E10-discrimination-at-the-head.md)
+is explicit that a gain confined to one position is recorded as such and does not clear the bar.
+B0 still beats the model at the head in all four positions and by a wide margin among forwards
+(0.25 against 0.15), so the [DL-21](#dl-21) guardrail's verdict is unchanged.
+
+### Rejected alternatives
+
+**Seed the table from what the model already knows about who takes penalties.** There is no such
+knowledge — the whole premise of the story is that nothing in the pipeline knows it. The real
+temptation was to seed it from *recollection*, and it was rejected because a plausible-looking
+roster of penalty takers is indistinguishable from a correct one until a season has been played on
+it, and this file's entire value is that a reviewer can check it. Every entry names a snapshot
+instead, and the ones that could not be sourced that way were left out.
+
+**Add the taker's full penalty contribution rather than the shrunk-away share.** Rejected as
+double-counting: his penalties are already in his own fitted goal rate, and M3 weights him heavily on
+himself once he has minutes. The uncorrected version would raise exactly the players at the head and
+would very likely have raised top-20 precision — which is precisely why it is the dangerous option.
+The sweep to strength 4.0 measures it anyway, and it does not change the shape of the finding: MID
+further up, FWD further down.
+
+**Take the strength-4.0 arm, since MID precision there is the largest gain and clears two standard
+errors.** Rejected on DP-08 and DP-12 together. Strength above 1 is, by the parameter's own
+documentation, adding penalty return the player's own rate already carries, so a swept optimum above
+1 is evidence that something else is being compensated for — not that takers are worth more. And
+the arm that maximises MID also maximises the FWD deficit, which is the criterion failing harder,
+not the model improving.
+
+**Read FPL's `penalties_order` directly as a feature instead of committing a file.** This is the
+alternative with real merit and it is deferred rather than dismissed. `bootstrap-static` publishes
+`penalties_order`, `direct_freekicks_order` and `corners_and_indirect_freekicks_order` for all
+twenty clubs, and the archive's season-end snapshots carry them — which is where this file's entries
+came from. Consuming it *as a feed* means conforming it through the source layer into silver, which
+is an Invariant 1 question and an **E12 scope decision**, not something to smuggle into a forecast
+module. Two further cautions belong on the record: the archive's copy is a **season-end** snapshot,
+so using it within its own season is look-ahead, and it would need the same date discipline this file
+has; and the separately-ingested `set_piece_notes` endpoint is no substitute, being free prose whose
+twenty rows at this season's start all read *"Check back for additional notes soon"*.
+
+**Model corners and direct free kicks too, since the story's title says set pieces.** Rejected as
+scope and recorded so the omission is a decision rather than an oversight. Nothing in silver carries
+set-piece volume, so both terms would be invented numbers, and both would land in the same
+experiment as the penalty term and make it unattributable.
+
+### Consequences
+
+- **E10-S3's acceptance criterion is not met, and the DoD line stays unticked.** `duty_term` **stays
+  `False`** in the shipped configuration; its six-shadow-gameweek clock has not started, and the
+  published ranking and the optimiser's inputs are byte-identical to before this change.
+- **E12-S2 is met and D4 is closed.** The file exists, is documented, carries an owner-maintenance
+  note, and is the single source the duty term reads.
+- **The finding is the first support DL-49's redirection has received.** S3 adds information and it
+  moved a per-position head by more than two standard errors, which no rescaling arm in S1 or S2
+  managed. It moved the *wrong* position for the criterion as written, and that is a fact about
+  where duty is informative rather than about whether information helps.
+- **It also sharpens what remains.** If duty separates a position only where the position prior is
+  far from the taker, then the same is likely true of every additive signal in this epic — which is
+  an argument for [S4](epics/E10-discrimination-at-the-head.md)'s goalkeeper formulation, whose
+  position is the worst on every axis and whose prior is furthest from its best performers, and a
+  caution against expecting gains among forwards from anything.
+- **The 2026/27 entries are the file's weakest half and must be confirmed before the flag is ever
+  turned on.** They are FPL's pre-season field, tiered `likely` for that reason, and the opening
+  gameweeks are what settles them. The owner-maintenance note in the file says so at the top.
+- The `forecast.duty` entry count reaches the backtest card and `ComponentModels.describe()`, so a
+  table that has emptied is visible rather than silent.
+
+---
+
+## DL-51 — E10-S4: most of the goalkeeper Spearman floor was a broken fixture join rather than the model, and once fixtures resolve the separate formulation helps a little while the lighter-touch one actively hurts
+
+**Date:** 2026-08-21 · **Status:** Accepted · **Serves:** OBJ-1, OBJ-7, FR-12 ·
+**Builds on:** [DL-21](#dl-21), [DL-47](#dl-47), [DL-48](#dl-48), [DL-49](#dl-49), [DL-50](#dl-50),
+DP-06, DP-08, DP-09, DP-10, DP-12, DP-13, DP-15 · **Answers:**
+[Q-15](05-model-improvement-plan.md#9-new-open-questions-raised-by-this-plan) · **Opens:** D-26
+
+### Context
+
+[E10-S4](epics/E10-discrimination-at-the-head.md#e10-s4--a-goalkeeper-specific-formulation--15-days--fr-12--bears-on-q-15)
+asks for GKP expected points to come primarily from **opponent shot volume × team defence (M2)**
+plus a saves model, rather than a shrunk per-90 that clean sheets dominate. Its acceptance is that
+**GKP Spearman moves off the floor** of 0.04, and [Q-15](05-model-improvement-plan.md) is its
+falsifier: *a fully separate formulation versus the same chain with a saves-and-shots emphasis;
+graded, not assumed.*
+
+The story's own entry carries a precondition — *"needs E9-S2's fixtures in the backtest; the
+formulation is fixture-driven by construction"* — and checking it rather than assuming it is what
+turned this story into a measurement finding, for the third time in a row (DL-48, DL-49, and now
+this). **The precondition does not hold**, and what it was hiding is larger than the model change.
+
+### Decision
+
+**1. Shot volume does not exist in this project and is not invented; expected goals conceded stands
+in for it, named as a proxy.**
+E10-S4's text says "opponent shot volume", and nothing in the silver model counts shots.
+`player_gameweek` has no shot column at all; `shots` exists only on the advanced-metrics table, it
+is a *player's own* shots taken rather than shots faced, and no scraped source is enabled by
+default. So the formulation reads **M2's expected goals conceded** as the measure of how busy a
+keeper's afternoon will be. That is a defensible substitution — expected goals are computed from
+shots upstream, so more of one means more of the other — and it is stated rather than made
+silently, on the same reasoning [DL-48](#dl-48) applied to European rotation: the honest move is to
+implement the observable shadow of the thing and say which it is (DP-09, DP-10). It is also the
+first thing to re-examine if a shot feed ever arrives through E12.
+
+**2. Why the generic per-90 is the wrong estimator here, as a measurement rather than an argument.**
+Across the archive's regular goalkeepers, **saves per 90 have a standard deviation of 0.64 on a mean
+of 3.1; saves per unit of expected goal conceded have a standard deviation of 0.21 on a mean of
+2.1.** So roughly half the spread between goalkeepers' save rates is the defence in front of them
+rather than the keeper — and `RateModel` hands all of it to the keeper and then applies it
+identically to every fixture. That number, not intuition, is why the story is worth doing.
+
+**3. Two formulations, because Q-15 asks for two, and they differ in what they claim rather than in
+strength.** Both end by scaling to the fixture; `discrimination.goalkeeper.mode` chooses between:
+
+- **`separate`** — the fully separate model. A keeper's level is his save rate divided by the
+  pressure he actually faced, shrunk toward the goalkeeper population, then multiplied back by the
+  pressure M2 expects in *this* fixture. His own history enters only as shot-stopping per unit of
+  defence.
+- **`fixture_weighted`** — the lighter touch. Keep the existing shrunk per-90 exactly as it is and
+  re-weight it by that same fixture factor.
+
+The first changes how goalkeepers rank **against each other**; the second only how one goalkeeper's
+weeks rank against each other. Within a gameweek's ranking — which is the only object anybody acts
+on — that is the difference between a change that can move the head and one that structurally
+cannot, which is why they are separate experiments rather than two strengths of one.
+
+Both sides enter as **ratios to a league mean**, so the units cancel exactly and it does not matter
+that M2 is fitted on goals while the history is measured in expected goals. A keeper of average
+pressure facing an average fixture gets back precisely the number the old chain gave him: the change
+is a re-attribution, not a rescaling, and that property is a test rather than a claim.
+
+**4. `fixture_weight` is a damping parameter and the identity at 0.** M2's per-fixture expectation
+is noisier than the season of pressure a keeper has actually faced, so applying it in full is a
+claim that the fixture is as well measured as the history. The factor is `1 + w * (ratio - 1)` — a
+straight line through the average fixture, so a reader can disagree with it in the terms it is
+stated in (DP-10) — and `w = 0` reproduces the fixture-blind rate exactly, which is what makes the
+sweep attributable.
+
+**5. No variance term is added.** The saves component contributes none today, in either arm. Adding
+one alongside a new mean would make one experiment measure two changes — [DL-49](#dl-49)'s own
+argument — so the pre-existing gap is recorded here and left alone. It is not an Invariant 6 breach:
+the forecast's band is dominated by the minutes mixture, which is unchanged.
+
+**6. "Off the floor" was given a concrete meaning before the sweep ran, and it is three conditions,
+not one.** Stated in advance because "moves off the floor" grades nothing on its own and because
+this session has twice found that the metric was the story:
+
+> (1) GKP Spearman reaches **≥ 0.10** — roughly five standard errors from zero rather than the two
+> that 0.04 sits at, so the position is *clearly* ranked rather than barely distinguishable from
+> unranked; (2) the paired per-fold improvement clears **two standard errors**, the discipline
+> DL-49 and DL-50 used; (3) it is not bought with a fall in GKP top-N precision or a breach of
+> DL-49's MAE tripwire of 1.9458.
+
+**7. D-26 is opened rather than fixed here: the archive writes no `team_id`, so E9-S2's
+fixture-aware backtest has never actually resolved a fixture.**
+`fplarchive/adapter.py` sets `"team_id": None` on every `player_gameweek` row. `fixture_calendar`
+drops rows with no team, so it returns nothing, `attach_fixtures` takes its stated-absence branch,
+and **100% of scored observations are predicted against league-average opposition** — which the
+harness has been warning about in `backtest.json` all along, correctly and unread. Under
+league-average opposition `goals_conceded_mean` *is* `league_mean_goals`, so this story's fixture
+factor is exactly 1.0 on every row and the fixture half of both formulations is **not measured**
+rather than shown to have no effect. That is the precise confusion [DL-50](#dl-50) insisted on
+avoiding, so it is named here and graded around rather than reported as a null.
+
+Fixing it is **not this story's** change. It is a source-layer defect (Invariant 1), and repairing
+it moves every number DL-48, DL-49 and DL-50 recorded, which deserves its own decision rather than
+arriving as a side effect of a goalkeeper model.
+
+### The evidence
+
+The standard grid, 72 folds over 2024/25 and 2025/26, once per arm. **The flag-off arm reproduces
+[DL-48](#dl-48)'s, [DL-49](#dl-49)'s and [DL-50](#dl-50)'s recorded numbers to five decimal places**
+(MAE 1.92655, Spearman 0.23070, calibration slope 0.70117, top-20 precision 0.12708), which is the
+regression guarantee DL-47 asked for, measured rather than asserted. GKP Spearman reads **0.04428**,
+confirming DL-21's 0.04 in the corrected per-position harness.
+
+**As the harness actually runs** — every row on league-average opposition, so `fixture_weight` is
+inert by construction:
+
+| Arm | MAE | Spearman | Slope | Top-20 | GKP Spearman | GKP precision | GKP slope |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **off** | 1.92655 | 0.23070 | 0.70117 | 0.12708 | 0.04428 | 0.14815 | 0.16463 |
+| `separate`, any `w` | 1.92589 | 0.23183 | 0.70133 | 0.12917 | **0.06581** | **0.21296** | 0.19880 |
+| `fixture_weighted`, any `w` | 1.92655 | 0.23070 | 0.70117 | 0.12708 | 0.04428 | 0.14815 | 0.16463 |
+| B0 | — | 0.21034 | 0.606 | **0.16597** | 0.06902 | 0.19444 | — |
+
+Paired fold by fold, `separate` against off: GKP Spearman **+0.03660, se 0.01513, t = 2.42**; GKP
+precision **+0.06481, t = 2.34**. DEF, MID and FWD are **identical to five decimal places** in every
+arm, which is the blast radius checked rather than asserted. That precision figure — 0.213 against
+B0's 0.194 — is **the first time in E10 that any arm has beaten B0 at a position's head.**
+
+**And it is not the finding, because the harness it was measured in cannot see a fixture.** With
+`team_id` reconstructed in the harness input only — a fixture has two clubs, so a row whose opponent
+is B belongs to A; 100% recovered, fixture coverage 1.0 — the same five arms read:
+
+| Arm | MAE | Spearman | Slope | Top-20 | GKP Spearman | GKP precision | GKP slope |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **off** | 1.93023 | **0.25032** | 0.70162 | 0.11736 | **0.09948** | **0.19444** | 0.21521 |
+| `separate`, `w` 0.0 | 1.93033 | 0.25095 | 0.69840 | 0.11667 | **0.10927** | 0.20833 | 0.22730 |
+| `separate`, `w` 1.0 | 1.92789 | 0.25180 | 0.71111 | 0.11944 | 0.09718 | 0.19907 | 0.22848 |
+| `fixture_weighted`, `w` 0.5 | 1.92877 | 0.25102 | 0.70788 | 0.11944 | 0.09421 | 0.18981 | 0.21617 |
+| `fixture_weighted`, `w` 1.0 | 1.92776 | 0.25123 | 0.71194 | 0.11944 | 0.08678 | 0.19444 | 0.20994 |
+
+Paired per-gameweek differences in GKP Spearman against that arm's own off:
+
+| Arm | Δ GKP Spearman | se | t |
+| --- | --- | --- | --- |
+| `separate`, `w` 0.0 | +0.00914 | 0.00500 | 1.83 |
+| `separate`, `w` 1.0 | +0.00139 | 0.00688 | 0.20 |
+| `fixture_weighted`, `w` 0.5 | −0.00602 | 0.00357 | −1.69 |
+| `fixture_weighted`, `w` 1.0 | **−0.02173** | 0.00735 | **−2.95** |
+
+**Three findings, in order of how much they matter.**
+
+***First: most of the goalkeeper floor was the broken fixture join, not the model.*** Resolving
+fixtures moves GKP Spearman from **0.04428 to 0.09948 with no model change at all** — it more than
+doubles — and takes DEF from 0.16278 to 0.21867 and the overall Spearman from 0.23070 to 0.25032.
+[DL-21](#dl-21)'s "a whole position essentially unranked" was substantially a statement about a null
+column. It is the same shape of finding as DL-48's and DL-49's and it arrived the same way: by
+checking the measurement before believing it.
+
+***Second: Q-15 is answered, and the two halves do not merely differ in degree — the lighter touch
+is harmful.*** `fixture_weighted` degrades GKP Spearman monotonically in `w`, reaching **t = −2.95**
+at full weight, the largest *significant* movement anywhere in this epic and in the wrong direction.
+`separate` helps, most at `w = 0`. The reading, and it is arguable rather than obvious: a
+goalkeeper's clean-sheet and goals-conceded components **already** carry M2's fixture signal, and
+they carry it with the opposite sign to saves. Amplifying saves by the same factor partially cancels
+the clean-sheet term — the *better-measured* of the two — so the fixture is not new information for
+a goalkeeper, it is information already spent. Dividing pressure out of his **history** is new
+information; multiplying it back into his **fixture** is double-counting, which is exactly the trap
+DL-50 identified in a different costume.
+
+***Third: the acceptance criterion is not met, on either reading, and the bound was fixed in
+advance.***
+
+- *As the harness ships*: GKP Spearman reaches 0.06581 against a bound of 0.10. Conditions (2) and
+  (3) hold — t = 2.42, precision up sharply, MAE improves — and **condition (1) fails.**
+- *With fixtures repaired*: the level clears 0.10, but **the model change is not what put it there.**
+  The flag-off arm is already at 0.09948; the best candidate adds +0.00914 at **t = 1.83**, so
+  condition (2) fails.
+
+Neither reading is a pass, and the bound is not being revisited to make one. One observation is
+recorded because it bears on whether the bar was reachable rather than on whether it was cleared:
+**B0's GKP Spearman is 0.06902**, so on the unrepaired harness *price itself* falls well short of
+0.10, and on the repaired one the model (0.09948 off, 0.10927 on) beats price comfortably. The
+floor may be substantially the position rather than the model — goalkeepers are genuinely hard to
+rank — and that is a hypothesis for E12, not a reason to move a bar after seeing the result.
+
+### Rejected alternatives
+
+**Fix `team_id` in the archive adapter and grade against that.** Rejected as scope, and it is the
+alternative with the most merit. It is a source-layer change (Invariant 1), and it silently
+re-bases every figure DL-48, DL-49 and DL-50 recorded — a −0.010 shift in top-20 precision, a
++0.020 shift in Spearman — so it must be its own decision with its own re-run of the epic's arms,
+not a line in a goalkeeper story. **D-26** carries it.
+
+**Report the `fixture_weighted` arms as "no effect", since they came out byte-identical to off.**
+Rejected, and it is the reason the second sweep exists. They were identical because the fixture
+factor was 1.0 on every row, which means *not measured*, and an inert candidate that grades as no
+effect when it means not measured is the failure DL-50 named explicitly (DP-15). Measured properly,
+that arm is not neutral — it is the worst arm in the epic.
+
+**Take the `separate` arm's unrepaired result — precision 0.213 against B0's 0.194, t = 2.34 — as
+clearing the bar, since beating B0 at a position's head is what E10 has been trying to do since
+DL-21.** Rejected, and it is the tempting one. That number was produced under an opposition model
+that does not exist — every fixture league-average — and the repaired run shows the same arm's GKP
+precision advantage shrinking to +0.014 at t = 1.00 once fixtures are real. A result that only
+survives in the broken condition is an artefact of the breakage.
+
+**Default `mode` to `fixture_weighted` because its `w = 0` is a cleaner identity.** Rejected: it
+would put the shipped default on the arm the evidence says is harmful. `separate` is the default,
+and it is the formulation the evidence prefers even though neither clears the bar — the same
+reasoning DL-49 used for refusing to ship a strength of 0, that a flag whose "on" state is chosen to
+be inoffensive hides the finding instead of recording it.
+
+**Model goalkeeper bonus or BPS from the fixture too, since M8 is as fixture-blind as saves was.**
+Rejected as scope and recorded so the omission is a decision. It would land in the same experiment
+and make the saves term unattributable, which is DL-49's argument applied here.
+
+### Consequences
+
+- **E10-S4's acceptance criterion is not met, and the DoD line stays unticked.** `gkp_v2` **stays
+  `False`** in the shipped configuration; its six-shadow-gameweek clock has not started, and the
+  published ranking and the optimiser's inputs are byte-identical to before this change.
+- **D-26 is opened and is now the most valuable single item in the epic's neighbourhood.** Resolving
+  fixtures improves three of four positions and the overall Spearman by more than any model change
+  in E10 has managed, and it is a data defect rather than a modelling question. Every E10 number
+  recorded so far was measured under league-average opposition and must be re-read once it is fixed.
+- **The E10 §0 premise needs one more correction, after DL-49's two.** "GKP Spearman 0.04" is not a
+  fact about the model but about a null column; the position's honest floor is closer to 0.10, where
+  the model already beats price. What survives is the *shape* of DL-21's finding — the head is where
+  the model is weakest — and the goalkeeper half of it is much smaller than it looked.
+- **Q-15 is closed.** A fully separate formulation is better than a saves-and-shots re-weighting of
+  the existing chain, the re-weighting is actively harmful, and the value in the separate one is in
+  dividing pressure out of a keeper's history rather than in multiplying it back into his fixture.
+- The goalkeeper model's fitted keeper count and the column it measured pressure with reach
+  `ComponentModels.describe()` and the backtest card, so a candidate that has quietly become inert —
+  or has fallen back from expected goals to actual ones, which is a **worse** model rather than an
+  equivalent one — is visible rather than silent (DP-09, DP-15).
+
+---
+
+## DL-52 — D-26 closed: the archive always stated which club each row belonged to, and the repair is keyed on the stable club code because half the season-local ids change club every year
+
+**Date:** 2026-08-21 · **Status:** Accepted · **Serves:** OBJ-1, OBJ-7, FR-12 ·
+**Builds on:** [DL-19](#dl-19), [DL-37](#dl-37), [DL-46](#dl-46), [DL-48](#dl-48), [DL-51](#dl-51),
+DP-01, DP-08, DP-09, DP-13, DP-15 · **Closes:** D-26 · **Re-ticks:** E9-S2's fixture line
+
+### Context
+
+[DL-51](#dl-51) opened D-26: `fplarchive/adapter.py` wrote `"team_id": None` on every
+`player_gameweek` row, so `fixture_calendar` returned nothing, `attach_fixtures` took its
+stated-absence branch, and **100% of scored observations were predicted against league-average
+opposition** — through code that reads, at every line, as though it were consuming real fixtures.
+E9-S2's acceptance was never met, and every figure in DL-48, DL-49, DL-50 and DL-51 was measured in
+that condition.
+
+This is a **bug fix, not a model change**, on the exception DP-08 names and
+[DL-46](#dl-46) used for D-25. Which club a player belonged to in a completed season is a stable
+derivable fact, not a judgement call, and it is not the sort of thing that waits behind the
+flagged-and-shadowed machinery [DL-47](#dl-47) built for genuine new model behaviour. If it were
+being argued about it would be a model change; nobody argues that Bournemouth played Liverpool.
+
+### Decision
+
+**1. The club was never missing from the archive. It was never read.**
+`merged_gw.csv` carries a `team` column — the club's *name*, on every row, in every season the
+backfill uses — and `teams.csv` carries the season's club list. D-26 was not an absent fact
+requiring reconstruction; it was an unread one. This matters for how the fix is built:
+[DL-51](#dl-51)'s diagnostic and `optimise/replay.py` both *inferred* the club from the fixture
+pairing (a fixture has two clubs, so a row whose opponent is B belongs to A), which is correct
+where it applies but resolves nothing for a fixture only one side of which is present. Reading the
+stated club resolves **every** row and depends on no other row.
+
+**2. The id is FPL's stable club `code`, not the season-local `id`, and that is a measurement
+rather than a preference.** Between consecutive seasons **eight to ten of the twenty season-local
+team ids point at a different club**, because promotion and relegation reshuffle an alphabetical
+ordering: id 11 is Liverpool in 2023/24, Leicester in 2024/25 and Leeds in 2025/26. `teams.csv`
+carries `code`, which across the four backfilled seasons never once maps to a different club. Since
+:class:`TeamStrengthModel` pools team form across every season it is given, writing the season-local
+id would have handed one club's attack and defence ratings to another — repairing a null column by
+installing a plausible wrong one, which is worse than the null. **This is the club half of
+[DL-19](#dl-19)**, arriving three months later for the same reason and with the same answer.
+
+**3. `opponent_team_id` is relabelled with it, because a fixture's two sides must be one kind of
+number.** `team_id` is resolved from a name and `opponent_team_id` from a season-local integer;
+`fixture_calendar` joins one row's club against another row's opponent. In two id spaces that join
+pairs a club with a stranger. Relabelling both through the same club list is a bijection within a
+season, so every within-season consumer is unaffected and the cross-season one becomes correct.
+
+**4. Unresolvable stays null, and the season is kept.** A row naming a club the season's list does
+not contain, or a season whose `teams.csv` cannot be fetched, gets null club columns, a counted
+`log.warning` and a conform-level warning — not a fallback to the season-local id. A null row is
+dropped by the calendar and is visibly absent; a row carrying the wrong space is invisibly wrong.
+The season's player rows are still evidence for a per-90 rate, so the season itself is not dropped
+(DP-15). `team` is added to `REQUIRED_GAMEWEEK_COLUMNS` so a column that silently vanishes upstream
+fails loudly instead of quietly re-creating D-26.
+
+**5. Two latent defects that were inert only because `team_id` was null are fixed with it, and both
+are the same bug.** Repairing the club makes them reachable, so leaving them would have swapped one
+silent wrongness for another.
+
+- **`_team_matches` grouped on `(team_id, fixture_id)` with no season.** The archive numbers
+  fixtures 1..380 *within* a season, so a training set spanning two seasons contains every fixture
+  number twice and the two matches merged into one row — summed goals, halved match count. The key
+  is now `(season, team_id, fixture_id)`. That every `(season, club)` now has **exactly 38**
+  matches, min and max alike, is the check that it worked.
+- **`season` was absent from the fold frame the predictor fits on**, so `_team_matches` could not
+  have keyed on it. It is added to `OUTCOME_COLUMNS` — the one list that reaches `fit` and is
+  stripped before `predict` — because it is an identifier, not a feature. What a model could learn
+  from a season label is that 2024/25 scored differently, and that is a rule change, not a
+  footballer.
+
+**6. The live path's team strength is explicitly restricted to the current season, which preserves
+its behaviour rather than changing it.** The live feed writes season-local ids and the archive now
+writes codes, so `live.build_forecast` would have pooled two id spaces from the first played
+gameweek. Before this fix it pooled nothing — every archive row's null club was dropped — so
+filtering to the current season reproduces the shipped behaviour exactly. `stages/publish.py`'s
+fixture ticker already refused the same pooling for the same reason ([DL-37](#dl-37)), which is
+independent corroboration rather than a new argument. **Widening M2 to prior seasons is a real model
+change and needs DP-08's evidence**, not a side effect of a source repair.
+
+### The evidence
+
+**The fix resolves fixtures in the shipped path, not in a side reconstruction** — which is what
+DL-51's diagnostic could not demonstrate. Through `fpl-dof ingest` and `fpl-dof transform` into
+silver, then the harness unmodified:
+
+| | before | after |
+| --- | --- | --- |
+| Rows whose club is known | **0%** | **100%** (all three seasons) |
+| Gameweeks building a non-empty calendar | **0 of 114** | **114 of 114** |
+| `walk_forward` `fixture_coverage` | **0.0** | **1.0** |
+| Matches `TeamStrengthModel` fits on | **0** | **2,280** = 3 x 20 x 38 |
+| Harness warnings | fixture-coverage warning | none |
+
+The **2,280** is the arithmetic identity worth stating: three seasons of twenty clubs playing
+thirty-eight matches, with every `(season, club)` at exactly 38 and 25 distinct clubs across the
+three seasons — which is what promotion and relegation should produce and what a conflated id space
+could not.
+
+**The re-based grid.** 72 folds over 2024/25 and 2025/26, `minutes_v2` off — the shipped
+configuration, and the arm every earlier E10 number was recorded against:
+
+| | as DL-48/DL-49 recorded it | with fixtures real | |
+| --- | --- | --- | --- |
+| MAE | 1.92655 | 1.93106 | *worse* |
+| Spearman | 0.23070 | **0.25058** | |
+| Calibration slope | 0.70117 | 0.68990 | *worse* |
+| Top-20 precision | 0.12708 | **0.12153** | *worse* |
+| GKP Spearman | 0.04428 | **0.10094** | |
+| DEF Spearman | 0.16278 | **0.21999** | |
+| Minutes Brier | 0.35877 | 0.35877 | unchanged |
+
+**This is a re-basing, not an improvement**, and three of seven figures move the wrong way. It is
+also slightly different from DL-51's reconstructed preview (0.25032, GKP 0.09948, DEF 0.21867), and
+the difference is exactly the thing that reconstruction could not have: it recovered season-local
+ids, so it still conflated clubs across seasons and still collided fixture numbers. Resolving the
+identity properly is worth a further +0.0003 overall and +0.0015 on GKP.
+
+**E10-S1 re-checked (DL-48), and its conclusion holds.** Both arms re-run on the repaired data:
+
+| | off | on | paired |
+| --- | --- | --- | --- |
+| MAE | 1.93106 | 1.92750 | |
+| Spearman | 0.25058 | **0.25946** | |
+| Calibration slope | 0.68990 | 0.70896 | |
+| **Top-20 precision** | 0.12153 | **0.12361** | B0 is **0.16597** |
+| Minutes Brier | 0.35877 | 0.34822 | identical to DL-48 |
+| `long`-band Brier | 0.42122 | 0.46437 | identical to DL-48 |
+| DEF Spearman | 0.21660 | 0.22759 | +0.01099, **t = 3.90** |
+| MID Spearman | 0.27055 | 0.28214 | +0.01159, **t = 4.70** |
+| FWD Spearman | 0.25508 | 0.26744 | +0.01236, **t = 3.43** |
+| GKP Spearman | 0.10691 | 0.10566 | −0.00125, t = −0.20 |
+| DEF / MID / FWD precision | | | +0.004 (t 0.70), −0.010 (t −1.52), +0.014 (t 1.42) |
+
+**One finding here is a correction to the premise on which the re-run was ordered.** `minutes_v2`'s
+congestion prior was assumed to read the fixture columns D-26 broke. **It does not.** The density
+feature is `matches_last{N}d`, a count of *the player's own prior kickoff times* in a rolling
+window; it touches no `team_id` and no calendar. That is why the minutes Brier, its per-position
+split and its per-band split come back **identical to DL-48 to five decimal places** — the object
+E10-S1 was actually measuring was never affected. What moved is the rest of the chain, equally in
+both arms.
+
+So DL-48's conclusion stands, and one part of its evidence is now stronger than it was:
+
+- DL-48 said the aggregate movements were "small and none is yet shown to exceed the noise". Paired
+  per-gameweek they now clearly do — **t between 3.4 and 4.7** on three of four positions. That is
+  a real improvement, demonstrated rather than observed.
+- **And it is still not at the head.** Top-20 precision moves +0.002; per-position precision is
+  mixed and no movement clears two standard errors; MID's is *negative*. Both arms remain well below
+  B0's 0.16597, so [DL-21](#dl-21)'s guardrail is untouched.
+- The reason DL-48 refused promotion is **unchanged in both direction and magnitude**: the
+  candidate still buys its aggregate gain by moving mass out of the 60+ state, `long`-band Brier
+  0.42122 → 0.46437, and the head of the ranking is made of players who play 60+ minutes.
+
+`discrimination.minutes_v2` **stays `False`**. The flag's six-shadow-gameweek clock has not started.
+
+### Rejected alternatives
+
+**Reconstruct the club from the fixture pairing, as DL-51's diagnostic and `optimise/replay.py`
+do.** Rejected as the *primary* route once the `team` column was found: an inference that resolves
+most rows is strictly worse than a lookup that resolves all of them, and it cannot resolve a fixture
+only one side of which appears — which is most fixtures in a sparse frame. It is kept in `replay.py`
+as a fallback, but changed to fill only where the source is silent. Left as it was it would have
+*overwritten* resolved codes with season-local ids and put the two sides of every fixture in
+different spaces — the fix causing a worse version of the bug it fixed.
+
+**Write the season-local `id`, for consistency with the live adapter.** Rejected on the measurement
+in decision 2. Consistency with the live source is real but costs less than cross-season club
+identity, and the two never co-occur in one season: the archive is a prior-season backfill and the
+live feed only ever writes the current one. Decision 6 makes that boundary explicit at the one place
+they could have met.
+
+**Convert the live adapter to codes as well, so the column has one meaning everywhere.** Rejected as
+scope, and recorded so the omission is a decision rather than an oversight. `players`, `teams` and
+`fixtures` all key on the season-local id and the optimiser's club cap joins on it, so this is a
+silver-wide change with its own migration, not a line in a bug fix. It is the right eventual answer
+if a future season is ever ingested from both sources.
+
+**Re-run S2's and S3's arms as well.** Rejected on the mechanism rather than on effort. S2's
+evidence is about shrinkage against minutes and sample size and S3's duty term is a dated additive
+constant; neither reads the fixture calendar the way S1 and S4 do. Their *levels* are re-based by
+the table above like everything else, but their paired contrasts are not disturbed. Stated so that
+"not re-run" is not mistaken for "re-run and unchanged".
+
+**Take the improved Spearman as evidence the model got better.** Rejected, and it is the tempting
+one. Nothing about the model changed. The forecast that ships today is byte-identical to the one
+that shipped yesterday; only the measurement of it is now honest, and three of its seven headline
+figures got *worse* when it became so.
+
+### Consequences
+
+- **D-26 is closed and E9-S2's definition-of-done line is re-ticked** — on the measurement,
+  `fixture_coverage` 1.0, not on the code having been written. The E10–E12 gate in E9 §1 is clear
+  for the first time.
+- **Every number in DL-48, DL-49, DL-50 and DL-51 is superseded as a level.** Those entries are not
+  edited; this one re-bases them, and the table above is the conversion. Their *conclusions* are
+  unaffected: no flag was promoted on any of them, and none of them turns on a figure this changes.
+- **E10's §0 premise needs its fourth correction.** "GKP Spearman 0.04" was a statement about a null
+  column; the position's honest floor is 0.101, where the model already beats B0's 0.087. The
+  surviving shape of [DL-21](#dl-21) is that the model is weakest at the *head* — top-20 precision
+  0.122 against B0's 0.166 — and that is unchanged and unexplained by fixtures.
+- **The regression guard is four assertions, not one**, because asserting `team_id is not None`
+  would not have caught what made D-26 survive: that the column being null broke nothing loudly.
+  `tests/test_archive_source.py` now asserts every row names its club, that a club renumbered
+  between two seasons keeps one id, that club and opponent share an id space, and that the harness's
+  calendar is non-empty (DP-13).
+- **`xp_v1.team_matches` now warns when it can return nothing.** An unfitted team-strength model
+  makes every fixture league-average, which is precisely the condition that went unnoticed for two
+  epics. It is no longer possible for it to happen in silence (DP-15).
+- The model card and `backtest.json` now report a fixture coverage of 1.0 and a populated
+  fixture-difficulty band table, so the next person to read one is reading a real breakdown.
+
+---
+
+## DL-53 — E10-S5: the chain's explainability costs 0.044 of top-20 precision, all of it in forwards and midfielders — and the monolith that recovers it only reaches B0, so the ceiling on this feature set at the head *is* price
+
+**Date:** 2026-08-21 · **Status:** Accepted · **Serves:** OBJ-1, OBJ-7, FR-12, NFR-01 ·
+**Builds on:** [DL-04](#dl-04), [DL-21](#dl-21), [DL-28](#dl-28), [DL-47](#dl-47), [DL-49](#dl-49),
+[DL-52](#dl-52), DP-08, DP-09, DP-10, DP-12, DP-13 ·
+**Bears on:** [Q-04](04-conceptual-design.md#15-open-design-questions)
+
+### Context
+
+[E10-S5](epics/E10-discrimination-at-the-head.md#e10-s5--blended-monolith-as-a-shadow-benchmark--1-day--shadow-only--q-04x6)
+asks a different question from the four stories before it. S1 to S4 each tried to make the component
+chain better and each failed its own acceptance criterion. S5 does not try to improve anything: it
+asks whether the chain's **interpretability** — a product requirement, [DP-10](../DESIGN-PRINCIPLES.md)
+— is *costing* accuracy at the head, and how much.
+
+DP-10's own words are the reason this needs a number rather than an opinion. It says to prefer the
+formulation you can argue with *"where two designs are close in expected quality"*, and to prefer a
+chain of small models over one monolith *"unless the monolith is **materially better** — and if it
+is, that trade-off is a recorded decision"*. Both clauses are conditional on a measurement nobody
+had taken. Until now "the chain is interpretable and about as accurate" was an article of faith:
+a thing the project believed because it would have been inconvenient not to.
+
+### Decision
+
+**1. A gradient-boosted regressor on the same feature set, fitted by the same harness, reported on
+every run — and never a promotion candidate.**
+Unlike S1 to S4 it has **no `discrimination` flag**, and the absence is the design rather than an
+omission. [DL-47](#dl-47) built the flag mechanism so a future review could promote a candidate that
+earns it; this one is never promoted whatever the numbers say, so there is nothing to flip and a
+switch that existed would be a switch somebody eventually throws. Its configuration lives in
+`BacktestConfig.monolith`, which nothing on the forecast, optimise or publish path reads, so the
+guarantee is structural rather than a default. A test scans every module in the package: exactly two
+files may reach it — `forecast/monolith.py` and `forecast/backtest.py`. **The stage that writes the
+report is not one of them**; it reads `BacktestResult.monolith` like any other metric set, so even
+the code that publishes the gap cannot construct the model.
+
+**2. scikit-learn's `HistGradientBoostingRegressor`, not LightGBM or XGBoost.**
+Free, open source and installable as a wheel on every platform the scheduled runner uses
+(Invariant 3, NFR-01). It handles missing values natively, which is not a convenience here: much of
+this feature store is legitimately null — a per-90 rate over a window in which nobody played is
+*unmeasured* — and the alternative is imputing a number, which is the invented fact [DL-18](#dl-18)
+warns against. It takes categorical features without a one-hot expansion of twenty-five club codes.
+And it is the library [DL-04](#dl-04) already named as this project's intended stack for exactly
+this. LightGBM would be faster on a dataset a thousand times this size and brings a compiled
+dependency for it.
+
+**3. The same features, deliberately, rather than the best features that could be assembled.**
+The monolith reads exactly the 44 columns the feature store *declares* as inputs — every one of
+them, none dropped — plus position, so 45 in all. (The prior-season features are not among them
+because that prior is disabled in the shipped configuration; enabling it would widen both sides of
+this comparison at once, which is the point of reading the declaration rather than a list.) Not
+a richer hand-engineered set: the question is what is achievable **on this data**, and a monolith
+that won by being given more would measure the feature store rather than the formulation. The
+allow-list is also the look-ahead guarantee — every declared input is stamped `BEFORE_DEADLINE` or
+`AT_DEADLINE`, so a new outcome column appearing in the fold frame cannot reach the model by
+default, where a deny-list would admit it silently and the backtest would *improve*.
+
+**4. The same fold assembly, reused rather than rebuilt.** It is fitted by `walk_forward` on the
+same `training_rows` frame the chain gets and predicts on the same outcome-stripped `visible` frame.
+A second training-set construction is a second chance to leak — precisely the trap [DL-28](#dl-28)
+records for a different piece of code — and a leaking benchmark would report a gap that is entirely
+its own dishonesty, with every metric looking *better* rather than worse. The regression test asserts
+the consequence rather than the mechanism: rewrite every gameweek after a fold's deadline and that
+fold's monolith predictions must come back **bit-identical**.
+
+**5. What the monolith does not get, named rather than hidden (DP-09).** The chain does not consume
+the opponent's id as an identifier — it turns it into M2's fitted attack and defence ratings, pooled
+over every match that club has played. The monolith gets the raw club as a *category* and must
+rediscover that pooling from splits. So the gap below is a **lower bound** on what a monolith could
+do with a fixture-difficulty feature, and an honest measure of what one does with what the chain is
+actually handed. Giving it M2's output would make it a hybrid of the thing it is benchmarking.
+
+**6. Ordinary, unswept hyperparameters, and that is the honest setting for a ceiling.** A monolith
+tuned against the folds it is graded on would report its own overfitting as the chain's deficit. If
+the gap ever matters enough to argue about, the answer is a held-out tuning season, not a sweep
+(DP-12).
+
+### The evidence
+
+The standard grid: 72 folds over 2024/25 and 2025/26, 54,045 observations, `fixture_coverage` 1.0,
+every candidate flag off — the shipped configuration, on the repaired fixtures of [DL-52](#dl-52).
+The monolith's final fold fits on 55,096 rows and did not degrade in any fold that was scored.
+
+| | chain (`xp_v1`) | **monolith** | B0 | model-free |
+| --- | --- | --- | --- | --- |
+| MAE | **1.93106** | 1.99420 | 1.96499 | 2.11489 |
+| MAE skill vs chain | — | **−0.0327** | — | — |
+| Spearman | 0.25058 | **0.32087** | 0.21385 | 0.29104 |
+| **Top-20 precision** | 0.12153 | **0.16597** | **0.16597** | 0.14444 |
+| Captaincy hit rate | 0.02778 | **0.08333** | 0.05556 | 0.06944 |
+| Calibration slope | **0.68990** | 0.55502 | 0.60553 | 0.39406 |
+
+**The trade is real and it is significant.** Paired per gameweek over the 72 folds:
+
+| | chain | monolith | paired | |
+| --- | --- | --- | --- | --- |
+| Top-20 precision | 0.12153 | 0.16597 | **+0.04444 ± 0.01147** | **t = +3.87**, moved in 52 of 72 |
+| Spearman | 0.24929 | 0.31494 | **+0.06565 ± 0.00801** | **t = +8.20**, moved in 72 of 72 |
+| Captaincy hit rate | 0.02778 | 0.08333 | +0.05556 ± 0.02718 | t = +2.04, moved in **4** of 72 |
+
+That precision contrast is **the largest significant movement anywhere in E10**, and it is a deficit
+of the shipped model rather than a gain from a candidate. Every arm S1 to S4 measured moved the head
+by less than two standard errors; this moves it by nearly four.
+
+**And the per-position split says it is not a statement about interpretability in general.**
+
+| | chain | monolith | paired precision | | chain | monolith | paired Spearman |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| **FWD** | 0.15972 | 0.21875 | **+0.05903, t = +2.64** | | 0.25508 | 0.42178 | **+0.16670, t = +8.09** |
+| **MID** | 0.14484 | 0.16468 | +0.01984, t = +1.18 | | 0.27055 | 0.36189 | **+0.09134, t = +8.38** |
+| **DEF** | 0.11111 | 0.10714 | −0.00397, t = −0.30 | | 0.21660 | 0.23422 | +0.01762, t = +1.62 |
+| **GKP** | 0.20833 | 0.17130 | −0.03704, t = −1.30 | | 0.10691 | 0.08142 | −0.02549, t = −0.98 |
+
+**The whole gap is forwards and midfielders. At goalkeeper and defender the chain is level or
+ahead**, and GKP is the one position where the chain beats the monolith on both measures — which is
+the first evidence in this epic that E10-S4's formulation work was aimed at a position that was
+never the problem, and corroborates [DL-52](#dl-52)'s finding that "GKP is unranked" was a broken
+fixture join rather than a model deficiency.
+
+**The finding that changes what E10 is for: the ceiling at the head *is* B0.** The monolith's
+top-20 precision is **0.16597** and B0's is **0.16597** — the same number to five decimal places,
+paired difference **+0.00000, t = 0.00**. This is a coincidence of the means and not a duplicated
+column: the two disagree in 60 of 72 gameweeks and are equal in only 12, and their Spearman
+(0.321 against 0.214), MAE and calibration are nowhere near each other. Averaged over 72 gameweeks
+the metric takes values in multiples of 1/1440, so a collision is unlikely rather than impossible,
+and it is recorded here precisely because a reader would otherwise suspect a bug.
+
+What it means is worth more than the coincidence. **A gradient-boosted model with every feature this
+project has recovers the chain's entire deficit to price at the head — and stops exactly there.**
+E10 §0's target is to *beat* B0 at the head. Nothing measured in this epic does, and now the ceiling
+on this feature set has been measured and it does not either. That reframes the remaining problem
+from "the chain's formulation is losing to price" to "**this feature set contains about as much
+head-of-ranking information as price does**", which is a data question (E12) rather than a
+formulation one.
+
+**The chain remains the best error-avoider, which is [DL-21](#dl-21)'s shape one level up.** The
+monolith is *worse* on MAE (1.994 against 1.931, skill −0.033) and worse calibrated (slope 0.555
+against 0.690, further from 1 in every position). It buys ranking with scale, exactly as
+[DL-49](#dl-49) predicted when it redirected this epic: the deficiency is **correlation, not
+scale**, and the monolith is a demonstration that correlation is where the recoverable information
+was.
+
+### The DP-10 statement
+
+**Explainability is not free at the head of the ranking. It costs 0.044 of top-20 precision
+(t = 3.87) and 0.066 of Spearman (t = 8.20), concentrated entirely in forwards and midfielders.**
+That is the number DP-10 requires and it is now reported on every backtest run rather than assumed.
+
+**And the chain is still the right formulation, for three reasons that are not "we prefer it".**
+
+1. **Promoting the monolith would not lift the constraint the gap is about.** [DL-21](#dl-21)'s
+   guardrail — no −8 hit, chip or wildcard justified by the model alone until top-20 precision beats
+   B0 — would remain in force, because the monolith *ties* B0 and does not beat it. The project
+   would trade every component decomposition it has for a model that leaves the binding decision
+   rule exactly where it is.
+2. **It cannot satisfy the contracts the chain does.** Invariant 6 requires mean **and variance**;
+   DP-09 requires the decomposition by scoring component, which is a product feature and not a
+   debugging aid. The monolith emits a point estimate and nothing else. "Promote the monolith" is
+   therefore not a one-line configuration change that was declined — it is a rewrite of the
+   model→optimiser contract, and the accuracy case for it is a tie at the head.
+3. **A gap concentrated in two positions is a lead, not a verdict** (E10 §0). The monolith is
+   telling us where recoverable information sits — attacking returns for forwards and midfielders,
+   through the raw rolling features rather than through the chain's shrunk per-90s — and that is
+   something the chain can be given without becoming opaque.
+
+So the answer to [Q-04](04-conceptual-design.md#15-open-design-questions) is recorded rather than
+left open: **the monolith is materially better at ranking and materially worse at everything else,
+and the chain stands.** This is a decision taken on evidence, and the evidence is re-taken every
+run, which means it can change its mind.
+
+### Rejected alternatives
+
+**Give the monolith a richer feature set — fixture difficulty from M2, ownership, price change
+momentum.** Rejected as answering a different question. The point is an apples-to-apples ceiling on
+*this* data; a monolith that won by being given more would prove that more features help, which
+nobody doubts, and would say nothing about the formulation. It would also stop being a benchmark and
+start being a hybrid of the thing under test (decision 5).
+
+**Tune the hyperparameters until the monolith is as good as it can be.** Rejected on DP-12. Swept
+against the same 72 folds it is scored on, the monolith would report its own overfitting as the
+chain's deficit — and the resulting gap would be an argument for abandoning interpretability, made
+with a number that does not survive a held-out season.
+
+**Give it a `discrimination.monolith` flag "for symmetry" with S1 to S4.** Rejected, and this is the
+one worth being explicit about. The epic says it is never promoted without an explicit DP-10
+decision; a flag is a mechanism for promoting something *without* one. Symmetry with the other four
+stories would be a cost, not a benefit.
+
+**Make it an optional dependency, so an environment without scikit-learn still runs the backtest.**
+Rejected. A benchmark that is present only when an extra was installed is one that silently stops
+being reported, and the whole design of this story is that the number is taken again every run.
+scikit-learn is a hard dependency of `fpl-dof` as of this change.
+
+**Report only the aggregate gap.** Rejected on E10 §0, and the evidence vindicates it: the aggregate
++0.044 reads as "interpretability costs us at the head", and the split says it costs us **at forward
+and midfield** and buys us something at goalkeeper. Those are different findings and only one of
+them is actionable.
+
+### Consequences
+
+- **E10-S5's acceptance is met**: the head-of-ranking gap is reported every backtest run — in
+  `backtest.json` under `explainability_gap`, as a benchmark row and a dedicated section in
+  `backtest-card.md`, in the stage metrics on the run manifest, and as a plain-language sentence on
+  the **model card**, which is the document actually read before a deadline. The sentence is written
+  once, in `forecast/monolith.py`, and reproduced verbatim by both consumers: two wordings of one
+  finding is two chances to word one of them reassuringly.
+- **`scikit-learn>=1.6` is now a hard dependency of the pipeline** (Invariant 3 satisfied: free,
+  open source, zero running cost). The backtest is slower by roughly the cost of 72 boosted fits.
+- **E10 closes with four candidates flagged off and one benchmark permanently on.** No flag was
+  promoted by any of S1 to S5, which is the honest outcome of an epic that measured five things and
+  found none of them cleared its bar.
+- **The reframing is the handover to E11/E12.** "The chain loses to price at the head" was read for
+  three stories as a formulation problem. The ceiling measurement says the feature set is the
+  binding constraint, so the next place to look is [E12](epics/E12-data-widening-for-priors.md)'s
+  data widening rather than a sixth reformulation of the chain.
+- **The DL-21 guardrail is untouched and remains in force.** Nothing here beats B0 at the head,
+  including the ceiling.
+
+---
+
+## DL-54 — Post-E10 code review: a second team-id space-mixing guard, and four minor cleanups
+
+**Date:** 2026-08-21 · **Status:** Accepted · **Arose in:** an eight-angle code-review pass over
+E10-S1 through S5 plus the D-26 fix, run before committing
+
+### Context
+
+An eight-angle parallel review (shadow-mode gating, no-look-ahead correctness, the archive
+team-id/club-code trace, the "flag-off is byte-identical" claim, reuse, efficiency, structural fit,
+and CLAUDE.md conventions) was run over the full E10 diff before commit. Shadow-mode gating (DP-08)
+came back clean — every `discrimination.*` flag resolves to `None`-or-configured exactly once, in
+`fit_components`, and the monolith is structurally unreachable from `optimise`/`decision`/`publish`
+(enforced by a text-scan test in `test_monolith.py`, the same idiom `test_source_isolation.py` uses
+for Invariant 1). Three angles independently converged on the same real gap; four smaller findings
+were fixed alongside it. One flagged concern was investigated and found to be a false alarm.
+
+### Decision
+
+**Fixed, before commit:**
+
+1. **`TeamStrengthModel.fit` gains an explicit guard against pooling two `team_id` spaces.**
+   [DL-52](#dl-52) fixed the archive's own `team_id` (it now writes FPL's stable club code, not
+   `None`), but three review angles (no-look-ahead, the archive tracer, and structural fit)
+   independently found the fix stops at the archive boundary: `TeamStrengthModel.fit` groups by
+   `team_id` alone, with no check that every row in the frame means the same thing by it. The live
+   feed writes a *season-local* team id (`sources/fpl/adapter.py`); the archive writes the *stable
+   club code*; both are internally consistent and both are silently wrong the moment a frame
+   contains both, because eight to ten of the twenty season-local ids point at a different club than
+   their code does. `forecast/live.py` already carries a hand-written guard for this
+   (`this_season = past[past["season"] == rules.season]`) at its one call site — but the backtest
+   harness's own `ComponentPredictor.fit` (`xp_v1.py`, the model the whole epic grades) had no such
+   guard, protected only by `BacktestConfig.training_seasons`'s default happening to exclude the
+   live season. A config default is not a code invariant, and the epic's own promotion path
+   explicitly requires widening the backtest to include live shadow gameweeks once they exist — the
+   exact next step that would have silently corrupted M2. `TeamStrengthModel.fit` now takes an
+   optional `current_season` and raises `ValueError` if the frame contains it alongside any other
+   season, wired through `fit_components` (used by both the live path and the graded backtest
+   predictor). This is the DP-08 bug-fix exception again, same reasoning as DL-52 itself: a stable
+   fact about club identity, not a judgement call.
+   - **Not done, and left as residual, documented risk**: the deeper fix all three angles pointed at
+     — a `team_code` column mirroring the `player_code`/`player_id` split `PlayerGameweekSchema`
+     already gives players — would remove the need for callers to remember a guard at all, and is
+     the right shape for E12 or a dedicated follow-up, not a same-session addition to a review pass.
+     `stages/backtest.py`'s `fixture_difficulty` (a report-only diagnostic) and `MonolithPredictor`'s
+     raw categorical `FIXTURE_TEAM`/`FIXTURE_OPPONENT` columns (shadow-only, never a decision input)
+     were not threaded with the same guard — both are lower blast-radius (a noisier report / a
+     noisier shadow number, not a corrupted graded prediction), and both are already scoped as
+     follow-up alongside the `team_code` column.
+2. **`monolith.py`'s `MINIMUM_TRAINING_ROWS = 200` module constant moved into
+   `MonolithConfig.minimum_training_rows`** (DP-06) — every sibling tunable in that class was
+   already a documented `Field`; this one constant wasn't, with no `DP-WAIVER`.
+3. **`DiscriminationConfig`'s docstring corrected** — it claimed the flag-off regression guarantee
+   was tested "in `tests/test_forecast.py`"; the real tests are each story's own module
+   (`test_minutes_calibration.py`, `test_adaptive_shrinkage.py`, `test_duty.py`,
+   `test_goalkeeper.py`). A reader following the docstring's own pointer would have found nothing.
+4. **A stale comment in `optimise/replay.py`** still said archive club ids were season-local,
+   predating DL-52's fix. Corrected to state the real reason the call site is safe (it is already
+   filtered to one season).
+5. **`_evidence_minutes` documents a real, currently-dormant behaviour change** the "byte-identical"
+   audit found: the pre-diff inline expression used `if minutes:` as its guard, which passes for
+   `nan` (`bool(nan) is True`), so a missing `minutes_mean_last6` used to silently produce `nan`
+   rather than `0.0`. The shipped feature store cannot currently emit that combination, so this was
+   never reachable either before or after — recorded in the docstring so a future change to
+   `build_features` doesn't quietly resurrect the worse, silent-NaN behaviour.
+
+**Investigated and found to be a false alarm, not fixed:** two review angles independently flagged
+`except TypeError, ValueError:` (bare-comma multi-exception, in `duty.py` and `sources/fplarchive/
+adapter.py`) as invalid Python-2-era syntax. Verified with `ast.parse`, a live interpreter, and the
+fact that the full test suite already imports and exercises both modules without error: Python 3.14
+(PEP 758, this project's pinned interpreter) accepts bare comma-separated exception types in an
+`except` clause and treats them as a tuple. Not a bug.
+
+**Not fixed, recorded as minor follow-up debt, not urgent enough to hold the epic on:** two reuse
+findings (the archive adapter's `_normalise` reimplements `sources/names.py`'s existing
+`team_key`, weaker — no accent-folding; `GoalkeeperSavesModel.fit` hand-rewrites `RateModel`'s
+shrinkage arithmetic instead of reusing it, and has already drifted from S2's adaptive-shrinkage
+extension as a result) and two efficiency findings (`DutyTable` is rebuilt from unchanging config on
+every one of ~150 backtest folds instead of once; `MinutesReporting.minutes_probabilities` reruns a
+full second `iterrows()` pass that `predict()` already computed). None change a published number;
+all are cheap to fix later and none was judged worth extending this review-and-commit pass for.
+
+### Consequences
+
+The graded backtest predictor and the live forecast path now share one enforced guarantee about
+`team_id` rather than one enforced (`live.py`) and one merely undisturbed by today's config
+(`xp_v1.ComponentPredictor`/backtest). The four other fixes are corrections to documentation and a
+DP-06 gap, not behaviour changes — the full suite (854 tests), ruff, and mypy stay green with
+identical results before and after this pass.
+
+---
+
 ## Open decisions
 
 Decisions deliberately deferred, with the point at which each must be resolved.

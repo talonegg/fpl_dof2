@@ -39,7 +39,14 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
-from fpl_dof.config.models import ForecastConfig
+from fpl_dof.config.models import (
+    AdaptiveShrinkageConfig,
+    ForecastConfig,
+    GoalkeeperConfig,
+    MinutesV2Config,
+)
+from fpl_dof.forecast.duty import DutyTable
+from fpl_dof.forecast.features import absence_feature_name, congestion_feature_name
 from fpl_dof.frames import as_float, as_int
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.rules.models import GameRules, Position
@@ -47,6 +54,20 @@ from fpl_dof.rules.models import GameRules, Position
 log = get_logger(__name__)
 
 MINUTES_BANDS = ("none", "short", "long")
+
+
+def _row_value(row: pd.Series, column: str) -> float:
+    """A float from a feature row, or NaN when the column is unnamed, absent or null.
+
+    NaN rather than a zero throughout: "this run does not compute that feature" and "the player
+    played none of the window" are different claims, and only one of them should move a forecast.
+    """
+    if not column:
+        return float("nan")
+    value = row.get(column)
+    if value is None or pd.isna(value):
+        return float("nan")
+    return float(value)
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +101,19 @@ class MinutesModel:
     by_group: dict[tuple[str, int], tuple[float, float, float]] = field(default_factory=dict)
     population: tuple[float, float, float] = (0.4, 0.2, 0.4)
     appearance_bands: tuple[float, ...] = (0.25, 0.6, 0.85)
+
+    v2: MinutesV2Config | None = None
+    """E10-S1's candidate behaviour, or ``None`` for the graded default chain (DP-08, DL-47).
+
+    ``None`` rather than a bool so the object cannot be half-configured: either the tunables are
+    present and the adjustments run, or neither is true. With ``None`` this class computes exactly
+    what it computed before E10-S1 existed, which is the regression guarantee the flag rests on."""
+
+    congestion_column: str = ""
+    absence_column: str = ""
+    """Where :meth:`predict_row` finds the two v2 signals. Held here rather than looked up by each
+    caller, because the names encode the configured windows and two callers spelling them
+    separately is how the live path and the harness start reading different features."""
 
     def band(self, appearance_rate: float) -> int:
         if math.isnan(appearance_rate):
@@ -132,25 +166,117 @@ class MinutesModel:
         return self
 
     def predict(
-        self, position: str, appearance_rate: float, *, status_multiplier: float = 1.0
+        self,
+        position: str,
+        appearance_rate: float,
+        *,
+        status_multiplier: float = 1.0,
+        matches_in_window: float = float("nan"),
+        recent_absence_share: float = float("nan"),
     ) -> MinutesDistribution:
         """The distribution, with availability news applied as a multiplier on playing at all.
 
         News is applied here rather than folded into the fitted rates because it is information of
         a completely different kind: history says what usually happens, the status flag says what
         is known about this week. Mixing them would make the model unable to react to an injury.
+
+        ``matches_in_window`` and ``recent_absence_share`` are E10-S1's two signals and are read
+        **only** when :attr:`v2` is set. Passing them with the flag off changes nothing, which is
+        deliberate: the caller does not have to know which behaviour is configured.
         """
         none, short, long = self.by_group.get(
             (position, self.band(appearance_rate)), self.population
         )
+        v2 = self.v2
+        if v2 is not None:
+            none, short, long = self._adjusted(
+                none,
+                short,
+                long,
+                v2,
+                appearance_rate=appearance_rate,
+                matches_in_window=matches_in_window,
+                recent_absence_share=recent_absence_share,
+            )
         if status_multiplier < 1.0:
             scale = max(0.0, min(1.0, status_multiplier))
-            short, long = short * scale, long * scale
+            if v2 is None:
+                short, long = short * scale, long * scale
+            else:
+                # P(play) stays exactly where the flag puts it; only its split moves. A doubtful
+                # player who does feature is likelier to be eased in than to start and finish, and
+                # scaling both states equally prices him as a full starter half the time.
+                plays = (short + long) * scale
+                penalty = 1.0 - v2.availability_start_penalty * (1.0 - scale)
+                long = max(0.0, long * scale * penalty)
+                short = max(0.0, plays - long)
             none = 1.0 - short - long
         total = none + short + long
         if total <= 0:
             return MinutesDistribution(1.0, 0.0, 0.0)
         return MinutesDistribution(none / total, short / total, long / total)
+
+    def predict_row(
+        self, row: pd.Series, position: str, *, status_multiplier: float = 1.0
+    ) -> MinutesDistribution:
+        """:meth:`predict`, given a feature row rather than loose floats.
+
+        The call every scorer should use. It exists so that "which columns carry the minutes
+        signals" is answered once, by the fitted model that knows how it was configured, rather
+        than at each of the three call sites that would otherwise have to agree about it.
+        """
+        return self.predict(
+            position,
+            float(row.get("appearance_rate") or 0.0),
+            status_multiplier=status_multiplier,
+            matches_in_window=_row_value(row, self.congestion_column),
+            recent_absence_share=_row_value(row, self.absence_column),
+        )
+
+    def _adjusted(
+        self,
+        none: float,
+        short: float,
+        long: float,
+        v2: MinutesV2Config,
+        *,
+        appearance_rate: float,
+        matches_in_window: float,
+        recent_absence_share: float,
+    ) -> tuple[float, float, float]:
+        """E10-S1's two history-based adjustments, as one multiplier on the 60+ state.
+
+        Both push the same way and are therefore composed rather than added: a congested run and a
+        return from a spell out are separate reasons to doubt a full ninety, and a player with both
+        deserves both doubts. Neither can move P(play), because neither is evidence of
+        unavailability — they say how long he stays on, not whether he is picked at all.
+        """
+        scale = 1.0
+        if not math.isnan(matches_in_window):
+            excess = max(0.0, matches_in_window - v2.congestion_baseline_matches)
+            scale *= max(0.0, 1.0 - v2.congestion_rotation_strength * excess)
+        if (
+            not math.isnan(recent_absence_share)
+            and not math.isnan(appearance_rate)
+            and appearance_rate >= v2.return_established_appearance_rate
+        ):
+            scale *= max(0.0, 1.0 - v2.return_ramp_strength * recent_absence_share)
+        if scale >= 1.0:
+            return none, short, long
+
+        # The mass leaving the 60+ state is split across the other two in the proportion the
+        # fitted population already exhibits — a rotated player is sometimes a cameo and sometimes
+        # an unused substitute, and the population is the only evidence to hand about which.
+        freed = long * (1.0 - scale)
+        weight_none, weight_short = self.population[0], self.population[1]
+        denominator = weight_none + weight_short
+        if denominator <= 0:
+            return none, short + freed, long * scale
+        return (
+            none + freed * weight_none / denominator,
+            short + freed * weight_short / denominator,
+            long * scale,
+        )
 
     def describe(self) -> dict[str, object]:
         return {
@@ -160,6 +286,8 @@ class MinutesModel:
                 for name, value in zip(MINUTES_BANDS, self.population, strict=True)
             },
             "appearance_bands": list(self.appearance_bands),
+            # Named even when absent, so a model card never has to imply a candidate from silence.
+            "minutes_v2": None if self.v2 is None else self.v2.model_dump(),
         }
 
 
@@ -179,14 +307,36 @@ class TeamStrengthModel:
     home_advantage: float = 1.12
     half_life_matches: float = 20.0
 
-    def fit(self, matches: pd.DataFrame) -> TeamStrengthModel:
+    def fit(self, matches: pd.DataFrame, *, current_season: str | None = None) -> TeamStrengthModel:
         """``matches``: one row per team per fixture, with goals for and against.
 
         Time-decayed by an exponential half-life, because a promoted side's September is weak
         evidence about their April, and a manager change makes last season nearly irrelevant.
+
+        ``current_season``, when given, is the guard D-26 found missing (DL-52/DL-54): ``team_id``
+        means the archive's stable club *code* in a prior season and the live feed's *season-local*
+        id in the current one — two spaces that happen to share a column name. Grouping by
+        ``team_id`` alone would silently blend two different clubs' goals wherever the numbers
+        coincide. Pooling *within* the archive's own prior seasons is fine and intended — the code
+        is stable across them by construction — so this only refuses the one combination that
+        isn't: the current season sharing a frame with any other.
         """
         if matches.empty:
             return self
+        if (
+            current_season is not None
+            and "season" in matches.columns
+            and current_season in set(matches["season"])
+            and set(matches["season"]) != {current_season}
+        ):
+            raise ValueError(
+                f"team strength fit was handed {sorted(set(matches['season']))!r} alongside the "
+                f"current season {current_season!r}: the current season's team_id is a "
+                "season-local id and every other season's is the archive's stable club code "
+                "(D-26) — pooling them silently attributes one club's goals to another wherever "
+                "the numbers coincide. Fit the current season on its own (see forecast/live.py's "
+                "this_season split), or fit the other seasons without it."
+            )
         frame = matches.dropna(subset=["team_id", "goals_for", "goals_against"]).copy()
         if frame.empty:
             return self
@@ -268,6 +418,14 @@ class RateModel:
     prior_season_minutes: float = 900.0
     """Prior-season minutes at which a player's own prior-season ratio carries half the weight."""
 
+    adaptive: AdaptiveShrinkageConfig | None = None
+    """E10-S2's evidence-adaptive prior weight, or ``None`` for the graded default chain.
+
+    ``None`` rather than a bool, for the same reason :attr:`MinutesModel.v2` is: either the
+    tunables are present and the behaviour runs, or neither is true, and the object cannot be left
+    half-configured. With ``None`` :meth:`predict` computes exactly what it computed before E10-S2
+    existed, which is the regression guarantee the flag rests on (DP-08, DL-47)."""
+
     def fit(self, history: pd.DataFrame) -> RateModel:
         if history.empty or self.column not in history.columns:
             return self
@@ -317,8 +475,50 @@ class RateModel:
         prior *= self._prior_scale(prior_ratio, prior_ratio_minutes)
         if math.isnan(observed_rate) or minutes_observed <= 0:
             return prior
-        weight = minutes_observed / (minutes_observed + self.prior_minutes)
+        prior_weight = self.prior_minutes * self._evidence_scale(minutes_observed)
+        weight = minutes_observed / (minutes_observed + prior_weight)
         return weight * observed_rate + (1.0 - weight) * prior
+
+    def prior_share(self, minutes_observed: float) -> float:
+        """How much of this prediction comes from the position prior rather than from the player.
+
+        ``1 - weight``, the other half of :meth:`predict`'s blend, exposed because the E10-S3 duty
+        term needs exactly it: a taker's own fitted rate already contains his penalties, so the part
+        of his duty the model has lost is the part shrinkage replaced with a prior that contains
+        almost none. Returning it here rather than recomputing the weight at the scorer is what
+        stops two versions of the shrinkage arithmetic existing.
+
+        One for a player with no evidence, which is the honest answer — his prediction *is* the
+        prior — and the case where a duty term is worth the most.
+        """
+        if minutes_observed <= 0:
+            return 1.0
+        prior_weight = self.prior_minutes * self._evidence_scale(minutes_observed)
+        return float(prior_weight / (minutes_observed + prior_weight))
+
+    def _evidence_scale(self, minutes_observed: float) -> float:
+        """How much of the flat prior weight this much evidence is allowed to remove (E10-S2).
+
+        One with the flag off, and one below the onset with it on, so the change is confined to the
+        players it is *about*: shrinkage exists to stop three appearances being read as a rate, and
+        nothing here relaxes that. Above the onset it ramps linearly down to ``1 - strength``.
+
+        Not a smooth curve, because the shape is a claim about players and a reader has to be able
+        to disagree with it in the terms it is stated in (DP-10). "Nothing changes below 600
+        minutes, and by 1800 the prior counts for 40% of what it did" is a sentence you can argue
+        with; a logistic in two fitted coefficients is not.
+        """
+        adaptive = self.adaptive
+        if adaptive is None:
+            return 1.0
+        span = adaptive.full_minutes - adaptive.onset_minutes
+        if span <= 0:
+            # A degenerate range is a step at the threshold rather than a division by zero, and a
+            # threshold is what the configuration was asking for by collapsing the two ends.
+            ramp = 1.0 if minutes_observed >= adaptive.full_minutes else 0.0
+        else:
+            ramp = min(1.0, max(0.0, (minutes_observed - adaptive.onset_minutes) / span))
+        return 1.0 - adaptive.strength * ramp
 
     def _prior_scale(self, ratio: float, minutes: float) -> float:
         """How far the position prior moves toward a player's prior-season ratio.
@@ -338,6 +538,169 @@ class RateModel:
             "population_prior": round(self.population_prior, 4),
             "prior_minutes": self.prior_minutes,
             "prior_season_minutes": self.prior_season_minutes,
+            # Named even when absent, so a model card never has to imply a candidate from silence.
+            "adaptive_shrinkage": None if self.adaptive is None else self.adaptive.model_dump(),
+        }
+
+
+@dataclass
+class GoalkeeperSavesModel:
+    """E10-S4's candidate: saves from the pressure M2 expects, not from a fixture-blind per-90.
+
+    Fitted only when ``discrimination.gkp_v2`` is on, and absent otherwise, so with the flag off
+    nothing in the chain knows this exists (DP-08, DL-47).
+
+    **What it replaces and why.** Everything else a goalkeeper scores for already runs through M2 —
+    the clean sheet is a Poisson on the opponent's expected goals, the concession penalty is that
+    same expectation. Saves alone came from :class:`RateModel`, the generic estimator used for every
+    outfield rate, which knows only what the keeper's own last six matches produced and applies it
+    identically to a trip to the champions and a home game against the bottom club. That is the
+    wrong shape for the statistic: **a save is a shot faced, and shots faced are the defence in
+    front of him.**
+
+    **Shots are not available and are not invented** — nothing on ``player_gameweek`` counts them.
+    Expected goals conceded stands in, and is named as a proxy rather than passed off as the thing
+    (DP-09): it is computed from shots upstream, so more of it means more shots faced, and the
+    substitution is an argument a reader can reject on its own terms (DP-10).
+
+    **The formulation, in one sentence.** A keeper's save rate is his shot-stopping volume times the
+    defence he plays behind; divide out the defence he *has* played behind, shrink what is left
+    toward the goalkeeper population, and multiply back the defence M2 says he will face this week.
+
+    Both quantities enter as ratios to a league mean — his historical pressure against the keeper
+    population's, the fixture's expectation against M2's own ``league_mean_goals`` — so the units
+    cancel exactly and it does not matter that M2 is fitted on goals while the history is measured
+    in expected goals. A keeper of average pressure facing an average fixture gets back precisely
+    the number the old chain gave him, which is the property that makes the change a re-attribution
+    rather than a rescaling.
+    """
+
+    config: GoalkeeperConfig
+    prior_minutes: float = 900.0
+    by_player: dict[int, float] = field(default_factory=dict)
+    """Player code -> pressure-adjusted saves per 90, already shrunk toward the population."""
+
+    population_per90: float = 0.0
+    """The goalkeeper population's saves per 90. What an unseen keeper is worth, which is the right
+    answer for a debutant and the wrong one to invent from two appearances."""
+
+    pressure_column: str = ""
+    """Which column measured the pressure faced. Recorded rather than assumed, because the fallback
+    below changes what the ratio *means* and a card that did not say so would be describing a
+    different model from the one that ran (DP-09, DP-15)."""
+
+    keepers: int = 0
+
+    def fit(self, history: pd.DataFrame) -> GoalkeeperSavesModel:
+        """Learn each keeper's saves per 90 net of the pressure he faced.
+
+        Falls back from expected goals conceded to *actual* goals conceded when the archive carries
+        no expected figure, rather than declining to fit (DP-15). Actual goals are a far noisier
+        measure of shots faced than expected goals, so the fallback is a worse model and not an
+        equivalent one; it is recorded in :attr:`pressure_column` for exactly that reason.
+        """
+        if history.empty or not {"position", "minutes", "saves"} <= set(history.columns):
+            return self
+        frame = history[
+            (history["position"] == Position.GKP.value) & (history["minutes"] > 0)
+        ].dropna(subset=["saves", "minutes"])
+        if frame.empty:
+            return self
+
+        column = next(
+            (
+                candidate
+                for candidate in ("expected_goals_conceded", "goals_conceded")
+                if candidate in frame.columns and frame[candidate].notna().any()
+            ),
+            "",
+        )
+        if not column:
+            return self
+        frame = frame.dropna(subset=[column])
+        total_minutes = float(frame["minutes"].sum())
+        total_pressure = float(pd.to_numeric(frame[column], errors="coerce").sum())
+        if total_minutes <= 0 or total_pressure <= 0:
+            return self
+
+        self.pressure_column = column
+        self.population_per90 = (
+            float(pd.to_numeric(frame["saves"], errors="coerce").sum()) / total_minutes * 90.0
+        )
+        league_pressure_per90 = total_pressure / total_minutes * 90.0
+
+        for player_code, group in frame.groupby("player_code"):
+            minutes = float(group["minutes"].sum())
+            pressure = float(pd.to_numeric(group[column], errors="coerce").sum())
+            if minutes <= 0 or pressure <= 0:
+                continue
+            saves_per90 = float(pd.to_numeric(group["saves"], errors="coerce").sum())
+            saves_per90 = saves_per90 / minutes * 90.0
+            relative_pressure = (pressure / minutes * 90.0) / league_pressure_per90
+            if relative_pressure <= 0:
+                continue
+            adjusted = saves_per90 / relative_pressure
+            # The same shrinkage arithmetic as `RateModel`, deliberately: a normalised rate is
+            # still a rate estimated from a finite sample, and inventing a second way to shrink one
+            # is how two versions of the same idea end up disagreeing.
+            weight = minutes / (minutes + self.prior_minutes)
+            self.by_player[as_int(player_code)] = (
+                weight * adjusted + (1.0 - weight) * self.population_per90
+            )
+        self.keepers = len(self.by_player)
+        return self
+
+    def fixture_factor(self, goals_conceded_mean: float, league_mean_goals: float) -> float:
+        """How much harder than average this fixture is on the keeper, damped by the config weight.
+
+        A straight line through the average fixture, so ``fixture_weight`` of 0 is exactly today's
+        fixture-blind behaviour and 1 applies M2's ratio in full. Floored at zero because a factor
+        cannot be negative; nothing else clips it, since a genuinely brutal fixture *should* read as
+        a busy afternoon.
+        """
+        if league_mean_goals <= 0:
+            return 1.0
+        ratio = goals_conceded_mean / league_mean_goals
+        return max(0.0, 1.0 + self.config.fixture_weight * (ratio - 1.0))
+
+    def save_rate(
+        self,
+        player_code: float | None,
+        fitted_rate: float,
+        *,
+        goals_conceded_mean: float,
+        league_mean_goals: float,
+    ) -> float:
+        """The saves per 90 to score this keeper's fixture with.
+
+        ``fitted_rate`` is what the generic chain would have said. It is the answer under the
+        ``fixture_weighted`` arm, scaled to the fixture, and it is also the fallback under
+        ``separate`` for a keeper this model never saw — a debutant has no pressure history to
+        divide out, and substituting the population figure for him would discard the one thing the
+        old chain did know about him.
+        """
+        factor = self.fixture_factor(goals_conceded_mean, league_mean_goals)
+        if self.config.mode == "fixture_weighted" or not self.by_player:
+            return fitted_rate * factor
+        # `!= itself` rather than `pd.isna`: a missing player code is a NaN float here, and the
+        # comparison is the one NaN test that does not need the value to be a pandas scalar.
+        if player_code is None or player_code != player_code:
+            return fitted_rate * factor
+        level = self.by_player.get(as_int(player_code))
+        if level is None:
+            return fitted_rate * factor
+        return level * factor
+
+    def describe(self) -> dict[str, object]:
+        return {
+            "mode": self.config.mode,
+            "fixture_weight": self.config.fixture_weight,
+            "prior_minutes": self.prior_minutes,
+            "keepers": self.keepers,
+            "population_saves_per_90": round(self.population_per90, 4),
+            # Named because the fallback is a *worse* model rather than an equivalent one, and a
+            # card that reported neither would describe a model that did not run (DP-09, DP-15).
+            "pressure_column": self.pressure_column or None,
         }
 
 
@@ -420,12 +783,29 @@ class ComponentModels:
     rates: dict[str, RateModel]
     bonus: BonusModel
 
+    duty: DutyTable | None = None
+    """E10-S3's committed penalty-duty table, or ``None`` for the graded default chain.
+
+    ``None`` rather than an empty table, for the same reason :attr:`MinutesModel.v2` is not a bool:
+    an empty table and a candidate that is switched off are different claims, and only one of them
+    should be reported as "the model knows of no penalty takers" (DP-08, DP-15, DL-47)."""
+
+    goalkeeper: GoalkeeperSavesModel | None = None
+    """E10-S4's fixture-driven goalkeeper saves model, or ``None`` for the graded default chain.
+
+    ``None`` rather than a mode of "off", for the same reason the two fields above it are optional:
+    a model that ran and found no goalkeepers and a model that was never fitted are different
+    claims, and the backtest card has to be able to tell them apart (DP-08, DP-15, DL-47)."""
+
     def describe(self) -> dict[str, object]:
         return {
             "M1_minutes": self.minutes.describe(),
             "M2_team_strength": self.team_strength.describe(),
             **{f"rate_{name}": model.describe() for name, model in self.rates.items()},
             "M8_bonus": self.bonus.describe(),
+            # Named even when absent, so a model card never has to imply a candidate from silence.
+            "duty": None if self.duty is None else self.duty.describe(),
+            "goalkeeper": None if self.goalkeeper is None else self.goalkeeper.describe(),
         }
 
 
@@ -460,19 +840,45 @@ def fit_components(
     def observed_for(component: str) -> str:
         return xg.rate_sources.get(component, component) if xg.enabled else component
 
+    # E10's candidate behaviours, or the graded default. Each flag decides whether its tunables
+    # reach the model at all; nothing downstream of here can tell which, and nothing downstream has
+    # to (DP-08, DL-47).
+    discrimination = config.discrimination
     rates = {
         component: RateModel(
             column=observed_for(component),
             prior_minutes=config.shrinkage.rate_prior_minutes,
             prior_season_minutes=config.features.prior_season.prior_minutes,
+            adaptive=(discrimination.shrinkage if discrimination.adaptive_shrinkage else None),
         ).fit(history)
         for component in RATE_COMPONENTS
     }
+    minutes = MinutesModel(
+        v2=discrimination.minutes if discrimination.minutes_v2 else None,
+        congestion_column=congestion_feature_name(config.features),
+        absence_column=absence_feature_name(config.features),
+    )
     return ComponentModels(
-        minutes=MinutesModel().fit(history, rules.scoring.long_play_minutes),
-        team_strength=TeamStrengthModel().fit(matches),
+        minutes=minutes.fit(history, rules.scoring.long_play_minutes),
+        team_strength=TeamStrengthModel().fit(matches, current_season=rules.season),
         rates=rates,
         bonus=BonusModel(bonus_points=tuple(rules.scoring.bonus_points)).fit(history),
+        # Not fitted — read. The duty table is curated knowledge and there is nothing in `history`
+        # to learn it from; what the flag decides is whether the scorer sees it at all (DL-50).
+        duty=(
+            DutyTable(config.duty, discrimination.penalties) if discrimination.duty_term else None
+        ),
+        # Fitted on the same window as everything else, and only when the flag asks for it. The
+        # goalkeeper population is a few dozen players, so this costs a groupby over 11% of the
+        # rows and nothing downstream can tell it happened unless the flag is on (DL-47).
+        goalkeeper=(
+            GoalkeeperSavesModel(
+                config=discrimination.goalkeeper,
+                prior_minutes=discrimination.goalkeeper.prior_minutes,
+            ).fit(history)
+            if discrimination.gkp_v2
+            else None
+        ),
     )
 
 
@@ -485,6 +891,7 @@ __all__ = [
     "RATE_COMPONENTS",
     "BonusModel",
     "ComponentModels",
+    "GoalkeeperSavesModel",
     "MinutesDistribution",
     "MinutesModel",
     "RateModel",

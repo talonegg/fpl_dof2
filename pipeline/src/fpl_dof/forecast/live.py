@@ -114,9 +114,23 @@ def build_forecast(
     if past.empty:
         raise ColdStartError(f"no gameweek has kicked off before {deadline:%Y-%m-%d}")
 
+    # **Team strength is fitted on this season only, and the restriction is deliberate.** Club ids
+    # come from two sources in two spaces: the live feed writes FPL's *season-local* team id, and
+    # the archive writes the stable club *code* (D-26), because a season-local id points at a
+    # different club every year. Both are correct within their own season and meaningless across
+    # the boundary, so pooling them would rate this season's clubs partly on numbers that belong to
+    # other clubs — the same silent, plausible-looking wrongness the fixture ticker already refuses
+    # (DL-37). This is also exactly what the live path did before D-26 was fixed, when every
+    # archive row's null club was dropped here: the filter preserves the shipped behaviour rather
+    # than changing it. Widening M2 to prior seasons is a model change and needs DP-08's evidence,
+    # not a side effect of a source repair.
+    #
+    # The rate models below are unaffected: they are keyed on the player's stable code, which does
+    # cross seasons, so they keep training on everything.
+    this_season = past[past["season"] == rules.season]
     models = fit_components(
         training_set(history, deadline, config),
-        team_matches(past, use_xg=config.expected_goals.team_strength_from_xg),
+        team_matches(this_season, use_xg=config.expected_goals.team_strength_from_xg),
         config,
         rules,
     )

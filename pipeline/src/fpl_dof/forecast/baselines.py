@@ -28,6 +28,7 @@ from dataclasses import dataclass
 import numpy as np
 import pandas as pd
 
+from fpl_dof.config.models import ForecastConfig
 from fpl_dof.obs.logging import get_logger
 
 log = get_logger(__name__)
@@ -35,6 +36,9 @@ log = get_logger(__name__)
 MEAN_BASELINE = "b_mean"
 PRICE_BASELINE = "b0_price_position"
 FORM_BASELINE = "b_trailing_form"
+
+#: The minutes baseline M1 has to beat (E3-S3's acceptance, unmeasured until E10-S1 — DL-22).
+STATUS_HAIRCUT_BASELINE = "b_status_haircut"
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,12 +139,73 @@ def trailing_form_prediction(
     return merged[["player_code", "prediction"]]
 
 
+def status_flag_haircut_minutes(features: pd.DataFrame, config: ForecastConfig) -> pd.DataFrame:
+    """E0's minutes model, such as it was — the bar M1 was always supposed to clear.
+
+    E0 had **no minutes model** (debt D-02). What it had was a start probability shrunk from the
+    player's start rate, multiplied by an availability haircut read off the FPL status flag, and a
+    fixed prior that a non-starter appears at all. E3-S3's acceptance criterion was to beat that,
+    and [DL-22](../../../docs/planning/00-decision-log.md) found the criterion had never actually
+    been measured because ``minutes_brier`` was always null. This is the thing to measure against.
+
+    **The availability half is 1.0 for every historical row, and that is faithful rather than a
+    straw man.** The archive carries no status flag, and the flag is not the reason the haircut
+    was weak: the model card has said since E0 that *"nearly every player is flagged available, so
+    the availability haircut does almost nothing"*. What E0's minutes estimate really rested on was
+    the start rate, and that is reproduced here in full.
+
+    Two deliberate choices in the baseline's favour, because a baseline worth beating should be the
+    strongest honest version of itself:
+
+    * the start rate is taken **unshrunk**, so a nailed starter reads as a nailed starter rather
+      than being pulled toward a group prior;
+    * where starts were never recorded — before 2022/23 (``starts_recorded_from_season``) — the
+      appearance rate stands in, rather than the row being dropped, so the baseline is scored on
+      the same population the model is.
+    """
+    index = features.index
+    columns = ["none", "short", "long"]
+    if features.empty:
+        return pd.DataFrame(columns=columns, dtype=float)
+
+    availability = pd.Series(1.0, index=index, dtype=float)
+    if "status" in features.columns:
+        availability = (
+            pd.to_numeric(features["status"].map(config.status_multiplier), errors="coerce")
+            .fillna(1.0)
+            .astype(float)
+        )
+
+    appearance = pd.to_numeric(
+        features.get("appearance_rate", pd.Series(np.nan, index=index)), errors="coerce"
+    ).fillna(0.0)
+    starts = pd.to_numeric(
+        features.get("starts_rate", pd.Series(np.nan, index=index)), errors="coerce"
+    )
+    start_rate = starts.where(starts.notna(), appearance).clip(0.0, 1.0)
+
+    long = (availability * start_rate).clip(0.0, 1.0)
+    short = (
+        availability * (1.0 - start_rate) * config.minutes.appearance_rate_if_not_starting
+    ).clip(0.0, 1.0)
+    plays = (long + short).clip(0.0, 1.0)
+    # Renormalise rather than let the pair exceed one. It cannot with the default prior, and a
+    # distribution that silently sums past one is the kind of wrongness nothing downstream notices.
+    scale = (plays / (long + short)).where(long + short > 0, 0.0)
+    long, short = long * scale, short * scale
+    return pd.DataFrame({"none": 1.0 - long - short, "short": short, "long": long}, index=index)[
+        columns
+    ]
+
+
 __all__ = [
     "FORM_BASELINE",
     "MEAN_BASELINE",
     "PRICE_BASELINE",
+    "STATUS_HAIRCUT_BASELINE",
     "FittedBaseline",
     "fit_b0",
     "fit_mean_baseline",
+    "status_flag_haircut_minutes",
     "trailing_form_prediction",
 ]

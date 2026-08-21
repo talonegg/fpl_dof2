@@ -18,6 +18,11 @@ dependencies = [
     "pyarrow>=18",
     "pydantic>=2.10",
     "pyyaml>=6.0",
+    # The shadow monolith the backtest reports against on every run (E10-S5, DL-53). Free, open
+    # source and pure-wheel on every platform the scheduled runner uses, which is the whole reason
+    # it is scikit-learn and not LightGBM (Invariant 3, NFR-01). Not optional: a benchmark that is
+    # only present when an extra was installed is a benchmark that silently stops being reported.
+    "scikit-learn>=1.6",
 ]
 
 [project.optional-dependencies]
@@ -67,7 +72,7 @@ warn_unreachable = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["pulp.*", "pandera.*", "pyarrow.*"]
+module = ["pulp.*", "pandera.*", "pyarrow.*", "sklearn.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
