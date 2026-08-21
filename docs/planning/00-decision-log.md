@@ -3535,6 +3535,54 @@ The graded backtest predictor and the live forecast path now share one enforced 
 (`xp_v1.ComponentPredictor`/backtest). The four other fixes are corrections to documentation and a
 DP-06 gap, not behaviour changes — the full suite (854 tests), ruff, and mypy stay green with
 identical results before and after this pass.
+## DL-43 — `ingest-fast.yml` and `ingest-slow.yml` grant `contents: write`; the `data`-branch push was failing in production
+
+**Date:** 2026-08-20 · **Status:** Accepted · **Arose in:** live GitHub Actions failures on `main`,
+found while chasing a `/goal` to fix current CI defects
+
+### Context
+
+[DL-42](#dl-42--e7-lands-seven-workflows-a-deadline-relative-scheduling-seam-and-a-retention-mechanism-that-is-verified-against-a-real-remote-rather-than-assumed)
+recorded that an actual `GITHUB_TOKEN`-authenticated push to `github.com` was **unverifiable from a
+workstation** and could only be discharged by watching a real week happen. It has now happened, and
+it failed every time the fast-ingest schedule actually decided to fetch.
+
+### The defect
+
+Both `ingest-fast.yml` and `ingest-slow.yml` declare `permissions: contents: read` at the workflow
+level, but each ends its job by force-pushing the rebuilt `data` branch via `pipeline/scripts/
+retention.py` using `secrets.GITHUB_TOKEN`. A workflow-level `permissions:` block sets the token's
+actual grants for every job that does not override it — `contents: read` makes the push a 403 by
+construction, not by chance:
+
+```
+remote: Permission to talonegg/fpl_dof2.git denied to github-actions[bot].
+fatal: unable to access '.../fpl_dof2.git/': The requested URL returned error: 403
+```
+
+`ingest-fast.yml` only fetches on a minority of its hourly firings (the guard step decides), which is
+why most runs showed green — the push step, and the bug, was only reached when the guard said yes.
+Once it fired, the push failed, so `data` was never actually rebuilt with fresh bronze. Two further
+alerts trace to this same root cause rather than being independent: `Pipeline` and `Backtest` both
+failed downstream with `NoBronzeError: no bronze snapshot for fpl/bootstrap_static` — they inherited
+an empty `data` branch because ingest had never successfully published to it.
+
+### Decision
+
+Both workflows' `permissions:` block changes from `contents: read` to `contents: write`. No other
+workflow needed the same fix: `pipeline.yml` and `backtest.yml` only read the `data` branch (via
+`git fetch`/`git worktree`, which needs no write grant) and never push.
+
+### Consequence
+
+Four open `pipeline-alert` issues (#14 Ingest (fast), #15 Pipeline, #16 Ingest (slow), #17 Backtest)
+share this one root cause and are closed by this fix rather than needing four separate diagnoses. A
+fifth, `Deploy` (#13), is a **separate** defect: GitHub Pages has never been enabled for this
+repository (`GET /repos/.../pages` returns 404), so `actions/configure-pages@v5` 404s before it can
+run. That is a one-time repository-settings change (Settings → Pages → Build and deployment → Source:
+GitHub Actions), not a code fix, and needs the owner's action — enabling it programmatically requires
+an admin-scoped token this agent does not hold and was correctly blocked by the permission
+classifier.
 
 ---
 

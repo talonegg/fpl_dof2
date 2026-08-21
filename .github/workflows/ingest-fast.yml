@@ -24,7 +24,7 @@ concurrency:
   cancel-in-progress: false # a superseded run has nothing to gain by cancelling a cheap, fast one
 
 permissions:
-  contents: read
+  contents: write # pushes the rebuilt `data` branch (R-13)
 
 jobs:
   ingest:

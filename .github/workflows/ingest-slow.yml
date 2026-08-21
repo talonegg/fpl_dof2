@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write # pushes the rebuilt `data` branch and the permanent snapshot archive (R-13)
 
 jobs:
   ingest:
