@@ -412,6 +412,88 @@ class ExpectedGoalsConfig(_Section):
     )
 
 
+class TeamStrengthConfig(_Section):
+    """M2's home advantage: how it is fitted, what it falls back to, and how far it may move.
+
+    Home advantage used to be a bare ``1.12`` in the dataclass — a number with no source, no range
+    and nowhere to change it, which is exactly the shape Invariant 2 and DP-06 exist to stop
+    (E11-S2). It is also *measurable*, and measurement disagrees with the guess: the effect has
+    fallen since 2020, and the archive in this repository puts it near 1.09, not 1.12.
+
+    So M2 now fits it from the same time-decayed match set it fits everything else from, and these
+    fields say what that fit is allowed to do. The prior is not a guess either — it is the value the
+    fit itself returned over the backfilled archive (DL-55), which is what makes it a safe landing
+    place preseason, when there is no current-season evidence at all (DP-15).
+    """
+
+    home_advantage_prior: float = Field(
+        default=1.09,
+        gt=1.0,
+        description=(
+            "Home advantage where there is no evidence, and what a thin fit is shrunk toward. "
+            "1.09 is measured, not assumed: the estimator below, run over the 2023/24-2025/26 "
+            "archive at the shipped half-life, returns 1.0928 (DL-55). Held above 1.0 because a "
+            "league-wide *dis*advantage at home is not a hypothesis this model entertains."
+        ),
+    )
+    home_advantage_prior_matches: float = Field(
+        default=190.0,
+        gt=0,
+        description=(
+            "Effective time-decayed team-matches *per venue* at which the fit and the prior carry "
+            "equal weight. 190 is one league season of home fixtures, so a single season of "
+            "evidence is worth exactly as much as everything that came before it. Shrinkage rather "
+            "than a minimum-matches cliff, per DP-08: the value should move smoothly as evidence "
+            "accumulates, not jump the moment a counter passes a threshold."
+        ),
+    )
+    home_advantage_minimum: float = Field(
+        default=1.0,
+        ge=1.0,
+        description=(
+            "Floor on the fitted value. A season in which away sides outscored home sides is a "
+            "small-sample accident far more often than it is a real reversal, and letting the fit "
+            "invert would silently make every away fixture the easier one."
+        ),
+    )
+    home_advantage_maximum: float = Field(
+        default=1.30,
+        gt=1.0,
+        description=(
+            "Ceiling on the fitted value. Comfortably above every season the archive contains "
+            "(the widest is 2023/24 at 1.104), so it binds only on a degenerate fit — a handful of "
+            "matches, or a partial gameweek in which only the home sides have been scored."
+        ),
+    )
+    rating_prior_matches: float = Field(
+        default=0.0,
+        ge=0,
+        description=(
+            "Effective time-decayed matches at which a club's attack/defence rating and the "
+            "league-neutral 1.0 carry equal weight (E11-S4). ``0.0`` — the shipped default — "
+            "turns shrinkage off entirely: every club's rating is its own unshrunk "
+            "scored/conceded ratio, which is this model's behaviour before E11-S4 and stays its "
+            "behaviour until this is measured and promoted (DP-08). A single early-season match "
+            "currently gets exactly as much confidence as twenty; a non-zero value here is the "
+            "fix, once it has evidence behind it rather than just the argument for it."
+        ),
+    )
+    promoted_prior_matches: float = Field(
+        default=0.0,
+        ge=0,
+        description=(
+            "Like :attr:`rating_prior_matches`, but for the clubs named in "
+            ":attr:`~fpl_dof.forecast.models.TeamStrengthModel.promoted_teams` — wider, because "
+            "a promoted or heavily rebuilt squad's early matches are weaker evidence about its "
+            "season than an established side's (E11-S4). ``0.0`` because nothing populates "
+            "``promoted_teams`` yet: today's silver model has no club identity that survives a "
+            "season boundary (the ``team_code`` gap DL-54 flagged), so there is no correct way "
+            "to detect a promoted club without one. The mechanism is ready; the detector is "
+            "not — this field does nothing until both exist."
+        ),
+    )
+
+
 class MinutesV2Config(_Section):
     """How M1 reacts to congestion and to a return from absence (E10-S1).
 
@@ -797,6 +879,97 @@ class GoalkeeperConfig(_Section):
     )
 
 
+class OpponentAdjustmentConfig(_Section):
+    """How far a player's goal and assist rates move with M2's read of his own fixture, when
+    ``opponent_adjusted_rates`` is on (E11-S3).
+
+    **The gap this answers.** Clean sheets, goals conceded and (through the goalkeeper model) saves
+    already read M2's opposition; goals and assists do not — a player's own shrunk per-90 rate is
+    scored the same whether he faces the league's tightest defence or its leakiest, at home or away.
+    Design §M3 calls for sharing the *team's* M2-implied expected goals across its players by
+    npxG/xA/shot-volume shares; that full share model needs a cross-player aggregation pass this
+    story does not build (DP-10 — stated, not hidden). What ships instead is the part of the design
+    that does not need it: a player's own fitted rate already reflects his team's *general*
+    attacking level (he was observed scoring for it), so the missing piece is only what is specific
+    to *this* fixture — the opponent's defence and the venue, both already fitted by M2. The factor
+    is exactly :meth:`~fpl_dof.forecast.models.TeamStrengthModel.expected_goals` divided by the same
+    call with a neutral opponent and venue, which cancels the player's own team's attack rating out
+    of the ratio rather than double-counting it.
+    """
+
+    weight: float = Field(
+        default=1.0,
+        ge=0,
+        le=1,
+        description=(
+            "How far the fixture factor is allowed to move a player's goal and assist rate. 0 "
+            "reproduces the fixture-blind rate exactly and is the identity; 1 applies the factor "
+            "in full. Between them the factor is `1 + w * (raw_factor - 1)`, a straight line "
+            "through the average fixture, the same shape `GoalkeeperConfig.fixture_weight` already "
+            "uses and for the same reason (DP-10): M2's per-fixture read is noisier than a "
+            "player's own multi-match history, so applying it in full is a claim about how well "
+            "measured the fixture is, not a free assumption."
+        ),
+    )
+    minimum_factor: float = Field(
+        default=0.5,
+        gt=0,
+        description=(
+            "Floor on the damped fixture factor. A goal/assist rate should not collapse toward "
+            "zero on the strength of one fixture's opponent rating alone — the player still has to "
+            "take the chances he takes."
+        ),
+    )
+    maximum_factor: float = Field(
+        default=2.0,
+        gt=0,
+        description="Ceiling on the damped fixture factor, symmetric reasoning to the floor.",
+    )
+
+
+class MarketBlendConfig(_Section):
+    """How far M2 defers to the odds market's view, as a function of how near the fixture is
+    (E11-S6, Design §M2).
+
+    **Why horizon-dependent at all.** A bookmaker's line for next Saturday prices team news that
+    will not exist in the model's own ratings for weeks; a line for six gameweeks out is mostly the
+    same attack/defence arithmetic M2 already does, repriced with a margin removed. Deferring to the
+    market at the near horizon and to the ratings at the far one is therefore not a compromise
+    between two opinions of equal standing — it is using each source where it is actually better
+    informed.
+
+    **Why this cannot be graded by the walk-forward backtest.** The odds adapter (E5) has been
+    collecting market data only since it started running; there is no historical archive of past
+    odds lines to replay a fold against; `fpl-dof backtest` trains and scores entirely on
+    `player_gameweek` history that carries no market column. So unlike E11-S1/S3/S4, this candidate
+    has no "measured, held dark" backtest table to point to — it can only be evaluated once real
+    fixtures are being scored live with real odds attached, which is exactly what the E8 §5 bar's
+    six-shadow-gameweek requirement is for. `weight` is chosen by argument (DP-10), not by search.
+    """
+
+    weight_at_next_gameweek: float = Field(
+        default=0.6,
+        ge=0,
+        le=1,
+        description=(
+            "Blend weight on the market's expected goals for the very next gameweek — 0 is "
+            "ratings-only, 1 is market-only. 0.6 rather than 1.0 because the market is the "
+            "stronger near-term signal but not the only one M2 has: the ratings still carry "
+            "information the market's margin has priced away."
+        ),
+    )
+    decay_per_gameweek: float = Field(
+        default=0.15,
+        ge=0,
+        description=(
+            "How much the market's weight falls for each gameweek further out. At the default "
+            "0.6 starting weight this reaches the ratings-only floor by four gameweeks ahead — "
+            "roughly the horizon over which a bookmaker's price stops reflecting anything M2 "
+            "does not already know from form and fixtures."
+        ),
+    )
+
+
 class DiscriminationConfig(_Section):
     """E10's candidate model behaviours, each behind its own flag, all off (DP-08, DL-47).
 
@@ -865,6 +1038,30 @@ class DiscriminationConfig(_Section):
         ),
     )
     goalkeeper: GoalkeeperConfig = GoalkeeperConfig()
+
+    opponent_adjusted_rates: bool = Field(
+        default=False,
+        description=(
+            "Whether a player's goal and assist rates are scaled by M2's opponent-defence and "
+            "venue read for his own fixture, rather than only feeding clean sheets and goals "
+            "conceded (E11-S3). Off until the E8 §5 bar is met (DP-08, DL-47, DL-58). The flag "
+            "decides whether the fixture factor is even computed: with it off, `forecast_player` "
+            "scores goal involvement exactly as it did before this story existed."
+        ),
+    )
+    opponent_adjustment: OpponentAdjustmentConfig = OpponentAdjustmentConfig()
+
+    market_blend: bool = Field(
+        default=False,
+        description=(
+            "Whether M2's expected goals defer to the odds market near the deadline (E11-S6). Off "
+            "until real odds data exists to shadow it against — there is no historical archive of "
+            "past lines, so this candidate cannot be graded by the walk-forward backtest the way "
+            "its siblings were (DP-08, DL-47, DL-60). With it off, `TeamStrengthModel` never looks "
+            "at attached market data even if some is present."
+        ),
+    )
+    market: MarketBlendConfig = MarketBlendConfig()
 
 
 class FeatureConfig(_Section):
@@ -1020,6 +1217,7 @@ class ForecastConfig(_Section):
     uncertainty: UncertaintyConfig = UncertaintyConfig()
     features: FeatureConfig = FeatureConfig()
     expected_goals: ExpectedGoalsConfig = ExpectedGoalsConfig()
+    team_strength: TeamStrengthConfig = TeamStrengthConfig()
     discrimination: DiscriminationConfig = DiscriminationConfig()
     duty: DutyConfig = DutyConfig()
     """The committed penalty/set-piece duty table (E12-S2). Reference knowledge, not a tunable, and

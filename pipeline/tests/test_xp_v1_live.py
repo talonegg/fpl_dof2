@@ -342,6 +342,30 @@ def test_xp_v1_is_the_model_the_pipeline_publishes(
     assert set(result.frame["model"]) == {XP_V1}
 
 
+def test_the_fitted_component_chain_reaches_the_model_card(
+    inputs: ForecastInputs, game_rules: GameRules
+) -> None:
+    """DP-09: a fitted value and an assumed one are different claims, and the card has to be able
+    to tell them apart — which only works if the fitted state actually reaches it (E11-S2/S4/S6).
+
+    ``ComponentModels.describe()`` existed before this and nothing ever called it in a real run;
+    this pins the wiring that closes that gap, not just the describe() method's own arithmetic
+    (which `test_team_strength.py` already covers).
+    """
+    frame = live.build_forecast(inputs, game_rules, CONFIG)
+    described = frame.attrs.get("component_description")
+    assert isinstance(described, dict)
+    assert "M2_team_strength" in described
+    team_strength = described["M2_team_strength"]
+    assert isinstance(team_strength, dict)
+    assert team_strength["home_advantage_source"] in {"fitted", "prior"}
+    assert "market_fixtures" in team_strength
+
+    result = forecast_stage.build(inputs, game_rules, CONFIG)
+    assert result.component_description is not None
+    assert "M2_team_strength" in result.component_description
+
+
 def test_the_published_frame_carries_everything_the_optimiser_requires(
     inputs: ForecastInputs, game_rules: GameRules
 ) -> None:

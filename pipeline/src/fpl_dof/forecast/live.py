@@ -165,6 +165,14 @@ def build_forecast(
     frame["next_gameweek"] = next_gameweek
     frame["horizon_gameweeks"] = len(horizon)
 
+    # Carried as frame metadata rather than a second return value, so every existing caller (the
+    # stage, the tests) keeps treating this as "a DataFrame" without a signature change — `.attrs`
+    # is exactly what pandas has for "about the frame, not a column of it". This is what lets M2's
+    # fitted state (E11-S2's home_advantage_source, E11-S4's promoted_teams, E11-S6's
+    # market_fixtures — none of it visible in `describe()` was reaching the model card before) be
+    # reported at all (DP-09): fitted here and nowhere else, discarded here before this change.
+    frame.attrs["component_description"] = models.describe()
+
     log.info(
         "forecast.built",
         extra={

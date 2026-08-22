@@ -303,7 +303,7 @@ def _fixtures(
         if history is not None and not history.empty
         else pd.DataFrame()
     )
-    model = TeamStrengthModel()
+    model = TeamStrengthModel(config=ctx.config.forecast.team_strength)
     if not current.empty:
         model = model.fit(team_matches(current))
 

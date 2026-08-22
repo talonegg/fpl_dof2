@@ -657,6 +657,38 @@ def test_a_v1_card_drops_the_weaknesses_v1_does_not_have(
     assert "The variance is modelled from minutes" in text
 
 
+def test_a_card_with_a_component_description_shows_what_was_fitted(
+    inputs: ForecastInputs, game_rules: GameRules, tmp_path: Path
+) -> None:
+    """E11: the section only appears when there is something to show (xp_v0 has no chain)."""
+    result = build_forecast(inputs, game_rules, CONFIG)
+    with_description = write_model_card(
+        tmp_path / "with.md",
+        forecast=result,
+        regression=regress_xp_on_price(result),
+        config=CONFIG,
+        rules=game_rules,
+        run_id="run-1",
+        model=V1_MODEL_NAME,
+        component_description={"M2_team_strength": {"home_advantage_source": "fitted"}},
+    )
+    text = with_description.read_text(encoding="utf-8")
+    assert "Component internals" in text
+    assert "M2_team_strength.home_advantage_source" in text
+    assert "fitted" in text
+
+    without_description = write_model_card(
+        tmp_path / "without.md",
+        forecast=result,
+        regression=regress_xp_on_price(result),
+        config=CONFIG,
+        rules=game_rules,
+        run_id="run-1",
+        model=MODEL_NAME,
+    )
+    assert "Component internals" not in without_description.read_text(encoding="utf-8")
+
+
 @pytest.mark.parametrize("model", [MODEL_NAME, V1_MODEL_NAME])
 def test_every_model_card_restates_the_dl21_guardrail(
     inputs: ForecastInputs, game_rules: GameRules, tmp_path: Path, model: str
