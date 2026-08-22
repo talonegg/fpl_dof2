@@ -3586,6 +3586,130 @@ classifier.
 
 ---
 
+## DL-62 — E12-S1: Q-13 resolved negative — the BPS action-count breakdown was never publicly captured for seasons before 2025/26
+
+**Date:** 2026-08-22 · **Status:** Accepted · **Arose in:** E12-S1 implementation
+
+### Context
+
+The story's premise, taken from the model-improvement plan and Q-13 itself, is that "FPL recorded
+tackles/CBI in the BPS breakdown long before it scored DefCon" — i.e. that the raw action counts
+underlying the old (pre-2025/26) bonus-points formula already exist somewhere this project is
+permitted to read, and M4's one-season training window is a conformance gap, not a data gap.
+
+Checking that premise against the actual data closes it the other way. Three independent checks,
+all agreeing:
+
+1. **The official API.** `element-summary/{id}`'s `history` (current season, per-gameweek) does
+   carry `tackles`, `recoveries`, `clearances_blocks_interceptions` for 2026/27 — but `history_past`
+   (prior seasons) reports **season totals only**, never per-gameweek, and the adapter already
+   defaults these fields to `0` for any season where the API simply omits them
+   (`sources/fpl/adapter.py:625-630`). The official API has no per-gameweek historical endpoint at
+   all (`sources/fplarchive/adapter.py`'s own docstring, lines 3-6, is why the archive mirror exists
+   in the first place) — so there is no official-API path back to old gameweeks regardless.
+2. **The archive mirror, as already ingested.** The cached 2023/24 `merged_gw.csv.gz` snapshot in
+   `data/bronze/fplarchive/merged_gameweeks/` has 41 columns: `bonus` and `bps` are present, but
+   none of `tackles`, `clearances_blocks_interceptions`, `recoveries`, or any synonym.
+   `_MEASURED_LATER` (`sources/fplarchive/adapter.py:88-97`) already encodes this correctly — it is
+   not an overly conservative guess, it is what the source contains.
+3. **The archive mirror, fetched fresh.** Pulling `2023-24/gws/merged_gw.csv` and
+   `2023-24/gws/gw1.csv` directly from the upstream repository today reproduces the same 41 (merged)
+   / 40 (per-gameweek) columns, confirming the cached snapshot isn't stale or truncated — the
+   upstream project itself never captured the breakdown.
+
+The old BPS formula did score tackles won, CBI and recoveries as scoring components internally, but
+that computation happened inside FPL's own (Opta-fed) backend and was only ever exposed as the
+already-summed `bps` integer. Nothing publicly reachable — official API or community mirror — ever
+published the per-action counts that produced it, for any season before 2025/26. This is the same
+shape of finding as D-23 (Understat `robots.txt`, FBref Cloudflare 403): not a modelling choice, a
+source that does not exist to be conformed.
+
+### Decision
+
+**Q-13 is resolved: no.** DefCon cannot be reconstructed for seasons before 2025/26 from data this
+project can legitimately obtain, because the underlying action counts were never captured by any
+permitted source, not because of an ingestion gap this project could close. No code changes to
+`sources/fplarchive/`, `silver/`, or `forecast/models.py` follow from this story — `_MEASURED_LATER`,
+the nullable defensive columns in `PlayerGameweekSchema`/`PlayerSeasonHistorySchema`, and M4's
+implicit one-season gating (via `RateModel.fit`'s `dropna`) are all already correct and stay as they
+are. `docs/planning/04-conceptual-design.md`'s Q-13 row is marked resolved, pointing here.
+
+This closes the door DP-15 asks to be closed honestly rather than worked around: no synthetic proxy
+(e.g. inferring action counts from `bps` via a fitted formula) was built. A regression that reverses
+the old BPS formula from a single scalar output, calibrated on one season and applied retroactively
+to four, would be indistinguishable from real signal in every metric this repo can measure and
+wrong in a way DP-13 exists to prevent — inventing training data to widen a training window is a
+worse defect than the one-season window it would replace.
+
+### Consequences
+
+- E12 epic DoD: "DefCon history reconstructed... Q-13 resolved" is met, in the negative — Q-13 *is*
+  resolved, the answer is no. "M4 present across the widened backtest window" is **not** met and
+  cannot be on this data; the acceptance criterion is unreachable, not failed.
+- [E12-S3](#dl-63--e12-s3-blocked-on-its-own-precondition-the-prior-season-probe-has-no-new-real-input-to-re-measure-against)
+  loses its primary route to "real advanced history" as a result — see that entry.
+- `docs/planning/04-conceptual-design.md` Q-13 row struck through, pointing here, matching the Q-06
+  pattern. `docs/planning/epics/E2-data-platform.md` and `E0-steel-thread-gw1.md`'s D-11 both still
+  read correctly without edits — both already phrase Q-13 as conditional ("unless Q-13 succeeds"),
+  and now it hasn't.
+- No new scraping was attempted; D-23's refusals remain respected (E12 DoD's last line).
+
+---
+
+## DL-63 — E12-S3: blocked on its own precondition — the prior-season probe has no new real input to re-measure against
+
+**Date:** 2026-08-22 · **Status:** Accepted · **Arose in:** E12-S3 implementation
+
+### Context
+
+E12-S3 asks to re-run the [DL-31](#dl-31) prior-season probe with real xG/DefCon inputs in place of
+the official-feed-totals stand-in DL-31 used, because a genuine signal might have been masked by a
+proxy input rather than being genuinely absent. The story names two routes to that real input:
+depending on S1 (real DefCon history) and, ideally, an unblocked xG source.
+
+Both routes are closed, for reasons already recorded rather than new ones this story discovers:
+
+- **S1 resolved negative** ([DL-62](#dl-62--e12-s1-q-13-resolved-negative--the-bps-action-count-breakdown-was-never-publicly-captured-for-seasons-before-202526)):
+  there is no reconstructed DefCon history to feed the prior with. `Table.PLAYER_METRIC`'s DefCon
+  columns remain populated for 2025/26 only, exactly as before this epic.
+- **xG remains blocked** by D-23: Understat's `robots.txt` disallows the whole site, FBref returns
+  Cloudflare 403. Nothing in this epic changes that; E12 §0 states explicitly that re-attempting
+  either against a stated refusal is out of scope, and that holds here too.
+
+`PriorSeasonConfig.statistics` (`config/models.py:312-323`) already names the columns this feature
+would read — `tackles`, `interceptions`, `blocks`, `clearances`, `recoveries` from
+`Table.PLAYER_METRIC` — and every one of them is sourced from the same two blocked adapters
+(`sources/understat/`, `sources/fbref/`) or, per DL-62, from a history that does not exist. There is
+no third input this story could substitute that would be "real advanced history" rather than another
+stand-in of the same kind DL-31 already measured and found wanting.
+
+### Decision
+
+**Do not re-run the probe.** Re-running `fpl-dof backtest --offline` with
+`forecast.features.prior_season.enabled: true` today would exercise the exact same official-feed
+proxy DL-31 already measured — `player_metric` has not gained a single new populated row for any
+season since DL-31 ran, because nothing in E12 changed what feeds it. A second run would reproduce
+DL-31's ~0.002 Spearman movement (or its noise-level variant) and report it as if it were new
+evidence, which is precisely the "did more data actually move the number, or did it just feel like
+progress" trap E12 §3 names. Running the backtest again to get a number that cannot mean anything
+new is worse than not running it: it would look like verification.
+
+`features.prior_season` stays exactly as DL-31 left it: `enabled: false`, DL-31's result standing as
+the last real measurement, nothing promoted (DP-08).
+
+### Consequences
+
+- E12 epic DoD: "Prior-season prior re-measured with real inputs and either promoted on evidence or
+  left dark with the null result recorded" is met by inaction — the null result is DL-31's, restated
+  here as still current because nothing changed the inputs it was measured against.
+- This is not a failure of S3's scope; it is S1's negative result propagating through a dependency
+  the epic itself declared ("Depends on S1"). If either D-23 or the archive's data coverage changes
+  in future — a permitted xG source appears, or FPL's own historical exposure widens — this probe is
+  the first thing worth re-running, not `prior_season` promotion by any other route.
+- No code, config, or test changes follow from this story.
+
+---
+
 ## Open decisions
 
 Decisions deliberately deferred, with the point at which each must be resolved.

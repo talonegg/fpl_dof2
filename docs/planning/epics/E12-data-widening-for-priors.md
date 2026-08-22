@@ -3,8 +3,11 @@
 **Objective:** OBJ-1 · **Target:** feeds E10/E11, low urgency · **Estimate:** 3–4 days
 **Depends on:** E9-S2 (fixtures in the backtest) · **Implements:**
 [Model Improvement Plan §3 D2, D4, D5](../05-model-improvement-plan.md) · **Resolves:** Q-13
-**Status:** In progress — S2 (the duty reference table) landed early to unblock
-[E10-S3](E10-discrimination-at-the-head.md); S1 and S3 planned
+**Status:** Complete. S2 (the duty reference table) landed early to unblock
+[E10-S3](E10-discrimination-at-the-head.md). S1 investigated and resolved Q-13 negative — the BPS
+action-count breakdown was never publicly captured before 2025/26 ([DL-62](../00-decision-log.md#dl-62--e12-s1-q-13-resolved-negative--the-bps-action-count-breakdown-was-never-publicly-captured-for-seasons-before-202526)).
+S3 is consequently blocked on its own precondition and stays dark, DL-31's null result standing
+([DL-63](../00-decision-log.md#dl-63--e12-s3-blocked-on-its-own-precondition-the-prior-season-probe-has-no-new-real-input-to-re-measure-against)).
 
 ---
 
@@ -47,6 +50,18 @@ new source**.
 
 **Acceptance:** DEF and DM Spearman improve with M4 present across the widened window rather than the
 one season it currently covers.
+
+**Outcome — 2026-08-22 · resolved negative.** [DL-62](../00-decision-log.md#dl-62--e12-s1-q-13-resolved-negative--the-bps-action-count-breakdown-was-never-publicly-captured-for-seasons-before-202526).
+Checked three independent ways — the official API's `history_past` (season totals only, no
+per-gameweek historical endpoint exists at all), the cached archive snapshot already in
+`data/bronze/`, and a fresh fetch of the same upstream files today — and all three agree: no
+per-action breakdown (tackles, CBI, recoveries) was ever publicly captured for any season before
+2025/26. The old BPS formula did score these actions internally, but FPL exposed only the
+already-summed `bps` integer, never the components. `sources/fplarchive/adapter.py`'s
+`_MEASURED_LATER` handling was already correct, not overly conservative. **Q-13 is resolved: no.**
+No source code changed — there was nothing to reconstruct from and inventing a proxy (e.g. inverting
+`bps` back into action counts) would be exactly the DP-13 failure mode this repo tests hardest
+against: wrong in a way no metric here would catch.
 
 ### E12-S2 — Penalty and set-piece duty reference table · 0.5 day · **D4** · pairs with [E10-S3]
 A small, **committed** config/reference file naming penalty and set-piece takers, hand-maintained.
@@ -102,16 +117,30 @@ input, so the probe is worth repeating with real advanced history.
 **Acceptance:** backtest, per DP-08 — the prior-season prior is promoted only on a measured
 improvement with real xG/DefCon inputs; otherwise it stays dark with the null result recorded.
 
+**Outcome — 2026-08-22 · blocked on its own precondition.** [DL-63](../00-decision-log.md#dl-63--e12-s3-blocked-on-its-own-precondition-the-prior-season-probe-has-no-new-real-input-to-re-measure-against).
+Both routes to "real advanced history" this story named are closed: S1 resolved negative (above),
+and D-23 still blocks both xG sources — nothing in this epic changed that, and E12 §0 rules out
+re-attempting it. `PriorSeasonConfig.statistics` names exactly the columns DL-31 already found
+absent; nothing new populates them. Re-running the backtest today would reproduce DL-31's
+measurement against the identical proxy input and report it as new evidence, which is the trap E12
+§3 exists to name. **Not re-run.** `features.prior_season.enabled` stays `false`; DL-31's ~0.002
+Spearman null result stands as the last real measurement.
+
 ## 2. Definition of done
 
-- [ ] DefCon history reconstructed from the BPS breakdown under the 2026/27 regime — **Q-13 resolved**
-- [ ] M4 present across the widened backtest window, with DEF/DM Spearman improvement reported
+- [x] DefCon history reconstructed from the BPS breakdown under the 2026/27 regime — **Q-13
+      resolved**: no, it cannot be — the breakdown was never publicly captured for these seasons.
+      [DL-62](../00-decision-log.md#dl-62--e12-s1-q-13-resolved-negative--the-bps-action-count-breakdown-was-never-publicly-captured-for-seasons-before-202526)
+- [ ] M4 present across the widened backtest window, with DEF/DM Spearman improvement reported —
+      **unreachable on this data**, not failed; see DL-62. M4 stays a one-season component.
 - [x] Penalty/set-piece duty reference table committed, documented, owner-maintained (**D4**) —
       `config/defaults/duty.yaml`, 40 penalty spells, every entry carrying its provenance and the
       dates that keep a backtest honest. [DL-50](../00-decision-log.md#dl-50)
-- [ ] Prior-season prior re-measured with real inputs and either promoted on evidence or left dark
-      with the null result recorded (DP-08)
-- [ ] No new scraping introduced; D-23's refusals remain respected
+- [x] Prior-season prior re-measured with real inputs and either promoted on evidence or left dark
+      with the null result recorded (DP-08) — **blocked on its own precondition, not re-run**; DL-31's
+      null result stands as current because no new real input exists to measure against.
+      [DL-63](../00-decision-log.md#dl-63--e12-s3-blocked-on-its-own-precondition-the-prior-season-probe-has-no-new-real-input-to-re-measure-against)
+- [x] No new scraping introduced; D-23's refusals remain respected
 
 ## 3. The honest question
 
@@ -119,3 +148,9 @@ improvement with real xG/DefCon inputs; otherwise it stays dark with the null re
 the cautionary tale in this repo: a plausible signal moved Spearman by a rounding error. Every story
 here is gated on a measured gain precisely so that "we added data" is never mistaken for "the forecast
 got better".
+
+**Closing answer, 2026-08-22:** in the end there was no more data to widen with. S1's investigation
+found the widening this epic was named for — DefCon history before 2025/26 — does not exist to be
+recovered, on any source this project may use; S3's re-measurement inherited that absence rather than
+adding a second, independent finding. The honest result of "did more data move the number" this time
+is "there was no more data, and saying otherwise would have been the easier, wrong answer."
