@@ -5,10 +5,10 @@ import type { Player } from "../../contract/types";
 import { players as fixturePlayers } from "../../test/fixtures";
 import { ScoutTable } from "./ScoutTable";
 
-function renderScout(players: Player[] = fixturePlayers.players) {
+function renderScout(players: Player[] = fixturePlayers.players, ownedIds: Set<number> | null = null) {
   return render(
     <MemoryRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-      <ScoutTable players={players} />
+      <ScoutTable players={players} ownedIds={ownedIds} />
     </MemoryRouter>,
   );
 }
@@ -299,6 +299,27 @@ describe("ScoutTable on a phone", () => {
     renderScout();
     fireEvent.click(screen.getAllByTestId("player-row")[0]);
     expect(screen.getByTestId("decomposition")).toBeTruthy();
+  });
+});
+
+describe("ScoutTable — owned players (E13-S2)", () => {
+  it("shows no ownership badge or toggle when no team ID has been entered", () => {
+    renderScout(fixturePlayers.players, null);
+    expect(screen.queryByTestId("scout-my-squad-toggle")).toBeNull();
+    expect(screen.queryByTestId(/^scout-owned-/)).toBeNull();
+  });
+
+  it("offers a toggle once an owned set is given, and filters down to it", () => {
+    renderScout(fixturePlayers.players, new Set([1, 2]));
+    expect(screen.getAllByTestId("player-row").length).toBe(3);
+
+    fireEvent.click(screen.getByTestId("scout-my-squad-toggle"));
+    const rows = screen.getAllByTestId("player-row");
+    expect(rows.length).toBe(2);
+    expect(rows.every((row) => row.className.includes("owned"))).toBe(true);
+
+    fireEvent.click(screen.getByTestId("scout-my-squad-toggle"));
+    expect(screen.getAllByTestId("player-row").length).toBe(3);
   });
 });
 

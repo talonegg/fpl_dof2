@@ -1,0 +1,142 @@
+/**
+ * Settings view (E13-S2, E13-S3). Colour comes only from `tokens.css` (DL-35); the warning note
+ * reuses the same `--warn-*` pair the league captain divergence badge uses, so "this needs your
+ * attention" reads consistently across the app.
+ */
+
+.settings {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  max-width: 60ch;
+}
+
+.settings h2 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-xl);
+}
+
+.settings h3 {
+  margin: 0 0 var(--space-2);
+  font-size: var(--font-size-md);
+}
+
+.settings-lede {
+  margin: 0;
+  color: var(--text-muted);
+}
+
+.settings-fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+}
+
+.settings-fieldset legend {
+  padding: 0 var(--space-2);
+  font-weight: 600;
+}
+
+.settings-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+}
+
+.settings-field input {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel-alt);
+  color: var(--text);
+  font: inherit;
+  font-variant-numeric: tabular-nums;
+  max-width: 20ch;
+}
+
+.settings-hint {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.settings-hint code {
+  padding: 0 var(--space-1);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel-alt);
+}
+
+.settings-clear {
+  align-self: flex-start;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel);
+  color: var(--text);
+  cursor: pointer;
+}
+
+.settings-clear:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.settings-effects {
+  margin: 0;
+  padding-left: var(--space-5);
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.settings-note {
+  margin: 0;
+  padding: var(--space-3);
+  background: var(--bg-panel-alt);
+  border-left: 3px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+}
+
+.settings-note-warn {
+  background: var(--warn-bg);
+  border-left-color: var(--warn-border);
+  color: var(--warn-border);
+}
+
+.settings-copy-list {
+  display: flex;
+  gap: var(--space-5);
+  margin: 0;
+}
+
+.settings-copy-list dt {
+  font-size: var(--font-size-xs);
+  color: var(--text-muted);
+}
+
+.settings-copy-list dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.settings-dispatch-link {
+  align-self: flex-start;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-panel-alt);
+  color: var(--text);
+  text-decoration: none;
+}
+
+.settings-dispatch-link:hover,
+.settings-dispatch-link:focus-visible {
+  border-color: var(--accent);
+}

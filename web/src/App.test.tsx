@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { installFetchStub, renderApp, resetAppState } from "./test/render";
+import { IDENTITY_STORAGE_KEY } from "./components/settings/identity";
 
 describe("App shell", () => {
   beforeEach(() => {
@@ -31,6 +32,45 @@ describe("App shell", () => {
 
     await waitFor(() => expect(screen.getByTestId("player-table")).toBeTruthy());
     expect(screen.queryByTestId("squad-pitch")).toBeNull();
+  });
+
+  it("offers a 'my squad' filter on scout once a team ID is entered in Settings (E13-S2)", async () => {
+    window.localStorage.setItem(
+      IDENTITY_STORAGE_KEY,
+      JSON.stringify({ teamId: 1234567, leagueId: null }),
+    );
+    renderApp("/scout");
+
+    await waitFor(() => expect(screen.getByTestId("player-table")).toBeTruthy());
+    // Fixture squad.json holds players 1, 2 and 3 — the whole fixture pool.
+    fireEvent.click(screen.getByTestId("scout-my-squad-toggle"));
+    expect(screen.getAllByTestId("player-row").length).toBe(3);
+  });
+
+  it("names whose squad this is against the team ID entered in Settings (E13-S2)", async () => {
+    window.localStorage.setItem(
+      IDENTITY_STORAGE_KEY,
+      JSON.stringify({ teamId: 1234567, leagueId: null }),
+    );
+    renderApp("/squad");
+
+    await waitFor(() => expect(screen.getByTestId("squad-pitch")).toBeTruthy());
+    // Fixture week.squad_state.entry_id is 1234567 — the same id, so it is confirmed, not disputed.
+    expect(screen.getByTestId("squad-owned-match")).toBeTruthy();
+    expect(screen.queryByTestId("squad-owned-mismatch")).toBeNull();
+  });
+
+  it("says plainly when the published squad belongs to a different entry than the one entered", async () => {
+    window.localStorage.setItem(
+      IDENTITY_STORAGE_KEY,
+      JSON.stringify({ teamId: 7654321, leagueId: null }),
+    );
+    renderApp("/squad");
+
+    await waitFor(() => expect(screen.getByTestId("squad-pitch")).toBeTruthy());
+    const note = screen.getByTestId("squad-owned-mismatch");
+    expect(note.textContent).toContain("1234567");
+    expect(note.textContent).toContain("7654321");
   });
 
   it("renders the comparison route from the ids in the URL", async () => {

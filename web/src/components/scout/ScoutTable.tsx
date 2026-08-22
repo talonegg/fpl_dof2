@@ -63,15 +63,18 @@ const OVERSCAN_ROWS = 10;
 
 interface ScoutTableProps {
   players: Player[];
+  /** The published squad's ids (E13-S2), or `null` when no team ID has been entered in Settings. */
+  ownedIds?: Set<number> | null;
 }
 
-export function ScoutTable({ players }: ScoutTableProps) {
+export function ScoutTable({ players, ownedIds = null }: ScoutTableProps) {
   const isPhone = useMediaQuery(PHONE_QUERY);
 
   const [filters, setFilters] = useState<ScoutFilters>(EMPTY_FILTERS);
   const [sort, setSort] = useState<ScoutSort>(DEFAULT_SORT);
   const [chosenColumns, setChosenColumns] = useState<string[]>(DEFAULT_VISIBLE_COLUMNS);
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  const [myPlayersOnly, setMyPlayersOnly] = useState(false);
 
   const presets = useScoutPresets();
   const comparison = useComparisonSelection();
@@ -79,10 +82,11 @@ export function ScoutTable({ players }: ScoutTableProps) {
   const clubs = useMemo(() => clubsIn(players), [players]);
   const priceRange = useMemo(() => priceBounds(players), [players]);
 
-  const rows = useMemo(
-    () => sortPlayers(filterPlayers(players, filters), sort),
-    [players, filters, sort],
-  );
+  const rows = useMemo(() => {
+    const filtered = sortPlayers(filterPlayers(players, filters), sort);
+    if (!myPlayersOnly || !ownedIds) return filtered;
+    return filtered.filter((player) => ownedIds.has(player.id));
+  }, [players, filters, sort, myPlayersOnly, ownedIds]);
 
   // The phone layout picks its own fields; the picker only governs the wide one.
   const columns = useMemo(
@@ -130,6 +134,20 @@ export function ScoutTable({ players }: ScoutTableProps) {
         onApplyPreset={applyPreset}
       />
 
+      {ownedIds && (
+        <div className="scout-controls-buttons scout-owned-toggle">
+          <button
+            type="button"
+            className={`scout-toggle${myPlayersOnly ? " active" : ""}`}
+            aria-pressed={myPlayersOnly}
+            onClick={() => setMyPlayersOnly((current) => !current)}
+            data-testid="scout-my-squad-toggle"
+          >
+            My squad only
+          </button>
+        </div>
+      )}
+
       <CompareBar comparison={comparison} players={players} />
 
       <div
@@ -164,6 +182,7 @@ export function ScoutTable({ players }: ScoutTableProps) {
             const shared = {
               player,
               selected,
+              owned: ownedIds?.has(player.id) ?? false,
               canAdd: comparison.canAdd,
               onToggleCompare: () => comparison.toggle(player.id),
               expanded: expandedId === player.id,
@@ -224,6 +243,7 @@ function HeaderCell({
 interface RowProps {
   player: Player;
   selected: boolean;
+  owned: boolean;
   canAdd: boolean;
   onToggleCompare: () => void;
   expanded: boolean;
@@ -268,6 +288,7 @@ function CompareCheckbox({
 function ScoutGridRow({
   player,
   selected,
+  owned,
   canAdd,
   onToggleCompare,
   expanded,
@@ -279,7 +300,7 @@ function ScoutGridRow({
 }: RowProps & { template: string }) {
   return (
     <div
-      className={`scout-row${expanded ? " selected" : ""}`}
+      className={`scout-row${expanded ? " selected" : ""}${owned ? " owned" : ""}`}
       role="row"
       tabIndex={0}
       data-testid="player-row"
@@ -299,6 +320,7 @@ function ScoutGridRow({
           canAdd={canAdd}
           onToggleCompare={onToggleCompare}
         />
+        {owned && <span className="visually-hidden">In your squad</span>}
       </span>
       {columns.map((column) => (
         <span
@@ -323,6 +345,7 @@ function ScoutGridRow({
 function ScoutCardRow({
   player,
   selected,
+  owned,
   canAdd,
   onToggleCompare,
   expanded,
@@ -334,7 +357,7 @@ function ScoutCardRow({
   const [, ...rest] = columns;
   return (
     <div
-      className={`scout-card${expanded ? " selected" : ""}`}
+      className={`scout-card${expanded ? " selected" : ""}${owned ? " owned" : ""}`}
       role="row"
       tabIndex={0}
       data-testid="player-row"
@@ -354,6 +377,11 @@ function ScoutCardRow({
         <span className={`confidence-badge confidence-${player.confidence}`}>
           {player.confidence}
         </span>
+        {owned && (
+          <span className="scout-owned-badge" data-testid={`scout-owned-${player.id}`}>
+            In squad
+          </span>
+        )}
         <CompareCheckbox
           player={player}
           selected={selected}

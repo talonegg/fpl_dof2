@@ -220,6 +220,7 @@ Requirements are numbered for traceability. `MoSCoW` column: **M**ust / **S**hou
 | FR-32 | Mini-league and rival comparison for a configurable league ID | C | DL-08 |
 | FR-33 | Data health and model performance page — freshness, run status, quality-gate results and rolling accuracy metrics | S | NFR-7 |
 | FR-34 | Work on laptop and mobile browsers; installable as a PWA with the last-published data available offline | M | NFR-3 |
+| FR-40 | Let the owner enter their team ID and mini-league ID in a Settings view, stored only in browser `localStorage`, to personalise already-published artefacts and compose an owner-triggered pipeline dispatch link | M | OBJ-5, DL-44 |
 
 #### Platform operations
 

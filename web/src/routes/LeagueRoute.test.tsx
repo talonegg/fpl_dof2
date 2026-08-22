@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { preseasonLeague } from "../test/fixtures";
 import { installFetchStub, renderApp, resetAppState } from "../test/render";
+import { IDENTITY_STORAGE_KEY } from "../components/settings/identity";
 
 /**
  * `/league` (E6-S10).
@@ -64,6 +65,34 @@ describe("LeagueRoute", () => {
     installFetchStub();
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     await waitFor(() => expect(screen.getByTestId("league-table")).toBeTruthy());
+  });
+
+  it("states plainly when the league ID entered in Settings does not match what was published (E13-S2)", async () => {
+    window.localStorage.setItem(
+      IDENTITY_STORAGE_KEY,
+      JSON.stringify({ teamId: null, leagueId: 999999 }),
+    );
+    installFetchStub();
+    renderApp("/league");
+
+    await waitFor(() => expect(screen.getByTestId("league-id-mismatch")).toBeTruthy());
+    const note = screen.getByTestId("league-id-mismatch");
+    expect(note.textContent).toContain("999999");
+    expect(note.textContent).toContain("The Sunday League");
+    // The table itself still renders the published league, not the entered one.
+    expect(screen.getByTestId("league-table")).toBeTruthy();
+  });
+
+  it("says nothing when the entered league ID matches what was published", async () => {
+    window.localStorage.setItem(
+      IDENTITY_STORAGE_KEY,
+      JSON.stringify({ teamId: null, leagueId: 314159 }),
+    );
+    installFetchStub();
+    renderApp("/league");
+
+    await waitFor(() => expect(screen.getByTestId("league-table")).toBeTruthy());
+    expect(screen.queryByTestId("league-id-mismatch")).toBeNull();
   });
 
   it("is reachable from the main navigation", async () => {

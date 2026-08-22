@@ -4198,6 +4198,75 @@ rendering a new "## Component internals" section — only when given one, so eve
 
 ---
 
+## DL-64 — E13 built: all four stories landed, realising DL-44 end to end
+
+**Date:** 2026-08-22 · **Status:** Accepted · **Serves:** NFR-11, NFR-13, FR-32, FR-40 · **Arose in:**
+E13 implementation · **Realises:** [DL-44](#dl-44--fpl-team-and-league-ids-are-runtime-inputs-entered-in-the-ui-never-persisted-in-the-repository)
+
+### Context
+
+DL-44 settled the design in principle: the two IDs are a pipeline-side runtime variable and a
+browser-side `localStorage` setting, never committed either way. E13-S1's half already existed —
+`EntryConfig.team_id` / `league_id` default to `None` and read `FPL_DOF_TEAM_ID` /
+`FPL_DOF_LEAGUE_ID` from the environment — but `pipeline.yml`'s `run` job never set those two
+environment variables from anything, so a CI run could not actually pick up a repository variable
+however one was configured in GitHub's settings. The browser side (E13-S2, E13-S3) did not exist at
+all: no Settings route, no `localStorage` module, no personalisation on any published view.
+
+### Decision
+
+**E13-S1.** Added `workflow_dispatch.inputs.team_id` / `league_id` (optional strings) and a `run`-job
+`env:` block to `pipeline.yml`: `FPL_DOF_TEAM_ID: ${{ inputs.team_id || vars.FPL_DOF_TEAM_ID }}`,
+same shape for the league ID. The dispatch inputs exist for E13-S3's one-off override case (below);
+the scheduled and `workflow_run`-triggered firings fall through to the repository variable, or to
+neither, which is `EntryConfig`'s already-correct default (a declared squad, no league).
+
+**E13-S2.** A new `web/src/components/settings/identity.ts` (`useOwnerIdentity`, mirroring
+`squad/locks.ts`'s defensive load/parse/save shape exactly) backs a new `/settings` route. This is
+a genuinely different thing from `EntryConfig.team_id`: a **client-side lens**, comparable but not
+identical to what the pipeline was configured with, because the published site is public and anyone
+reading it — a rival in the mini-league, not only the site's own operator — can type their own ID to
+see themselves picked out, without changing what was built. Three personalisations follow, each
+checked against a field the pipeline already publishes rather than fetched fresh (Invariant 8):
+
+- `/league` highlights the row whose `entry_id` matches the entered team ID (`LeagueTable`'s new
+  `enteredTeamId` prop), independently of the `is_owner` flag the pipeline bakes in from its own
+  config — the two usually agree and need not.
+- `/settings` and `/league` both state plainly, rather than silently substituting, when the entered
+  league ID does not match the published `league.league.id` (DP-09, consistent with DL-40).
+- `/squad` compares the entered team ID against `week.squad_state.entry_id` — present only when the
+  pipeline actually read live picks — and says which of three states holds: nothing to check (no
+  team ID entered), confirmed match, or a stated mismatch naming both ids. `/scout` offers a "My
+  squad only" filter and an "In squad" badge, gated on a team ID being entered at all (so the app
+  never presumes "your squad" language before the reader has said who they are), built from
+  `squad.json`'s player ids — there is no per-viewer squad artefact to check the badge against, only
+  the one the pipeline built, which the mismatch note upstream already covers honestly.
+
+**E13-S3.** `web/src/components/settings/dispatch.ts` composes a link to `pipeline.yml`'s Actions
+page. GitHub's `workflow_dispatch` UI has no supported way to pre-fill a dispatched run's inputs from
+a URL, so the acceptance criterion's "or copyable inputs" alternative is what shipped: the Settings
+view shows the entered team/league ID as copyable text next to the link, for the owner to paste into
+the two inputs E13-S1 added. No token is constructed, stored or transmitted anywhere in this path.
+
+**E13-S4.** Added FR-40 to the charter (§6, User experience) naming the UI-entry behaviour as a
+requirement in its own right, not only as a consequence of DL-44. The feared "config-smell" —
+`config/local.yaml` committed with a real team ID — turned out not to exist in the repository: the
+file has never been tracked (`git log --all -- config/local.yaml` is empty) despite being gitignored
+after the fact; the gitignore entry was already sufficient. No cleanup commit was needed for that
+half of the story.
+
+### Consequences
+
+The E13 Definition of Done is met in full, including the one item that stays deliberately undone:
+**Q-16 is still open** — nothing here auto-dispatches a run from the browser; the manual,
+owner-authenticated deep link is the whole of E13-S3's scope, exactly as written. `web/src/App.test.tsx`,
+`LeagueRoute.test.tsx`, `LeagueTable.test.tsx`, `ScoutTable.test.tsx`, `SettingsRoute.test.tsx` and
+`identity.test.ts` cover the new behaviour; the full pytest and vitest suites (659 web tests, the
+Python suite unchanged) are green. No pipeline code changed beyond the workflow YAML — `EntryConfig`
+and the CLI path were already correct from an earlier session.
+
+---
+
 ## Open decisions
 
 Decisions deliberately deferred, with the point at which each must be resolved.

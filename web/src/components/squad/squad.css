@@ -7,6 +7,22 @@
    The builder is two columns on a laptop and one on a phone — the squad list and the picker are both
    readable stacked, so there is no wide artefact needing its own scroll box here. */
 
+.squad-owned-note {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3);
+  background: var(--bg-panel-alt);
+  border-left: 3px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.squad-owned-note-warn {
+  background: var(--warn-bg);
+  border-left-color: var(--warn-border);
+  color: var(--warn-border);
+}
+
 .builder,
 .timeline {
   background: var(--bg-panel);

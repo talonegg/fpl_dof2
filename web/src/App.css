@@ -404,6 +404,15 @@ td {
   text-transform: capitalize;
 }
 
+/* E13-S2: badges a player already in the published squad, once a team ID is entered in Settings. */
+.scout-owned-badge {
+  padding: 0.1rem 0.45rem;
+  border-radius: 1rem;
+  font-size: 0.72rem;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
 .confidence-high {
   background: var(--confidence-high-bg);
   color: var(--confidence-high-fg);

@@ -174,8 +174,8 @@ never in the client bundle (NFR-13). The secret-scan hook in `.claude/hooks/` al
 **Team and league IDs in CI, and UI entry ([DL-44](../00-decision-log.md#dl-44), built by
 [E13](E13-runtime-personalisation-ids.md)).** `FPL_DOF_TEAM_ID` / `FPL_DOF_LEAGUE_ID` are non-secret
 identifiers. In CI they come from GitHub Actions repository **variables** (not secrets, not committed
-config); locally they stay in gitignored config. Once E13 ships, they are also enterable in the app's
-Settings view — stored in browser `localStorage` only, used to personalise already-published artefacts
+config); locally they stay in gitignored config. They are also enterable in the app's `/settings`
+view — stored in browser `localStorage` only, used to personalise already-published artefacts
 and to compose an owner-triggered `workflow_dispatch` link. **Nothing about the owner's identity is
 committed to the repository, ever** (Invariant 8, Invariant 10, NFR-11).
 
