@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useData } from "../data/DataProvider";
+import { useOwnerIdentity } from "../components/settings/identity";
 import { SquadPitch } from "../components/SquadPitch";
 import { Bench } from "../components/Bench";
 import { SquadBuilder } from "../components/squad/SquadBuilder";
@@ -24,13 +25,39 @@ import "../components/squad/squad.css";
  * The plan section is absent, rather than empty, when nothing has been published: before the first
  * scored gameweek there is no squad to plan around, which is a normal state and not a failure
  * (DL-20, DP-15).
+ *
+ * **Whose squad is this, against the team ID entered in Settings (E13-S2)?** `week.squad_state`
+ * carries the `entry_id` the pipeline actually read picks for, when it read any — a declared or
+ * reconstructed squad may carry none. Three states follow: no team ID entered (nothing to check,
+ * nothing said), an `entry_id` that agrees (confirmed), or one that disagrees (said plainly, not
+ * hidden — DP-09).
  */
 export function SquadRoute() {
   const { rules, squad, players, week, plan } = useData();
+  const identity = useOwnerIdentity();
   const index = useMemo(() => indexPlayers(players.players, squad), [players, squad]);
+  const entryId = week?.squad_state?.entry_id ?? null;
 
   return (
     <>
+      {identity.teamId !== null && entryId !== null && entryId !== identity.teamId && (
+        <p className="squad-owned-note squad-owned-note-warn" data-testid="squad-owned-mismatch">
+          This squad was built for entry {entryId}, not team ID {identity.teamId} entered in
+          Settings — the badges on the scout table reflect entry {entryId}, not your own.
+        </p>
+      )}
+      {identity.teamId !== null && entryId !== null && entryId === identity.teamId && (
+        <p className="squad-owned-note" data-testid="squad-owned-match">
+          This is your squad (entry {entryId}) — these fifteen are badged "In squad" on the scout
+          table.
+        </p>
+      )}
+      {identity.teamId !== null && entryId === null && (
+        <p className="squad-owned-note" data-testid="squad-owned-unverified">
+          Team ID {identity.teamId} is set in Settings, but this run has no entry ID to check it
+          against — these fifteen are still badged "In squad" on the scout table.
+        </p>
+      )}
       <SquadPitch squad={squad} rules={rules} />
       <Bench squad={squad} />
       <SquadBuilder players={players.players} squad={squad} rules={rules} week={week} />

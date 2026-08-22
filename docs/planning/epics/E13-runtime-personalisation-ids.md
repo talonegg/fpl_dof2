@@ -4,7 +4,7 @@
 **Depends on:** E6 (web surface), E7 (workflows) · **Implements:**
 [Model Improvement Plan §7](../05-model-improvement-plan.md) · **Realises:** [DL-44](../00-decision-log.md#dl-44)
 · **Bears on:** Q-16
-**Status:** Planned
+**Status:** Complete — all four stories landed ([DL-64](../00-decision-log.md#dl-64--e13-built-all-four-stories-landed-realising-dl-44-end-to-end)). Q-16 stays open by design.
 
 ---
 
@@ -81,13 +81,17 @@ carries no personal identifier.
 
 ## 2. Definition of done
 
-- [ ] Pipeline sources the IDs from repository variables in CI and gitignored config locally; nothing
+- [x] Pipeline sources the IDs from repository variables in CI and gitignored config locally; nothing
       personal is committed
-- [ ] Settings view stores team/league IDs in `localStorage` and personalises published artefacts
-- [ ] Mismatch between entered ID and published artefact is surfaced plainly (DP-09/DP-15)
-- [ ] `workflow_dispatch` deep link dispatches an owner-authenticated run with **no token in the client**
-- [ ] Charter requirement recorded; committed config carries no personal identifier
-- [ ] **Q-16 left open** — no auto-dispatch shipped; the manual, owner-mediated path only
+- [x] Settings view stores team/league IDs in `localStorage` and personalises published artefacts
+- [x] Mismatch between entered ID and published artefact is surfaced plainly (DP-09/DP-15)
+- [x] `workflow_dispatch` deep link dispatches an owner-authenticated run with **no token in the client**
+- [x] Charter requirement recorded (FR-40); committed config carries no personal identifier
+- [x] **Q-16 left open** — no auto-dispatch shipped; the manual, owner-mediated path only
+
+See [DL-64](../00-decision-log.md#dl-64--e13-built-all-four-stories-landed-realising-dl-44-end-to-end)
+for what shipped against each story, and where the acceptance criteria's "or copyable inputs"
+alternative was the one that actually applied.
 
 ## 3. The honest question
 

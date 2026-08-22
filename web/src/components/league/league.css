@@ -34,6 +34,13 @@
   font-size: var(--font-size-sm);
 }
 
+.league-note-warn {
+  background: var(--warn-bg);
+  border-left-color: var(--warn-border);
+  color: var(--warn-border);
+  margin-bottom: var(--space-3);
+}
+
 .league-controls {
   display: flex;
   align-items: center;
