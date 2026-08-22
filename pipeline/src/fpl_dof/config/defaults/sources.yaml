@@ -1,0 +1,13 @@
+# Which sources run by default. Most sources need no entry here at all — `enabled_by_default` on
+# the adapter class is the default, and this file exists only where the shipped default should
+# differ from that.
+sources:
+  overrides:
+    # E11-S5: the odds adapter is enabled by default, not because every environment has a key, but
+    # because it degrades cleanly when one is absent (DP-15, tested in
+    # test_external_sources.py::test_no_key_means_no_request_is_even_attempted) — the alternative,
+    # leaving it off everywhere and flipping it on only in CI, would mean the local and CI runs
+    # exercise different source sets, which is exactly the drift Invariant 1 exists to prevent.
+    # `ODDS_API_KEY` itself is an Actions secret (Invariant 10) and is never set here.
+    oddsapi:
+      enabled: true

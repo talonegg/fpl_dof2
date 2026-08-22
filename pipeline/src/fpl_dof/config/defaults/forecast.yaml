@@ -69,12 +69,27 @@ forecast:
   # slope 0.597 -> 0.701. The verdict is unchanged (beats B0, loses to model-free, top-20 precision
   # 0.00), so D-13 stands; this is a real but modest improvement, not a breakthrough.
   #
-  # team_strength_from_xg stays off: M2's ratings do not touch player goal rates in xp_v1 and the
-  # backtest scores opposition at league average, so an xG team model is *unmeasurable* here and
-  # enabling it would be acting on faith rather than evidence (DP-12).
+  # team_strength_from_xg stays off, but is no longer unmeasurable (E11-S1, DL-56): E9-S2 put real
+  # fixtures into the backtest, and with them the flag clears the bar comfortably — fixture-band
+  # Spearman 0.20071 -> 0.21603 (easy 0.24172 -> 0.25345, hard 0.22237 -> 0.22613),
+  # fixture-band calibration 0.60271 -> 0.65704 (easy 0.66863 -> 0.72729, hard 0.57952 -> 0.60454),
+  # overall Spearman 0.24881 -> 0.25536, calibration slope 0.68986 -> 0.73118. Held dark anyway: this
+  # is a genuine new model behaviour, not a bug fix, so the E8 §5 bar applies in full — including six
+  # live shadow gameweeks that cannot exist before GW1 does (same reasoning as E10's discrimination
+  # flags, DL-47). Flipping this to true is what starts that shadow clock.
   expected_goals:
     enabled: true
     team_strength_from_xg: false
+
+  # M2's home advantage, fitted rather than assumed (E11-S2, DL-55). 1.09 is not a guess: it is
+  # what the estimator in TeamStrengthModel returns over the 2023/24-2025/26 archive at the shipped
+  # half-life. Restated here even though it matches the pydantic default, so a reader does not have
+  # to open config/models.py to see the number every fixture-difficulty grid is built on.
+  team_strength:
+    home_advantage_prior: 1.09
+    home_advantage_prior_matches: 190.0
+    home_advantage_minimum: 1.0
+    home_advantage_maximum: 1.30
 
   # E10's discrimination candidates (DL-47). Every flag here is off and stays off in the shipped
   # configuration: these are genuine new model behaviours, not delivery bugs, so DP-08 applies in

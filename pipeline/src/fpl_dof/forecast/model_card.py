@@ -158,6 +158,7 @@ def write_model_card(
     model: str,
     fallback_reason: str | None = None,
     backtest: Mapping[str, object] | None = None,
+    component_description: Mapping[str, object] | None = None,
 ) -> Path:
     """Describe ``model``, which is the model that produced ``forecast``.
 
@@ -304,6 +305,21 @@ def write_model_card(
         "barred from the starting XI."
     )
     add("")
+
+    if component_description:
+        add("## Component internals")
+        add("")
+        add(
+            "What each component actually learned this run — not the tunable it was configured "
+            "with, but the value fitting produced (DP-09). A tunable can be wrong twice: once if "
+            "it is a bad choice, and once if the fit it was supposed to enable never touched it."
+        )
+        add("")
+        add("| Component | Value |")
+        add("| --- | --- |")
+        for key, learned in _flatten(dict(component_description)):
+            add(f"| `{key}` | {learned} |")
+        add("")
 
     add("## Tunables in force")
     add("")

@@ -45,6 +45,11 @@ jobs:
           fi
 
       - name: Full ingest (element-summary + external sources)
+        # E11-S5: ODDS_API_KEY is an Actions secret (Invariant 10 — never in the repo, never in the
+        # client bundle). Absent (a fork, or before the owner sets it), the adapter degrades to the
+        # ratings-only path rather than failing the run (DP-15) — this step needs no conditional.
+        env:
+          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
         run: fpl-dof ingest
 
       - name: Rebuild the rolling `data` branch

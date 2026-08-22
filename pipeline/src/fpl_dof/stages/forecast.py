@@ -41,6 +41,10 @@ class Forecast:
     frame: pd.DataFrame
     model: str
     fallback_reason: str | None
+    component_description: dict[str, object] | None = None
+    """The fitted component chain's own account of itself (``ComponentModels.describe()``),
+    carried off ``frame.attrs`` by :func:`build`. ``None`` for ``xp_v0``, which has no component
+    chain to describe — a cold-start fallback's card should not imply one (DP-15)."""
 
 
 def run(ctx: StageContext) -> StageResult:
@@ -86,6 +90,7 @@ def run(ctx: StageContext) -> StageResult:
         model=result.model,
         fallback_reason=result.fallback_reason,
         backtest=_previous_backtest(ctx, season),
+        component_description=result.component_description,
     )
 
     below_floor = int(
@@ -119,8 +124,14 @@ def build(inputs: ForecastInputs, rules: GameRules, config: ForecastConfig) -> F
         except live.ColdStartError as exc:
             reason = str(exc)
         else:
+            description = frame.attrs.get("component_description")
             frame["model"] = live.MODEL_NAME
-            return Forecast(frame=frame, model=live.MODEL_NAME, fallback_reason=None)
+            return Forecast(
+                frame=frame,
+                model=live.MODEL_NAME,
+                fallback_reason=None,
+                component_description=description if isinstance(description, dict) else None,
+            )
 
     log.warning(
         "forecast.cold_start_fallback",
