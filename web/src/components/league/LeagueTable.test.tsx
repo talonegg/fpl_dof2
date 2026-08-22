@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { installFetchStub, renderApp, resetAppState } from "../../test/render";
+import { IDENTITY_STORAGE_KEY } from "../settings/identity";
 
 /**
  * The rendered comparison (E6-S10).
@@ -80,6 +81,28 @@ describe("LeagueTable", () => {
     expect(detail.getByText(/Raya, Watkins/)).toBeTruthy();
     expect(detail.getByText("Only you have (1)")).toBeTruthy();
     expect(detail.getByText("Only they have (1)")).toBeTruthy();
+  });
+
+  it("highlights the row matching the team ID entered in Settings (E13-S2), separately from the pipeline's own owner", async () => {
+    window.localStorage.setItem(
+      IDENTITY_STORAGE_KEY,
+      JSON.stringify({ teamId: 100, leagueId: null }),
+    );
+    await renderLeague();
+
+    const row = screen.getByTestId("league-row-100");
+    expect(row.className).toContain("owner");
+    expect(within(row).getByTestId("league-you-entered-100").textContent).toBe("Your team ID");
+    // Row 200 is the pipeline's own owner (`is_owner: true`) and keeps its own tag regardless.
+    expect(within(screen.getByTestId("league-row-200")).getByText("You")).toBeTruthy();
+    expect(within(row).queryByText("You")).toBeNull();
+  });
+
+  it("does not highlight anything extra when no team ID has been entered", async () => {
+    await renderLeague();
+
+    expect(screen.getByTestId("league-row-100").className).not.toContain("owner");
+    expect(screen.queryByTestId("league-you-entered-100")).toBeNull();
   });
 
   it("re-orders by squad overlap without losing any row", async () => {

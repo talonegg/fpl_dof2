@@ -21,6 +21,15 @@ on:
     workflows: ["Ingest (slow)"]
     types: [completed]
   workflow_dispatch:
+    inputs:
+      team_id:
+        description: "FPL team ID override for this run only (E13-S3). Leave blank to use the FPL_DOF_TEAM_ID repository variable."
+        required: false
+        type: string
+      league_id:
+        description: "FPL mini-league ID override for this run only (E13-S3). Leave blank to use the FPL_DOF_LEAGUE_ID repository variable."
+        required: false
+        type: string
 
 concurrency:
   # `cancel-in-progress: false` is deliberate (E7-S4, NFR-06, R-13): a run in progress is left to
@@ -105,6 +114,12 @@ jobs:
 
       # Runs the exact E0 code path (D-10): `fpl-dof run --only ...`, no CI-only branch anywhere.
       - name: Run the pipeline (transform through publish)
+        env:
+          # Non-secret public identifiers, sourced from repository variables (Invariant 10,
+          # DL-44) — never committed config. Unset is fine: EntryConfig.team_id/league_id default
+          # to None and the run falls back to a declared squad / no league respectively.
+          FPL_DOF_TEAM_ID: ${{ inputs.team_id || vars.FPL_DOF_TEAM_ID }}
+          FPL_DOF_LEAGUE_ID: ${{ inputs.league_id || vars.FPL_DOF_LEAGUE_ID }}
         run: >
           fpl-dof run
           --only transform quality forecast optimise week decision publish

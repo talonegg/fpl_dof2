@@ -13,7 +13,19 @@ import type { AnchorState, LeagueRow } from "./league";
  * a league table is worth reading on its own — and the comparison columns are replaced by one
  * sentence saying why they are not there (DP-09, DP-15).
  */
-export function LeagueTable({ league }: { league: League }) {
+export function LeagueTable({
+  league,
+  enteredTeamId = null,
+}: {
+  league: League;
+  /**
+   * The team ID typed into Settings (E13-S2), compared against each row's `entry_id`. Separate from
+   * `row.isOwner`, which the pipeline bakes into `league.json` server-side from its own configured
+   * `entry.team_id` (E13-S1) — the two usually agree, but this one lets any reader of the published
+   * site pick out their own row, whether or not it is the pipeline's own owner.
+   */
+  enteredTeamId?: number | null;
+}) {
   const { players } = useData();
   const view = useMemo(() => buildLeagueView(league), [league]);
   const names = useMemo(() => playerNames(players), [players]);
@@ -93,6 +105,7 @@ export function LeagueTable({ league }: { league: League }) {
                 onToggle={() =>
                   setExpanded(expanded === row.entry.entry_id ? null : row.entry.entry_id)
                 }
+                matchesEntered={enteredTeamId !== null && row.entry.entry_id === enteredTeamId}
               />
             ))}
           </tbody>
@@ -108,20 +121,23 @@ function Row({
   names,
   isExpanded,
   onToggle,
+  matchesEntered,
 }: {
   row: LeagueRow;
   comparing: boolean;
   names: Map<number, string>;
   isExpanded: boolean;
   onToggle: () => void;
+  matchesEntered: boolean;
 }) {
   const { entry, comparison } = row;
   const expandable = comparing && comparison !== null;
+  const highlighted = row.isOwner || matchesEntered;
 
   return (
     <>
       <tr
-        className={row.isOwner ? "league-row owner" : "league-row"}
+        className={highlighted ? "league-row owner" : "league-row"}
         data-testid={`league-row-${entry.entry_id}`}
       >
         <td className="league-rank">
@@ -132,6 +148,11 @@ function Row({
           <span className="league-team">{entry.entry_name}</span>
           <span className="league-manager">{entry.player_name}</span>
           {row.isOwner && <span className="league-you">You</span>}
+          {!row.isOwner && matchesEntered && (
+            <span className="league-you" data-testid={`league-you-entered-${entry.entry_id}`}>
+              Your team ID
+            </span>
+          )}
         </td>
         <td className="league-number">{entry.event_total ?? "—"}</td>
         <td className="league-number">{entry.total}</td>

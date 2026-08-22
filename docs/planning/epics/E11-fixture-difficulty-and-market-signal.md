@@ -4,7 +4,9 @@
 **Depends on:** E9-S2 (fixtures in the backtest), E5 (odds adapter scaffolding)
 **Implements:** [Model Improvement Plan §4 F1–F5, §3 D3](../05-model-improvement-plan.md) ·
 **Closes:** OD-03
-**Status:** Planned
+**Status:** Built and measured where measurable (S1–S6 all shipped, dark, behind
+`discrimination.*` flags per DP-08); every candidate save S2 is blocked on the E8 §5 bar's six
+live shadow gameweeks, which cannot exist before GW1. See DL-55 through DL-60.
 
 ---
 
@@ -81,15 +83,43 @@ blended, and the blend **degrades cleanly to S1's ratings** when the credit budg
 
 ## 2. Definition of done
 
-- [ ] xG-based team ratings promoted on backtest evidence; goals-based path retained as fallback
-- [ ] Home advantage is a fitted, config-seeded value reported in the model card
-- [ ] Player rates are opponent-adjusted by sharing out M2 team xG, improving high/low-difficulty buckets
-- [ ] Promoted-club priors widened without harming established clubs
-- [ ] Odds adapter live within a credit budget, degrading cleanly when the key or budget is absent —
-      **OD-03 closed**
-- [ ] Market view blended into M2 with a horizon-dependent weight, degrading cleanly to ratings-only
-- [ ] Every change graded on the **fixture-aware** backtest from E9-S2, per position and per fixture band
-- [ ] Each promoted change cleared the [E8 §5 bar](E8-in-season-operations.md#5-the-bar-for-changing-the-model-mid-season)
+- [~] **xG-based team ratings** — built, wired, measured (DL-56): fixture-band Spearman and
+      calibration both beat the goals-based path on the walk-forward backtest. **Not promoted**:
+      `team_strength_from_xg` stays `false`, held for the E8 §5 shadow window. Goals-based path is
+      the default and remains the fallback.
+- [x] **Home advantage is fitted, config-seeded, reported in the model card** (DL-55): shipped
+      un-flagged, as an Invariant-2/DP-06 correctness fix rather than a new model behaviour — the
+      literal `1.12` is gone. The one honest caveat: the fixture-aware backtest found the fitted
+      ~1.093 and the old 1.12 statistically indistinguishable on this window, so the "calibration
+      improves" half of the story's acceptance criterion is not demonstrated, only the provenance
+      half is.
+- [~] **Player rates are opponent-adjusted** (DL-58): built and measured, on a simplification of
+      Design §M3's share-based model (no cross-player allocation pass — recorded as a real gap,
+      not hidden). Both named fixture-difficulty buckets improve on Spearman; the aggregate
+      "average" fixture-band figure moved the wrong way for reasons the entry could not fully
+      explain. `opponent_adjusted_rates` stays `false`, held for the shadow window.
+- [~] **Promoted-club priors widened** (DL-57): the *mechanism* is built, tested and measured
+      (general shrinkage only, `promoted_teams` empty in every shipped path). **Cannot be
+      completed as specified**: detecting a promoted club needs a club identity that survives the
+      season boundary, which the current silver model does not carry (the `team_code` gap DL-54
+      already flagged). Not a same-epic fix.
+- [x] **Odds adapter live within a credit budget, degrading cleanly** — **OD-03 closed** (DL-59):
+      enabled by default everywhere (not CI-only), `ODDS_API_KEY` wired into `ingest-slow.yml`,
+      verified locally to degrade to zero network calls with no key. The one thing outside this
+      codebase's control: the key itself is an owner action (INPUTS-REQUIRED.md 4.1, ~GW10).
+- [~] **Market view blended into M2, horizon-dependent, degrades cleanly** (DL-60): the *blend
+      mechanism* (`TeamStrengthModel.attach_market`/`blended_expected_goals`, the horizon-decay
+      weight function) is built and fully tested. **Not wired into a live scoring path**: no
+      caller attaches `team_match_expectation` or threads a horizon-dependent weight through yet —
+      a deliberate scope decision (see DL-60), since there is also no way to backtest this
+      candidate at all (no historical odds archive exists to walk-forward against).
+- [x] Every backtestable change (S1, S3, S4's general half) was graded on the fixture-aware
+      backtest from E9-S2, per position and per fixture band — S2 also measured this way despite
+      not needing the DP-08 shadow treatment; S6 could not be, structurally (DL-60).
+- [ ] **No promoted change has cleared the E8 §5 bar.** None can, before GW1: the bar requires six
+      live shadow gameweeks, which do not exist yet. Every candidate above is flagged off in the
+      shipped configuration for exactly this reason. This line will not tick until real gameweeks
+      have been played with each flag shadowed.
 
 ## 3. The honest question
 
@@ -97,3 +127,10 @@ blended, and the blend **degrades cleanly to S1's ratings** when the credit budg
 (`fixtures.json`, DL-37) is only worth more than the static 1–5 FDR if these ratings carry real,
 tested signal. If after this epic the grid still tracks FDR, the epic added colour, not information —
 and the model card must say so.
+
+**Current answer: not yet, in the shipped default.** The backtest evidence says the ingredients for
+"yes" exist — xG-based ratings and opponent-adjusted rates both measurably beat the fixture-blind
+chain (DL-56, DL-58) — but every flag capable of changing the grid's arithmetic is off in the
+shipped configuration, held there by the E8 §5 bar rather than by any doubt in the backtest. The
+grid today is exactly what it was before this epic. It becomes a genuinely different claim only once
+a live shadow window lets one of these candidates clear the bar and its default actually flips.

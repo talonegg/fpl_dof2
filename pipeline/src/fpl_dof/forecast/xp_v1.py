@@ -35,7 +35,7 @@ from fpl_dof.forecast.features import (
     PRIOR_SEASON_MINUTES,
     PRIOR_SEASON_PREFIX,
 )
-from fpl_dof.forecast.models import ComponentModels, MinutesDistribution
+from fpl_dof.forecast.models import FIT_AT_HOME, ComponentModels, MinutesDistribution
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.rules.models import GameRules, Position
 
@@ -75,14 +75,19 @@ class PlayerForecast:
 class Opposition:
     """The fixture seam: everything about the other side a single-fixture forecast needs.
 
-    Exactly two numbers, because those are the only two things :func:`forecast_player` ever asks
-    about an opponent. Naming them as one object is what lets the live horizon scorer and the
-    backtest predictor be *told* about opposition in the same words rather than each computing it
-    for itself — which is precisely how the shipped model and the graded model drift apart (D-25).
+    Everything :func:`forecast_player` asks about an opponent, named as one object, so that the live
+    horizon scorer and the backtest predictor are *told* about opposition in the same words rather
+    than each computing it for itself — which is precisely how the shipped model and the graded
+    model drift apart (D-25).
     """
 
     clean_sheet_probability: float
     goals_conceded_mean: float
+    attacking_fixture_factor: float = 1.0
+    """How much easier or harder M2 rates this fixture for the player's own attacking output
+    (E11-S3): the opponent's defence and the venue, with the player's own team's attack rating
+    deliberately excluded (see :meth:`TeamStrengthModel.attacking_fixture_factor`). 1.0 — neutral —
+    when no specific opponent is known, matching the other two fields' fallback."""
 
 
 def league_average_opposition(models: ComponentModels) -> Opposition:
@@ -95,7 +100,11 @@ def league_average_opposition(models: ComponentModels) -> Opposition:
     can be put under by construction.
     """
     mean = models.team_strength.league_mean_goals
-    return Opposition(clean_sheet_probability=math.exp(-mean), goals_conceded_mean=mean)
+    return Opposition(
+        clean_sheet_probability=math.exp(-mean),
+        goals_conceded_mean=mean,
+        attacking_fixture_factor=1.0,
+    )
 
 
 def fixture_opposition(
@@ -108,6 +117,9 @@ def fixture_opposition(
         ),
         goals_conceded_mean=models.team_strength.expected_goals(
             opponent_id, team_id, at_home=not at_home
+        ),
+        attacking_fixture_factor=models.team_strength.attacking_fixture_factor(
+            opponent_id, at_home=at_home
         ),
     )
 
@@ -190,6 +202,24 @@ def _rate(
     return model.predict(
         position, value, total_minutes, prior_ratio=ratio, prior_ratio_minutes=ratio_minutes
     )
+
+
+def _opponent_adjusted(rate: float, fixture_factor: float, config: ForecastConfig) -> float:
+    """Scale a goal-involvement rate by M2's read of this fixture (E11-S3).
+
+    Off (the shipped default) reproduces ``rate`` exactly — the flag decides whether the factor is
+    even looked at, so a caller with the candidate off cannot see a behaviour change by construction
+    (DP-08). On, the raw factor is damped toward 1.0 by ``weight`` and clipped, per
+    ``OpponentAdjustmentConfig`` (DP-10): ``1 + w * (factor - 1)`` is a straight line through the
+    neutral fixture, the same shape the goalkeeper model's ``fixture_weight`` already uses.
+    """
+    discrimination = config.discrimination
+    if not discrimination.opponent_adjusted_rates:
+        return rate
+    tuning = discrimination.opponent_adjustment
+    damped = 1.0 + tuning.weight * (fixture_factor - 1.0)
+    damped = min(tuning.maximum_factor, max(tuning.minimum_factor, damped))
+    return rate * damped
 
 
 def _penalty_duty_points(
@@ -282,6 +312,7 @@ def forecast_player(
     *,
     clean_sheet_probability: float,
     goals_conceded_mean: float,
+    attacking_fixture_factor: float = 1.0,
     status_multiplier: float = 1.0,
 ) -> PlayerForecast:
     """One player's expected points and variance, decomposed.
@@ -293,8 +324,12 @@ def forecast_player(
     scoring = rules.scoring
     minutes = models.minutes.predict_row(row, position.value, status_multiplier=status_multiplier)
 
-    goal_rate = _rate(models, "goals_scored", position.value, row, config)
-    assist_rate = _rate(models, "assists", position.value, row, config)
+    goal_rate = _opponent_adjusted(
+        _rate(models, "goals_scored", position.value, row, config), attacking_fixture_factor, config
+    )
+    assist_rate = _opponent_adjusted(
+        _rate(models, "assists", position.value, row, config), attacking_fixture_factor, config
+    )
     defcon_rate = _rate(models, "defensive_contribution", position.value, row, config)
     save_rate = _rate(models, "saves", position.value, row, config)
     if position is Position.GKP and models.goalkeeper is not None:
@@ -427,6 +462,7 @@ def score_player(
         config,
         clean_sheet_probability=opposition.clean_sheet_probability,
         goals_conceded_mean=opposition.goals_conceded_mean,
+        attacking_fixture_factor=opposition.attacking_fixture_factor,
         status_multiplier=status_multiplier,
     )
 
@@ -553,7 +589,15 @@ def _team_matches(history: pd.DataFrame, *, use_xg: bool = False) -> pd.DataFram
     )
     needed = {"season", "team_id", "fixture_id", for_column, against_column, "kickoff_time"}
     empty = pd.DataFrame(
-        columns=["season", "team_id", "fixture_id", "goals_for", "goals_against", "kickoff_time"]
+        columns=[
+            "season",
+            "team_id",
+            "fixture_id",
+            "goals_for",
+            "goals_against",
+            "kickoff_time",
+            FIT_AT_HOME,
+        ]
     )
     if history.empty or not needed <= set(history.columns):
         # xG requested but not in this archive: fall back rather than return nothing, so M2 still
@@ -576,11 +620,17 @@ def _team_matches(history: pd.DataFrame, *, use_xg: bool = False) -> pd.DataFram
     played = history[history["minutes"] > 0]
     if played.empty:
         return empty
-    grouped = played.groupby(["season", "team_id", "fixture_id"], dropna=True).agg(
-        goals_for=(for_column, "sum"),
-        goals_against=(against_column, "max"),
-        kickoff_time=("kickoff_time", "min"),
-    )
+    # Venue carried through only when history has it: it is what M2 fits home advantage from
+    # (E11-S2), and an archive without it loses that one estimate and nothing else (DP-15). Every
+    # row of a team in a fixture agrees on it, so "max" is picking the single value, not reducing.
+    aggregations: dict[str, tuple[str, str]] = {
+        "goals_for": (for_column, "sum"),
+        "goals_against": (against_column, "max"),
+        "kickoff_time": ("kickoff_time", "min"),
+    }
+    if "was_home" in played.columns:
+        aggregations[FIT_AT_HOME] = ("was_home", "max")
+    grouped = played.groupby(["season", "team_id", "fixture_id"], dropna=True).agg(**aggregations)
     return grouped.reset_index()
 
 

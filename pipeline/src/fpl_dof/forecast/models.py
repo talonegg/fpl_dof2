@@ -43,7 +43,9 @@ from fpl_dof.config.models import (
     AdaptiveShrinkageConfig,
     ForecastConfig,
     GoalkeeperConfig,
+    MarketBlendConfig,
     MinutesV2Config,
+    TeamStrengthConfig,
 )
 from fpl_dof.forecast.duty import DutyTable
 from fpl_dof.forecast.features import absence_feature_name, congestion_feature_name
@@ -54,6 +56,15 @@ from fpl_dof.rules.models import GameRules, Position
 log = get_logger(__name__)
 
 MINUTES_BANDS = ("none", "short", "long")
+
+FIT_AT_HOME = "at_home"
+"""Venue column on M2's match frame — the one column the home-advantage fit needs (E11-S2).
+
+Named here rather than at the reconstruction that produces it, because two modules have to agree on
+it and a string agreed by convention across a module boundary is the drift DP-04 warns about. It is
+deliberately *not* ``was_home``: that name belongs to a rolling player feature (see
+``forecast/features.py``), and reusing it would make a team-level venue flag look like a player one.
+"""
 
 
 def _row_value(row: pd.Series, column: str) -> float:
@@ -299,13 +310,95 @@ class TeamStrengthModel:
     ``league_mean x attack(team) x defence(opponent) x home_advantage``. That form is chosen over an
     additive one because it composes correctly: a strong attack against a weak defence should
     multiply, not add, and the difference matters most in exactly the fixtures people plan around.
+
+    :attr:`home_advantage` is **fitted, not assumed** (E11-S2). It used to be a bare ``1.12`` here,
+    which is the same class of defect as a hardcoded scoring value: a number with no source and
+    nowhere to change it. It is now estimated from the same time-decayed match set the ratings come
+    from, shrunk toward :class:`~fpl_dof.config.models.TeamStrengthConfig`'s measured prior, and
+    reported with its provenance by :meth:`describe`.
     """
 
     attack: dict[int, float] = field(default_factory=dict)
     defence: dict[int, float] = field(default_factory=dict)
     league_mean_goals: float = 1.4
-    home_advantage: float = 1.12
     half_life_matches: float = 20.0
+    config: TeamStrengthConfig = field(default_factory=TeamStrengthConfig)
+    home_advantage: float = float("nan")
+    """The venue multiplier actually in use. ``nan`` at construction means "not supplied", and
+    :meth:`__post_init__` resolves it to the configured prior; :meth:`fit` then replaces it with the
+    fitted value. A sentinel rather than a literal default, because a literal default here is the
+    very thing E11-S2 removed — the number a caller gets without asking must come from config."""
+
+    home_advantage_matches: float = 0.0
+    """Effective (time-decayed) team-matches per venue that the fit saw. ``0.0`` means unfitted."""
+
+    promoted_teams: frozenset[int] = field(default_factory=frozenset)
+    """Team ids, in ``matches``' own id space, to shrink harder toward the league-neutral rating
+    (E11-S4). A promoted or heavily rebuilt club's early-season matches carry more idiosyncratic
+    squad-turnover noise than an established side's same-sized sample, so :meth:`fit` widens their
+    effective prior specifically. This model has no way to know a club's history on its own — only
+    what the caller tells it — and no caller populates this yet: the detector needs a club identity
+    that survives the season boundary, which today's silver model doesn't carry (the ``team_code``
+    gap DL-54 already flagged, not a same-story addition). Left empty, this is inert."""
+
+    market: dict[tuple[int, int], tuple[float, float]] = field(default_factory=dict)
+    """The odds market's expected goals per fixture, keyed by ``(home_team_id, away_team_id)``
+    (E11-S6). Populated by :meth:`attach_market`, never by :meth:`fit`. Empty by default, which is
+    what makes :meth:`blended_expected_goals` the identity everywhere nothing attaches it."""
+
+    def __post_init__(self) -> None:
+        if math.isnan(self.home_advantage):
+            self.home_advantage = self.config.home_advantage_prior
+
+    @property
+    def home_advantage_is_fitted(self) -> bool:
+        """Whether :attr:`home_advantage` is a measurement or the configured prior (DP-09).
+
+        A model card that cannot tell an estimate from an assumption reports both as if they were
+        measured, which is the failure DP-09 names directly.
+        """
+        return self.home_advantage_matches > 0.0
+
+    def _fit_home_advantage(self, frame: pd.DataFrame) -> None:
+        """Estimate the venue multiplier from time-decayed goals for, split by venue.
+
+        The model applies ``h`` at home and ``1/h`` away, so the ratio of mean home goals to mean
+        away goals across the whole league is ``h**2`` — every other term (league mean, attack,
+        defence) appears on both sides of that ratio and cancels, because over a full fixture list
+        each club plays home and away equally often. The estimator is therefore the square root of
+        that ratio, which needs no regression and no new statistical machinery.
+
+        Shrunk toward the configured prior in log space, so the multiplicative scale is symmetric
+        (halving and doubling are equal and opposite), then clipped to the configured range. With
+        no venue column, no home rows or no away rows the prior stands unchanged and
+        :attr:`home_advantage_matches` stays zero, so the card says "prior" rather than quietly
+        presenting a guess as a fit (DP-15, DP-09).
+        """
+        settings = self.config
+        if FIT_AT_HOME not in frame.columns:
+            return
+        venue = frame[FIT_AT_HOME].astype("boolean")
+        home = frame[venue.fillna(False)]
+        away = frame[(~venue).fillna(False)]
+        home_weight = float(home["_weight"].sum())
+        away_weight = float(away["_weight"].sum())
+        if home_weight <= 0 or away_weight <= 0:
+            return
+        home_goals = float((home["goals_for"] * home["_weight"]).sum()) / home_weight
+        away_goals = float((away["goals_for"] * away["_weight"]).sum()) / away_weight
+        if home_goals <= 0 or away_goals <= 0:
+            return
+
+        evidence = min(home_weight, away_weight)
+        weight = evidence / (evidence + settings.home_advantage_prior_matches)
+        fitted = math.sqrt(home_goals / away_goals)
+        shrunk = math.exp(
+            weight * math.log(fitted) + (1.0 - weight) * math.log(settings.home_advantage_prior)
+        )
+        self.home_advantage = min(
+            settings.home_advantage_maximum, max(settings.home_advantage_minimum, shrunk)
+        )
+        self.home_advantage_matches = evidence
 
     def fit(self, matches: pd.DataFrame, *, current_season: str | None = None) -> TeamStrengthModel:
         """``matches``: one row per team per fixture, with goals for and against.
@@ -351,15 +444,35 @@ class TeamStrengthModel:
         weight_total = float(frame["_weight"].sum())
         self.league_mean_goals = weighted_total / weight_total if weight_total > 0 else 1.4
 
+        # Before the ratings, because the ratings are computed against the league mean and the
+        # venue effect is a property of the league rather than of any club in it (E11-S2).
+        self._fit_home_advantage(frame)
+
+        settings = self.config
         for team_id, group in frame.groupby("team_id"):
             weight = float(group["_weight"].sum())
             if weight <= 0:
                 continue
+            team = as_int(team_id)
             scored = float((group["goals_for"] * group["_weight"]).sum()) / weight
             conceded = float((group["goals_against"] * group["_weight"]).sum()) / weight
             mean = self.league_mean_goals or 1.0
-            self.attack[as_int(team_id)] = scored / mean if mean else 1.0
-            self.defence[as_int(team_id)] = conceded / mean if mean else 1.0
+            raw_attack = scored / mean if mean else 1.0
+            raw_defence = conceded / mean if mean else 1.0
+            prior_matches = (
+                settings.promoted_prior_matches
+                if team in self.promoted_teams
+                else settings.rating_prior_matches
+            )
+            # Shrunk toward 1.0 (league-neutral) in log space, same construction as
+            # ``_fit_home_advantage`` and for the same reason: the multiplicative scale makes
+            # halving and doubling equally easy to reach. ``prior_matches=0`` (the shipped
+            # default) makes ``shrink`` exactly 1.0 whenever there is any evidence at all, which
+            # reproduces the unshrunk ratio this model computed before E11-S4 — the mechanism is
+            # inert until a config carries a non-zero prior, per DP-08.
+            shrink = weight / (weight + prior_matches) if prior_matches > 0 else 1.0
+            self.attack[team] = math.exp(shrink * math.log(max(raw_attack, 1e-3)))
+            self.defence[team] = math.exp(shrink * math.log(max(raw_defence, 1e-3)))
         return self
 
     def expected_goals(self, team_id: int, opponent_id: int, *, at_home: bool) -> float:
@@ -367,6 +480,60 @@ class TeamStrengthModel:
         weakness = self.defence.get(int(opponent_id), 1.0)
         advantage = self.home_advantage if at_home else 1.0 / self.home_advantage
         return max(0.05, self.league_mean_goals * attack * weakness * advantage)
+
+    def attach_market(self, rows: pd.DataFrame) -> TeamStrengthModel:
+        """Record the odds market's own expected-goals view, per fixture (E11-S6).
+
+        Not a fit: nothing here is estimated from ``rows``, which are read as given. Keyed by
+        ``(home_team_id, away_team_id)`` rather than a fixture id — the market table
+        (``TeamMatchExpectationSchema``) carries no fixture id, and a season plays each ordered
+        pair at most once, so the pair alone is already unambiguous. A ``captured_at``-latest row
+        wins where more than one exists for the same pair, so a re-fetch closer to the deadline
+        replaces an earlier one rather than being averaged with it.
+        """
+        needed = {"home_team_id", "away_team_id", "expected_goals_home", "expected_goals_away"}
+        if rows.empty or not needed <= set(rows.columns):
+            return self
+        frame = rows.dropna(subset=["home_team_id", "away_team_id"]).copy()
+        if frame.empty:
+            return self
+        if "captured_at" in frame.columns:
+            frame = frame.sort_values("captured_at")
+        market: dict[tuple[int, int], tuple[float, float]] = {}
+        for row in frame.itertuples():
+            key = (as_int(row.home_team_id), as_int(row.away_team_id))
+            market[key] = (as_float(row.expected_goals_home), as_float(row.expected_goals_away))
+        self.market = market
+        return self
+
+    def market_expected_goals(
+        self, team_id: int, opponent_id: int, *, at_home: bool
+    ) -> float | None:
+        """The market's own expected goals for ``team_id`` in this fixture, or ``None`` if this
+        exact pair and venue were never attached — the honest "no data" (DP-15), not a fallback."""
+        home, away = (team_id, opponent_id) if at_home else (opponent_id, team_id)
+        entry = self.market.get((int(home), int(away)))
+        if entry is None:
+            return None
+        goals_home, goals_away = entry
+        return goals_home if at_home else goals_away
+
+    def blended_expected_goals(
+        self, team_id: int, opponent_id: int, *, at_home: bool, weight: float
+    ) -> float:
+        """:meth:`expected_goals`, blended toward the market's view by ``weight`` (E11-S6).
+
+        Degrades to the pure ratings-based figure whenever there is nothing to blend with — no
+        market row attached for this fixture, or ``weight`` itself is ``0`` — which is what makes
+        this the identity for every caller that never attaches market data at all (DP-15, DP-08).
+        """
+        rating_based = self.expected_goals(team_id, opponent_id, at_home=at_home)
+        if weight <= 0:
+            return rating_based
+        market_based = self.market_expected_goals(team_id, opponent_id, at_home=at_home)
+        if market_based is None:
+            return rating_based
+        return weight * market_based + (1.0 - weight) * rating_based
 
     def clean_sheet_probability(self, team_id: int, opponent_id: int, *, at_home: bool) -> float:
         """P(concede zero), from a Poisson on the opponent's expected goals.
@@ -377,6 +544,21 @@ class TeamStrengthModel:
         """
         conceded = self.expected_goals(opponent_id, team_id, at_home=not at_home)
         return float(math.exp(-conceded))
+
+    def attacking_fixture_factor(self, opponent_id: int, *, at_home: bool) -> float:
+        """How much easier or harder this specific fixture looks for the attacking side (E11-S3).
+
+        Deliberately *not* ``expected_goals(team, opponent, at_home) / league_mean_goals``: that
+        would carry ``attack(team)`` too, and a player's own fitted rate already reflects his
+        team's general attacking level (he was observed scoring for it) — reapplying it here would
+        double-count the team's strength on top of the player's. What is left after ``attack(team)``
+        cancels is exactly the opponent's defence and the venue, which is the part of the fixture
+        that is genuinely new information relative to the player's own history. 1.0 is a neutral
+        opponent at a neutral venue; above 1 is an easier fixture to score in, below 1 harder.
+        """
+        weakness = self.defence.get(int(opponent_id), 1.0)
+        advantage = self.home_advantage if at_home else 1.0 / self.home_advantage
+        return weakness * advantage
 
     def fixture_difficulty_ratio(self, team_id: int, opponent_id: int, *, at_home: bool) -> float:
         """How hard this fixture looks: goals expected against, over goals expected for.
@@ -397,9 +579,31 @@ class TeamStrengthModel:
         return {
             "teams": len(self.attack),
             "league_mean_goals": round(self.league_mean_goals, 4),
-            "home_advantage": self.home_advantage,
+            "home_advantage": round(self.home_advantage, 4),
+            # DP-09: a fitted 1.09 and an assumed 1.09 are the same number and different claims,
+            # and the model card has to be able to say which this is (E11-S2).
+            "home_advantage_source": ("fitted" if self.home_advantage_is_fitted else "prior"),
+            "home_advantage_matches": round(self.home_advantage_matches, 1),
+            "home_advantage_prior": self.config.home_advantage_prior,
             "half_life_matches": self.half_life_matches,
+            "rating_prior_matches": self.config.rating_prior_matches,
+            "promoted_prior_matches": self.config.promoted_prior_matches,
+            "promoted_teams": sorted(self.promoted_teams),
+            "market_fixtures": len(self.market),
         }
+
+
+def market_blend_weight(gameweeks_ahead: int, config: MarketBlendConfig) -> float:
+    """How much :meth:`TeamStrengthModel.blended_expected_goals` should trust the market this far
+    out (E11-S6). A straight-line decay from :attr:`MarketBlendConfig.weight_at_next_gameweek` at
+    the next gameweek, floored at 0 so a distant fixture is scored on ratings alone rather than a
+    stale or extrapolated line. ``gameweeks_ahead`` is 0 for the next gameweek, 1 for the one after
+    it, and so on — never negative in a real caller, but a negative value is clamped rather than
+    trusted, since a market weight above :attr:`~MarketBlendConfig.weight_at_next_gameweek` was
+    never a decision this config made.
+    """
+    ahead = max(0, gameweeks_ahead)
+    return max(0.0, config.weight_at_next_gameweek - config.decay_per_gameweek * ahead)
 
 
 @dataclass
@@ -860,7 +1064,9 @@ def fit_components(
     )
     return ComponentModels(
         minutes=minutes.fit(history, rules.scoring.long_play_minutes),
-        team_strength=TeamStrengthModel().fit(matches, current_season=rules.season),
+        team_strength=TeamStrengthModel(config=config.team_strength).fit(
+            matches, current_season=rules.season
+        ),
         rates=rates,
         bonus=BonusModel(bonus_points=tuple(rules.scoring.bonus_points)).fit(history),
         # Not fitted — read. The duty table is curated knowledge and there is nothing in `history`
