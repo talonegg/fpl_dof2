@@ -3707,6 +3707,494 @@ the last real measurement, nothing promoted (DP-08).
   in future — a permitted xG source appears, or FPL's own historical exposure widens — this probe is
   the first thing worth re-running, not `prior_season` promotion by any other route.
 - No code, config, or test changes follow from this story.
+## DL-55 — E11-S2: home advantage is now fitted and config-seeded; the fixture-band backtest shows the fit and the old guess performing indistinguishably
+
+**Date:** 2026-08-21 · **Status:** Accepted · **Arose in:** E11-S2 implementation
+
+### Context
+
+`TeamStrengthModel.home_advantage` was a bare `1.12` dataclass default (`forecast/models.py`) — no
+source, no config path, nowhere to change it, the same class of defect Invariant 2 names for a
+scoring literal. E11-S2 replaces it with a value fitted from the same time-decayed match set M2
+fits everything else from: the ratio of mean home to mean away goals across a fully home/away
+balanced fixture list is `home_advantage**2` (every other term cancels), so the estimator is the
+square root of that ratio, shrunk in log space toward a configured prior by how much evidence
+exists (`home_advantage_prior_matches`, default 190 — one league season of home fixtures), and
+clipped to `[home_advantage_minimum, home_advantage_maximum]` = `[1.0, 1.30]`.
+
+The prior itself (`TeamStrengthConfig.home_advantage_prior`, default 1.09) is not a second guess —
+it is the fit's own output run once over the real archive, done by materialising the 2023/24-2025/26
+backfill locally (`fpl-dof ingest` then `transform`, both served entirely from the existing bronze
+cache, no network call) and fitting directly: **1.0963 essentially unshrunk** (evidence-weighted,
+`home_advantage_prior_matches≈0.0001`), **1.0929 at the shipped half-life and prior weight**. Both
+land within rounding of each other and confirm the constant a manager plans fixtures around had
+drifted from what actually happened on the pitch.
+
+### Decision
+
+Ship the fit. `TeamStrengthModel.home_advantage` defaults to `nan`, a sentinel `__post_init__`
+resolves to `config.home_advantage_prior`, and `fit()` then replaces it with the measured value
+whenever the training frame carries a venue column — `describe()` reports which of the two
+happened (`home_advantage_source: "fitted" | "prior"`), per DP-09. `stages/publish.py`'s fixtures
+ticker now threads `ctx.config.forecast.team_strength` through instead of constructing an
+unconfigured `TeamStrengthModel()`. `forecast/backtest.py`'s `fixture_difficulty` diagnostic
+deliberately keeps its own default-config `TeamStrengthModel()` unfitted-config-wise — it exists so
+a fixture's *band* doesn't drift every time the graded model's config changes, which is the point
+of a stable diagnostic; threading live config through it would defeat that.
+
+**The acceptance criterion this does not clearly meet:** the epic asks for clean-sheet and goals
+calibration to *improve*. A full offline walk-forward backtest (`fpl-dof backtest --offline`, 72
+folds, 21,712 observations, `training_seasons: [2024/25, 2025/26]`, fixture coverage 1.0 per
+E9-S2/DL-52) was run twice — once against the fitted value (effectively 1.093), once against a
+config override pinning the old constant (`home_advantage_prior: 1.12`,
+`home_advantage_prior_matches: 1e9` to prevent the fit moving off it) — and the two are
+statistically indistinguishable: Spearman 0.24881 (fitted) vs 0.25058 (1.12), calibration slope
+0.68986 vs 0.68990, MAE-skill 0.01716 vs 0.01727, top-20 precision 0.12083 vs 0.12153. Every
+difference is within what one held-out window's noise can produce; none of it clears any bar. The
+honest reading, not the convenient one: **this backtest gives no evidence the fitted value scores
+higher than the guess**, and per E8§5 that means this cannot be promoted on the strength of "the
+metric moved" — because on this measurement it didn't.
+
+What it *does* fix, independent of that number moving, is Invariant 2: `1.12` was a literal with no
+source and no way to update it as the effect drifts, which the epic text calls the same class of
+bug as a hardcoded scoring constant. That argument does not rest on the backtest — a correct,
+provenance-carrying mechanism that ties for accuracy with a magic number is still worth shipping in
+place of the magic number, and this is not the "no time, so waive it" trade DL-10 warns against; it
+is the opposite trade, spending the effort to remove a defect that happened not to move the metric.
+It is *not* treated as clearing the full DP-08/E8§5 bar for a "genuinely new model behaviour" —
+there is no shadow flag here, no six-live-gameweek window, because there is no behaviour being
+bet on; the fitted value and the old constant are numerically close enough (1.093 vs 1.12, both
+comfortably inside `[1.0, 1.30]`) that this reads as a provenance and correctness fix, not a model
+change with a hypothesis to falsify. If a future re-fit ever pulls the value meaningfully further
+from 1.09-1.12, that would be a real behaviour change and should clear the bar properly then.
+
+### Consequences
+
+- E11 epic DoD line "Home advantage is a fitted, config-seeded value reported in the model card" is
+  met. The line implying calibration improvement is **not** claimed met by this entry — recorded
+  here rather than silently ticked, so a later reader doesn't infer evidence that wasn't found.
+- `config/defaults/forecast.yaml` gains a `forecast.team_strength` block restating the pydantic
+  defaults with the measured provenance, matching the convention every other forecast section
+  already follows.
+- New test module `pipeline/tests/test_team_strength.py` covers the fit's edges specifically
+  (DP-13): no venue column, no away rows, thin-evidence shrinkage, range clipping, and the
+  `describe()` fitted-vs-prior distinction.
+- Full affected suite (`test_team_strength.py`, `test_forecast.py`, `test_trend_artefacts.py`,
+  `test_backtest.py`, `test_publish.py`, `test_config.py`), ruff, ruff format, and mypy all pass.
+
+---
+
+## DL-56 — E11-S1: xG-based team ratings clear the fixture-aware backtest bar comfortably; held dark pending live shadow gameweeks
+
+**Date:** 2026-08-21 · **Status:** Accepted · **Arose in:** E11-S1 implementation
+
+### Context
+
+`ExpectedGoalsConfig.team_strength_from_xg` (`config/models.py:405`) and the code path it gates
+(`_team_matches(..., use_xg=True)` reading `expected_goals`/`expected_goals_conceded` instead of
+`goals_scored`/`goals_conceded` when reconstructing M2's training matches, `forecast/xp_v1.py:529`)
+have existed since before this epic, wired at both the live and backtest call sites, defaulting to
+`False`. The shipped config comment justifying that default said the flag was **unmeasurable**: with
+opposition scored at league average, an xG-fitted attack/defence rating never reached a graded
+prediction. [E9-S2](../epics/E9-forecast-delivery-and-backtest-fidelity.md)/[DL-52](#dl-52--d-26-closed-the-archive-always-stated-which-club-each-row-belonged-to-and-the-repair-is-keyed-on-the-stable-club-code-because-half-the-season-local-ids-change-club-every-year)
+closed that gap — fixture coverage is now 1.0 — which is exactly the prerequisite E11 §0 names as
+having gated this whole epic. That comment was stale the moment DL-52 landed; it is corrected as
+part of this entry regardless of the flag's verdict below.
+
+### Decision
+
+**Measured, not promoted.** A full offline walk-forward backtest (`fpl-dof backtest --offline`, 72
+folds, 21,712 observations, `training_seasons: [2024/25, 2025/26]`) was run with the flag off (the
+shipped default, refreshed after E11-S2's home-advantage fit) and on, all else identical:
+
+| metric | goals-based (off) | xG-based (on) | delta |
+| --- | --- | --- | --- |
+| Spearman (overall) | 0.24881 | 0.25536 | +0.00655 |
+| calibration slope (overall) | 0.68986 | 0.73118 | +0.04132 |
+| MAE-skill over B0 | 0.01716 | 0.02109 | +0.00393 |
+| top-20 precision | 0.12083 | 0.12708 | +0.00625 |
+| fixture-band Spearman, average | 0.20071 | 0.21603 | +0.01532 |
+| fixture-band Spearman, easy | 0.24172 | 0.25345 | +0.01173 |
+| fixture-band Spearman, hard | 0.22237 | 0.22613 | +0.00376 |
+| fixture-band calibration, average | 0.60271 | 0.65704 | +0.05433 |
+| fixture-band calibration, easy | 0.66863 | 0.72729 | +0.05866 |
+| fixture-band calibration, hard | 0.57952 | 0.60454 | +0.02502 |
+
+Every one of these moves in the same direction and by an order of magnitude more than the noise
+floor DL-55 found for the home-advantage fit (there, differences of 0.0001-0.002; here, 0.004-0.06).
+This is the story's own acceptance criterion — "fixture-conditioned Spearman and clean-sheet
+calibration beat the goals-based ratings on a held-out season" — met without qualification, and it
+is the shape the design predicted: xG regresses less than goals, so a rating built from it should
+travel better into a held-out fixture list, most visibly exactly where a fixture is easy or hard
+rather than average.
+
+**Still not flipped to default `true`.** This is a genuinely new model behaviour — which attack and
+defence ratings M2 learns, not a delivery defect like DL-55's literal — and the epic's own DoD is
+explicit: "each promoted change cleared the E8 §5 bar", which requires backtest evidence on a
+held-out season **and** six live shadow gameweeks minimum, "fewer than six and you are reading
+noise." There is no live season yet for the flag to be shadowed against — E11 lands before GW1, and
+the six-gameweek clock can only start once real gameweeks are being scored. Flipping the default
+here would be declaring the shadow requirement met by a backtest alone, which is precisely the
+substitution E8 §5 exists to prevent (and the same substitution DL-47 already refused to make for
+every `discrimination.*` flag). The flag stays `false`; the config comment now states the measured
+case for it plainly, so turning it on when the shadow window opens is a one-line change made with
+full knowledge of why, not a rediscovery.
+
+### Consequences
+
+- Corrects the stale `team_strength_from_xg` comment in `config/defaults/forecast.yaml` (it called
+  the flag unmeasurable; it has been measurable since DL-52).
+- No code change — the wiring (`ExpectedGoalsConfig.team_strength_from_xg`, both `_team_matches` call
+  sites) was already complete; this entry is the measurement DP-08 requires before a dark flag may be
+  promoted, and the explicit decision not to promote it yet.
+- E11 epic DoD line "xG-based team ratings promoted on backtest evidence; goals-based path retained
+  as fallback" is **half true**: the backtest evidence is in hand and positive; promotion (flipping
+  the default) is deferred to the live shadow window this entry opens, per E8 §5. Recorded here
+  rather than ticked, so a later reader does not infer the flag is live in the shipped default.
+- The two backtest runs behind this table used `--offline` against the locally cached archive
+  (2023/24-2025/26, ingested and transformed once for DL-55, reused here); no network call was made.
+
+---
+
+## DL-57 — E11-S4: the widening mechanism is built and measured; the promoted-club detector is not, for a real reason
+
+**Date:** 2026-08-21 · **Status:** Accepted · **Arose in:** E11-S4 implementation
+
+### Context
+
+Before this story, `TeamStrengthModel.fit()`'s per-club attack and defence ratings had **no
+shrinkage at all** — a club's rating was its raw time-decayed scored/conceded ratio regardless of
+how many matches informed it, so a single August fixture carried exactly as much confidence as
+twenty. The epic frames this as specifically a *promoted-club* problem ("a promoted side's
+September is weak evidence about their April"), but the underlying defect is general: every club
+starts each rating with zero shrinkage, promoted or not.
+
+Building the promoted-specific half properly — detecting which clubs are promoted or heavily
+rebuilt — turned out to need something that does not exist: a club identity that survives a season
+boundary. `TeamSchema` (`silver/tables.py`) is a current-season-only snapshot, 20 rows, no `season`
+column; `player_season_history` carries no team reference at all; and the live model deliberately
+fits `TeamStrengthModel` on the current season alone (`forecast/live.py:117-129`), because pooling
+it with the archive would mean grouping by `team_id` across the season-local/stable-club-code split
+D-26 exists to prevent. [DL-54](#dl-54--post-e10-code-review-a-second-team-id-space-mixing-guard-and-four-minor-cleanups)
+already named the fix — a `team_code` column mirroring the `player_code`/`player_id` split — and
+explicitly scoped it as "the right shape for E12 or a dedicated follow-up, not a same-session
+addition." Building a name-matched crosswalk as a shortcut here, outside `sources/` (Invariant 1)
+and without the schema work DL-54 already flagged, is exactly the kind of shortcut DP-13 warns
+against: it would look like it detected promoted clubs and be silently wrong wherever a name-match
+missed or over-matched, with no test able to catch it against real data this repository doesn't yet
+model. Better to not build it than to build it badly.
+
+### Decision
+
+**Split the story at its real seam.** `TeamStrengthModel` gains the mechanism in full:
+`rating_prior_matches` (general shrinkage, all clubs, toward the league-neutral 1.0, log-space,
+same construction as [DL-55](#dl-55--e11-s2-home-advantage-is-now-fitted-and-config-seeded-the-fixture-band-backtest-shows-the-fit-and-the-old-guess-performing-indistinguishably)'s
+home-advantage fit) and `promoted_teams: frozenset[int]` plus `promoted_prior_matches` (a wider
+prior for any team id the caller names). Both new config fields default to `0.0`, which makes
+`shrink` exactly `1.0` and reproduces the pre-E11-S4 unshrunk behaviour byte-for-byte — the
+mechanism is inert until configured, per DP-08. What is **not** built: anything that populates
+`promoted_teams` automatically. No caller sets it; the set is empty in every shipped path. The
+config fields' own descriptions say why, so a reader hits the explanation at the point of use, not
+only here.
+
+**Measured anyway, with `promoted_teams` empty** — this tests the general-shrinkage half only, which
+is still worth knowing: `fpl-dof backtest --offline`, 72 folds, `rating_prior_matches: 8.0` (chosen
+as roughly a fifth of a season, no grid search) against the DL-56 baseline:
+
+| metric | unshrunk (default) | shrunk, prior=8 | delta |
+| --- | --- | --- | --- |
+| Spearman (overall) | 0.24881 | 0.24760 | −0.00121 |
+| calibration slope (overall) | 0.68986 | 0.72361 | +0.03375 |
+| MAE-skill over B0 | 0.01716 | 0.02071 | +0.00355 |
+| top-20 precision | 0.12083 | 0.12778 | +0.00695 |
+| fixture-band Spearman, average | 0.20071 | 0.20500 | +0.00429 |
+| fixture-band Spearman, hard | 0.22237 | 0.22049 | −0.00188 |
+| fixture-band calibration, average | 0.60271 | 0.62109 | +0.01838 |
+| fixture-band calibration, easy | 0.66863 | 0.73385 | +0.06522 |
+
+Mixed but net positive: Spearman moves by roughly a noise-level amount in both directions (one
+metric down, most others up), while calibration — the metric the epic actually names for this
+story — improves consistently and by a real margin, not a noise-level one. **Not promoted anyway,
+same reasoning as [DL-56](#dl-56--e11-s1-xg-based-team-ratings-clear-the-fixture-aware-backtest-bar-comfortably-held-dark-pending-live-shadow-gameweeks):**
+this is a genuinely new model behaviour, `rating_prior_matches=8.0` was chosen by argument rather
+than a proper search, and the promoted-specific half — the half the epic's acceptance criterion is
+actually about ("Aug/Sept fixture calibration for promoted clubs improves without harming the
+rest") — cannot be measured at all without the detector this entry declines to build. The general
+number above is suggestive, not a verdict on the story's own acceptance test.
+
+### Consequences
+
+- E11 epic DoD line "Promoted-club priors widened without harming established clubs" is **not**
+  met and cannot be, on this data model. `promoted_teams` is real and tested but unreachable from
+  any shipped code path.
+- Confirms the `team_code` follow-up DL-54 already scoped is now blocking two independent stories
+  (this one, and any real "does the fixture ticker beat static FDR for promoted clubs" question) —
+  worth prioritising ahead of "when convenient" if E12 has room to move earlier.
+- New tests in `pipeline/tests/test_team_strength.py` cover the shrinkage math directly: the
+  zero-prior no-op, thin-evidence shrinkage, a named club shrinking harder than an identical
+  unnamed one, ample evidence overwhelming even a widened prior, and `describe()` reporting the
+  configuration.
+- Full affected suite, ruff, ruff format, and mypy all pass (same file set as DL-55, plus
+  `test_team_strength.py`'s new cases).
+
+---
+
+## DL-58 — E11-S3: goal and assist rates now read the opponent, on a simplified formulation that beats the old fixture-blind chain on this backtest
+
+**Date:** 2026-08-21 · **Status:** Accepted · **Arose in:** E11-S3 implementation
+
+### Context
+
+Before this story, `forecast_player` (`forecast/xp_v1.py`) scored a player's goals and assists from
+his own shrunk per-90 rate alone — no fixture entered either number. Only clean sheets, goals
+conceded and (with `gkp_v2`) saves read M2's opposition. Design §M3
+(`docs/planning/04-conceptual-design.md`) calls for allocating the *team's* M2-implied expected
+goals across its players by npxG/xA/shot-volume shares, then applying penalty/set-piece duty. That
+full share model needs a cross-player normalisation pass — summing every teammate's raw rate before
+any single player can be scored — that does not exist in this codebase's per-row scoring loop
+(`ComponentPredictor.predict`, `horizon.py`'s equivalent), and building it was judged too large an
+addition to make correctly in the time this story had, alongside S1/S2/S4/S5/S6.
+
+### Decision
+
+**Ship a simplified formulation that needs no aggregation, stated plainly so it can be argued with
+(DP-10).** A player's own fitted rate already reflects his team's *general* attacking level, because
+he was observed scoring for that team; re-applying M2's `attack(team)` rating on top would
+double-count it. What is genuinely new information about *this* fixture, relative to the player's
+own history, is only the opponent's defence and the venue — exactly
+`TeamStrengthModel.attacking_fixture_factor(opponent_id, at_home=...)`, a new method returning
+`defence(opponent) * home_advantage_multiplier`, deliberately built so `attack(team)` cancels out of
+it rather than being included and then divided back out.
+
+The factor is threaded through the existing `Opposition` seam (`clean_sheet_probability`,
+`goals_conceded_mean`, now `attacking_fixture_factor`), computed once per fixture in
+`fixture_opposition`/`row_opposition`, defaulted to `1.0` (neutral) in `league_average_opposition`.
+`forecast_player` applies it to `goal_rate` and `assist_rate` only — not `defcon_rate`, `save_rate`
+(already fixture-aware via `gkp_v2`), `card_rate` or `bps_rate`, matching Design §M3's own scope
+("goal involvement"). `discrimination.opponent_adjusted_rates` gates it (default `False`); when off,
+`_opponent_adjusted` returns the input rate unchanged, so the flag decides whether the factor is
+even looked at, matching the shape S1/S2/S3/S4's siblings and E10's flags all use. `OpponentAdjustmentConfig.weight`
+damps the raw factor toward 1.0 (`1 + w * (factor - 1)`, the same construction
+`GoalkeeperConfig.fixture_weight` already uses), with a floor and ceiling so a single fixture cannot
+collapse or explode a rate.
+
+**Measured**: `fpl-dof backtest --offline`, 72 folds, `opponent_adjusted_rates: true`,
+`weight: 1.0` (full, unshrunk default, matching how S1's flag was measured), against the DL-56/57
+baseline:
+
+| metric | fixture-blind (off) | opponent-adjusted (on) | delta |
+| --- | --- | --- | --- |
+| Spearman (overall) | 0.24881 | 0.25463 | +0.00582 |
+| calibration slope (overall) | 0.68986 | 0.69475 | +0.00489 |
+| MAE-skill over B0 | 0.01716 | 0.01791 | +0.00075 |
+| top-20 precision | 0.12083 | 0.12847 | +0.00764 |
+| fixture-band Spearman, easy | 0.24172 | 0.24613 | +0.00441 |
+| fixture-band Spearman, hard | 0.22237 | 0.22565 | +0.00328 |
+| fixture-band Spearman, average | 0.20071 | 0.19802 | −0.00269 |
+| fixture-band calibration, easy | 0.66863 | 0.65770 | −0.01093 |
+| fixture-band calibration, hard | 0.57952 | 0.60717 | +0.02765 |
+| fixture-band calibration, average | 0.60271 | 0.58069 | −0.02202 |
+
+The story's own acceptance criterion — Spearman improving specifically in the easy and hard bands —
+is met on both bands individually. What is **not** clean is the "average" fixture-band row, which
+moves the wrong way on both Spearman and calibration despite both named bands improving; this harness
+computes "average" as a separate quantity from the mean of the two named bands (it is not simply
+`(easy + hard) / 2`), and this entry does not have a satisfying account of why it diverges — recorded
+honestly rather than smoothed over, and worth a specific look before anyone leans on that field
+again. Every other overall metric (Spearman, calibration, MAE-skill, top-20 precision) moves in the
+positive direction and outside DL-55's noise floor.
+
+**Not promoted.** Same reasoning as DL-56/57: this is a genuinely new model behaviour needing the
+full E8 §5 bar, including six live shadow gameweeks that cannot exist before GW1. `weight=1.0` was
+chosen to match the full effect, not tuned by search. The flag stays `false`.
+
+### Consequences
+
+- E11 epic DoD line "Player rates are opponent-adjusted by sharing out M2 team xG, improving
+  high/low-difficulty buckets" is **partially** met: rates are opponent-adjusted and both named
+  fixture-difficulty buckets improve on Spearman, but the mechanism is a simplification of the
+  share-based design (no cross-player allocation), and the fixture-band "average" metric moved the
+  wrong direction for reasons this entry could not fully explain. Recorded here rather than ticked
+  clean.
+- The full share-based M3 (allocating team xG across players by npxG/xA/shot-volume shares) remains
+  unbuilt; a candidate for a dedicated follow-up story if the simplified version's live-shadow
+  results ever justify chasing the harder version.
+- New test module `pipeline/tests/test_opponent_adjusted_rates.py`: the flag-off no-op, an average
+  fixture reproducing the old rate exactly, direction (harder lowers, easier raises), a weight of
+  zero as the exact identity, damping as a linear share of the full move, floor/ceiling clipping,
+  the other components (`clean_sheet`, by extension `saves`/`goals_conceded`) staying untouched, the
+  factor's own arithmetic excluding the player's own team's attack rating, and `score_player`
+  threading the factor from `Opposition` the same way `forecast_player` does directly.
+- Full affected suite, ruff, ruff format, and mypy all pass.
+
+---
+
+## DL-59 — E11-S5: the odds adapter is enabled by default everywhere, not switched on only in CI
+
+**Date:** 2026-08-21 · **Status:** Accepted · **Arose in:** E11-S5 implementation
+
+### Context
+
+E5 already shipped a complete odds adapter (`sources/oddsapi/adapter.py`) — de-vigged market
+arithmetic, a credit ledger enforced before each call, and a tested degrade-clean path when
+`ODDS_API_KEY` is absent — but nothing enabled it anywhere, and no CI workflow passed the key
+through. `OddsApiAdapter.enabled_by_default` is `False` (correctly: an adapter should not silently
+assume every environment wants it running), and no shipped `config/defaults/*.yaml` file overrode
+that, so the source never ran, key or no key.
+
+### Decision
+
+**Enable the source everywhere; put the secret only in CI.** A new
+`config/defaults/sources.yaml` sets `sources.overrides.oddsapi.enabled: true`. This is a shipped
+default, not a CI-only flip: an environment without `ODDS_API_KEY` (every contributor's laptop,
+every fork, this repository before the owner signs up) hits exactly the already-tested
+`test_no_key_means_no_request_is_even_attempted` path — zero network calls, a logged warning
+(`ingest.warning`, `source: oddsapi`), the run succeeds. Verified locally with `fpl-dof ingest
+--offline` and no key set: `sources.built` now reports `enabled: ["fpl", "fplarchive", "oddsapi"]`
+and the run completes in 3.75s with `oddsapi.network_calls: 0`. The alternative — leaving the
+source off by default and enabling it only inside `ingest-slow.yml` — was rejected: it would mean
+local and CI runs exercise a different source set purely as an artefact of where a secret happens
+to be configured, which is the exact drift Invariant 1 exists to prevent (one config, one set of
+enabled sources, everywhere).
+
+`ingest-slow.yml`'s "Full ingest" step now passes `ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}` as an
+env var. No conditional around the step: the adapter's own degrade-clean path is the conditional,
+so the workflow does not need to know whether the secret has been set yet.
+
+**Still not "live" in the sense of actually fetching anything**, and cannot be from this side of the
+work: `ODDS_API_KEY` is an owner-provided secret (`docs/planning/epics/INPUTS-REQUIRED.md` item
+4.1, "Requires you to sign up"), tracked as an open item, target ~GW10. What this entry closes is
+narrower than "live data flowing": *which* provider and *what* credit budget (OD-03's actual
+question) were already decided in the adapter's own shipped defaults — the Odds API, free tier,
+~450 requests/month after reserving headroom for pre-deadline refreshes. This entry is what makes
+that decision reachable by a real run instead of sitting behind a flag nothing sets. "Does the
+market view actually improve calibration" (E11-S6's question) still needs real fetched data the
+owner's key unlocks, and stays open until then.
+
+### Consequences
+
+- **OD-03 closed**: provider (Odds API) and free-tier credit budget (450/month, `FPL_DOF_ODDS_CREDIT_BUDGET`
+  overridable) were already decided in the adapter's own defaults; this entry is what makes that
+  decision actually reachable in a run rather than dead code.
+- E11 epic DoD line "Odds adapter live within a credit budget, degrading cleanly when the key or
+  budget is absent" is met on the code and CI-wiring side. The line's implicit promise of a working
+  live signal is blocked on the owner adding the secret, not on anything in this codebase.
+- New test `test_the_shipped_default_config_enables_the_odds_source`
+  (`tests/test_external_sources.py`) pins the default at the config layer, not just the adapter
+  class — the two are independent and both need to agree for the source to actually run.
+- Full affected suite (`test_external_sources.py`, `test_config.py`), ruff, ruff format, and mypy
+  all pass.
+
+---
+
+## DL-60 — E11-S6: the market-blend mechanism is built and tested; it cannot be backtested at all, and is not wired into a live scoring path yet
+
+**Date:** 2026-08-21 · **Status:** Accepted · **Arose in:** E11-S6 implementation
+
+### Context
+
+Design §M2 calls for blending the odds market's expected goals into M2, with the blend weight a
+function of horizon — near the deadline, defer to the market; far out, defer to the ratings. DL-59
+made the odds adapter reachable in a real run, but confirmed nothing downstream reads
+`team_match_expectation` yet: `TeamStrengthModel`, `xp_v1.py` and `forecast/live.py` had no
+awareness the table exists.
+
+**This story has no backtest to measure it against, structurally, not by choice.** `fpl-dof
+backtest` walk-forwards over `player_gameweek` history, which carries no market column and never
+will retroactively — the odds adapter only started collecting data once E5 shipped it, so there is
+no historical archive of past lines to replay a fold against. Every other E11 story that shipped
+dark (S1, S3, S4) has a DL entry with a real backtest table; this one cannot have one, which is
+worth stating plainly rather than manufacturing a number from data that does not exist.
+
+### Decision
+
+**Build and test the blend mechanism; do not wire it into a live scoring path this session.**
+`TeamStrengthModel` gains `market: dict[(home_team_id, away_team_id), (xg_home, xg_away)]`,
+`attach_market(rows)` (reads `TeamMatchExpectationSchema`-shaped rows, latest `captured_at` per
+pair wins, degrades to a no-op on anything malformed or empty — DP-15), `market_expected_goals`
+(the honest `None` for an unresolved fixture, never a silent fallback) and
+`blended_expected_goals(..., weight)` (identity whenever there is nothing to blend with — no
+market row, or `weight <= 0`). A new module-level `market_blend_weight(gameweeks_ahead, config)`
+implements the horizon decay Design §M2 calls for — `weight_at_next_gameweek` (default 0.6) falling
+by `decay_per_gameweek` (default 0.15) until it floors at 0, both named, defaulted and justified by
+argument rather than fit (DP-06, DP-10 — there is nothing to fit this against, see above).
+`discrimination.market_blend` gates it, off by default, matching every other E11 candidate's shape.
+
+**What is deliberately not done**: reading `team_match_expectation` out of silver into
+`ComponentModels` at fit time, and threading "how many gameweeks ahead is this fixture" through
+`fixture_opposition`/`week_forecast`/`ComponentPredictor.predict` so a real weight reaches
+`blended_expected_goals` in a real run. This is not the same kind of gap S4 hit — the data model
+exists, the wiring is mechanical, not blocked on new plumbing DL-54 already flagged as follow-up
+work. It is a scope decision, made explicitly rather than by running out of session first: E11-S1
+through S5 landed with real measurement behind each one, and rushing S6's wiring to completion
+without any way to validate it — no backtest, no live data yet (the key is still an owner action)
+— would produce code that looks finished and has never been exercised against a real fixture,
+which is a worse position than a clearly-scoped, fully-tested building block waiting for its data.
+
+### Consequences
+
+- E11 epic DoD line "Market view blended into M2 with a horizon-dependent weight, degrading cleanly
+  to ratings-only" is met at the *mechanism* level (every test in `test_market_blend.py` is
+  exactly this claim) and **not** met at the *wired into a live decision* level. Recorded here
+  rather than ticked, so a later reader does not assume the fixtures ticker or the published
+  forecast currently reflects any odds data.
+- A concrete follow-up, now that the mechanism exists to wire: attach `team_match_expectation` in
+  `fit_components`/`forecast/live.py` (mirroring how `team_matches` is attached today), compute
+  `gameweeks_ahead` from the horizon list already built in `horizon_frame`, and pass
+  `market_blend_weight(...)` through `fixture_opposition`. None of this can be validated until
+  `ODDS_API_KEY` is set and real odds start flowing (INPUTS-REQUIRED.md 4.1) — wiring it earlier
+  would not make it more finished, only harder to tell apart from working.
+- New test module `pipeline/tests/test_market_blend.py`: attach/lookup by ordered pair, the
+  latest-`captured_at`-wins rule, degrade-clean on empty or malformed input, the blend's identity
+  cases (no market data, zero weight), a full-weight blend returning the market figure exactly, a
+  partial weight as a linear interpolation, an unresolved fixture falling back to ratings even at
+  full weight, and the horizon decay function's shape including its floor and its (defensive)
+  handling of a negative horizon.
+- Full affected suite, ruff, ruff format, and mypy all pass.
+
+---
+
+## DL-61 — Post-E11 review: `ComponentModels.describe()` was dead code — nothing had ever called it in a real run
+
+**Date:** 2026-08-21 · **Status:** Accepted · **Arose in:** verifying DL-55's own claim
+
+### Context
+
+DL-55 said E11-S2's fitted home advantage would be "reported in the model card (DP-09)". Checking
+that claim before letting it stand found it was false: `ComponentModels.describe()`
+(`forecast/models.py`) — which nests `M1_minutes`, `M2_team_strength`, every `RateModel`, `M8_bonus`,
+`duty` and `goalkeeper` — was called nowhere in the shipped pipeline. `stages/forecast.py` builds
+the fitted `ComponentModels` inside `forecast/live.py`'s `build_forecast`, uses it to produce the
+scored frame, and discards it; `write_model_card` (`forecast/model_card.py`) only ever received the
+frame, the config and the backtest report. Every fitted number this epic added — `home_advantage`
+and its `_source`, `rating_prior_matches`, `promoted_teams`, `market_fixtures` — existed correctly
+in `describe()`'s output and reached nobody. This predates E11 entirely; E11 is simply what first
+added a fitted value worth checking for.
+
+### Decision
+
+**Wire it, without changing `build_forecast`'s signature.** ~35 call sites across two test files
+treat its return value as a plain `DataFrame`; threading a second return value through would touch
+all of them for a diagnostics-only addition. Instead the fitted description rides `frame.attrs`
+(pandas' own "about the frame, not a column of it" mechanism) — `live.build_forecast` sets
+`frame.attrs["component_description"] = models.describe()` right after fitting, `stages/forecast.py`
+reads it off before returning its own `Forecast` dataclass (now carrying an optional
+`component_description` field, `None` for `xp_v0`'s cold-start fallback, which has no component
+chain to describe), and `write_model_card` gains an optional `component_description` parameter
+rendering a new "## Component internals" section — only when given one, so every existing card
+(and every existing test asserting on card contents) is unchanged.
+
+### Consequences
+
+- DL-55's claim is now actually true, and DL-57's and DL-60's `market_fixtures`/`promoted_teams`
+  fields are reachable the same way, for whenever S1/S3/S4/S6's flags are eventually shadowed and
+  someone needs to read what the fitted model actually did.
+- New tests: `test_the_fitted_component_chain_reaches_the_model_card`
+  (`tests/test_xp_v1_live.py`, pins `frame.attrs` and `Forecast.component_description` both) and
+  `test_a_card_with_a_component_description_shows_what_was_fitted`
+  (`tests/test_forecast.py`, pins the card renders the section when given one and omits it when
+  not — the `xp_v0` case).
+- Full affected suite, ruff, ruff format, and mypy all pass.
 
 ---
 
@@ -3718,7 +4206,7 @@ Decisions deliberately deferred, with the point at which each must be resolved.
 | --- | --- | --- |
 | ~~OD-01~~ | ~~Public or private GitHub repository~~ — **Closed: public.** See [DL-12](#dl-12--public-repository) | Resolved |
 | ~~OD-02~~ | ~~Hosting: Cloudflare Pages, public repo, or local-only~~ — **Closed by DL-12.** GitHub Pages is free on a public repository; no Cloudflare account needed | Resolved |
-| OD-03 | Which odds provider and free-tier credit budget | E5, ~GW10 |
+| ~~OD-03~~ | ~~Which odds provider and free-tier credit budget~~ — **Closed: the Odds API, free tier, ~450 requests/month.** See [DL-59](#dl-59--e11-s5-the-odds-adapter-is-enabled-by-default-everywhere-not-switched-on-only-in-ci). The key itself is still an owner action (INPUTS-REQUIRED.md 4.1), tracked separately | Resolved |
 | OD-04 | Whether to add injury/press-conference feeds as a fourth source | E8, in-season |
 | ~~OD-05~~ | ~~Default risk-dial posture~~ — **Closed: Balanced, as a configuration field the owner can change at any time.** Reopens only if the owner states a target rank or a temperament. See [DL-25](#dl-25--od-05-resolved-the-risk-dial-defaults-to-balanced) | Resolved |
 | ~~OD-06~~ | ~~How effective ownership is obtained~~ — **Closed: redefined without a captaincy term.** See [DL-24](#dl-24--od-06-resolved-effective-ownership-redefined-without-a-captaincy-term) | Resolved |
