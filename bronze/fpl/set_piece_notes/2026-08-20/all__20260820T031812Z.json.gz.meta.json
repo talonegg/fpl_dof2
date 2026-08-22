@@ -1,0 +1,13 @@
+{
+  "source": "fpl",
+  "source_version": "1",
+  "resource": "set_piece_notes",
+  "key": "all",
+  "url": "https://fantasy.premierleague.com/api/team/set-piece-notes/",
+  "http_status": 200,
+  "fetched_at": "2026-08-20T03:18:12.986244Z",
+  "sha256": "ef2331f85992c3ec001a91c506a58b6453b1320d99bda20b011202bfc4eb9fbf",
+  "bytes": 2320,
+  "content_encoding": "gzip",
+  "run_id": "20260820T031313Z-07ecbf77"
+}
