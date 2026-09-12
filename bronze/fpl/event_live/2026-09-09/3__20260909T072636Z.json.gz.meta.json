@@ -1,0 +1,13 @@
+{
+  "source": "fpl",
+  "source_version": "1",
+  "resource": "event_live",
+  "key": "3",
+  "url": "https://fantasy.premierleague.com/api/event/3/live/",
+  "http_status": 200,
+  "fetched_at": "2026-09-09T07:26:36.461664Z",
+  "sha256": "c33c2af4674b0a9d4276b412a441ebae8b87e01a3d093cd113446e7ef6a02482",
+  "bytes": 464355,
+  "content_encoding": "gzip",
+  "run_id": "20260909T072629Z-b15491f7"
+}

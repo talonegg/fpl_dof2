@@ -1,0 +1,13 @@
+{
+  "source": "fpl",
+  "source_version": "1",
+  "resource": "element_summary",
+  "key": "333",
+  "url": "https://fantasy.premierleague.com/api/element-summary/333/",
+  "http_status": 200,
+  "fetched_at": "2026-08-27T12:55:19.115461Z",
+  "sha256": "c99608a4efbc9aba3eab8809d27a8acf6e64a45d1b0b3e04a4203343fd77fdbf",
+  "bytes": 10820,
+  "content_encoding": "gzip",
+  "run_id": "20260827T125214Z-5b888023"
+}
