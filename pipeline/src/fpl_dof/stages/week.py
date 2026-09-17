@@ -20,6 +20,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from fpl_dof.forecast.form import form_by_player_id, trailing_form
 from fpl_dof.frames import as_float
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.obs.manifest import utcnow
@@ -28,7 +29,7 @@ from fpl_dof.pipeline import Output, StageContext, StageResult
 from fpl_dof.rules.models import GameRules, Position
 from fpl_dof.silver.store import read_table, read_table_optional
 from fpl_dof.silver.tables import Table
-from fpl_dof.squad.selection import Candidate, select_team
+from fpl_dof.squad.selection import Candidate, SelectionError, select_team
 from fpl_dof.squad.state import (
     SquadState,
     SquadStateError,
@@ -39,6 +40,7 @@ from fpl_dof.stages.forecast import XP_FILENAME
 from fpl_dof.stages.transform import read_rules
 from fpl_dof.week.alerts import Alert, collect_alerts
 from fpl_dof.week.deadline import DeadlineView, describe_deadline, next_deadline, to_contract
+from fpl_dof.week.ledger import read_advice, record_advice
 from fpl_dof.week.reconcile import Reconciliation, reconcile
 
 log = get_logger(__name__)
@@ -111,6 +113,11 @@ def run(ctx: StageContext) -> StageResult:
     )
     reconciliation = _reconcile_previous(ctx, gold, picks, deadline.gameweek)
 
+    player_gameweek = read_table_optional(silver, season, Table.PLAYER_GAMEWEEK)
+    if player_gameweek is not None and "season" in player_gameweek.columns:
+        player_gameweek = player_gameweek[player_gameweek["season"] == season]
+    form = form_by_player_id(trailing_form(player_gameweek, as_of=pd.Timestamp(utcnow())), forecast)
+
     payload = _payload(
         ctx=ctx,
         rules=rules,
@@ -120,8 +127,10 @@ def run(ctx: StageContext) -> StageResult:
         alerts=alerts,
         deadline=deadline,
         reconciliation=reconciliation,
+        form=form,
     )
     path = _write(gold, payload)
+    record_advice(ctx.layout, payload)
 
     for line in [
         *describe_deadline(deadline),
@@ -161,9 +170,10 @@ def _reconcile_previous(
 ) -> Reconciliation | None:
     """Diff last gameweek's advice against what was played, if both exist.
 
-    Reads the *previously written* week.json, which is what makes this evidence rather than
-    recollection: the advice is compared as it was recorded at the time, not as it is remembered
-    or as it would be recomputed now with hindsight.
+    Reads the advice *as it was recorded at the time* — the ledger first (DL-69), and the
+    previously written week.json as the fallback a pre-ledger run left behind — which is what
+    makes this evidence rather than recollection: not as it is remembered, and not as it would be
+    recomputed now with hindsight.
     """
     if picks is None or picks.empty or ctx.config.entry.team_id is None:
         return None
@@ -171,16 +181,20 @@ def _reconcile_previous(
     if previous_gameweek < 1:
         return None
 
-    path = gold / WEEK_FILENAME
-    if not path.exists():
-        return None
-    try:
-        previous = json.loads(path.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
-        log.warning("week.previous_unreadable", extra={"path": str(path)})
-        return None
-
-    advised = previous.get("advised")
+    advised: object = None
+    recorded = read_advice(ctx.layout, previous_gameweek)
+    if recorded is not None:
+        advised = recorded.get("advised")
+    else:
+        path = gold / WEEK_FILENAME
+        if not path.exists():
+            return None
+        try:
+            previous = json.loads(path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            log.warning("week.previous_unreadable", extra={"path": str(path)})
+            return None
+        advised = previous.get("advised")
     if not isinstance(advised, dict) or advised.get("gameweek") != previous_gameweek:
         return None
 
@@ -206,9 +220,24 @@ def _payload(
     alerts: list[Alert],
     deadline: DeadlineView,
     reconciliation: Reconciliation | None,
+    form: dict[int, tuple[float | None, int | None]] | None = None,
 ) -> dict[str, object]:
     chosen = recommendation.recommended
     lookup = forecast.set_index("player_id")
+    form = form or {}
+
+    def side(player_id: int, name: str, price: float) -> dict[str, object]:
+        """One side of a move, with both rankings' numbers on it (DL-70)."""
+        xp = 0.0
+        if player_id in lookup.index:
+            xp = round(as_float(lookup.loc[player_id, "xp_next"]), 3)
+        return {
+            "player_id": player_id,
+            "web_name": name,
+            "price": price,
+            "xp_next": xp,
+            "form_points_per_match": form.get(player_id, (None, None))[0],
+        }
 
     candidates = {
         player_id: Candidate(
@@ -220,17 +249,35 @@ def _payload(
         )
         for player_id in chosen.squad_after
     }
-    selection = select_team(
-        candidates,
-        rules,
-        captain_multiplier=ctx.config.optimiser.captain_multiplier,
-        start_probability_floor=(
-            ctx.config.forecast.minimum_start_probability_for_xi
-            if ctx.config.optimiser.enforce_start_probability_floor
-            else 0.0
-        ),
-        locked_player_ids=frozenset(ctx.config.optimiser.locked_player_ids),
+    floor = (
+        ctx.config.forecast.minimum_start_probability_for_xi
+        if ctx.config.optimiser.enforce_start_probability_floor
+        else 0.0
     )
+    locked = frozenset(ctx.config.optimiser.locked_player_ids)
+    extra_warnings: list[str] = []
+    try:
+        selection = select_team(
+            candidates,
+            rules,
+            captain_multiplier=ctx.config.optimiser.captain_multiplier,
+            start_probability_floor=floor,
+            locked_player_ids=locked,
+        )
+    except SelectionError as exc:
+        # The advised squad cannot field an XI above the floor. Pick the best XI it *can* field
+        # and say so, rather than publishing nothing in the week it matters (DP-15).
+        log.warning("week.floor_relaxed", extra={"reason": str(exc)})
+        extra_warnings.append(
+            f"the advised XI is chosen with the start-probability floor relaxed: {exc}"
+        )
+        selection = select_team(
+            candidates,
+            rules,
+            captain_multiplier=ctx.config.optimiser.captain_multiplier,
+            start_probability_floor=0.0,
+            locked_player_ids=locked,
+        )
 
     return {
         "run_id": ctx.run_id,
@@ -257,16 +304,8 @@ def _payload(
             "bank_after": chosen.bank_after,
             "moves": [
                 {
-                    "out": {
-                        "player_id": move.player_out_id,
-                        "web_name": move.player_out_name,
-                        "price": move.selling_price,
-                    },
-                    "in": {
-                        "player_id": move.player_in_id,
-                        "web_name": move.player_in_name,
-                        "price": move.buying_price,
-                    },
+                    "out": side(move.player_out_id, move.player_out_name, move.selling_price),
+                    "in": side(move.player_in_id, move.player_in_name, move.buying_price),
                 }
                 for move in chosen.moves
             ],
@@ -280,7 +319,7 @@ def _payload(
                 }
                 for option in sorted(recommendation.options, key=lambda o: o.transfers)
             ],
-            "warnings": list(recommendation.warnings),
+            "warnings": [*recommendation.warnings, *extra_warnings],
         },
         "advised": {
             "gameweek": deadline.gameweek,

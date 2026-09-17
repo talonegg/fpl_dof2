@@ -2,6 +2,7 @@ import type {
   FixtureEntry,
   Fixtures,
   League,
+  Log,
   Meta,
   Plan,
   Players,
@@ -702,6 +703,108 @@ export const fixtureGrid: Fixtures = {
         played(3, []),
         played(4, [fixtureEntry(5, "BUR", false, 2.4, 2.0, 1.9, 0.8)]),
       ],
+    },
+  ],
+};
+
+/**
+ * A season log (DL-69) with the shape the 2026/27 season actually has: early gameweeks decided
+ * without the tool (advice null), then a gameweek with advice that was followed and one that was
+ * overridden without a recorded reason.
+ */
+export const seasonLog: Log = {
+  contract_version: 1,
+  season: "2026/27",
+  entry_id: 1234567,
+  summary: {
+    gameweeks_played: 3,
+    gameweeks_advised: 2,
+    advice_followed: 1,
+    advice_overridden: 1,
+    total_points: 171,
+  },
+  gameweeks: [
+    {
+      gameweek: 1,
+      played: { squad: [1, 2, 3], starting: [1, 2], bench_order: [3], captain: 2, vice_captain: 1 },
+      score: {
+        points: 61,
+        total_points: 61,
+        rank: 1_200_000,
+        overall_rank: 1_200_000,
+        points_on_bench: 4,
+        transfers: 0,
+        transfers_cost: 0,
+      },
+      chip: null,
+      advised: null,
+      reconciliation: null,
+    },
+    {
+      gameweek: 2,
+      played: { squad: [1, 2, 3], starting: [1, 2], bench_order: [3], captain: 2, vice_captain: 1 },
+      score: {
+        points: 55,
+        total_points: 116,
+        rank: 900_000,
+        overall_rank: 1_000_000,
+        points_on_bench: 2,
+        transfers: 1,
+        transfers_cost: 0,
+      },
+      chip: null,
+      advised: {
+        run_id: "20260827T101557Z-d705a43f",
+        recorded_at: "2026-08-27T10:15:57Z",
+        squad: [1, 2, 3],
+        starting: [1, 2],
+        captain: 2,
+        vice_captain: 1,
+        expected_points: 52.4,
+        transfers: 1,
+        hit_points: 0,
+        moves: [{ out: 4, in: 2 }],
+      },
+      reconciliation: { followed: true, divergences: [] },
+    },
+    {
+      gameweek: 3,
+      played: { squad: [1, 2, 3], starting: [1, 2], bench_order: [3], captain: 1, vice_captain: 2 },
+      score: {
+        points: 55,
+        total_points: 171,
+        rank: 800_000,
+        overall_rank: 950_000,
+        points_on_bench: 0,
+        transfers: 0,
+        transfers_cost: 0,
+      },
+      chip: null,
+      advised: {
+        run_id: "20260911T101557Z-aa11bb22",
+        recorded_at: "2026-09-11T10:15:57Z",
+        squad: [1, 2, 3],
+        starting: [1, 2],
+        captain: 2,
+        vice_captain: 1,
+        expected_points: 50.1,
+        transfers: 0,
+        hit_points: 0,
+        moves: [],
+      },
+      reconciliation: {
+        followed: false,
+        divergences: [
+          {
+            kind: "captain",
+            status: "unexplained",
+            message: "captain differs: advised 2, played 1",
+            advised: [2],
+            played: [1],
+            reason: "",
+          },
+        ],
+      },
     },
   ],
 };

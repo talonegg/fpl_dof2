@@ -792,6 +792,54 @@ class FplApiAdapter(SourceAdapter):
         frame["made_at"] = pd.to_datetime(frame["made_at"], utc=True)
         return frame
 
+    def _entry_gameweeks(
+        self, entry_id: int, history: dict[str, Any], bootstrap: dict[str, Any]
+    ) -> pd.DataFrame:
+        """The owner's score per gameweek, from ``history.current`` (DL-69).
+
+        Only gameweeks the game has finished are kept: the in-progress row changes with every
+        kickoff, and the season log is a record of results, not a live ticker.
+        """
+        divisor = self._currency_divisor(bootstrap)
+        finished = {int(e["id"]) for e in bootstrap["events"] if e.get("finished")}
+
+        def money(value: Any) -> float | None:
+            return None if value is None else float(value) / divisor
+
+        rows = [
+            {
+                "entry_id": entry_id,
+                "gameweek": int(row["event"]),
+                "points": int(row.get("points") or 0),
+                "total_points": int(row.get("total_points") or 0),
+                "rank": row.get("rank"),
+                "overall_rank": row.get("overall_rank"),
+                "bank": money(row.get("bank")),
+                "squad_value": money(row.get("value")),
+                "transfers": int(row.get("event_transfers") or 0),
+                "transfers_cost": int(row.get("event_transfers_cost") or 0),
+                "points_on_bench": int(row.get("points_on_bench") or 0),
+            }
+            for row in history.get("current") or []
+            if int(row["event"]) in finished
+        ]
+        return pd.DataFrame(
+            rows,
+            columns=[
+                "entry_id",
+                "gameweek",
+                "points",
+                "total_points",
+                "rank",
+                "overall_rank",
+                "bank",
+                "squad_value",
+                "transfers",
+                "transfers_cost",
+                "points_on_bench",
+            ],
+        )
+
     def _entry_chips(self, entry_id: int, history: dict[str, Any]) -> pd.DataFrame:
         rows = [
             {
@@ -1074,6 +1122,7 @@ class FplApiAdapter(SourceAdapter):
             Table.ENTRY_PICK.value: self._entry_picks(entry_id, picks),
             Table.ENTRY_TRANSFER.value: self._entry_transfers(entry_id, transfers, bootstrap),
             Table.ENTRY_CHIP.value: self._entry_chips(entry_id, history),
+            Table.ENTRY_GAMEWEEK.value: self._entry_gameweeks(entry_id, history, bootstrap),
         }
 
     # --- ingest --------------------------------------------------------------------------

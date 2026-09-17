@@ -1,5 +1,6 @@
 import { DATA_BASE, fetchMeta, fetchPlan, fetchPlayers, fetchRules, fetchSquad, fetchWeek } from "./api";
 import { warmPublishedCache } from "./offline";
+import { effectiveSquad } from "../components/squad/effective";
 import type { Meta, Plan, Players, Rules, Squad, Week } from "../contract/types";
 
 /**
@@ -47,7 +48,9 @@ export function loadPublishedData(): Promise<PublishedData> {
         // successful load into an error (DP-15). See `offline.ts` for why the page does this rather
         // than leaving it to the service worker.
         void warmPublishedCache({ dataBase: DATA_BASE });
-        return { meta, rules, players, squad, week, plan };
+        // In-season the from-scratch solve is skipped (DL-67); every consumer of `squad` then
+        // reads this week's advised fifteen instead, substituted once here rather than per view.
+        return { meta, rules, players, squad: effectiveSquad(squad, week, players), week, plan };
       })
       .catch((error: unknown) => {
         // A failed load must not be cached, or the retry button would replay the failure for ever.

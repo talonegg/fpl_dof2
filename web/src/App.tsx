@@ -9,6 +9,7 @@ import { CompareRoute } from "./routes/CompareRoute";
 import { SquadRoute } from "./routes/SquadRoute";
 import { FixturesRoute } from "./routes/FixturesRoute";
 import { LeagueRoute } from "./routes/LeagueRoute";
+import { LogRoute } from "./routes/LogRoute";
 import { SettingsRoute } from "./routes/SettingsRoute";
 import { HealthRoute } from "./routes/HealthRoute";
 import { NotFoundRoute } from "./routes/NotFoundRoute";
@@ -32,6 +33,7 @@ export function AppRoutes() {
         <Route path="squad" element={<SquadRoute />} />
         <Route path="fixtures" element={<FixturesRoute />} />
         <Route path="league" element={<LeagueRoute />} />
+        <Route path="log" element={<LogRoute />} />
         <Route path="settings" element={<SettingsRoute />} />
         <Route path="health" element={<HealthRoute />} />
         <Route path="*" element={<NotFoundRoute />} />

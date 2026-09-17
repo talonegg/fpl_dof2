@@ -16,6 +16,27 @@ import { formatPoints, formatPrice } from "../format";
  * absence of one (FR-24), and presenting it as a blank space is how a manager talks themselves into
  * a hit.
  */
+type MoveSide = NonNullable<NonNullable<Week["recommendation"]>["moves"]>[number]["out"];
+
+/**
+ * Both rankings' numbers on one side of a move (DL-70): the forecast's xP and the model-free
+ * form benchmark. Rendered only when the pipeline published them, so an older `week.json` shows
+ * the move as it always did.
+ */
+function MoveNumbers({ side }: { side: MoveSide }) {
+  if (side.xp_next === undefined) return null;
+  const form =
+    side.form_points_per_match === null || side.form_points_per_match === undefined
+      ? "no appearances"
+      : `form ${side.form_points_per_match.toFixed(1)}/match`;
+  return (
+    <span className="week-move-numbers" data-testid="week-move-numbers">
+      {" "}
+      · xP {formatPoints(side.xp_next)} · {form}
+    </span>
+  );
+}
+
 export function WeekPanel({ week }: { week: Week }) {
   if (week.skipped) {
     return (
@@ -68,14 +89,23 @@ export function WeekPanel({ week }: { week: Week }) {
                 <li key={`${move.out.player_id}-${move.in.player_id}`}>
                   <span className="week-move-out">
                     {move.out.web_name} {formatPrice(move.out.price)}
+                    <MoveNumbers side={move.out} />
                   </span>
                   <span aria-hidden="true"> → </span>
                   <span className="week-move-in">
                     {move.in.web_name} {formatPrice(move.in.price)}
+                    <MoveNumbers side={move.in} />
                   </span>
                 </li>
               ))}
             </ul>
+          )}
+          {recommendation.moves && recommendation.moves.length > 0 && (
+            <p className="week-moves-caption" data-testid="week-moves-caption">
+              xP is the forecast; form is points per match over the last six appearances, the
+              model-free benchmark the forecast is graded against (DL-70). Where they disagree,
+              look before acting.
+            </p>
           )}
 
           {recommendation.options && recommendation.options.length > 0 && (

@@ -15,6 +15,7 @@ from collections.abc import Iterator
 from pathlib import Path
 
 import httpx
+import pandas as pd
 import pytest
 import respx
 
@@ -322,3 +323,63 @@ def test_live_contract(adapter: FplApiAdapter) -> None:
     if summary["history_past"]:
         for key in REQUIRED_HISTORY_PAST_KEYS:
             assert key in summary["history_past"][0]
+
+
+def test_entry_gameweeks_are_conformed_from_the_owner_history(adapter: FplApiAdapter) -> None:
+    """DL-69: the owner's per-gameweek score comes from the game, only for finished gameweeks."""
+    bootstrap = {
+        "events": [
+            {"id": 1, "finished": True},
+            {"id": 2, "finished": True},
+            {"id": 3, "finished": False},
+        ],
+        "game_settings": {"ui_currency_multiplier": 10},
+    }
+    history = {
+        "current": [
+            {
+                "event": 1,
+                "points": 61,
+                "total_points": 61,
+                "rank": 1200000,
+                "overall_rank": 1200000,
+                "bank": 5,
+                "value": 1000,
+                "event_transfers": 0,
+                "event_transfers_cost": 0,
+                "points_on_bench": 4,
+            },
+            {
+                "event": 2,
+                "points": 55,
+                "total_points": 116,
+                "rank": None,
+                "overall_rank": 900000,
+                "bank": 0,
+                "value": 1003,
+                "event_transfers": 2,
+                "event_transfers_cost": 4,
+                "points_on_bench": 2,
+            },
+            {
+                "event": 3,
+                "points": 12,
+                "total_points": 128,
+                "rank": None,
+                "overall_rank": None,
+                "bank": 0,
+                "value": 1003,
+                "event_transfers": 0,
+                "event_transfers_cost": 0,
+                "points_on_bench": 0,
+            },
+        ],
+        "past": [],
+        "chips": [],
+    }
+    frame = adapter._entry_gameweeks(7, history, bootstrap)
+    assert frame["gameweek"].tolist() == [1, 2], "the in-progress gameweek is not a result"
+    assert frame["points"].tolist() == [61, 55]
+    assert frame["transfers_cost"].tolist() == [0, 4]
+    assert frame["bank"].tolist()[0] == 0.5
+    assert pd.isna(frame["rank"].iloc[1])

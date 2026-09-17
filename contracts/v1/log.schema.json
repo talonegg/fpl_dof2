@@ -1,0 +1,161 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/talonegg/fpl_dof2/contracts/v1/log.schema.json",
+  "title": "Log",
+  "description": "The season log: per finished gameweek, what the owner played, what it scored, what the pipeline advised beforehand, and how the two differ (DL-69, E8 §3). Advice is read from the ledger written before each deadline and is null where none was recorded — it is never reconstructed after the event.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "season", "entry_id", "summary", "gameweeks"],
+  "properties": {
+    "contract_version": {
+      "type": "integer",
+      "const": 1,
+      "description": "Additive at v1: a client that has never heard of this artefact keeps working."
+    },
+    "season": { "type": "string" },
+    "entry_id": { "type": "integer", "minimum": 1 },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gameweeks_played",
+        "gameweeks_advised",
+        "advice_followed",
+        "advice_overridden",
+        "total_points"
+      ],
+      "properties": {
+        "gameweeks_played": { "type": "integer", "minimum": 0 },
+        "gameweeks_advised": { "type": "integer", "minimum": 0 },
+        "advice_followed": { "type": "integer", "minimum": 0 },
+        "advice_overridden": { "type": "integer", "minimum": 0 },
+        "total_points": { "type": "integer" }
+      }
+    },
+    "gameweeks": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/log_gameweek" }
+    }
+  },
+  "$defs": {
+    "log_gameweek": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gameweek", "played", "score", "chip", "advised", "reconciliation"],
+      "properties": {
+        "gameweek": { "type": "integer", "minimum": 1, "maximum": 38 },
+        "played": { "$ref": "#/$defs/log_played" },
+        "score": {
+          "description": "Null when the game has not yet reported a score for the gameweek.",
+          "oneOf": [{ "$ref": "#/$defs/log_score" }, { "type": "null" }]
+        },
+        "chip": { "type": ["string", "null"], "description": "The chip played, if any." },
+        "advised": {
+          "description": "Null when no advice was recorded before the deadline. GW1 to GW4 of 2026/27 were decided without the tool, and say so.",
+          "oneOf": [{ "$ref": "#/$defs/log_advised" }, { "type": "null" }]
+        },
+        "reconciliation": {
+          "description": "Null whenever advised is null: there is nothing to compare.",
+          "oneOf": [{ "$ref": "#/$defs/log_reconciliation" }, { "type": "null" }]
+        }
+      }
+    },
+    "log_played": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["squad", "starting", "bench_order", "captain", "vice_captain"],
+      "properties": {
+        "squad": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+        "starting": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+        "bench_order": { "type": "array", "items": { "type": "integer", "minimum": 1 }, "description": "Slots 12 to 15 in order, goalkeeper first." },
+        "captain": { "type": ["integer", "null"], "minimum": 1 },
+        "vice_captain": { "type": ["integer", "null"], "minimum": 1 }
+      }
+    },
+    "log_score": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "points",
+        "total_points",
+        "rank",
+        "overall_rank",
+        "points_on_bench",
+        "transfers",
+        "transfers_cost"
+      ],
+      "properties": {
+        "points": { "type": "integer", "description": "Gameweek points after hits, as the game reports them." },
+        "total_points": { "type": "integer" },
+        "rank": { "type": ["integer", "null"], "minimum": 1 },
+        "overall_rank": { "type": ["integer", "null"], "minimum": 1 },
+        "points_on_bench": { "type": "integer", "minimum": 0 },
+        "transfers": { "type": "integer", "minimum": 0 },
+        "transfers_cost": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "log_advised": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "run_id",
+        "recorded_at",
+        "squad",
+        "starting",
+        "captain",
+        "vice_captain",
+        "expected_points",
+        "transfers",
+        "hit_points",
+        "moves"
+      ],
+      "properties": {
+        "run_id": { "type": "string", "description": "The run whose manifest can reproduce this advice (DP-11)." },
+        "recorded_at": { "type": "string", "description": "UTC, when the ledger entry was last written — always before the deadline." },
+        "squad": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+        "starting": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+        "captain": { "type": ["integer", "null"], "minimum": 1 },
+        "vice_captain": { "type": ["integer", "null"], "minimum": 1 },
+        "expected_points": { "type": "number" },
+        "transfers": { "type": "integer", "minimum": 0 },
+        "hit_points": { "type": "integer", "minimum": 0 },
+        "moves": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["out", "in"],
+            "properties": {
+              "out": { "type": ["integer", "null"], "minimum": 1 },
+              "in": { "type": ["integer", "null"], "minimum": 1 }
+            }
+          }
+        }
+      }
+    },
+    "log_reconciliation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["followed", "divergences"],
+      "properties": {
+        "followed": { "type": "boolean" },
+        "divergences": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "status", "message", "advised", "played", "reason"],
+            "properties": {
+              "kind": { "type": "string" },
+              "status": { "type": "string", "enum": ["override", "unexplained"] },
+              "message": { "type": "string" },
+              "advised": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+              "played": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+              "reason": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

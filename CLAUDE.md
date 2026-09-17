@@ -39,7 +39,7 @@ Python lives in `.venv` at the repo root, created with `uv`. `uv` is installed a
 | Full local pipeline run | `.venv\Scripts\fpl-dof run` |
 | Single pipeline stage | `.venv\Scripts\fpl-dof ingest\|transform\|quality\|forecast\|optimise\|week\|publish` |
 | This week's decision only | `.venv\Scripts\fpl-dof week` |
-| Walk-forward backtest — **not** part of `run` | `.venv\Scripts\fpl-dof backtest`. Needs the archive source enabled and `sources.backfill_seasons` set in `config/local.yaml` |
+| Walk-forward backtest — **not** part of `run` | `.venv\Scripts\fpl-dof backtest`. Needs the archive source enabled and `sources.backfill_seasons` set in `config/local.yaml`; CI uses the committed `config/ci-backtest.yaml` via `FPL_DOF_CONFIG_FILE` (DL-68) |
 | Re-run ignoring caches | `.venv\Scripts\fpl-dof run --force-refresh` |
 | Python tests | `cd pipeline && ..\.venv\Scripts\python -m pytest -q` |
 | Live-API drift tests | `cd pipeline && ..\.venv\Scripts\python -m pytest -q --network` |
@@ -53,9 +53,11 @@ Python lives in `.venv` at the repo root, created with `uv`. `uv` is installed a
 | Deployed smoke test (E7-S7) — app shell, key routes, contract files | `cd web && npm run verify:smoke -- <deployed-url>` — see `web/verify/README.md` §"Phase 5". Pass the deployed **path**, not the bare origin; exits non-zero on failure so a workflow can gate on it |
 | Regenerate the PWA icons after a palette change | `cd web && node scripts/make-icons.mjs` — reads the colours from `src/tokens.css` |
 
-Reading the current squad without the web app: `data/gold/season=2026-27/squad.json`, this week's
-decision at `week.json`, the gate report at `quality.json`, and the model card next to them at
-`model-card.md`. **The model card carries the backtest verdict** — read it before acting on a
+Reading the current squad without the web app: `data/gold/season=2026-27/squad.json` (preseason
+only — in-season the from-scratch solve is skipped, DL-67), this week's decision at `week.json`, the
+gate report at `quality.json`, and the model card next to them at `model-card.md`. What was advised
+for each past gameweek is in `data/ledger/advice/gwNN.json` (the `ledger` branch in CI) and the
+season log of played-versus-advised is published as `log.json` (DL-69). **The model card carries the backtest verdict** — read it before acting on a
 ranking (DL-21).
 
 ## Layout

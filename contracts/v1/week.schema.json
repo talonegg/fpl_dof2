@@ -177,7 +177,12 @@
       "properties": {
         "player_id": { "type": "integer", "minimum": 1 },
         "web_name": { "type": "string" },
-        "price": { "type": "number", "exclusiveMinimum": 0 }
+        "price": { "type": "number", "exclusiveMinimum": 0 },
+        "xp_next": { "type": "number", "description": "The forecast's side of the disagreement (DL-70)." },
+        "form_points_per_match": {
+          "type": ["number", "null"],
+          "description": "The model-free benchmark's side: points per match over the last six appearances, null before the player has appeared (DL-70)."
+        }
       }
     }
   }

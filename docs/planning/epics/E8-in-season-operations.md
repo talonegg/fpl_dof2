@@ -40,6 +40,13 @@ Lineage (Design §12.4) exists to make this honest: for any recommendation, it m
 reconstruct exactly what the system knew at the time. Without that, a retrospective becomes
 rationalisation.
 
+**Where it lives ([DL-69](../00-decision-log.md#dl-69), 2026-09-17).** The pipeline writes each
+week's advice to the `ledger` branch before the deadline and publishes `log.json` — played, scored,
+advised, reconciled, per gameweek — rendered at `/log`. GW1 to GW4 were decided without the tool and
+appear there with picks and points and *no advice recorded*; nothing is reconstructed after the
+event. What this record still does not hold is the owner's *reason* for an override; that stays a
+manual note until a reasons file is wired into `reconcile(overrides=...)`.
+
 ## 4. Periodic activities
 
 | When | Activity |

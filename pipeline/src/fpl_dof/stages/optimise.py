@@ -1,4 +1,12 @@
-"""Optimise stage — solve for the best legal squad and write it to gold."""
+"""Optimise stage — solve for the best legal squad from scratch, and write it to gold.
+
+Preseason, this squad *is* the decision. In-season it is not: the owner has a squad, the decision
+is the transfer plan from ``week`` and the multi-gameweek plan from ``decision``, and the wildcard
+and free-hit scenarios in that plan already solve "pick fifteen from scratch" where it matters
+(DL-15). So the solve runs only while the next deadline is gameweek 1 unless configured otherwise,
+and is otherwise skipped with a reason rather than allowed to abort the run before the stages that
+carry the in-season decision (DL-67, DP-15).
+"""
 
 from __future__ import annotations
 
@@ -19,6 +27,7 @@ from fpl_dof.stages.transform import read_rules
 log = get_logger(__name__)
 
 SQUAD_FILENAME = "squad.json"
+SKIPPED_STATUS = "skipped"
 
 
 def run(ctx: StageContext) -> StageResult:
@@ -30,11 +39,22 @@ def run(ctx: StageContext) -> StageResult:
     forecast["start_floor"] = ctx.config.forecast.minimum_start_probability_for_xi
     teams = read_table(ctx.layout.silver, season, Table.TEAM)
 
+    path = gold / SQUAD_FILENAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    reason = skip_reason(forecast, ctx.config.optimiser.squad_solve)
+    if reason is not None:
+        log.info("optimise.skipped", extra={"reason": reason})
+        payload = skipped_payload(ctx.run_id, reason)
+        path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        return StageResult(
+            metrics={"status": SKIPPED_STATUS, "skipped_reason": reason},
+            outputs=[Output(path=path, rows=0)],
+        )
+
     squad, report = optimise_squad(forecast, rules, ctx.config.optimiser)
 
     payload = _squad_payload(squad, report, forecast, teams, ctx)
-    path = gold / SQUAD_FILENAME
-    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     return StageResult(
@@ -47,6 +67,43 @@ def run(ctx: StageContext) -> StageResult:
         },
         outputs=[Output(path=path, rows=len(squad.players))],
     )
+
+
+def skip_reason(forecast: pd.DataFrame, squad_solve: str) -> str | None:
+    """Why the from-scratch solve is not running, or ``None`` when it should (DL-67).
+
+    Pure, so the rule is testable without a solver: the forecast carries the gameweek it was built
+    for, and that is the only fact the decision needs.
+    """
+    if squad_solve == "always":
+        return None
+    next_gameweek = as_int(forecast["next_gameweek"].iloc[0]) if not forecast.empty else 1
+    if next_gameweek <= 1:
+        return None
+    return (
+        f"the season is under way (next deadline is gameweek {next_gameweek}); the from-scratch "
+        "squad solve runs preseason only. This week's decision is the transfer recommendation "
+        "in week.json, and the wildcard scenario in plan.json covers a full rebuild (DL-67). "
+        "Set optimiser.squad_solve to 'always' to solve it anyway."
+    )
+
+
+def skipped_payload(run_id: str, reason: str) -> dict[str, object]:
+    """The artefact's shape when nothing was solved: every field present, nothing invented."""
+    return {
+        "run_id": run_id,
+        "status": SKIPPED_STATUS,
+        "skipped": True,
+        "skipped_reason": reason,
+        "objective": 0.0,
+        "solve_seconds": 0.0,
+        "formation": {},
+        "total_price": 0.0,
+        "captain_id": None,
+        "vice_captain_id": None,
+        "bench_order": [],
+        "players": [],
+    }
 
 
 def _squad_payload(
@@ -91,6 +148,7 @@ def _squad_payload(
     return {
         "run_id": ctx.run_id,
         "status": report.status.value,
+        "skipped": False,
         "objective": round(report.objective, 3),
         "solve_seconds": round(report.solve_seconds, 3),
         "formation": report.formation,

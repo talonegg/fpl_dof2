@@ -79,7 +79,7 @@ export function rollComparison(recommendation: Recommendation): RollComparison {
 
     const statement =
       best === undefined
-        ? "Rolling your free transfer is the recommendation."
+        ? "Rolling your free transfer is the recommendation: no legal transfer was available to weigh against rolling."
         : best.gain_over_roll >= 0
           ? `Rolling your free transfer is the recommendation, even though the best transfer available nets ${signed(best.gain_over_roll)} against it.`
           : `Rolling your free transfer is the recommendation: the best transfer available nets ${points(Math.abs(best.gain_over_roll))} fewer points than holding.`;
