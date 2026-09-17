@@ -171,6 +171,10 @@ Complete set across all epics. **None are needed for E0** beyond the optional on
 (`ODDS_API_KEY`) goes in `.env` locally and GitHub Actions secrets in CI — never in a settings file,
 never in the client bundle (NFR-13). The secret-scan hook in `.claude/hooks/` already guards commits.
 
+**Status 2026-09-17:** `FPL_DOF_TEAM_ID` is set as a repository variable and is passed to the
+*ingest* workflows as well as `pipeline.yml` — the entry is fetched at ingest, so a variable that
+reached only the pipeline left every run without an entry snapshot ([DL-69](../00-decision-log.md#dl-69)).
+
 **Team and league IDs in CI, and UI entry ([DL-44](../00-decision-log.md#dl-44), built by
 [E13](E13-runtime-personalisation-ids.md)).** `FPL_DOF_TEAM_ID` / `FPL_DOF_LEAGUE_ID` are non-secret
 identifiers. In CI they come from GitHub Actions repository **variables** (not secrets, not committed

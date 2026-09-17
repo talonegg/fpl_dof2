@@ -266,7 +266,7 @@ def write_model_card(
     add("## Top 20 by expected points — the plausibility check")
     add("")
     top = top_by_xp(forecast, 20)
-    add("| # | Player | Pos | £m | xP (horizon) | P(start) | Confidence |")
+    add("| # | Player | Pos | £m | xP (horizon) | P(plays) | Confidence |")
     add("| --- | --- | --- | --- | --- | --- | --- |")
     for rank, (_, row) in enumerate(top.iterrows(), start=1):
         add(
@@ -302,7 +302,9 @@ def write_model_card(
     add(
         f"{below} of {len(forecast)} players fall below the "
         f"{config.minimum_start_probability_for_xi:.0%} start-probability floor and are therefore "
-        "barred from the starting XI."
+        "barred from the starting XI. The floor is on P(plays) — the probability of appearing at "
+        "all — not on P(60+ minutes), which is already inside every minutes-scaled component "
+        "(DL-66)."
     )
     add("")
 

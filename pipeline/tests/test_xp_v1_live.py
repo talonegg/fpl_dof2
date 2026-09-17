@@ -532,3 +532,18 @@ def test_completed_gameweeks_counts_kickoffs_not_rows(history: pd.DataFrame) -> 
     assert live.completed_gameweeks(history, before=before) == 3
     assert live.completed_gameweeks(history, before=FIRST_KICKOFF) == 0
     assert live.completed_gameweeks(None, before=before) == 0
+
+
+def test_start_probability_is_the_chance_of_appearing_at_all(
+    inputs: ForecastInputs, game_rules: GameRules
+) -> None:
+    """DL-66: the XI floor is on P(plays), never on P(60+ minutes).
+
+    On 2026-09-16 the live path set ``start_probability`` to M1's long-appearance share, which
+    tops out below the 60% floor for forwards, and every forward was barred from the XI. The
+    definition is pinned here so the floor cannot drift onto a different quantity again.
+    """
+    frame = live.build_forecast(inputs, game_rules, CONFIG)
+    expected = (1.0 - frame["p_no_appearance"].astype(float)).clip(0.0, 1.0)
+    assert np.allclose(frame["start_probability"].to_numpy(), expected.to_numpy())
+    assert (frame["start_probability"] >= frame["p_long_appearance"] - 1e-9).all()

@@ -85,7 +85,12 @@ export interface Player {
   xp_next_sd: number;
   xp_horizon: number;
   xp_horizon_sd: number;
+  /** P(the player appears at all). The XI floor is applied to this, never to P(60+ minutes), which is already inside xP (DL-66). */
   start_probability: number;
+  /** The model-free benchmark: points per match over the last six appearances this season, as the backtest defines it. Null before the player has appeared (DL-70). */
+  form_points_per_match?: number | null;
+  /** Rank on form_points_per_match among players with at least one appearance; null otherwise (DL-70). */
+  form_rank?: number | null;
   confidence: "high" | "medium" | "low" | "none";
   selected_by_percent?: number;
   /** FPL availability flag. */
@@ -117,16 +122,21 @@ export interface Players {
 export interface Squad {
   contract_version: 1;
   run_id: string;
-  /** A greedy fallback is legal but not optimal, and the app says so. */
-  status: "optimal" | "greedy_fallback";
+  /** A greedy fallback is legal but not optimal, and the app says so. Skipped means nothing was solved: in-season the from-scratch squad is not the decision (DL-67), and players is empty. */
+  status: "optimal" | "greedy_fallback" | "skipped";
+  /** True when the from-scratch solve did not run this gameweek (DL-67). The app then starts from this week's advised squad in week.json instead. */
+  skipped?: boolean;
+  skipped_reason?: string;
+  /** Where these fifteen came from. The pipeline always writes solver output; the app sets week_advice when it substitutes this week's advised squad for a skipped solve (DL-67). */
+  source?: "solver" | "week_advice";
   objective: number;
   solve_seconds?: number;
   total_price: number;
   budget?: number;
   /** Starters per position, keyed by position code. */
   formation: Record<string, number>;
-  captain_id: number;
-  vice_captain_id: number;
+  captain_id: number | null;
+  vice_captain_id: number | null;
   /** Outfield substitutes, in the order they come on. */
   bench_order: number[];
   players: {
@@ -153,6 +163,10 @@ export interface MoveSide {
   player_id: number;
   web_name: string;
   price: number;
+  /** The forecast's side of the disagreement (DL-70). */
+  xp_next?: number;
+  /** The model-free benchmark's side: points per match over the last six appearances, null before the player has appeared (DL-70). */
+  form_points_per_match?: number | null;
 }
 
 /** This week's decision: the deadline, the squad as it stands, what to do, and why. Times are UTC on the wire; the browser renders local zones itself (DL-11). */
@@ -744,4 +758,83 @@ export interface Health {
   gates: HealthGates | null;
   /** Recent runs as a short series, or null when no history could be assembled. Nullable on purpose: the page degrades to 'no history yet' rather than to an error (DP-15). */
   metrics_history?: HealthMetricsHistory | null;
+}
+
+export interface LogGameweek {
+  gameweek: number;
+  played: LogPlayed;
+  /** Null when the game has not yet reported a score for the gameweek. */
+  score: LogScore | null;
+  /** The chip played, if any. */
+  chip: string | null;
+  /** Null when no advice was recorded before the deadline. GW1 to GW4 of 2026/27 were decided without the tool, and say so. */
+  advised: LogAdvised | null;
+  /** Null whenever advised is null: there is nothing to compare. */
+  reconciliation: LogReconciliation | null;
+}
+
+export interface LogPlayed {
+  squad: number[];
+  starting: number[];
+  /** Slots 12 to 15 in order, goalkeeper first. */
+  bench_order: number[];
+  captain: number | null;
+  vice_captain: number | null;
+}
+
+export interface LogScore {
+  /** Gameweek points after hits, as the game reports them. */
+  points: number;
+  total_points: number;
+  rank: number | null;
+  overall_rank: number | null;
+  points_on_bench: number;
+  transfers: number;
+  transfers_cost: number;
+}
+
+export interface LogAdvised {
+  /** The run whose manifest can reproduce this advice (DP-11). */
+  run_id: string;
+  /** UTC, when the ledger entry was last written — always before the deadline. */
+  recorded_at: string;
+  squad: number[];
+  starting: number[];
+  captain: number | null;
+  vice_captain: number | null;
+  expected_points: number;
+  transfers: number;
+  hit_points: number;
+  moves: {
+    out: number | null;
+    in: number | null;
+  }[];
+}
+
+export interface LogReconciliation {
+  followed: boolean;
+  divergences: {
+    kind: string;
+    status: "override" | "unexplained";
+    message: string;
+    advised: number[];
+    played: number[];
+    reason: string;
+  }[];
+}
+
+/** The season log: per finished gameweek, what the owner played, what it scored, what the pipeline advised beforehand, and how the two differ (DL-69, E8 §3). Advice is read from the ledger written before each deadline and is null where none was recorded — it is never reconstructed after the event. */
+export interface Log {
+  /** Additive at v1: a client that has never heard of this artefact keeps working. */
+  contract_version: 1;
+  season: string;
+  entry_id: number;
+  summary: {
+    gameweeks_played: number;
+    gameweeks_advised: number;
+    advice_followed: number;
+    advice_overridden: number;
+    total_points: number;
+  };
+  gameweeks: LogGameweek[];
 }

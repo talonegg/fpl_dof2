@@ -46,7 +46,21 @@
         },
         "xp_horizon": { "type": "number" },
         "xp_horizon_sd": { "type": "number", "minimum": 0 },
-        "start_probability": { "type": "number", "minimum": 0, "maximum": 1 },
+        "start_probability": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "P(the player appears at all). The XI floor is applied to this, never to P(60+ minutes), which is already inside xP (DL-66)."
+        },
+        "form_points_per_match": {
+          "type": ["number", "null"],
+          "description": "The model-free benchmark: points per match over the last six appearances this season, as the backtest defines it. Null before the player has appeared (DL-70)."
+        },
+        "form_rank": {
+          "type": ["integer", "null"],
+          "minimum": 1,
+          "description": "Rank on form_points_per_match among players with at least one appearance; null otherwise (DL-70)."
+        },
         "confidence": { "type": "string", "enum": ["high", "medium", "low", "none"] },
         "selected_by_percent": { "type": "number", "minimum": 0, "maximum": 100 },
         "status": { "type": "string", "description": "FPL availability flag." },

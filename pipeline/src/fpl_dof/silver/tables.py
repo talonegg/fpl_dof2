@@ -39,6 +39,7 @@ class Table(StrEnum):
     ENTRY_PICK = "entry_pick"
     ENTRY_TRANSFER = "entry_transfer"
     ENTRY_CHIP = "entry_chip"
+    ENTRY_GAMEWEEK = "entry_gameweek"
     LEAGUE_STANDING = "league_standing"
     LEAGUE_PICK = "league_pick"
     PLAYER_CROSSWALK = "player_crosswalk"
@@ -349,6 +350,31 @@ class EntryTransferSchema(pa.DataFrameModel):
         coerce = True
 
 
+class EntryGameweekSchema(pa.DataFrameModel):
+    """The owner's score and standing per finished gameweek, as the game reports it (DL-69).
+
+    The authoritative points figure — auto-substitutions, captain changes and hits already applied
+    by the game itself — rather than one recomputed here from picks and scoring rules.
+    """
+
+    entry_id: Series[int] = pa.Field(ge=1)
+    gameweek: Series[int] = pa.Field(ge=1, le=38)
+    points: Series[int]
+    total_points: Series[int]
+    rank: Series[int] = pa.Field(ge=1, nullable=True)
+    overall_rank: Series[int] = pa.Field(ge=1, nullable=True)
+    bank: Series[float] = pa.Field(ge=0, nullable=True)
+    squad_value: Series[float] = pa.Field(ge=0, nullable=True)
+    transfers: Series[int] = pa.Field(ge=0)
+    transfers_cost: Series[int] = pa.Field(ge=0)
+    points_on_bench: Series[int] = pa.Field(ge=0)
+
+    class Config:
+        strict = True
+        coerce = True
+        unique = ["entry_id", "gameweek"]  # noqa: RUF012 - pandera Config
+
+
 class EntryChipSchema(pa.DataFrameModel):
     entry_id: Series[int] = pa.Field(ge=1)
     name: Series[str]
@@ -567,6 +593,7 @@ SCHEMAS: dict[Table, type[pa.DataFrameModel]] = {
     Table.ENTRY_PICK: EntryPickSchema,
     Table.ENTRY_TRANSFER: EntryTransferSchema,
     Table.ENTRY_CHIP: EntryChipSchema,
+    Table.ENTRY_GAMEWEEK: EntryGameweekSchema,
     Table.LEAGUE_STANDING: LeagueStandingSchema,
     Table.LEAGUE_PICK: LeaguePickSchema,
     Table.PLAYER_CROSSWALK: PlayerCrosswalkSchema,
@@ -586,6 +613,7 @@ OPTIONAL_TABLES: frozenset[Table] = frozenset(
         Table.ENTRY_PICK,
         Table.ENTRY_TRANSFER,
         Table.ENTRY_CHIP,
+        Table.ENTRY_GAMEWEEK,
         # Only exist when a mini-league is configured, which it is not by default (E6-S10).
         Table.LEAGUE_STANDING,
         Table.LEAGUE_PICK,

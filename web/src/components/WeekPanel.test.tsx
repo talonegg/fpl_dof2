@@ -92,3 +92,31 @@ describe("WeekPanel", () => {
     expect(screen.queryByTestId("week-options")).toBeNull();
   });
 });
+
+describe("WeekPanel form beside the forecast (DL-70)", () => {
+  it("shows both rankings' numbers on each side of a move when published", () => {
+    const withNumbers = {
+      ...week,
+      recommendation: {
+        ...week.recommendation!,
+        moves: [
+          {
+            out: { player_id: 1, web_name: "Salah", price: 14.5, xp_next: 6.1, form_points_per_match: 8.5 },
+            in: { player_id: 2, web_name: "Saka", price: 14.8, xp_next: 6.4, form_points_per_match: null },
+          },
+        ],
+      },
+    };
+    render(<WeekPanel week={withNumbers} />);
+    const numbers = screen.getAllByTestId("week-move-numbers");
+    expect(numbers).toHaveLength(2);
+    expect(numbers[0].textContent).toContain("form 8.5/match");
+    expect(numbers[1].textContent).toContain("no appearances");
+    expect(screen.getByTestId("week-moves-caption").textContent).toContain("model-free benchmark");
+  });
+
+  it("renders an older week.json without the numbers, as before", () => {
+    render(<WeekPanel week={week} />);
+    expect(screen.queryByTestId("week-move-numbers")).toBeNull();
+  });
+});

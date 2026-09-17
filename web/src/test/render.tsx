@@ -6,7 +6,17 @@ import { ThemeProvider } from "../theme/ThemeProvider";
 import { DataProvider } from "../data/DataProvider";
 import { resetPublishedDataCache } from "../data/published";
 import { resetTrendCaches } from "../data/api";
-import { fixtureGrid, leagueTable, meta, plan, players, rules, squad, week } from "./fixtures";
+import {
+  fixtureGrid,
+  leagueTable,
+  meta,
+  plan,
+  players,
+  rules,
+  seasonLog,
+  squad,
+  week,
+} from "./fixtures";
 import { health } from "../components/health/testFixtures";
 
 function jsonResponse(body: unknown): Response {
@@ -21,10 +31,19 @@ export interface FetchStubOptions {
    * Absent artefacts are served as 404, which is the normal preseason answer (DL-20) — and, for
    * the lazily fetched ones, the answer a bundle deployed against older published data gets.
    */
-  missing?: Array<"week" | "plan" | "fixtures" | "league" | "health">;
+  missing?: Array<"week" | "plan" | "fixtures" | "league" | "health" | "log">;
   /** Artefacts that should fail outright, for the error path. */
   failing?: Array<
-    "meta" | "rules" | "players" | "squad" | "week" | "plan" | "fixtures" | "league" | "health"
+    | "meta"
+    | "rules"
+    | "players"
+    | "squad"
+    | "week"
+    | "plan"
+    | "fixtures"
+    | "league"
+    | "health"
+    | "log"
   >;
   /** Override a body, for the variants a route needs (a preseason league, and so on). */
   bodies?: Record<string, unknown>;
@@ -56,6 +75,9 @@ export function installFetchStub(options: FetchStubOptions = {}) {
     // Lazily fetched by `/health` alone (DL-41), and served here for the same reason `fixtures` is:
     // a route that fetches it must not fall through to the "unexpected fetch" rejection.
     health,
+    // The season log (DL-69), lazily fetched by `/log` alone and absent until a team ID is
+    // configured; served here so the populated view has something to render.
+    log: seasonLog,
     ...(options.bodies ?? {}),
   };
 

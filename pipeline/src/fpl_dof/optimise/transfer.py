@@ -146,6 +146,25 @@ def recommend_transfers(
     options: list[TransferOption] = []
     for count in range(transfer_config.max_transfers + 1):
         option = _solve_for(count, pool, state, rules, optimiser_config)
+        if option is None and count == 0 and optimiser_config.enforce_start_probability_floor:
+            # The squad as it stands cannot field an XI that clears the floor — both keepers
+            # doubtful, say. That is a fact about the squad, and it is exactly the week a
+            # recommendation is needed most, so the roll is priced with the floor relaxed and
+            # said so, rather than the run aborting (DP-15). Every transfer option still honours
+            # the floor, which is what makes the fix rank above the roll.
+            option = _solve_for(
+                0,
+                pool,
+                state,
+                rules,
+                optimiser_config.model_copy(update={"enforce_start_probability_floor": False}),
+            )
+            if option is not None:
+                warnings.append(
+                    "no XI in the current squad clears the start-probability floor; doing "
+                    "nothing is priced with the floor relaxed, so a transfer that restores a "
+                    "legal XI is ranked against it rather than the run failing"
+                )
         if option is None:
             if count == 0:
                 raise InfeasibleError(

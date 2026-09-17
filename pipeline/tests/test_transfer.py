@@ -371,3 +371,25 @@ def test_selection_says_so_when_the_floor_makes_an_xi_impossible(game_rules: Gam
 def test_composition_is_the_squad_the_rules_publish() -> None:
     """Guards the test helper itself: if COMPOSITION drifts, every test above tests nothing."""
     assert sum(count for _, count in COMPOSITION) == 15
+
+
+def test_a_squad_with_no_xi_above_the_floor_is_priced_with_it_relaxed(
+    game_rules: GameRules,
+) -> None:
+    """DL-66 follow-up, DP-15: both keepers doubtful must not abort the week.
+
+    The roll is priced with the floor relaxed and carries a warning saying so; every transfer
+    option still honours the floor, so a transfer that restores a legal XI is ranked against it.
+    """
+    players = _players()
+    state = _state(game_rules, players, bank=20.0)
+    forecast = _forecast(players)
+    held_keepers = [p.player_id for p in state.players if p.position is Position.GKP]
+    forecast.loc[forecast["player_id"].isin(held_keepers), "start_probability"] = 0.1
+
+    strict = OptimiserConfig(enforce_start_probability_floor=True)
+    recommendation = recommend_transfers(forecast, state, game_rules, TransferConfig(), strict)
+
+    roll = next(option for option in recommendation.options if option.transfers == 0)
+    assert any("floor relaxed" in warning for warning in recommendation.warnings)
+    assert any(pid in held_keepers for pid in roll.starting)

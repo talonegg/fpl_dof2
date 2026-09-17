@@ -383,9 +383,9 @@ Six workflows. Cadence escalates as a deadline approaches, and every one is manu
 | `ci.yml` | Push, pull request | Lint, type-check, unit and property tests, contract tests | ~3 min |
 | `ingest-fast.yml` | Every 4h; hourly within 24h of a deadline; dispatch | **`bootstrap-static` and `fixtures` only** — prices, status, ownership. Two requests | **Seconds** |
 | `ingest-slow.yml` | Daily; odds on a credit budget; dispatch | `element-summary` for all players, Understat, FBref, odds. Rate-limited and therefore slow | ~8–10 min |
-| `pipeline.yml` | **Nightly; T−3h and T−45m before each deadline; after `ingest-slow`; dispatch** — *not* after every fast ingest | Transform → gates → model → optimise → publish | ~4–6 min |
+| `pipeline.yml` | **Nightly; T−3h and T−45m before each deadline; after `ingest-slow`; dispatch** — *not* after every fast ingest | Transform → gates → model → optimise (preseason only, DL-67) → week → decision → publish; restores and appends the `ledger` branch (DL-69) | ~4–6 min |
 | `deploy.yml` | On publish; on push to main; dispatch | Build the SPA, deploy site and data | ~2 min |
-| `backtest.yml` | Weekly; dispatch | Walk-forward regression; writes model metrics | ~10–20 min |
+| `backtest.yml` | Weekly; dispatch | Ingests the archive under the committed `config/ci-backtest.yaml` (DL-68), then the walk-forward regression; writes model metrics | ~10–20 min |
 
 ### Two cadence rules that are easy to get wrong
 

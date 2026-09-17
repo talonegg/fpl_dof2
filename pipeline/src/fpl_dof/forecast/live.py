@@ -159,9 +159,15 @@ def build_forecast(
     if frame.empty:
         raise ColdStartError("no player could be scored from the component chain")
 
-    # M1 gives P(60+ minutes) directly, which is what "will he start" means for scoring purposes.
-    # xp_v0 had to infer it from last season's start rate; this is the measured version (D-12).
-    frame["start_probability"] = frame["p_long_appearance"].astype(float).clip(0.0, 1.0)
+    # `start_probability` is P(the player appears at all): the XI floor bars players the model does
+    # not expect to feature, and that is the only question it asks (DL-66). P(60+ minutes) is a
+    # different quantity — forwards in the top appearance band sit near 0.59 on it because they are
+    # the players most often withdrawn late — and it already does its work inside every
+    # minutes-scaled component of xP. Using it here as well barred every forward from the XI on
+    # 2026-09-16 and aborted the run. It stays published as `p_long_appearance`.
+    frame["start_probability"] = (1.0 - frame["p_no_appearance"].astype(float).clip(0.0, 1.0)).clip(
+        0.0, 1.0
+    )
     frame["next_gameweek"] = next_gameweek
     frame["horizon_gameweeks"] = len(horizon)
 

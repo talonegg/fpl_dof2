@@ -27,6 +27,20 @@ export function SquadPitch({ squad, rules }: SquadPitchProps) {
         </div>
       </div>
 
+      {squad.source === "week_advice" && (
+        <div className="squad-fallback-notice" data-testid="squad-advised-notice">
+          In-season the from-scratch solve does not run (DL-67). These fifteen are this week's
+          advised squad after the recommended transfers, with the advised XI and captain.
+        </div>
+      )}
+
+      {squad.status === "skipped" && (
+        <div className="squad-fallback-notice" data-testid="squad-skipped-notice">
+          {squad.skipped_reason ??
+            "The from-scratch solve did not run and no weekly advice is published, so there is no squad to show."}
+        </div>
+      )}
+
       {squad.status === "greedy_fallback" && (
         <div className="squad-fallback-notice" data-testid="squad-fallback-notice">
           This squad is legal but was produced by a fallback heuristic — it is not proven optimal.

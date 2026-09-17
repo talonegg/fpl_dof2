@@ -191,8 +191,9 @@ export const SCOUT_COLUMNS: ScoutColumn[] = [
   },
   {
     key: "start_probability",
-    label: "Start %",
-    description: "Modelled probability of starting the next gameweek — a forecast, not a record",
+    label: "Plays %",
+    description:
+      "Modelled probability of appearing at all in the next gameweek — a forecast, not a record (DL-66)",
     group: "forecast",
     width: "5rem",
     numeric: true,
@@ -200,10 +201,36 @@ export const SCOUT_COLUMNS: ScoutColumn[] = [
     render: (p) => formatPercent(p.start_probability * 100),
     defaultVisible: true,
   },
-  // TODO(E6-S2): minutes played, form and the fixture run are named in the E6-S2 story but are not
-  // in the published `players.json` contract. They arrive with `history.json` and `fixtures.json`
-  // (E6-S1b); each is one entry in this array once they do. `start_probability` stands in for
-  // minutes meanwhile, and is labelled as the forecast it is rather than as a record of anything.
+  // The model-free benchmark beside the forecast (DL-70). Same definition as the backtest's
+  // "trailing 6": points per match over the last six appearances. It is the ranking the model is
+  // measured against, and at the head of the table it still wins (DL-21) — so it is shown, not
+  // hidden behind the number it beats.
+  {
+    key: "form_points_per_match",
+    label: "Form",
+    description:
+      "Points per match over the last six appearances — the model-free benchmark the forecast is graded against (DL-70). Not a forecast",
+    group: "forecast",
+    width: "4.8rem",
+    numeric: true,
+    sortValue: (p) => p.form_points_per_match ?? null,
+    render: (p) =>
+      p.form_points_per_match === null || p.form_points_per_match === undefined
+        ? "—"
+        : p.form_points_per_match.toFixed(1),
+    defaultVisible: true,
+  },
+  {
+    key: "form_rank",
+    label: "Form #",
+    description: "Rank on form among players who have appeared this season (DL-70)",
+    group: "forecast",
+    width: "4.8rem",
+    numeric: true,
+    sortValue: (p) => p.form_rank ?? null,
+    render: (p) => (p.form_rank === null || p.form_rank === undefined ? "—" : `${p.form_rank}`),
+    defaultVisible: false,
+  },
   {
     key: "xp_next",
     label: "xP next",

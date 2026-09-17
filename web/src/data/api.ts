@@ -3,6 +3,7 @@ import type {
   Health,
   History,
   League,
+  Log,
   Meta,
   Plan,
   Players,
@@ -86,6 +87,7 @@ let historyCache: Promise<History | null> | null = null;
 let fixturesCache: Promise<Fixtures | null> | null = null;
 let leagueCache: Promise<League | null> | null = null;
 let healthCache: Promise<Health | null> | null = null;
+let logCache: Promise<Log | null> | null = null;
 
 async function fetchLazy<T>(name: string): Promise<T | null> {
   const res = await fetch(`${DATA_BASE}/${name}.json`);
@@ -181,10 +183,25 @@ export function fetchHealth(): Promise<Health | null> {
   return healthCache;
 }
 
+/**
+ * The season log — what was played, what it scored, what was advised (DL-69, E8 §3).
+ *
+ * Absent is a normal answer, as for `league`: it is written only when a team ID is configured and
+ * the game has recorded picks for it, so a 404 means "nothing to log yet" rather than "missing".
+ */
+export function fetchLog(): Promise<Log | null> {
+  logCache ??= fetchLazy<Log>("log").catch((error: unknown) => {
+    logCache = null;
+    throw error;
+  });
+  return logCache;
+}
+
 /** Drop the lazy caches so the next call hits the network. Used by the retry path, and by tests. */
 export function resetTrendCaches(): void {
   historyCache = null;
   fixturesCache = null;
   leagueCache = null;
   healthCache = null;
+  logCache = null;
 }

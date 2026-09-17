@@ -51,6 +51,7 @@ KEYS: dict[Table, list[str]] = {
     Table.ENTRY_PICK: ["entry_id", "gameweek", "slot"],
     Table.ENTRY_TRANSFER: ["entry_id", "gameweek", "player_in_id", "player_out_id"],
     Table.ENTRY_CHIP: ["entry_id", "name", "gameweek"],
+    Table.ENTRY_GAMEWEEK: ["entry_id", "gameweek"],
     Table.LEAGUE_STANDING: ["league_id", "entry_id"],
     Table.LEAGUE_PICK: ["entry_id", "gameweek", "slot"],
     Table.PLAYER_CROSSWALK: ["season", "source", "source_player_id"],
