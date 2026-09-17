@@ -1,0 +1,20 @@
+# Configuration for the weekly CI backtest only (DL-68). Selected by `FPL_DOF_CONFIG_FILE` in
+# `.github/workflows/backtest.yml`; no other workflow reads it, so the live pipeline's behaviour is
+# unchanged by anything here.
+#
+# Nothing in this file is a secret: the community archive is a public GitHub repository and the
+# season labels are facts about the calendar. It is committed because the walk-forward backtest
+# cannot run without the archive enabled and the backfill seasons named, and a backtest that only a
+# gitignored workstation file can run is not a scheduled regression (DP-12).
+sources:
+  overrides:
+    fplarchive:
+      enabled: true
+  backfill_seasons:
+    - 2023/24
+    - 2024/25
+    - 2025/26
+backtest:
+  training_seasons:
+    - 2024/25
+    - 2025/26

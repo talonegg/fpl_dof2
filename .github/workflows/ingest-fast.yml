@@ -58,6 +58,12 @@ jobs:
 
       - name: Fast ingest
         if: steps.schedule.outputs.run == 'true'
+        env:
+          # The owner's entry, picks and history are fetched *here*, at ingest — pipeline.yml
+          # setting these alone left every run without an entry snapshot to transform (DL-69).
+          # Non-secret public identifiers from repository variables, never committed (DL-44).
+          FPL_DOF_TEAM_ID: ${{ vars.FPL_DOF_TEAM_ID }}
+          FPL_DOF_LEAGUE_ID: ${{ vars.FPL_DOF_LEAGUE_ID }}
         run: fpl-dof ingest --fast
 
       - name: Rebuild the rolling `data` branch

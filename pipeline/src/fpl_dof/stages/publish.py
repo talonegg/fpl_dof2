@@ -17,6 +17,7 @@ from typing import Any
 
 import pandas as pd
 
+from fpl_dof.forecast.form import form_by_player_id, trailing_form
 from fpl_dof.forecast.xp_v0 import MODEL_NAME as XP_V0_NAME
 from fpl_dof.frames import as_float, as_int
 from fpl_dof.obs.logging import get_logger
@@ -28,6 +29,7 @@ from fpl_dof.publish.fixtures import build_fixtures
 from fpl_dof.publish.health import build_health
 from fpl_dof.publish.history import build_history
 from fpl_dof.publish.league import build_league
+from fpl_dof.publish.season_log import build_log
 from fpl_dof.publish.typescript import write_types
 from fpl_dof.rules.models import GameRules
 from fpl_dof.silver.store import read_table, read_table_optional
@@ -37,6 +39,7 @@ from fpl_dof.stages.forecast import XP_FILENAME
 from fpl_dof.stages.optimise import SQUAD_FILENAME
 from fpl_dof.stages.transform import read_rules
 from fpl_dof.stages.week import WEEK_FILENAME
+from fpl_dof.week.ledger import read_all_advice
 
 log = get_logger(__name__)
 
@@ -59,7 +62,7 @@ def run(ctx: StageContext) -> StageResult:
 
     meta = _meta(ctx, forecast, teams, gameweeks, season)
     rules_payload = _rules(rules)
-    players = _players(forecast, teams)
+    players = _players(forecast, teams, form=_form(ctx, season, forecast))
     squad_payload = _squad(squad, rules)
     history = _history(ctx, season, rules)
     fixtures = _fixtures(ctx, season, teams, gameweeks)
@@ -98,6 +101,19 @@ def run(ctx: StageContext) -> StageResult:
         outputs.append(Output(path=contract.write("league", league, destination)))
     else:
         removed.append("league.json")
+
+    # The season log (DL-69): absent until a team ID is configured and the game has recorded picks
+    # for it, for the same reason `league.json` is — a stale one would describe a different owner.
+    season_log = _season_log(ctx, season)
+    if season_log is not None:
+        outputs.append(
+            Output(
+                path=contract.write("log", season_log, destination),
+                rows=len(season_log["gameweeks"]),
+            )
+        )
+    else:
+        removed.append("log.json")
 
     # The weekly decision and the multi-gameweek plan, when there are any. Their absence is normal
     # before the season starts (DL-20), so a missing file is not an error.
@@ -228,12 +244,30 @@ def _rules(rules: GameRules) -> dict[str, Any]:
     return payload
 
 
-def _players(forecast: pd.DataFrame, teams: pd.DataFrame) -> dict[str, Any]:
+def _form(
+    ctx: StageContext, season: str, forecast: pd.DataFrame
+) -> dict[int, tuple[float | None, int | None]]:
+    """The model-free benchmark per player id, from this season's scored matches (DL-70)."""
+    player_gameweek = read_table_optional(ctx.layout.silver, season, Table.PLAYER_GAMEWEEK)
+    if player_gameweek is not None and "season" in player_gameweek.columns:
+        player_gameweek = player_gameweek[player_gameweek["season"] == season]
+    form = trailing_form(player_gameweek, as_of=pd.Timestamp(utcnow()))
+    return form_by_player_id(form, forecast)
+
+
+def _players(
+    forecast: pd.DataFrame,
+    teams: pd.DataFrame,
+    *,
+    form: dict[int, tuple[float | None, int | None]] | None = None,
+) -> dict[str, Any]:
     names = {as_int(row.team_id): str(row.short_name) for row in teams.itertuples()}
     components = [c for c in forecast.columns if c.startswith("component_")]
+    form = form or {}
 
     players = []
     for record in forecast.to_dict(orient="records"):
+        form_value, form_rank = form.get(as_int(record["player_id"]), (None, None))
         players.append(
             {
                 "id": as_int(record["player_id"]),
@@ -248,6 +282,8 @@ def _players(forecast: pd.DataFrame, teams: pd.DataFrame) -> dict[str, Any]:
                 "xp_horizon": round(as_float(record["xp_horizon"]), 3),
                 "xp_horizon_sd": round(as_float(record["xp_horizon_sd"]), 3),
                 "start_probability": round(as_float(record["start_probability"]), 3),
+                "form_points_per_match": form_value,
+                "form_rank": form_rank,
                 "confidence": str(record["confidence"]),
                 "selected_by_percent": round(as_float(record["selected_by_percent"]), 1),
                 "status": str(record["status"]),
@@ -468,6 +504,29 @@ def _league(ctx: StageContext, season: str, gameweeks: pd.DataFrame) -> dict[str
         owner_entry_id=ctx.config.entry.team_id,
         gameweek=_latest_finished(gameweeks),
         squad_limit=ctx.config.entry.league_rival_limit,
+        contract_version=CONTRACT_VERSION,
+    )
+
+
+def _season_log(ctx: StageContext, season: str) -> dict[str, Any] | None:
+    """The season log, or ``None`` when there is no owner or no picks to log yet (DL-69)."""
+    entry_id = ctx.config.entry.team_id
+    if entry_id is None:
+        return None
+    silver = ctx.layout.silver
+    picks = read_table_optional(silver, season, Table.ENTRY_PICK)
+    if picks is None or picks.empty:
+        return None
+    picks = picks[picks["entry_id"] == entry_id]
+    if picks.empty:
+        return None
+    return build_log(
+        entry_id=entry_id,
+        season=season,
+        picks=picks,
+        entry_gameweeks=read_table_optional(silver, season, Table.ENTRY_GAMEWEEK),
+        chips=read_table_optional(silver, season, Table.ENTRY_CHIP),
+        advice=read_all_advice(ctx.layout),
         contract_version=CONTRACT_VERSION,
     )
 

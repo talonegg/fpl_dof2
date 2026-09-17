@@ -1202,9 +1202,11 @@ class ForecastConfig(_Section):
         ge=0,
         le=1,
         description=(
-            "E0-S5 acceptance: nothing below this may start. With no minutes model and preseason "
-            "status flags almost universally 'a', this is what stops the optimiser filling the XI "
-            "with cheap players who will never play."
+            "E0-S5 acceptance: nothing below this may start. The quantity under it is "
+            "`start_probability`, defined in every model as P(the player appears at all) — never "
+            "P(60+ minutes), which is already inside xP and which sits below 0.6 for most forwards "
+            "(DL-66). With preseason status flags almost universally 'a', this is what stops the "
+            "optimiser filling the XI with cheap players who will never play."
         ),
     )
     status_multiplier: dict[str, float] = Field(
@@ -1447,6 +1449,15 @@ class OptimiserConfig(_Section):
         description=(
             "Bar players below the forecast's start-probability floor from the starting XI. "
             "A locked player is exempt: an explicit human override outranks the heuristic."
+        ),
+    )
+    squad_solve: Literal["preseason", "always"] = Field(
+        default="preseason",
+        description=(
+            "When the from-scratch squad MILP runs. `preseason`: only while the next deadline is "
+            "gameweek 1 — in-season the decision is the transfer plan, and the wildcard scenario "
+            "in the multi-gameweek plan already answers 'pick fifteen from scratch' where it "
+            "matters (DL-15, DL-67). `always`: every run, for anyone who wants that view in-season."
         ),
     )
     locked_player_ids: tuple[int, ...] = Field(

@@ -5,7 +5,7 @@
 # has no data to serve. This workflow prefers the artefact pipeline.yml just uploaded (the freshest
 # possible contract, from the run that triggered this deploy); if that is unavailable — e.g. a
 # push-to-main deploy with no recent pipeline run — it falls back to whatever pipeline.yml last
-# published to the `data` branch's `web/` copy, or ships dataless rather than failing (DP-15,
+# published by the last successful pipeline run, or ships dataless rather than failing (DP-15,
 # architecture §10.3: "a deploy fails → previous site remains live" — this makes that the *default*
 # behaviour of actions/deploy-pages, which only swaps the live site on success).
 
@@ -47,21 +47,23 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           run-id: ${{ github.event.workflow_run.id }}
 
-      - name: Fall back to the `data` branch's published copy
+      # The `data` branch has never carried a `web/v1` copy — it is rebuilt from bronze alone on
+      # every ingest — so the previous fallback found nothing (DL-68). The last successful
+      # pipeline run's artefact is what was actually deployed before, and is what to redeploy.
+      - name: Fall back to the last successful pipeline run's contract
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
           if [ -n "$(ls -A web/public/data/v1 2>/dev/null)" ]; then
             echo "contract already present from the triggering run's artifact"
             exit 0
           fi
-          if git ls-remote --exit-code --heads origin data >/dev/null 2>&1; then
-            git fetch --depth=1 origin data:refs/remotes/origin/data
-            git worktree add /tmp/data-branch origin/data
-            if [ -d /tmp/data-branch/web/v1 ]; then
-              cp -r /tmp/data-branch/web/v1/. web/public/data/v1/
-              echo "restored contract from the data branch"
-            fi
-            git worktree remove /tmp/data-branch --force
+          run_id="$(gh run list --workflow=pipeline.yml --status=success --limit=1 --json databaseId --jq '.[0].databaseId' || true)"
+          if [ -n "$run_id" ]; then
+            gh run download "$run_id" --name web-data-contract --dir web/public/data/v1 \
+              && echo "restored contract from pipeline run $run_id" \
+              || echo "::warning::pipeline run $run_id has no downloadable contract artefact"
           fi
           if [ -z "$(ls -A web/public/data/v1 2>/dev/null)" ]; then
             echo "::warning::no published contract found anywhere; deploying the app shell only"

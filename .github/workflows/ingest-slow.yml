@@ -50,6 +50,9 @@ jobs:
         # ratings-only path rather than failing the run (DP-15) — this step needs no conditional.
         env:
           ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
+          # See ingest-fast.yml: the entry is fetched at ingest, so the ID must reach it (DL-69).
+          FPL_DOF_TEAM_ID: ${{ vars.FPL_DOF_TEAM_ID }}
+          FPL_DOF_LEAGUE_ID: ${{ vars.FPL_DOF_LEAGUE_ID }}
         run: fpl-dof ingest
 
       - name: Rebuild the rolling `data` branch

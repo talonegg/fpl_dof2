@@ -62,8 +62,17 @@ class DataLayout:
         """Run manifests, one directory per ``run_id``."""
         return self.root / "runs"
 
+    @property
+    def ledger(self) -> Path:
+        """Append-only record of what the pipeline advised, per gameweek (DL-69).
+
+        Not a medallion tier: nothing is rebuilt into it, and nothing is ever rewritten in it once
+        the deadline it describes has passed. In CI it is the ``ledger`` branch.
+        """
+        return self.root / "ledger"
+
     def all_tiers(self) -> tuple[Path, ...]:
-        return (self.bronze, self.silver, self.gold, self.web, self.runs)
+        return (self.bronze, self.silver, self.gold, self.web, self.runs, self.ledger)
 
     def ensure(self) -> None:
         """Create every tier directory. Idempotent."""

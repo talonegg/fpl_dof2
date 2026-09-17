@@ -22,20 +22,30 @@
     "run_id": { "type": "string" },
     "status": {
       "type": "string",
-      "enum": ["optimal", "greedy_fallback"],
-      "description": "A greedy fallback is legal but not optimal, and the app says so."
+      "enum": ["optimal", "greedy_fallback", "skipped"],
+      "description": "A greedy fallback is legal but not optimal, and the app says so. Skipped means nothing was solved: in-season the from-scratch squad is not the decision (DL-67), and players is empty."
+    },
+    "skipped": {
+      "type": "boolean",
+      "description": "True when the from-scratch solve did not run this gameweek (DL-67). The app then starts from this week's advised squad in week.json instead."
+    },
+    "skipped_reason": { "type": "string" },
+    "source": {
+      "type": "string",
+      "enum": ["solver", "week_advice"],
+      "description": "Where these fifteen came from. The pipeline always writes solver output; the app sets week_advice when it substitutes this week's advised squad for a skipped solve (DL-67)."
     },
     "objective": { "type": "number" },
     "solve_seconds": { "type": "number", "minimum": 0 },
-    "total_price": { "type": "number", "exclusiveMinimum": 0 },
+    "total_price": { "type": "number", "minimum": 0 },
     "budget": { "type": "number", "exclusiveMinimum": 0 },
     "formation": {
       "type": "object",
       "additionalProperties": { "type": "integer", "minimum": 0 },
       "description": "Starters per position, keyed by position code."
     },
-    "captain_id": { "type": "integer", "minimum": 1 },
-    "vice_captain_id": { "type": "integer", "minimum": 1 },
+    "captain_id": { "type": ["integer", "null"], "minimum": 1 },
+    "vice_captain_id": { "type": ["integer", "null"], "minimum": 1 },
     "bench_order": {
       "type": "array",
       "items": { "type": "integer", "minimum": 1 },
@@ -43,7 +53,6 @@
     },
     "players": {
       "type": "array",
-      "minItems": 1,
       "items": {
         "type": "object",
         "additionalProperties": false,

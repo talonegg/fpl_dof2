@@ -40,7 +40,12 @@ export function RecommendationCard({
         <p className="dash-roll-statement">{comparison.statement}</p>
         <div className="dash-roll-sides">
           <div
-            className={`dash-roll-side ${comparison.isRoll ? "" : "dash-roll-side-chosen"}`}
+            // Rolling is chosen when it is the recommendation *and* there is no alternative to
+            // show beside it; otherwise the counterfactual side carries the mark. One side is
+            // always marked, or the card shows options and no answer.
+            className={`dash-roll-side ${
+              comparison.isRoll && comparison.counterfactual ? "" : "dash-roll-side-chosen"
+            }`}
           >
             <span className="dash-roll-side-label">
               {comparison.isRoll

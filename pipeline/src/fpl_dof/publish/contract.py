@@ -42,6 +42,10 @@ ARTEFACTS: dict[str, str] = {
     # fetched lazily by `/health` alone: it is the page you open when something looks wrong, so
     # putting it on the first-paint path would tax every other page for it.
     "health": "health.schema.json",
+    # The season log (DL-69). Written only when a team ID is configured and the game has recorded
+    # picks for it, so like `league` its absence is a normal published state. Fetched lazily by
+    # `/log` alone.
+    "log": "log.schema.json",
 }
 
 

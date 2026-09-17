@@ -85,6 +85,8 @@ jobs:
     if: needs.guard.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    permissions:
+      contents: write # appends this run's advice to the `ledger` branch (DL-69)
     steps:
       - uses: actions/checkout@v4
 
@@ -112,6 +114,23 @@ jobs:
             git worktree remove /tmp/data-branch --force
           fi
 
+      # The advice ledger (DL-69): what earlier runs advised, per gameweek, so this run can
+      # reconcile last week's advice against what was played and publish the season log. Gold is
+      # not persisted between runs; this branch is.
+      - name: Restore the advice ledger from the `ledger` branch
+        run: |
+          set -eu
+          mkdir -p data/ledger
+          if git ls-remote --exit-code --heads origin ledger >/dev/null 2>&1; then
+            git fetch --depth=1 origin ledger:refs/remotes/origin/ledger
+            git worktree add /tmp/ledger-branch origin/ledger
+            if [ -d /tmp/ledger-branch/advice ]; then
+              mkdir -p data/ledger/advice
+              cp -r /tmp/ledger-branch/advice/. data/ledger/advice/
+            fi
+            git worktree remove /tmp/ledger-branch --force
+          fi
+
       # Runs the exact E0 code path (D-10): `fpl-dof run --only ...`, no CI-only branch anywhere.
       - name: Run the pipeline (transform through publish)
         env:
@@ -130,6 +149,24 @@ jobs:
           name: web-data-contract
           path: data/web/v1
           retention-days: 14
+
+      # Append-only, through the same mechanism that keeps `snapshots` (E7-S4): identical bytes
+      # are a no-op, so re-running inside a gameweek only rewrites the file that changed, and a
+      # gameweek whose deadline has passed is never advised again and therefore never rewritten.
+      - name: Record this run's advice on the `ledger` branch (DL-69)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+          shopt -s nullglob
+          for file in data/ledger/advice/gw*.json; do
+            name="$(basename "$file" .json)"
+            gameweek="$((10#${name#gw}))"
+            python pipeline/scripts/retention.py permanent "$file" \
+              --remote "$remote" --branch ledger --source advice --gameweek "$gameweek" \
+              --checkout-dir .ledger-staging
+          done
 
   alert:
     needs: [guard, run]
