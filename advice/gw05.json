@@ -1,0 +1,134 @@
+{
+  "gameweek": 5,
+  "run_id": "20260918T073524Z-0b78cd8b",
+  "recorded_at": "2026-09-18T07:35:45.726417Z",
+  "advised": {
+    "gameweek": 5,
+    "squad": [
+      8,
+      12,
+      31,
+      82,
+      114,
+      124,
+      154,
+      165,
+      277,
+      368,
+      411,
+      464,
+      467,
+      565,
+      611
+    ],
+    "starting": [
+      467,
+      611,
+      277,
+      8,
+      12,
+      411,
+      368,
+      124,
+      154,
+      565,
+      464
+    ],
+    "bench_order": [
+      114,
+      165,
+      31
+    ],
+    "reserve_goalkeeper": 82,
+    "captain": 467,
+    "vice_captain": 611,
+    "formation": "1-3-5-2",
+    "expected_points": 42.4919
+  },
+  "recommendation": {
+    "rationale": "2 free transfer(s) gain 8.69 expected points",
+    "is_roll": false,
+    "transfers": 2,
+    "hit_points": 0,
+    "net_expected_points": 42.4919,
+    "gain_over_roll": 8.6933,
+    "bank_after": 0.9,
+    "moves": [
+      {
+        "out": {
+          "player_id": 302,
+          "web_name": "Button",
+          "price": 4.0,
+          "xp_next": 0.05,
+          "form_points_per_match": null
+        },
+        "in": {
+          "player_id": 467,
+          "web_name": "Sels",
+          "price": 5.0,
+          "xp_next": 6.238,
+          "form_points_per_match": 3.0
+        }
+      },
+      {
+        "out": {
+          "player_id": 387,
+          "web_name": "O'Reilly",
+          "price": 6.4,
+          "xp_next": 2.472,
+          "form_points_per_match": 1.667
+        },
+        "in": {
+          "player_id": 611,
+          "web_name": "Wan-Bissaka",
+          "price": 4.5,
+          "xp_next": 4.748,
+          "form_points_per_match": 1.667
+        }
+      }
+    ],
+    "options": [
+      {
+        "transfers": 0,
+        "hit_points": 0,
+        "net_expected_points": 33.7986,
+        "gain_over_roll": 0.0,
+        "moves": []
+      },
+      {
+        "transfers": 1,
+        "hit_points": 0,
+        "net_expected_points": 40.215,
+        "gain_over_roll": 6.4164,
+        "moves": [
+          "Kelleher (\u00a35.0m) -> Sels (\u00a35.0m)"
+        ]
+      },
+      {
+        "transfers": 2,
+        "hit_points": 0,
+        "net_expected_points": 42.4919,
+        "gain_over_roll": 8.6933,
+        "moves": [
+          "Button (\u00a34.0m) -> Sels (\u00a35.0m)",
+          "O'Reilly (\u00a36.4m) -> Wan-Bissaka (\u00a34.5m)"
+        ]
+      }
+    ],
+    "warnings": []
+  },
+  "squad_state": {
+    "provenance": "from_picks",
+    "entry_id": 1,
+    "as_of_gameweek": 4,
+    "bank": 0.0,
+    "sell_value": 101.2,
+    "budget": 101.2,
+    "free_transfers": 5,
+    "chips_used": [
+      "bboost",
+      "wildcard"
+    ],
+    "warnings": []
+  }
+}
