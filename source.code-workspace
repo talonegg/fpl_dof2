@@ -1,0 +1,25 @@
+{
+	"folders": [
+		{
+			"path": "."
+		},
+		{
+			"path": "../fpl_dof"
+		},
+		{
+			"path": "../project_learn"
+		},
+		{
+			"path": "../spotify2ytmusic"
+		},
+		{
+			"path": "../groceryshopper"
+		},
+		{
+			"path": "../notes2obsidian"
+		},
+		{
+			"path": "../insurance_data_dbt"
+		}
+	]
+}
