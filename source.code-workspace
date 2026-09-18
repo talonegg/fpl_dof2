@@ -20,6 +20,9 @@
 		},
 		{
 			"path": "../insurance_data_dbt"
+		},
+		{
+			"path": "../ai-governance"
 		}
 	]
 }
