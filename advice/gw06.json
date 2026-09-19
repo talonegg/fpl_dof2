@@ -1,0 +1,135 @@
+{
+  "gameweek": 6,
+  "run_id": "20260919T051504Z-51ca9c22",
+  "recorded_at": "2026-09-19T05:15:18.233712Z",
+  "advised": {
+    "gameweek": 6,
+    "squad": [
+      12,
+      98,
+      249,
+      306,
+      334,
+      346,
+      385,
+      411,
+      426,
+      453,
+      467,
+      469,
+      480,
+      502,
+      649
+    ],
+    "starting": [
+      467,
+      469,
+      502,
+      334,
+      12,
+      649,
+      480,
+      426,
+      411,
+      249,
+      346
+    ],
+    "bench_order": [
+      98,
+      453,
+      306
+    ],
+    "reserve_goalkeeper": 385,
+    "captain": 467,
+    "vice_captain": 469,
+    "formation": "1-4-3-3",
+    "expected_points": 44.6533
+  },
+  "recommendation": {
+    "rationale": "2 free transfer(s) gain 4.72 expected points",
+    "is_roll": false,
+    "transfers": 2,
+    "hit_points": 0,
+    "net_expected_points": 44.6533,
+    "gain_over_roll": 4.7226,
+    "bank_after": 0.0,
+    "moves": [
+      {
+        "out": {
+          "player_id": 58,
+          "web_name": "Forster",
+          "price": 4.0,
+          "xp_next": 0.054,
+          "form_points_per_match": null
+        },
+        "in": {
+          "player_id": 467,
+          "web_name": "Sels",
+          "price": 5.0,
+          "xp_next": 6.238,
+          "form_points_per_match": 3.0
+        }
+      },
+      {
+        "out": {
+          "player_id": 201,
+          "web_name": "Mu\u00f1oz",
+          "price": 5.4,
+          "xp_next": 2.848,
+          "form_points_per_match": 1.0
+        },
+        "in": {
+          "player_id": 502,
+          "web_name": "Robertson",
+          "price": 4.4,
+          "xp_next": 4.122,
+          "form_points_per_match": 3.25
+        }
+      }
+    ],
+    "options": [
+      {
+        "transfers": 0,
+        "hit_points": 0,
+        "net_expected_points": 39.9307,
+        "gain_over_roll": 0.0,
+        "moves": []
+      },
+      {
+        "transfers": 1,
+        "hit_points": 0,
+        "net_expected_points": 42.0218,
+        "gain_over_roll": 2.0911,
+        "moves": [
+          "Trafford (\u00a35.0m) -> Kinsky (\u00a34.5m)"
+        ]
+      },
+      {
+        "transfers": 2,
+        "hit_points": 0,
+        "net_expected_points": 44.6533,
+        "gain_over_roll": 4.7226,
+        "moves": [
+          "Forster (\u00a34.0m) -> Sels (\u00a35.0m)",
+          "Mu\u00f1oz (\u00a35.4m) -> Robertson (\u00a34.4m)"
+        ]
+      }
+    ],
+    "warnings": []
+  },
+  "squad_state": {
+    "provenance": "reconstructed",
+    "entry_id": 1,
+    "as_of_gameweek": 4,
+    "bank": 0.0,
+    "sell_value": 100.5,
+    "budget": 100.5,
+    "free_transfers": 5,
+    "chips_used": [
+      "bboost",
+      "wildcard",
+      "freehit"
+    ],
+    "warnings": []
+  }
+}
