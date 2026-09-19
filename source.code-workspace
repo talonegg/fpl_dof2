@@ -23,6 +23,9 @@
 		},
 		{
 			"path": "../ai-governance"
+		},
+		{
+			"path": "../heroesim"
 		}
 	]
 }
