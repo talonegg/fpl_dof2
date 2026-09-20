@@ -1,7 +1,7 @@
 {
   "gameweek": 6,
-  "run_id": "20260920T053154Z-174fb918",
-  "recorded_at": "2026-09-20T05:32:11.830876Z",
+  "run_id": "20260920T074937Z-d8753093",
+  "recorded_at": "2026-09-20T07:49:59.164502Z",
   "advised": {
     "gameweek": 6,
     "squad": [
@@ -43,15 +43,15 @@
     "captain": 467,
     "vice_captain": 469,
     "formation": "1-4-3-3",
-    "expected_points": 44.6451
+    "expected_points": 44.6483
   },
   "recommendation": {
     "rationale": "2 free transfer(s) gain 5.18 expected points",
     "is_roll": false,
     "transfers": 2,
     "hit_points": 0,
-    "net_expected_points": 44.6451,
-    "gain_over_roll": 5.176,
+    "net_expected_points": 44.6483,
+    "gain_over_roll": 5.1754,
     "bank_after": 0.0,
     "moves": [
       {
@@ -91,15 +91,15 @@
       {
         "transfers": 0,
         "hit_points": 0,
-        "net_expected_points": 39.4691,
+        "net_expected_points": 39.4729,
         "gain_over_roll": 0.0,
         "moves": []
       },
       {
         "transfers": 1,
         "hit_points": 0,
-        "net_expected_points": 41.8405,
-        "gain_over_roll": 2.3714,
+        "net_expected_points": 41.8438,
+        "gain_over_roll": 2.3709,
         "moves": [
           "Mu\u00f1oz (\u00a35.4m) -> Wan-Bissaka (\u00a34.5m)"
         ]
@@ -107,8 +107,8 @@
       {
         "transfers": 2,
         "hit_points": 0,
-        "net_expected_points": 44.6451,
-        "gain_over_roll": 5.176,
+        "net_expected_points": 44.6483,
+        "gain_over_roll": 5.1754,
         "moves": [
           "Forster (\u00a34.0m) -> Sels (\u00a35.0m)",
           "Mu\u00f1oz (\u00a35.4m) -> Robertson (\u00a34.4m)"
