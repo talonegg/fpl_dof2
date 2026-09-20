@@ -1,4 +1,10 @@
 {
+  "permissions": {
+    "allow": [
+      "Bash(cat \"/c/Users/JohnH/AppData/Local/Temp/claude/c--JHH-source-fpl-dof2/d05bb658-113f-4858-bb60-c0d4e8eb6b87/scratchpad/dl13.md\" >> docs/planning/00-decision-log.md && tail -4 docs/planning/00-decision-log.md && grep -c \"^## DL-\" docs/planning/00-decision-log.md)",
+      "Read(//c/Users/JohnH/AppData/Local/Temp/claude/c--JHH-source-fpl-dof2/d05bb658-113f-4858-bb60-c0d4e8eb6b87/scratchpad/**)"
+    ]
+  },
   "hooks": {
     "PreToolUse": [
       {
@@ -6,8 +12,8 @@
         "hooks": [
           {
             "type": "command",
-            "if": "Bash(git commit *)",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/secret-scan.cjs\""
+            "command": "node \"${CLAUDE_PROJECT_DIR}/.claude/hooks/secret-scan.cjs\"",
+            "if": "Bash(git commit *)"
           },
           {
             "type": "command",
