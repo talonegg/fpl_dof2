@@ -1,7 +1,7 @@
 {
   "gameweek": 6,
-  "run_id": "20260923T052227Z-ab73f249",
-  "recorded_at": "2026-09-23T05:22:43.005980Z",
+  "run_id": "20260923T075119Z-ea0ed294",
+  "recorded_at": "2026-09-23T07:51:49.792545Z",
   "advised": {
     "gameweek": 6,
     "squad": [
@@ -43,15 +43,15 @@
     "captain": 567,
     "vice_captain": 449,
     "formation": "1-3-5-2",
-    "expected_points": 43.5341
+    "expected_points": 43.3381
   },
   "recommendation": {
-    "rationale": "2 free transfer(s) gain 8.51 expected points",
+    "rationale": "2 free transfer(s) gain 8.79 expected points",
     "is_roll": false,
     "transfers": 2,
     "hit_points": 0,
-    "net_expected_points": 43.5341,
-    "gain_over_roll": 8.514,
+    "net_expected_points": 43.3381,
+    "gain_over_roll": 8.7924,
     "bank_after": 0.1,
     "moves": [
       {
@@ -59,14 +59,14 @@
           "player_id": 201,
           "web_name": "Mu\u00f1oz",
           "price": 5.4,
-          "xp_next": 1.434,
+          "xp_next": 1.381,
           "form_points_per_match": 1.0
         },
         "in": {
           "player_id": 449,
           "web_name": "Hall",
           "price": 5.3,
-          "xp_next": 4.775,
+          "xp_next": 4.758,
           "form_points_per_match": 4.5
         }
       },
@@ -75,7 +75,7 @@
           "player_id": 385,
           "web_name": "Trafford",
           "price": 5.0,
-          "xp_next": 3.209,
+          "xp_next": 3.092,
           "form_points_per_match": 4.5
         },
         "in": {
@@ -91,15 +91,15 @@
       {
         "transfers": 0,
         "hit_points": 0,
-        "net_expected_points": 35.0201,
+        "net_expected_points": 34.5457,
         "gain_over_roll": 0.0,
         "moves": []
       },
       {
         "transfers": 1,
         "hit_points": 0,
-        "net_expected_points": 41.092,
-        "gain_over_roll": 6.0719,
+        "net_expected_points": 40.8149,
+        "gain_over_roll": 6.2692,
         "moves": [
           "Trafford (\u00a35.0m) -> Horn\u00ed\u010dek (\u00a35.0m)"
         ]
@@ -107,8 +107,8 @@
       {
         "transfers": 2,
         "hit_points": 0,
-        "net_expected_points": 43.5341,
-        "gain_over_roll": 8.514,
+        "net_expected_points": 43.3381,
+        "gain_over_roll": 8.7924,
         "moves": [
           "Mu\u00f1oz (\u00a35.4m) -> Hall (\u00a35.3m)",
           "Trafford (\u00a35.0m) -> Horn\u00ed\u010dek (\u00a35.0m)"
