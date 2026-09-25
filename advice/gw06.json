@@ -1,20 +1,20 @@
 {
   "gameweek": 6,
-  "run_id": "20260925T053444Z-3fa0d8af",
-  "recorded_at": "2026-09-25T05:35:14.999306Z",
+  "run_id": "20260925T080316Z-a7133c9c",
+  "recorded_at": "2026-09-25T08:03:49.467949Z",
   "advised": {
     "gameweek": 6,
     "squad": [
       12,
-      58,
       98,
       249,
+      277,
       306,
       334,
       346,
+      385,
       411,
       426,
-      449,
       453,
       469,
       480,
@@ -23,67 +23,67 @@
     ],
     "starting": [
       567,
-      449,
       649,
-      426,
+      277,
+      334,
       12,
+      426,
       411,
-      98,
-      453,
-      249,
+      469,
       480,
-      334
+      249,
+      98
     ],
     "bench_order": [
+      453,
       346,
-      469,
       306
     ],
-    "reserve_goalkeeper": 58,
+    "reserve_goalkeeper": 385,
     "captain": 567,
-    "vice_captain": 449,
-    "formation": "1-3-5-2",
-    "expected_points": 43.3381
+    "vice_captain": 649,
+    "formation": "1-4-4-2",
+    "expected_points": 41.7937
   },
   "recommendation": {
-    "rationale": "2 free transfer(s) gain 8.79 expected points",
+    "rationale": "2 free transfer(s) gain 3.48 expected points",
     "is_roll": false,
     "transfers": 2,
     "hit_points": 0,
-    "net_expected_points": 43.3381,
-    "gain_over_roll": 8.7924,
-    "bank_after": 0.1,
+    "net_expected_points": 41.7937,
+    "gain_over_roll": 3.4762,
+    "bank_after": 0.3,
     "moves": [
       {
         "out": {
-          "player_id": 201,
-          "web_name": "Mu\u00f1oz",
-          "price": 5.4,
-          "xp_next": 1.381,
-          "form_points_per_match": 1.0
-        },
-        "in": {
-          "player_id": 449,
-          "web_name": "Hall",
-          "price": 5.3,
-          "xp_next": 4.758,
-          "form_points_per_match": 4.5
-        }
-      },
-      {
-        "out": {
-          "player_id": 385,
-          "web_name": "Trafford",
-          "price": 5.0,
-          "xp_next": 3.092,
-          "form_points_per_match": 4.5
+          "player_id": 58,
+          "web_name": "Forster",
+          "price": 4.0,
+          "xp_next": 0.04,
+          "form_points_per_match": null
         },
         "in": {
           "player_id": 567,
           "web_name": "Horn\u00ed\u010dek",
           "price": 5.0,
-          "xp_next": 6.387,
-          "form_points_per_match": 2.75
+          "xp_next": 5.341,
+          "form_points_per_match": 2.8
+        }
+      },
+      {
+        "out": {
+          "player_id": 201,
+          "web_name": "Mu\u00f1oz",
+          "price": 5.4,
+          "xp_next": 1.795,
+          "form_points_per_match": 1.25
+        },
+        "in": {
+          "player_id": 277,
+          "web_name": "Egan",
+          "price": 4.1,
+          "xp_next": 3.718,
+          "form_points_per_match": 5.2
         }
       }
     ],
@@ -91,15 +91,15 @@
       {
         "transfers": 0,
         "hit_points": 0,
-        "net_expected_points": 34.5457,
+        "net_expected_points": 38.3175,
         "gain_over_roll": 0.0,
         "moves": []
       },
       {
         "transfers": 1,
         "hit_points": 0,
-        "net_expected_points": 40.8149,
-        "gain_over_roll": 6.2692,
+        "net_expected_points": 40.7157,
+        "gain_over_roll": 2.3982,
         "moves": [
           "Trafford (\u00a35.0m) -> Horn\u00ed\u010dek (\u00a35.0m)"
         ]
@@ -107,11 +107,11 @@
       {
         "transfers": 2,
         "hit_points": 0,
-        "net_expected_points": 43.3381,
-        "gain_over_roll": 8.7924,
+        "net_expected_points": 41.7937,
+        "gain_over_roll": 3.4762,
         "moves": [
-          "Mu\u00f1oz (\u00a35.4m) -> Hall (\u00a35.3m)",
-          "Trafford (\u00a35.0m) -> Horn\u00ed\u010dek (\u00a35.0m)"
+          "Forster (\u00a34.0m) -> Horn\u00ed\u010dek (\u00a35.0m)",
+          "Mu\u00f1oz (\u00a35.4m) -> Egan (\u00a34.1m)"
         ]
       }
     ],
@@ -122,30 +122,14 @@
     "entry_id": 1,
     "as_of_gameweek": 5,
     "bank": 0.0,
-    "sell_value": 100.6,
-    "budget": 100.6,
+    "sell_value": 100.5,
+    "budget": 100.5,
     "free_transfers": 5,
     "chips_used": [
       "bboost",
       "wildcard",
       "freehit"
     ],
-    "warnings": [
-      "no purchase price for player 385; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 469; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 201; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 334; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 453; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 480; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 12; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 426; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 346; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 411; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 249; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 58; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 649; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 98; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 306; using the current price, which understates the sell-on fee for anyone who has risen"
-    ]
+    "warnings": []
   }
 }
