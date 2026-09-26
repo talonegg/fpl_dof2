@@ -1,0 +1,13 @@
+{
+  "source": "fpl",
+  "source_version": "1",
+  "resource": "fixtures",
+  "key": "all",
+  "url": "https://fantasy.premierleague.com/api/fixtures/",
+  "http_status": 200,
+  "fetched_at": "2026-09-20T07:47:51.812018Z",
+  "sha256": "2664801f00d3ab45132aca0f0885b23b1746c27b5de552ace908425456150ddc",
+  "bytes": 223028,
+  "content_encoding": "gzip",
+  "run_id": "20260920T074750Z-e25e438a"
+}
