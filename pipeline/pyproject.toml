@@ -14,7 +14,8 @@ dependencies = [
     "numpy>=2.2",
     "pandas>=2.2",
     "pandera>=0.22",
-    "pulp>=3.0",
+    # Capped: PuLP 4 removed LpVariable.dicts, which both optimisers use (DL-71).
+    "pulp>=3.0,<4",
     "pyarrow>=18",
     "pydantic>=2.10",
     "pyyaml>=6.0",

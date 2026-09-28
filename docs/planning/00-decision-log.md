@@ -4459,6 +4459,34 @@ same function, same window — so the two views agree by construction.
 
 ---
 
+## DL-71 — PuLP is capped below 4 until the optimisers are ported to its new API
+
+**Date:** 2026-09-28 · **Status:** Accepted · **Serves:** NFR-15 ·
+**Arose in:** issue #28; every scheduled Pipeline run that got past "Decide whether to run" since
+2026-09-26 failed in the `week` stage. Decided by an agent at the owner's request to fix the alerts.
+
+### Context
+
+`pipeline/pyproject.toml` asked for `pulp>=3.0` with no upper bound, and CI installs fresh on every
+run. PuLP 4.0.0 was published on 2026-09-25 and removes `LpVariable.dicts`, which both the weekly
+transfer MILP (`optimise/transfer.py`) and the horizon MILP (`optimise/horizon.py`) use to build
+their variables. Local environments still held 3.3.2, so nothing failed outside CI, and the runs
+that skipped on unchanged data stayed green — the published advice silently stopped updating.
+
+### Decision
+
+- Declare `pulp>=3.0,<4`. No code change; the optimisers keep the 3.x API they were tested against.
+- Porting to PuLP 4 is a separate change, done deliberately with the optimiser tests and a
+  backtest, not under a failing alert.
+
+### Consequences
+
+The next scheduled run installs 3.3.2 and publishes again. The cap must be lifted by that port, or
+the project falls behind PuLP's fixes. Other dependencies are still floor-only and can break the
+same way; this entry does not change that.
+
+---
+
 ## Open decisions
 
 Decisions deliberately deferred, with the point at which each must be resolved.
