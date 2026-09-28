@@ -79,6 +79,8 @@ def run(ctx: StageContext) -> StageResult:
             run_id=ctx.run_id,
             offline=True,
             entry_id=ctx.config.entry.team_id,
+            league_id=ctx.config.entry.league_id,
+            league_rival_limit=ctx.config.entry.league_rival_limit,
             seasons=ctx.config.sources.backfill_seasons,
             season=ctx.config.rules.season,
         )

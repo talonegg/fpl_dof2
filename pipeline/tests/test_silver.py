@@ -208,6 +208,45 @@ def test_optional_tables_are_absent_rather_than_empty_in_preseason(
     assert set(chips["name"]) >= {"wildcard", "freehit", "bboost", "3xc"}
 
 
+def test_a_configured_league_reaches_silver(config: Config, populated_bronze: DataLayout) -> None:
+    """The league ingested to bronze must be conformed by transform, not only fetched (DL-40).
+
+    Transform once built its request without the league ID, so the standings sat in bronze and
+    every run reported the league table absent.
+    """
+    standings = {
+        "league": {"id": 42, "name": "Test League"},
+        "standings": {
+            "has_next": False,
+            "results": [
+                {"entry": 7, "entry_name": "Seven", "player_name": "P", "rank": 1, "total": 300},
+                {"entry": 8, "entry_name": "Eight", "player_name": "Q", "rank": 2, "total": 290},
+            ],
+        },
+    }
+    with respx.mock(assert_all_called=True) as mock:
+        mock.get(f"{BASE}/leagues-classic/42/standings/").mock(
+            return_value=httpx.Response(200, json=standings)
+        )
+        with Fetcher(
+            config=config.http,
+            bronze=BronzeStore(populated_bronze.bronze),
+            run_id="run-1",
+            sleep=lambda _s: None,
+        ) as fetcher:
+            FplApiAdapter(fetcher).fetch_league_standings(42, IngestRequest(run_id="run-1"))
+
+    with_league = config.model_copy(
+        update={"entry": config.entry.model_copy(update={"league_id": 42})}
+    )
+    transform.run(_ctx(with_league, populated_bronze))
+
+    table = read_table_optional(populated_bronze.silver, "2026/27", Table.LEAGUE_STANDING)
+    assert table is not None
+    assert list(table["entry_id"]) == [7, 8]
+    assert set(table["league_id"]) == {42}
+
+
 def test_transform_makes_no_network_calls(config: Config, populated_bronze: DataLayout) -> None:
     """Reproducibility (DP-11): the same bronze must always give the same silver.
 
