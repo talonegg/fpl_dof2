@@ -1,7 +1,7 @@
 {
   "gameweek": 6,
-  "run_id": "20260925T080316Z-a7133c9c",
-  "recorded_at": "2026-09-25T08:03:49.467949Z",
+  "run_id": "20260928T141318Z-d65bdd6b",
+  "recorded_at": "2026-09-28T14:13:51.029381Z",
   "advised": {
     "gameweek": 6,
     "squad": [
@@ -43,15 +43,15 @@
     "captain": 567,
     "vice_captain": 649,
     "formation": "1-4-4-2",
-    "expected_points": 41.7937
+    "expected_points": 41.7418
   },
   "recommendation": {
-    "rationale": "2 free transfer(s) gain 3.48 expected points",
+    "rationale": "2 free transfer(s) gain 3.46 expected points",
     "is_roll": false,
     "transfers": 2,
     "hit_points": 0,
-    "net_expected_points": 41.7937,
-    "gain_over_roll": 3.4762,
+    "net_expected_points": 41.7418,
+    "gain_over_roll": 3.4588,
     "bank_after": 0.3,
     "moves": [
       {
@@ -66,7 +66,7 @@
           "player_id": 567,
           "web_name": "Horn\u00ed\u010dek",
           "price": 5.0,
-          "xp_next": 5.341,
+          "xp_next": 5.357,
           "form_points_per_match": 2.8
         }
       },
@@ -75,14 +75,14 @@
           "player_id": 201,
           "web_name": "Mu\u00f1oz",
           "price": 5.4,
-          "xp_next": 1.795,
+          "xp_next": 1.871,
           "form_points_per_match": 1.25
         },
         "in": {
           "player_id": 277,
           "web_name": "Egan",
           "price": 4.1,
-          "xp_next": 3.718,
+          "xp_next": 3.725,
           "form_points_per_match": 5.2
         }
       }
@@ -91,15 +91,15 @@
       {
         "transfers": 0,
         "hit_points": 0,
-        "net_expected_points": 38.3175,
+        "net_expected_points": 38.283,
         "gain_over_roll": 0.0,
         "moves": []
       },
       {
         "transfers": 1,
         "hit_points": 0,
-        "net_expected_points": 40.7157,
-        "gain_over_roll": 2.3982,
+        "net_expected_points": 40.6688,
+        "gain_over_roll": 2.3858,
         "moves": [
           "Trafford (\u00a35.0m) -> Horn\u00ed\u010dek (\u00a35.0m)"
         ]
@@ -107,8 +107,8 @@
       {
         "transfers": 2,
         "hit_points": 0,
-        "net_expected_points": 41.7937,
-        "gain_over_roll": 3.4762,
+        "net_expected_points": 41.7418,
+        "gain_over_roll": 3.4588,
         "moves": [
           "Forster (\u00a34.0m) -> Horn\u00ed\u010dek (\u00a35.0m)",
           "Mu\u00f1oz (\u00a35.4m) -> Egan (\u00a34.1m)"
