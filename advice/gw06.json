@@ -1,66 +1,82 @@
 {
   "gameweek": 6,
-  "run_id": "20260928T141318Z-d65bdd6b",
-  "recorded_at": "2026-09-28T14:13:51.029381Z",
+  "run_id": "20260928T230316Z-848a2930",
+  "recorded_at": "2026-09-28T23:03:47.200421Z",
   "advised": {
     "gameweek": 6,
     "squad": [
-      12,
-      98,
-      249,
-      277,
-      306,
-      334,
-      346,
-      385,
+      8,
+      109,
+      115,
+      124,
+      165,
+      175,
+      237,
+      259,
+      368,
+      399,
       411,
       426,
-      453,
-      469,
-      480,
+      464,
       567,
       649
     ],
     "starting": [
       567,
       649,
-      277,
-      334,
-      12,
+      8,
       426,
+      115,
       411,
-      469,
-      480,
-      249,
-      98
+      399,
+      124,
+      368,
+      237,
+      464
     ],
     "bench_order": [
-      453,
-      346,
-      306
+      259,
+      165,
+      175
     ],
-    "reserve_goalkeeper": 385,
+    "reserve_goalkeeper": 109,
     "captain": 567,
     "vice_captain": 649,
-    "formation": "1-4-4-2",
-    "expected_points": 41.7418
+    "formation": "1-3-5-2",
+    "expected_points": 40.3364
   },
   "recommendation": {
-    "rationale": "2 free transfer(s) gain 3.46 expected points",
+    "rationale": "2 free transfer(s) gain 4.77 expected points",
     "is_roll": false,
     "transfers": 2,
     "hit_points": 0,
-    "net_expected_points": 41.7418,
-    "gain_over_roll": 3.4588,
-    "bank_after": 0.3,
+    "net_expected_points": 40.3364,
+    "gain_over_roll": 4.7722,
+    "bank_after": 0.0,
     "moves": [
       {
         "out": {
-          "player_id": 58,
-          "web_name": "Forster",
-          "price": 4.0,
-          "xp_next": 0.04,
-          "form_points_per_match": null
+          "player_id": 450,
+          "web_name": "Livramento",
+          "price": 4.9,
+          "xp_next": 1.183,
+          "form_points_per_match": 2.0
+        },
+        "in": {
+          "player_id": 649,
+          "web_name": "Maitland-Niles",
+          "price": 4.5,
+          "xp_next": 3.763,
+          "form_points_per_match": 7.0
+        }
+      },
+      {
+        "out": {
+          "player_id": 496,
+          "web_name": "Kinsky",
+          "price": 4.5,
+          "xp_next": 2.418,
+          "form_points_per_match": 3.6
         },
         "in": {
           "player_id": 567,
@@ -69,49 +85,33 @@
           "xp_next": 5.357,
           "form_points_per_match": 2.8
         }
-      },
-      {
-        "out": {
-          "player_id": 201,
-          "web_name": "Mu\u00f1oz",
-          "price": 5.4,
-          "xp_next": 1.871,
-          "form_points_per_match": 1.25
-        },
-        "in": {
-          "player_id": 277,
-          "web_name": "Egan",
-          "price": 4.1,
-          "xp_next": 3.725,
-          "form_points_per_match": 5.2
-        }
       }
     ],
     "options": [
       {
         "transfers": 0,
         "hit_points": 0,
-        "net_expected_points": 38.283,
+        "net_expected_points": 35.5642,
         "gain_over_roll": 0.0,
         "moves": []
       },
       {
         "transfers": 1,
         "hit_points": 0,
-        "net_expected_points": 40.6688,
-        "gain_over_roll": 2.3858,
+        "net_expected_points": 37.7291,
+        "gain_over_roll": 2.1649,
         "moves": [
-          "Trafford (\u00a35.0m) -> Horn\u00ed\u010dek (\u00a35.0m)"
+          "Livramento (\u00a34.9m) -> Botman (\u00a35.0m)"
         ]
       },
       {
         "transfers": 2,
         "hit_points": 0,
-        "net_expected_points": 41.7418,
-        "gain_over_roll": 3.4588,
+        "net_expected_points": 40.3364,
+        "gain_over_roll": 4.7722,
         "moves": [
-          "Forster (\u00a34.0m) -> Horn\u00ed\u010dek (\u00a35.0m)",
-          "Mu\u00f1oz (\u00a35.4m) -> Egan (\u00a34.1m)"
+          "Livramento (\u00a34.9m) -> Maitland-Niles (\u00a34.5m)",
+          "Kinsky (\u00a34.5m) -> Horn\u00ed\u010dek (\u00a35.0m)"
         ]
       }
     ],
@@ -119,17 +119,13 @@
   },
   "squad_state": {
     "provenance": "from_picks",
-    "entry_id": 1,
+    "entry_id": 4529900,
     "as_of_gameweek": 5,
-    "bank": 0.0,
-    "sell_value": 100.5,
-    "budget": 100.5,
-    "free_transfers": 5,
-    "chips_used": [
-      "bboost",
-      "wildcard",
-      "freehit"
-    ],
+    "bank": 0.1,
+    "sell_value": 100.3,
+    "budget": 100.4,
+    "free_transfers": 2,
+    "chips_used": [],
     "warnings": []
   }
 }
