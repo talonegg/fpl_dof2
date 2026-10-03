@@ -1,7 +1,7 @@
 {
   "gameweek": 6,
-  "run_id": "20261002T084527Z-960a979c",
-  "recorded_at": "2026-10-02T08:46:00.964981Z",
+  "run_id": "20261003T055353Z-feccc0ce",
+  "recorded_at": "2026-10-03T05:54:19.416909Z",
   "advised": {
     "gameweek": 6,
     "squad": [
@@ -122,8 +122,8 @@
     "entry_id": 4529900,
     "as_of_gameweek": 5,
     "bank": 0.1,
-    "sell_value": 100.3,
-    "budget": 100.4,
+    "sell_value": 100.2,
+    "budget": 100.3,
     "free_transfers": 2,
     "chips_used": [],
     "warnings": []
