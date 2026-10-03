@@ -1,0 +1,13 @@
+{
+  "source": "fpl",
+  "source_version": "1",
+  "resource": "entry_transfers",
+  "key": "1",
+  "url": "https://fantasy.premierleague.com/api/entry/1/transfers/",
+  "http_status": 200,
+  "fetched_at": "2026-09-18T08:44:30.484740Z",
+  "sha256": "d9c37a78010ed171f177a87bce644c553f9c62c0b9673d6ce7bdab3d7456a89a",
+  "bytes": 3554,
+  "content_encoding": "gzip",
+  "run_id": "20260918T084428Z-a1f0a2ab"
+}
