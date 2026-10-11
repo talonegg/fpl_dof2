@@ -1,0 +1,131 @@
+{
+  "gameweek": 7,
+  "run_id": "20261011T063702Z-98ce51c0",
+  "recorded_at": "2026-10-11T06:37:35.080866Z",
+  "advised": {
+    "gameweek": 7,
+    "squad": [
+      8,
+      109,
+      115,
+      124,
+      165,
+      175,
+      237,
+      259,
+      368,
+      399,
+      411,
+      426,
+      464,
+      567,
+      649
+    ],
+    "starting": [
+      567,
+      649,
+      8,
+      426,
+      115,
+      411,
+      399,
+      124,
+      368,
+      237,
+      464
+    ],
+    "bench_order": [
+      259,
+      165,
+      175
+    ],
+    "reserve_goalkeeper": 109,
+    "captain": 567,
+    "vice_captain": 649,
+    "formation": "1-3-5-2",
+    "expected_points": 40.3364
+  },
+  "recommendation": {
+    "rationale": "2 free transfer(s) gain 4.77 expected points",
+    "is_roll": false,
+    "transfers": 2,
+    "hit_points": 0,
+    "net_expected_points": 40.3364,
+    "gain_over_roll": 4.7722,
+    "bank_after": 0.0,
+    "moves": [
+      {
+        "out": {
+          "player_id": 450,
+          "web_name": "Livramento",
+          "price": 4.9,
+          "xp_next": 0.789,
+          "form_points_per_match": 2.0
+        },
+        "in": {
+          "player_id": 649,
+          "web_name": "Maitland-Niles",
+          "price": 4.5,
+          "xp_next": 3.763,
+          "form_points_per_match": 7.0
+        }
+      },
+      {
+        "out": {
+          "player_id": 496,
+          "web_name": "Kinsky",
+          "price": 4.5,
+          "xp_next": 2.418,
+          "form_points_per_match": 3.6
+        },
+        "in": {
+          "player_id": 567,
+          "web_name": "Horn\u00ed\u010dek",
+          "price": 5.0,
+          "xp_next": 5.357,
+          "form_points_per_match": 2.8
+        }
+      }
+    ],
+    "options": [
+      {
+        "transfers": 0,
+        "hit_points": 0,
+        "net_expected_points": 35.5642,
+        "gain_over_roll": 0.0,
+        "moves": []
+      },
+      {
+        "transfers": 1,
+        "hit_points": 0,
+        "net_expected_points": 37.7291,
+        "gain_over_roll": 2.1649,
+        "moves": [
+          "Livramento (\u00a34.9m) -> Botman (\u00a35.0m)"
+        ]
+      },
+      {
+        "transfers": 2,
+        "hit_points": 0,
+        "net_expected_points": 40.3364,
+        "gain_over_roll": 4.7722,
+        "moves": [
+          "Livramento (\u00a34.9m) -> Maitland-Niles (\u00a34.5m)",
+          "Kinsky (\u00a34.5m) -> Horn\u00ed\u010dek (\u00a35.0m)"
+        ]
+      }
+    ],
+    "warnings": []
+  },
+  "squad_state": {
+    "provenance": "from_picks",
+    "entry_id": 4529900,
+    "as_of_gameweek": 5,
+    "bank": 0.1,
+    "sell_value": 100.3,
+    "budget": 100.4,
+    "free_transfers": 3,
+    "chips_used": [],
+    "warnings": []
+  }
+}
