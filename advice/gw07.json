@@ -1,7 +1,7 @@
 {
   "gameweek": 7,
-  "run_id": "20261011T090259Z-130660d5",
-  "recorded_at": "2026-10-11T09:03:23.015563Z",
+  "run_id": "20261012T064229Z-932efaa8",
+  "recorded_at": "2026-10-12T06:42:45.110449Z",
   "advised": {
     "gameweek": 7,
     "squad": [
@@ -30,28 +30,28 @@
       411,
       399,
       124,
-      368,
       237,
-      464
+      464,
+      259
     ],
     "bench_order": [
-      259,
+      368,
       165,
       175
     ],
     "reserve_goalkeeper": 109,
     "captain": 567,
     "vice_captain": 649,
-    "formation": "1-3-5-2",
-    "expected_points": 40.3364
+    "formation": "1-4-4-2",
+    "expected_points": 40.0937
   },
   "recommendation": {
-    "rationale": "2 free transfer(s) gain 4.77 expected points",
+    "rationale": "2 free transfer(s) gain 5.21 expected points",
     "is_roll": false,
     "transfers": 2,
     "hit_points": 0,
-    "net_expected_points": 40.3364,
-    "gain_over_roll": 4.7722,
+    "net_expected_points": 40.0937,
+    "gain_over_roll": 5.2054,
     "bank_after": 0.0,
     "moves": [
       {
@@ -91,15 +91,15 @@
       {
         "transfers": 0,
         "hit_points": 0,
-        "net_expected_points": 35.5642,
+        "net_expected_points": 34.8883,
         "gain_over_roll": 0.0,
         "moves": []
       },
       {
         "transfers": 1,
         "hit_points": 0,
-        "net_expected_points": 37.7291,
-        "gain_over_roll": 2.1649,
+        "net_expected_points": 37.4864,
+        "gain_over_roll": 2.5981,
         "moves": [
           "Livramento (\u00a34.9m) -> Botman (\u00a35.0m)"
         ]
@@ -107,8 +107,8 @@
       {
         "transfers": 2,
         "hit_points": 0,
-        "net_expected_points": 40.3364,
-        "gain_over_roll": 4.7722,
+        "net_expected_points": 40.0937,
+        "gain_over_roll": 5.2054,
         "moves": [
           "Livramento (\u00a34.9m) -> Maitland-Niles (\u00a34.5m)",
           "Kinsky (\u00a34.5m) -> Horn\u00ed\u010dek (\u00a35.0m)"
@@ -122,8 +122,8 @@
     "entry_id": 4529900,
     "as_of_gameweek": 5,
     "bank": 0.1,
-    "sell_value": 100.3,
-    "budget": 100.4,
+    "sell_value": 100.5,
+    "budget": 100.6,
     "free_transfers": 3,
     "chips_used": [],
     "warnings": []
