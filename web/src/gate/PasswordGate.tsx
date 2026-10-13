@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { normaliseHash, sha256Hex, UNLOCK_KEY } from "./hash";
+import { ThemeToggle } from "../layout/ThemeToggle";
 import "./PasswordGate.css";
 
 /**
@@ -59,6 +60,9 @@ export function PasswordGate({
   if (expected === "") {
     return (
       <main className="gate" data-testid="gate-not-configured">
+        <div className="gate-theme">
+          <ThemeToggle />
+        </div>
         <div className="gate-card">
           <h1 className="gate-title">Site locked: password not configured</h1>
           <p className="gate-text">
@@ -120,6 +124,9 @@ function PasswordForm({
 
   return (
     <main className="gate" data-testid="gate">
+        <div className="gate-theme">
+          <ThemeToggle />
+        </div>
       <form className="gate-card" onSubmit={(e) => void submit(e)} noValidate>
         <h1 className="gate-title">FPL DOF</h1>
         <p className="gate-text">Enter the password to continue.</p>

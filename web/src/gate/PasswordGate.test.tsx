@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { LockButton, PasswordGate } from "./PasswordGate";
+import { ThemeProvider } from "../theme/ThemeProvider";
 import { normaliseHash, sha256Hex, UNLOCK_KEY } from "./hash";
 
 // Any other hash: stands in for "the password was changed".
@@ -9,10 +10,12 @@ let correctHash = "";
 
 function App({ hash }: { hash: string }) {
   return (
-    <PasswordGate expectedHash={hash}>
-      <div data-testid="app">secret app</div>
-      <LockButton />
-    </PasswordGate>
+    <ThemeProvider>
+      <PasswordGate expectedHash={hash}>
+        <div data-testid="app">secret app</div>
+        <LockButton />
+      </PasswordGate>
+    </ThemeProvider>
   );
 }
 
@@ -105,5 +108,31 @@ describe("PasswordGate", () => {
     fireEvent.click(screen.getByTestId("gate-toggle"));
     expect(input.type).toBe("text");
     expect(screen.getByTestId("gate-toggle").getAttribute("aria-pressed")).toBe("true");
+  });
+});
+
+describe("PasswordGate theme", () => {
+  it("offers the app's theme toggle on the gate, sharing the app's theme state and storage", async () => {
+    window.localStorage.setItem("fpl-dof.theme", "dark");
+    render(<App hash={correctHash} />);
+    const toggle = screen.getByTestId("theme-toggle");
+    expect(toggle.getAttribute("data-preference")).toBe("dark");
+    expect(document.documentElement.getAttribute("data-theme")).toBe("dark");
+    fireEvent.click(toggle); // dark -> system
+    expect(window.localStorage.getItem("fpl-dof.theme")).toBe("system");
+    expect(document.documentElement.getAttribute("data-theme")).toBeNull();
+    fireEvent.click(toggle); // system -> light
+    expect(document.documentElement.getAttribute("data-theme")).toBe("light");
+
+    // The choice made on the gate carries into the app after unlock.
+    await enter("correct horse");
+    await waitFor(() => expect(screen.getByTestId("app")).toBeTruthy());
+    expect(document.documentElement.getAttribute("data-theme")).toBe("light");
+    expect(window.localStorage.getItem("fpl-dof.theme")).toBe("light");
+  });
+
+  it("shows the theme toggle on the not-configured screen too", async () => {
+    render(<App hash="" />);
+    expect(screen.getByTestId("gate-not-configured").querySelector('[data-testid="theme-toggle"]')).toBeTruthy();
   });
 });
