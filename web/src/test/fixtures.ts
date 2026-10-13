@@ -9,6 +9,10 @@ import type {
   Rules,
   Squad,
   Week,
+  ModelActual,
+  ModelAdvice,
+  ModelInfo,
+  Models,
 } from "../contract/types";
 
 export const meta: Meta = {
@@ -829,4 +833,75 @@ export const challengerWeek: Week = {
     captain: 1,
     vice_captain: 3,
   },
+};
+
+function modelAdvice(captain: string, xp: number, hit = 0): ModelAdvice {
+  return {
+    transfers: hit ? [{ out: 2, out_name: "Out Player", in: 3, in_name: "In Player" }] : [],
+    n_transfers: hit ? 2 : 0,
+    hit_points: hit,
+    starting: [1, 2, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    starting_names: ["Raya", "Gabriel", "Saliba", "Timber", "Saka", "Palmer", "Salah", "Rice", "Haaland", "Isak", "Watkins"],
+    bench_order: [13, 14, 15, 16],
+    bench_names: ["Pope", "Mbeumo", "Gvardiol", "Hall"],
+    captain: 9,
+    captain_name: captain,
+    vice_captain: 7,
+    vice_name: "Salah",
+    expected_points: xp,
+  };
+}
+
+function modelActual(points: number, hit = 0): ModelActual {
+  return { points, points_before_hits: points - hit, hit_points: hit, n_autosubs: 1, vice_used: false, armband_points: 12 };
+}
+
+const MODEL_INFO: ModelInfo[] = [
+  { id: "champion", key: "C3", label: "Champion (C3)", role: "champion", description: "Engine + minutes_v2" },
+  { id: "challenger", key: "C1", label: "Challenger (C1)", role: "challenger", description: "Boosted xG" },
+  { id: "engine", key: "engine", label: "Engine", role: "comparison", description: "Original engine" },
+  { id: "a", key: "A", label: "Model A", role: "comparison", description: "Component xPts" },
+  { id: "a_odds", key: "A_odds", label: "A + odds", role: "comparison", description: "A + odds team layer" },
+];
+
+const SCORED: Record<string, number[]> = {
+  champion: [62, 48, 71],
+  challenger: [58, 55, 66],
+  engine: [51, 44, 69],
+  a: [60, 47, 74],
+  a_odds: [60, 49, 72],
+};
+
+export const modelsFixture: Models = {
+  contract_version: 1,
+  season: "2026/27",
+  champion: "champion",
+  frozen: { tag: "frozen-2026-10-13", code_commit: "79e080c" },
+  models: MODEL_INFO,
+  gameweeks: [7, 8, 9, 10].map((gw, i) => ({
+    gameweek: gw,
+    deadline: `2026-10-${17 + i * 7}T10:00:00+00:00`,
+    decided_at: `2026-10-${16 + i * 7}T21:00:00+00:00`,
+    advice: {
+      champion: modelAdvice("Haaland", 61.2),
+      challenger: modelAdvice("Salah", 63.4, -4),
+      engine: modelAdvice("Palmer", 58.9),
+      a: modelAdvice("Isak", 60.1),
+      a_odds: modelAdvice("Isak", 60.7),
+    },
+    actual:
+      i < 3
+        ? Object.fromEntries(
+            Object.entries(SCORED).map(([m, pts]) => [m, modelActual(pts[i], m === "challenger" ? -4 : 0)]),
+          )
+        : null,
+  })),
+  season_to_date: Object.entries(SCORED).map(([model, pts]) => {
+    let cum = 0;
+    const per_gameweek = pts.map((p, i) => {
+      cum += p;
+      return { gameweek: 7 + i, points: p, cumulative: cum };
+    });
+    return { model, gameweeks_scored: pts.length, total: cum, per_gameweek };
+  }),
 };

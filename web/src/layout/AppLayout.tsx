@@ -3,7 +3,7 @@ import { useDataState } from "../data/DataProvider";
 import { Header } from "../components/Header";
 import { ThemeToggle } from "./ThemeToggle";
 import { NAV_ITEMS } from "../routes/nav";
-import { ModelToggle } from "../components/models/ModelToggle";
+import { ModelSelector } from "../components/models/ModelSelector";
 
 /**
  * The persistent shell: brand, navigation, theme control, then the active route.
@@ -62,7 +62,7 @@ export function AppLayout() {
         {state.status === "ready" && (
           <>
             <Header meta={state.data.meta} />
-            <ModelToggle />
+            <ModelSelector />
             <main>
               <Outlet />
             </main>

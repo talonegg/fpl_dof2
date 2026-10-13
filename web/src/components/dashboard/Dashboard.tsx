@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import type { Meta, Plan, Rules, Squad, Week } from "../../contract/types";
 import { SquadPitch } from "../SquadPitch";
 import { Bench } from "../Bench";
@@ -34,12 +35,15 @@ export function Dashboard({
   squad,
   week,
   plan,
+  comparison,
 }: {
   meta: Meta;
   rules: Rules;
   squad: Squad;
   week: Week | null;
   plan: Plan | null;
+  /** A comparison model's advice card, shown above the champion's live recommendation. */
+  comparison?: ReactNode;
 }) {
   const recommendation = week?.skipped ? undefined : week?.recommendation;
 
@@ -48,6 +52,8 @@ export function Dashboard({
       {week && <DeadlineCountdown deadline={week.deadline} />}
 
       <AlertsPanel alerts={week?.alerts} tone="actionable" />
+
+      {comparison}
 
       {recommendation ? (
         <RecommendationCard
