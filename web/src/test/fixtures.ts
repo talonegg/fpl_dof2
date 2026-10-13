@@ -857,11 +857,11 @@ function modelActual(points: number, hit = 0): ModelActual {
 }
 
 const MODEL_INFO: ModelInfo[] = [
-  { id: "champion", key: "C3", label: "Champion (C3)", role: "champion", description: "Engine + minutes_v2" },
-  { id: "challenger", key: "C1", label: "Challenger (C1)", role: "challenger", description: "Boosted xG" },
-  { id: "engine", key: "engine", label: "Engine", role: "comparison", description: "Original engine" },
-  { id: "a", key: "A", label: "Model A", role: "comparison", description: "Component xPts" },
-  { id: "a_odds", key: "A_odds", label: "A + odds", role: "comparison", description: "A + odds team layer" },
+  { id: "champion", key: "C3", label: "Champion (C3)", role: "champion", description: "Engine + minutes_v2", available: true, unavailable_reason: null },
+  { id: "challenger", key: "C1", label: "Challenger (C1)", role: "challenger", description: "Boosted xG", available: true, unavailable_reason: null },
+  { id: "engine", key: "engine", label: "Engine", role: "comparison", description: "Original engine", available: true, unavailable_reason: null },
+  { id: "a", key: "A", label: "Model A", role: "comparison", description: "Component xPts", available: true, unavailable_reason: null },
+  { id: "a_odds", key: "A_odds", label: "A + odds", role: "comparison", description: "A + odds team layer", available: true, unavailable_reason: null },
 ];
 
 const SCORED: Record<string, number[]> = {
@@ -882,6 +882,9 @@ export const modelsFixture: Models = {
     gameweek: gw,
     deadline: `2026-10-${17 + i * 7}T10:00:00+00:00`,
     decided_at: `2026-10-${16 + i * 7}T21:00:00+00:00`,
+    availability: Object.fromEntries(
+      MODEL_INFO.map((m) => [m.id, { available: true, reason: null }]),
+    ),
     advice: {
       champion: modelAdvice("Haaland", 61.2),
       challenger: modelAdvice("Salah", 63.4, -4),

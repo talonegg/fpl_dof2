@@ -585,12 +585,17 @@ def _models(ctx: StageContext, season: str) -> dict[str, Any] | None:
             if scores_path.exists()
             else []
         )
+        statuses = {}
+        for p in sorted((root / "status").glob("GW*.json")):
+            doc = json.loads(p.read_text(encoding="utf-8"))
+            statuses[int(p.stem[2:])] = doc
         return build_models(
             season=season,
             decisions=decisions,
             scores=scores,
             frozen_tag=cfg.frozen_tag,
             contract_version=CONTRACT_VERSION,
+            statuses=statuses,
         )
     except Exception as exc:
         log.warning("publish.models_dropped", extra={"error": repr(exc)})

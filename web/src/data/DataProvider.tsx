@@ -116,7 +116,10 @@ export function withModel(data: PublishedData, model: ModelChoice): PublishedDat
 
 /** Which models have something published to show. The champion always does. */
 export function availableModels(data: PublishedData): ModelChoice[] {
-  const inModels = new Set((data.models?.models ?? []).map((m) => m.id));
+  // A model whose inputs failed the freshness check is never shown, even partially.
+  const inModels = new Set(
+    (data.models?.models ?? []).filter((m) => m.available !== false).map((m) => m.id),
+  );
   const latest = latestModelGameweek(data);
   return MODEL_CHOICES.filter((m) => {
     if (m === "champion") return true;

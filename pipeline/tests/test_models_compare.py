@@ -59,13 +59,24 @@ def _score(gw: int, model: str, points: float) -> dict[str, Any]:
     }
 
 
-def _payload() -> dict[str, Any]:
+def _ok(*stale: str) -> dict[str, Any]:
+    keys = [k for k, *_ in MODEL_REGISTRY]
+    return {
+        "models": {
+            k: {"available": k not in stale, "reason": "live odds missing" if k in stale else None}
+            for k in keys
+        }
+    }
+
+
+def _payload(statuses: dict[int, Any] | None = None) -> dict[str, Any]:
     payload = build_models(
         season="2026/27",
         decisions=[_decision(8), _decision(7)],
         scores=[_score(7, "C3", 60), _score(7, "C1", 52), _score(7, "A", 70), _score(9, "C3", 1)],
         frozen_tag="frozen-2026-10-13",
         contract_version=CONTRACT_VERSION,
+        statuses={7: _ok(), 8: _ok()} if statuses is None else statuses,
     )
     assert payload is not None
     return payload
@@ -128,6 +139,8 @@ def _ctx(source: Path | None) -> Any:
 def test_stage_reads_harness_dir(tmp_path: Path) -> None:
     (tmp_path / "decisions").mkdir()
     (tmp_path / "decisions" / "GW7.json").write_text(json.dumps(_decision(7)))
+    (tmp_path / "status").mkdir()
+    (tmp_path / "status" / "GW7.json").write_text(json.dumps(_ok("A_odds")))
     (tmp_path / "scores.csv").write_text(
         "gw,model,points,points_before_hits,hit_points,n_autosubs,vice_used,armband_pts\n"
         "7,C3,61,61,0,0,True,0\n"
@@ -135,6 +148,32 @@ def test_stage_reads_harness_dir(tmp_path: Path) -> None:
     payload = publish._models(_ctx(tmp_path), "2026/27")
     assert payload is not None
     assert payload["gameweeks"][0]["actual"]["champion"]["vice_used"] is True
+    assert payload["gameweeks"][0]["availability"]["a_odds"] == {
+        "available": False,
+        "reason": "live odds missing",
+    }
+
+
+def test_stale_model_is_unavailable_with_reason_and_no_partial_data() -> None:
+    p = _payload({7: _ok("A"), 8: _ok("A_odds")})
+    Contract(root=find_contracts_root()).validate("models", p)
+    gw7, gw8 = p["gameweeks"]
+    assert "a" not in gw7["advice"] and "a" not in (gw7["actual"] or {})
+    assert gw7["availability"]["a"] == {"available": False, "reason": "live odds missing"}
+    assert "a" in gw8["advice"] and "a_odds" not in gw8["advice"]
+    totals = {s["model"]: s for s in p["season_to_date"]}
+    assert totals["a"]["gameweeks_scored"] == 0  # GW7's A points are withheld with its advice
+    info = {m["id"]: m for m in p["models"]}
+    assert info["a_odds"]["available"] is False
+    assert info["a_odds"]["unavailable_reason"] == "live odds missing"
+    assert info["champion"]["available"] is True
+
+
+def test_missing_check_fails_closed() -> None:
+    p = _payload({8: _ok()})  # GW7 has no recorded input check
+    gw7 = p["gameweeks"][0]
+    assert gw7["advice"] == {} and gw7["actual"] is None
+    assert gw7["availability"]["champion"]["reason"].startswith("no input-freshness check")
 
 
 @pytest.mark.parametrize("make", ["unset", "empty", "corrupt"])
