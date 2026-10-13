@@ -38,7 +38,7 @@ from fpl_dof.stages.decision import PLAN_FILENAME
 from fpl_dof.stages.forecast import XP_FILENAME
 from fpl_dof.stages.optimise import SQUAD_FILENAME
 from fpl_dof.stages.transform import read_rules
-from fpl_dof.stages.week import WEEK_FILENAME
+from fpl_dof.stages.week import CHALLENGER_FILENAME, WEEK_FILENAME
 from fpl_dof.week.ledger import read_all_advice
 
 log = get_logger(__name__)
@@ -125,6 +125,25 @@ def run(ctx: StageContext) -> StageResult:
             outputs.append(Output(path=contract.write(artefact, payload, destination)))
         else:
             removed.append(f"{artefact}.json")
+
+    # The challenger (champion/challenger): validated against week.json's own schema, and isolated
+    # so a malformed challenger is dropped rather than failing the publish of everything else.
+    challenger_source = gold / CHALLENGER_FILENAME
+    published_challenger = False
+    if challenger_source.exists():
+        try:
+            payload = json.loads(challenger_source.read_text(encoding="utf-8"))
+            payload["contract_version"] = CONTRACT_VERSION
+            contract.validate("week", payload)
+            destination.mkdir(parents=True, exist_ok=True)
+            target = destination / CHALLENGER_FILENAME
+            target.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
+            outputs.append(Output(path=target))
+            published_challenger = True
+        except Exception as exc:
+            log.warning("publish.challenger_dropped", extra={"error": repr(exc)})
+    if not published_challenger:
+        removed.append(CHALLENGER_FILENAME)
 
     for name in removed:
         (destination / name).unlink(missing_ok=True)

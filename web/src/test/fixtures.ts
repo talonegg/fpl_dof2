@@ -808,3 +808,25 @@ export const seasonLog: Log = {
     },
   ],
 };
+
+/** The challenger's week (champion/challenger): a different transfer, captain and XI. */
+export const challengerWeek: Week = {
+  ...week,
+  model: { id: "c1_gbm_xg_minutes", label: "Challenger (C1)", role: "challenger" },
+  recommendation: {
+    ...week.recommendation!,
+    rationale: "Roll the free transfer",
+    is_roll: true,
+    transfers: 0,
+    net_expected_points: 51.0,
+    gain_over_roll: 0,
+    moves: [],
+  },
+  advised: {
+    ...week.advised!,
+    starting: [1, 3],
+    bench_order: [2],
+    captain: 1,
+    vice_captain: 3,
+  },
+};

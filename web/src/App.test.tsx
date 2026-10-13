@@ -121,7 +121,7 @@ describe("App shell", () => {
     renderApp("/");
     await waitFor(() => expect(screen.getByTestId("squad-pitch")).toBeTruthy());
     const afterFirstLoad = fetchSpy.mock.calls.length;
-    expect(afterFirstLoad).toBe(6);
+    expect(afterFirstLoad).toBe(7) // six artefacts + the optional week_challenger;
 
     fireEvent.click(screen.getByTestId("nav-scout"));
     await waitFor(() => expect(screen.getByTestId("player-table")).toBeTruthy());

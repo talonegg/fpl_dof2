@@ -1,0 +1,20 @@
+.model-toggle { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; font-size: 0.85rem; }
+.model-toggle-buttons { display: inline-flex; border: 1px solid currentColor; border-radius: 999px; overflow: hidden; }
+.model-toggle-button { background: transparent; color: inherit; border: 0; padding: 0.25rem 0.75rem; cursor: pointer; font: inherit; }
+.model-toggle-button.active { background: #2f6fed; color: #fff; }
+.model-toggle-button:disabled { opacity: 0.45; cursor: not-allowed; }
+.model-toggle-note { opacity: 0.8; }
+.model-toggle-diff { color: inherit; text-decoration: underline; }
+.model-badge { display: inline-block; font-size: 0.72rem; font-weight: 600; padding: 0.1rem 0.5rem; border-radius: 999px; vertical-align: middle; margin-left: 0.4rem; }
+.model-badge-champion { background: #dbe7ff; color: #1b3f8f; }
+.model-badge-challenger { background: #ffe6c7; color: #8a4b00; }
+.model-diff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+@media (max-width: 640px) { .model-diff-grid { grid-template-columns: 1fr; } }
+.model-diff-col { border: 1px solid rgba(127,127,127,0.35); border-radius: 8px; padding: 0.75rem; }
+.model-diff-col h3 { margin: 0 0 0.5rem; font-size: 1rem; }
+.model-diff-sub { font-weight: 400; font-size: 0.8rem; opacity: 0.75; }
+.model-diff-row { display: flex; gap: 0.5rem; padding: 0.3rem 0.25rem; border-radius: 4px; }
+.model-diff-key { min-width: 6rem; font-weight: 600; }
+.model-diff-row.differs, .model-diff-xi li.differs { background: rgba(255, 196, 0, 0.25); }
+.model-diff-xi ul { margin: 0; padding-left: 1rem; }
+.model-diff-summary { font-weight: 600; }
