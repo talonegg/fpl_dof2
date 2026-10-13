@@ -89,8 +89,23 @@ jobs:
         working-directory: web
         run: npm run typecheck
 
+      # Client-side password gate (deterrence only; data/v1 and the bundle stay public). With no
+      # secret the build still succeeds, but the site fails closed: it shows "Site locked: password
+      # not configured" and never renders the app.
+      - name: Check the password hash secret
+        env:
+          FPL_PASSWORD_HASH: ${{ secrets.FPL_PASSWORD_HASH }}
+        run: |
+          if [ -z "${FPL_PASSWORD_HASH// }" ]; then
+            echo "::warning title=FPL_PASSWORD_HASH not set::The FPL_PASSWORD_HASH secret is missing or empty. The deployed site will be LOCKED ('Site locked: password not configured'). See README: Password gate."
+          elif ! printf '%s' "$FPL_PASSWORD_HASH" | tr -d '[:space:]' | grep -Eqi '^[0-9a-f]{64}$'; then
+            echo "::warning title=FPL_PASSWORD_HASH malformed::FPL_PASSWORD_HASH is not a 64-character hex SHA-256; no password will unlock the site."
+          fi
+
       - name: build
         working-directory: web
+        env:
+          VITE_FPL_PASSWORD_HASH: ${{ secrets.FPL_PASSWORD_HASH }}
         run: npm run build
 
       - uses: actions/configure-pages@v5
