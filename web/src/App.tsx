@@ -12,6 +12,7 @@ import { LeagueRoute } from "./routes/LeagueRoute";
 import { LogRoute } from "./routes/LogRoute";
 import { SettingsRoute } from "./routes/SettingsRoute";
 import { HealthRoute } from "./routes/HealthRoute";
+import { ModelsRoute } from "./routes/ModelsRoute";
 import { NotFoundRoute } from "./routes/NotFoundRoute";
 import "./App.css";
 
@@ -35,6 +36,7 @@ export function AppRoutes() {
         <Route path="league" element={<LeagueRoute />} />
         <Route path="log" element={<LogRoute />} />
         <Route path="settings" element={<SettingsRoute />} />
+        <Route path="models" element={<ModelsRoute />} />
         <Route path="health" element={<HealthRoute />} />
         <Route path="*" element={<NotFoundRoute />} />
       </Route>

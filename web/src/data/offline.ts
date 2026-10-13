@@ -41,7 +41,7 @@ export const PUBLISHED_CACHE = "fpl-dof-published-v1";
  * first visit's bandwidth on views the reader may never open. They still cache through the worker
  * once fetched, so a reader who has visited the player page has them offline too.
  */
-export const WARMED_ARTEFACTS = ["meta", "rules", "players", "squad", "week", "plan"] as const;
+export const WARMED_ARTEFACTS = ["meta", "rules", "players", "squad", "week", "plan", "week_challenger"] as const;
 
 export interface WarmResult {
   /** Artefacts newly written to the cache. */

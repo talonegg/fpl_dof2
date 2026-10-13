@@ -1469,6 +1469,14 @@ class OptimiserConfig(_Section):
             "live recommendation, and its failures are logged, not raised."
         ),
     )
+    publish_challenger: bool = Field(
+        default=True,
+        description=(
+            "Champion/challenger: also publish C1's full weekly answer (transfers, captain/vice, "
+            "XI and bench) as week_challenger.json, in week.json's schema, so the app can toggle "
+            "between the two. Requires shadow_c1. A challenger failure never blocks the champion."
+        ),
+    )
     squad_solve: Literal["preseason", "always"] = Field(
         default="preseason",
         description=(

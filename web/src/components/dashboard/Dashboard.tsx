@@ -6,6 +6,7 @@ import { DeadlineCountdown } from "./DeadlineCountdown";
 import { AlertsPanel } from "./AlertsPanel";
 import { RecommendationCard } from "./RecommendationCard";
 import { SquadSummary } from "./SquadSummary";
+import { ModelBadge } from "../models/ModelBadge";
 import "./dashboard.css";
 
 /**
@@ -63,12 +64,23 @@ export function Dashboard({
         advised={week?.skipped ? undefined : week?.advised}
       />
 
+      <p className="dash-model-line" data-testid="dashboard-xi-model">
+        Advised XI, captain and bench from <ModelBadge />
+      </p>
       <SquadPitch squad={squad} rules={rules} />
       <Bench squad={squad} />
 
       <AlertsPanel alerts={week?.alerts} tone="informational" />
 
-      {plan && <PlanPanel plan={plan} />}
+      {plan && (
+        <>
+          <p className="dash-model-line" data-testid="dashboard-plan-model">
+            Multi-gameweek plan from <ModelBadge model="champion" /> (the challenger publishes this
+            week only)
+          </p>
+          <PlanPanel plan={plan} />
+        </>
+      )}
     </div>
   );
 }
@@ -88,7 +100,9 @@ function NoAdvice({ week }: { week: Week }) {
       aria-labelledby="dash-recommendation-heading"
       data-testid="week-skipped"
     >
-      <h2 id="dash-recommendation-heading">This week</h2>
+      <h2 id="dash-recommendation-heading">
+        This week <ModelBadge />
+      </h2>
       <p className="dash-recommendation-action">
         {week.skipped_reason ??
           "No squad is available yet, so there is nothing to advise on. This is the normal state before the first gameweek is scored."}

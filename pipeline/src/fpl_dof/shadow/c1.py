@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import traceback
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -209,7 +210,17 @@ def _option(option: TransferOption) -> dict[str, object]:
     }
 
 
-def run_shadow(
+@dataclass(frozen=True)
+class Challenger:
+    """C1's full weekly answer: the recommendation, the xPts frame it was chosen from, and the
+    price+position captain scores (None when there was no history to fit them)."""
+
+    recommendation: TransferRecommendation
+    forecast: pd.DataFrame
+    captain_scores: dict[int, float] | None
+
+
+def fit_challenger(
     *,
     forecast: pd.DataFrame,
     history: pd.DataFrame,
@@ -220,7 +231,8 @@ def run_shadow(
     transfer_config: TransferConfig,
     optimiser_config: OptimiserConfig,
     gameweek: int,
-) -> TransferRecommendation:
+) -> Challenger:
+    """Fit C1 on history strictly before ``gameweek`` and run the real transfer engine on it."""
     xp_by_code = predict_next(history, players, fixtures, rules.season, gameweek)
     code_of = dict(zip(players["player_id"].astype(int), players["code"].astype(int), strict=True))
     frame = forecast.copy()
@@ -230,13 +242,28 @@ def run_shadow(
     scores = price_position_scores(frame, history)
     if scores is not None:
         rec = apply_price_position_captain(rec, frame, scores, optimiser_config.captain_multiplier)
-    return rec
+    return Challenger(recommendation=rec, forecast=frame, captain_scores=scores)
+
+
+def run_shadow(**kwargs: Any) -> TransferRecommendation:
+    return fit_challenger(**kwargs).recommendation
 
 
 def run_shadow_safely(
-    *, gold: Path, run_id: str, gameweek: int, engine: TransferRecommendation, **kwargs: Any
+    *,
+    gold: Path,
+    run_id: str,
+    gameweek: int,
+    engine: TransferRecommendation,
+    result: Challenger | BaseException | None = None,
+    **kwargs: Any,
 ) -> Path | None:
-    """Run C1 and log it beside the engine. Never raises: the shadow cannot fail the pipeline."""
+    """Run C1 and log it beside the engine. Never raises: the shadow cannot fail the pipeline.
+
+    ``result`` lets the week stage pass in a challenger it has already fitted (or the exception
+    fitting it raised), so the model is trained once per run for both the log and the published
+    challenger artefact.
+    """
     payload: dict[str, object] = {
         "run_id": run_id,
         "gameweek": gameweek,
@@ -245,7 +272,11 @@ def run_shadow_safely(
         "engine": _option(engine.recommended),
     }
     try:
-        shadow = run_shadow(gameweek=gameweek, **kwargs)
+        if isinstance(result, BaseException):
+            raise result
+        shadow = (
+            result.recommendation if result is not None else run_shadow(gameweek=gameweek, **kwargs)
+        )
         payload.update(
             status="ok", shadow=_option(shadow.recommended), shadow_rationale=shadow.rationale
         )

@@ -176,6 +176,12 @@ export interface Week {
   /** True when no squad could be established. Before the first gameweek is scored there is no picks endpoint to read (DL-20), so this is a normal state and not a failure. */
   skipped: boolean;
   skipped_reason?: string;
+  /** Which model produced this recommendation. week.json is the champion (the live engine); week_challenger.json, when present, is the challenger in the same schema (champion/challenger). */
+  model?: {
+    id: string;
+    label: string;
+    role: "champion" | "challenger";
+  };
   deadline: {
     gameweek: number;
     name: string;
