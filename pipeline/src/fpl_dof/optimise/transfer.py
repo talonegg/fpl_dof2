@@ -30,7 +30,10 @@ margin you demand *beyond* break-even before believing a forecast difference tha
 from __future__ import annotations
 
 import time
+from collections.abc import Mapping
+from collections.abc import Set as AbstractSet
 from dataclasses import dataclass, field
+from typing import Any
 
 import pandas as pd
 import pulp
@@ -39,7 +42,7 @@ from fpl_dof.config.models import OptimiserConfig, TransferConfig
 from fpl_dof.frames import as_float, as_int
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.optimise.squad import REQUIRED_COLUMNS, InfeasibleError, _start_floor
-from fpl_dof.rules.legality import Squad, SquadPlayer, validate_squad
+from fpl_dof.rules.legality import Squad, SquadPlayer, ViolationCode, validate_squad
 from fpl_dof.rules.models import GameRules, Position
 from fpl_dof.squad.state import SquadState
 
@@ -279,10 +282,21 @@ def _solve_for(
             pulp.lpSum(select[i] for i in members) == squad_rules.composition[position],
             f"composition_{position.value}",
         )
+    # FPL grandfathers a squad that is over the club limit because a held player moved club in the
+    # real world: you may keep it, you just may not *add* to that club. So the cap binds on the
+    # held squad only at its current size, and incoming transfers may never push a club past the
+    # limit or further past it. Without this the roll is infeasible and the run fails on a squad
+    # the game itself accepts.
+    held_per_club = _held_per_club(held, by_id)
     for team_id in sorted({as_int(by_id[i].team_id) for i in ids}):
         members = [i for i in ids if as_int(by_id[i].team_id) == team_id]
+        held_here = held_per_club.get(team_id, 0)
+        if held_here > squad_rules.club_limit:
+            for i in members:
+                if i not in held:
+                    problem += select[i] == 0, f"club_grandfathered_no_buy_{team_id}_{i}"
         problem += (
-            pulp.lpSum(select[i] for i in members) <= squad_rules.club_limit,
+            pulp.lpSum(select[i] for i in members) <= max(squad_rules.club_limit, held_here),
             f"club_limit_{team_id}",
         )
 
@@ -367,13 +381,39 @@ def _solve_for(
         vice_captain=option.vice_captain_id,
         bench_order=option.bench_order,
     )
-    violations = validate_squad(squad, rules, budget=state.budget(rules))
+    grandfathered = {team_id for team_id, n in held_per_club.items() if n > squad_rules.club_limit}
+    violations = [
+        v
+        for v in validate_squad(squad, rules, budget=state.budget(rules))
+        if not _is_grandfathered_club_excess(v, grandfathered, held_per_club)
+    ]
     if violations:
         raise AssertionError(
             f"the {transfers}-transfer solution is not a legal squad, which is a defect in the "
             "formulation: " + "; ".join(v.message for v in violations)
         )
     return option
+
+
+def _held_per_club(held: AbstractSet[int], by_id: Mapping[int, Any]) -> dict[int, int]:
+    """Held players per club, by the club the forecast says they play for *now*."""
+    counts: dict[int, int] = {}
+    for i in held:
+        if i in by_id:
+            team_id = as_int(by_id[i].team_id)
+            counts[team_id] = counts.get(team_id, 0) + 1
+    return counts
+
+
+def _is_grandfathered_club_excess(
+    violation: object, grandfathered: set[int], held_per_club: dict[int, int]
+) -> bool:
+    """A club-limit breach the game tolerates: the held excess, not grown by any purchase."""
+    if getattr(violation, "code", None) != ViolationCode.CLUB_LIMIT:
+        return False
+    detail = getattr(violation, "detail", None) or {}
+    team_id = detail.get("team_id")
+    return team_id in grandfathered and detail.get("actual", 0) <= held_per_club.get(team_id, 0)
 
 
 def _build_option(

@@ -122,8 +122,10 @@ forecast:
   # neither cleared the stated bar. Note what the model reads for *pressure*: nothing in silver
   # counts shots, so expected goals conceded stands in for them, and that substitution is an
   # argument rather than a detail — read DL-51 before turning this on.
+  # minutes_v2 ON (C3): the decision-level backtest (backtest/RESULTS_proposals.md) scored it with
+  # the price+position captain at +3.21 [1.08, 5.25] XI pts/GW over 2023/24-2025/26.
   discrimination:
-    minutes_v2: false
+    minutes_v2: true
     adaptive_shrinkage: false
     duty_term: false
     gkp_v2: false
