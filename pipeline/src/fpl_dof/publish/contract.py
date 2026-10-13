@@ -49,6 +49,10 @@ ARTEFACTS: dict[str, str] = {
     # The five-model comparison (generalises week_challenger.json). Written only when the
     # prospective harness has recorded a decision, so its absence is a normal published state.
     "models": "models.schema.json",
+    # The 2025/26 model history: a backtest, built offline and checked in as a static file under
+    # web/public/static/ because CI cannot run the backtest. Never written by the publish stage;
+    # registered here so it is validated and gets generated TypeScript types.
+    "models_history": "models_history.schema.json",
 }
 
 

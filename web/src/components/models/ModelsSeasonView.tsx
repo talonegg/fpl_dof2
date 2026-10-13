@@ -4,22 +4,9 @@ import { MODEL_LABELS, parseModel } from "../../data/model";
 import type { ModelChoice } from "../../data/model";
 import { ModelBadge } from "./ModelBadge";
 import { transfersText } from "./ModelAdviceCard";
+import { COLOURS, DASHES } from "./modelStyle";
 import "./models.css";
 
-const COLOURS: Record<ModelChoice, string> = {
-  champion: "#2f6fed",
-  challenger: "#d9822b",
-  engine: "#6b7280",
-  a: "#16a34a",
-  a_odds: "#a21caf",
-};
-const DASHES: Record<ModelChoice, string> = {
-  champion: "",
-  challenger: "6 3",
-  engine: "2 3",
-  a: "8 3 2 3",
-  a_odds: "1 2",
-};
 
 /** Actual FPL points are whole numbers; xPts keep their decimals. */
 const pts = (v: number) => String(Math.round(v));

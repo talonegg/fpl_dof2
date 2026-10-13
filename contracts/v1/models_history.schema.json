@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/talonegg/fpl_dof2/contracts/v1/models_history.schema.json",
+  "title": "ModelsHistory",
+  "description": "How the five frozen models would have played a finished season in the realistic walk-forward backtest (FPL auto-subs, vice-captain fallback, deadline availability, hits). A backtest, not real play. Built offline and checked in as a static file (web/public/static/models_history_2526.json) because CI cannot run the backtest; it is not written by `fpl-dof publish`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "season", "kind", "caveat", "champion", "provenance", "bootstrap", "models", "gameweeks", "summary"],
+  "properties": {
+    "contract_version": { "type": "integer", "const": 1 },
+    "season": { "type": "string" },
+    "kind": { "type": "string", "const": "backtest" },
+    "caveat": { "type": "string" },
+    "champion": { "type": "string" },
+    "provenance": {
+      "type": "object",
+      "description": "Where the numbers came from: frozen tag, simulator commit, forecast caches, settings.",
+      "additionalProperties": { "type": "string" }
+    },
+    "bootstrap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["draws", "seed", "unit", "level"],
+      "properties": {
+        "draws": { "type": "integer" },
+        "seed": { "type": "integer" },
+        "unit": { "type": "string" },
+        "level": { "type": "number" }
+      }
+    },
+    "models": { "type": "array", "items": { "$ref": "#/$defs/model_history_model" } },
+    "gameweeks": { "type": "array", "items": { "$ref": "#/$defs/model_history_gameweek" } },
+    "summary": { "type": "array", "items": { "$ref": "#/$defs/model_history_summary" } }
+  },
+  "$defs": {
+    "model_history_model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "role", "available", "unavailable_reason"],
+      "properties": {
+        "id": { "type": "string", "enum": ["champion", "challenger", "engine", "a", "a_odds"] },
+        "label": { "type": "string" },
+        "role": { "type": "string", "enum": ["champion", "challenger", "comparison"] },
+        "available": { "type": "boolean" },
+        "unavailable_reason": { "type": ["string", "null"] }
+      }
+    },
+    "model_history_entry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["points", "points_before_hits", "hit_points", "n_transfers", "transfers", "captain", "vice_captain", "captain_points", "vice_used", "n_autosubs", "cumulative", "rank", "cumulative_rank"],
+      "properties": {
+        "points": { "type": "number", "description": "Final XI after auto-subs, armband (vice fallback), net of hits." },
+        "points_before_hits": { "type": "number" },
+        "hit_points": { "type": "number" },
+        "n_transfers": { "type": "integer", "minimum": 0 },
+        "transfers": { "type": "array", "items": { "type": "string" } },
+        "captain": { "type": "string" },
+        "vice_captain": { "type": "string" },
+        "captain_points": { "type": "number" },
+        "vice_used": { "type": "boolean" },
+        "n_autosubs": { "type": "integer", "minimum": 0 },
+        "cumulative": { "type": "number" },
+        "rank": { "type": "integer", "minimum": 1 },
+        "cumulative_rank": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "model_history_gameweek": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gameweek", "models"],
+      "properties": {
+        "gameweek": { "type": "integer", "minimum": 1 },
+        "models": { "type": "object", "additionalProperties": { "$ref": "#/$defs/model_history_entry" } }
+      }
+    },
+    "model_history_delta": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mean", "ci_low", "ci_high", "total", "significant", "gameweeks_better", "gameweeks_worse"],
+      "properties": {
+        "mean": { "type": "number" },
+        "ci_low": { "type": "number" },
+        "ci_high": { "type": "number" },
+        "total": { "type": "number" },
+        "significant": { "type": "boolean", "description": "The 95% CI excludes zero. One season; not a decision rule." },
+        "gameweeks_better": { "type": "integer" },
+        "gameweeks_worse": { "type": "integer" }
+      }
+    },
+    "model_history_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "total", "mean_per_gameweek", "gameweeks_won", "hit_points", "final_rank", "delta_vs_champion"],
+      "properties": {
+        "model": { "type": "string" },
+        "total": { "type": "number" },
+        "mean_per_gameweek": { "type": "number" },
+        "gameweeks_won": { "type": "integer", "description": "Gameweeks ranked first of the five (ties shared)." },
+        "hit_points": { "type": "number" },
+        "final_rank": { "type": "integer", "minimum": 1 },
+        "delta_vs_champion": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/model_history_delta" }] }
+      }
+    }
+  }
+}
