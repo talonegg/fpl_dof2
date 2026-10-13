@@ -1,7 +1,7 @@
 {
   "gameweek": 7,
-  "run_id": "20261012T092343Z-ec4a3173",
-  "recorded_at": "2026-10-12T09:24:14.630444Z",
+  "run_id": "20261013T061252Z-68aacfd2",
+  "recorded_at": "2026-10-13T06:13:10.471740Z",
   "advised": {
     "gameweek": 7,
     "squad": [
@@ -40,18 +40,18 @@
       175
     ],
     "reserve_goalkeeper": 109,
-    "captain": 567,
-    "vice_captain": 649,
+    "captain": 411,
+    "vice_captain": 426,
     "formation": "1-4-4-2",
-    "expected_points": 40.0937
+    "expected_points": 37.725
   },
   "recommendation": {
-    "rationale": "2 free transfer(s) gain 5.21 expected points",
+    "rationale": "2 free transfer(s) gain 5.35 expected points",
     "is_roll": false,
     "transfers": 2,
     "hit_points": 0,
-    "net_expected_points": 40.0937,
-    "gain_over_roll": 5.2054,
+    "net_expected_points": 37.7248,
+    "gain_over_roll": 3.618,
     "bank_after": 0.0,
     "moves": [
       {
@@ -59,7 +59,7 @@
           "player_id": 450,
           "web_name": "Livramento",
           "price": 4.9,
-          "xp_next": 0.789,
+          "xp_next": 0.646,
           "form_points_per_match": 2.0
         },
         "in": {
@@ -91,15 +91,15 @@
       {
         "transfers": 0,
         "hit_points": 0,
-        "net_expected_points": 34.8883,
+        "net_expected_points": 34.1068,
         "gain_over_roll": 0.0,
         "moves": []
       },
       {
         "transfers": 1,
         "hit_points": 0,
-        "net_expected_points": 37.4864,
-        "gain_over_roll": 2.5981,
+        "net_expected_points": 36.3505,
+        "gain_over_roll": 2.2437,
         "moves": [
           "Livramento (\u00a34.9m) -> Botman (\u00a35.0m)"
         ]
@@ -107,8 +107,8 @@
       {
         "transfers": 2,
         "hit_points": 0,
-        "net_expected_points": 40.0937,
-        "gain_over_roll": 5.2054,
+        "net_expected_points": 37.7248,
+        "gain_over_roll": 3.618,
         "moves": [
           "Livramento (\u00a34.9m) -> Maitland-Niles (\u00a34.5m)",
           "Kinsky (\u00a34.5m) -> Horn\u00ed\u010dek (\u00a35.0m)"
