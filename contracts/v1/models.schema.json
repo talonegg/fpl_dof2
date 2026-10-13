@@ -27,13 +27,24 @@
     "model_info": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "key", "label", "role", "description"],
+      "required": ["id", "key", "label", "role", "description", "available", "unavailable_reason"],
       "properties": {
         "id": { "type": "string", "enum": ["champion", "challenger", "engine", "a", "a_odds"] },
         "key": { "type": "string", "description": "The harness's model key (C3, C1, engine, A, A_odds)." },
         "label": { "type": "string" },
         "role": { "type": "string", "enum": ["champion", "challenger", "comparison"] },
-        "description": { "type": "string" }
+        "description": { "type": "string" },
+        "available": { "type": "boolean", "description": "Whether the latest gameweek's advice passed the CI input-freshness check." },
+        "unavailable_reason": { "type": ["string", "null"], "description": "Why not, shown verbatim in the app." }
+      }
+    },
+    "model_availability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["available", "reason"],
+      "properties": {
+        "available": { "type": "boolean" },
+        "reason": { "type": ["string", "null"] }
       }
     },
     "model_transfer": {
@@ -82,11 +93,16 @@
     "model_gameweek": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["gameweek", "deadline", "decided_at", "advice", "actual"],
+      "required": ["gameweek", "deadline", "decided_at", "availability", "advice", "actual"],
       "properties": {
         "gameweek": { "type": "integer", "minimum": 1 },
         "deadline": { "type": ["string", "null"] },
         "decided_at": { "type": ["string", "null"] },
+        "availability": {
+          "type": "object",
+          "description": "Per model: did every input it needs pass the freshness check for this decision? Advice and points appear only for models that did (fail closed).",
+          "additionalProperties": { "$ref": "#/$defs/model_availability" }
+        },
         "advice": { "type": "object", "additionalProperties": { "$ref": "#/$defs/model_advice" } },
         "actual": {
           "type": ["object", "null"],

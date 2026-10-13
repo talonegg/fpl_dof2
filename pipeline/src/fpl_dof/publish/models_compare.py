@@ -93,11 +93,18 @@ def build_models(
     scores: Sequence[Mapping[str, Any]],
     frozen_tag: str | None,
     contract_version: int,
+    statuses: Mapping[int, Mapping[str, Any]] | None = None,
 ) -> dict[str, Any] | None:
     """The ``models.json`` payload, or ``None`` when the harness has recorded no decision yet.
 
     Models the registry does not know are skipped rather than guessed at; a score row without a
     recorded decision for the same gameweek is ignored (points without advice are unattributable).
+
+    **Fail closed on inputs.** ``statuses`` maps gameweek -> the CI input check for that decision
+    (``status/GW{n}.json``: model key -> ``{"available", "reason"}``). A model whose inputs were
+    missing or stale is published as unavailable with the reason, and neither its advice nor its
+    points for that gameweek appear. A gameweek with no recorded check makes every model
+    unavailable: no check is not the same as a passed check.
     """
     if not decisions:
         return None
@@ -114,11 +121,26 @@ def build_models(
     for doc in by_gw:
         gw = int(doc["gw"])
         c2e = {str(k): v for k, v in dict(doc.get("code_to_element", {})).items()}
+        check = (statuses or {}).get(gw)
+        availability: dict[str, dict[str, Any]] = {}
         advice = {}
         for key, pick in dict(doc.get("models", {})).items():
-            if key in _BY_KEY:
-                advice[_BY_KEY[key][0]] = _advice(pick, c2e)
-                seen.add(key)
+            if key not in _BY_KEY:
+                continue
+            wid = _BY_KEY[key][0]
+            seen.add(key)
+            status = ((check or {}).get("models") or {}).get(key)
+            if check is None:
+                reason: str | None = "no input-freshness check recorded for this decision"
+            elif status is None:
+                reason = "model missing from the input-freshness check"
+            else:
+                reason = (
+                    None if status.get("available") else str(status.get("reason") or "inputs stale")
+                )
+            availability[wid] = {"available": reason is None, "reason": reason}
+            if reason is None:
+                advice[wid] = _advice(pick, c2e)
         commit = doc.get("code_commit") or commit
         actual = {m: a for m, a in actual_by_gw.get(gw, {}).items() if m in advice}
         gameweeks.append(
@@ -126,13 +148,25 @@ def build_models(
                 "gameweek": gw,
                 "deadline": doc.get("deadline"),
                 "decided_at": doc.get("decided_at"),
+                "availability": availability,
                 "advice": advice,
                 "actual": actual or None,
             }
         )
 
+    latest = gameweeks[-1]["availability"] if gameweeks else {}
     models = [
-        {"id": wid, "key": key, "label": label, "role": role, "description": desc}
+        {
+            "id": wid,
+            "key": key,
+            "label": label,
+            "role": role,
+            "description": desc,
+            "available": bool(latest.get(wid, {}).get("available")),
+            "unavailable_reason": latest.get(wid, {}).get("reason")
+            if wid in latest
+            else "not decided this gameweek",
+        }
         for key, wid, label, role, desc in MODEL_REGISTRY
         if key in seen
     ]

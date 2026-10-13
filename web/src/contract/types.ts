@@ -852,6 +852,15 @@ export interface ModelInfo {
   label: string;
   role: "champion" | "challenger" | "comparison";
   description: string;
+  /** Whether the latest gameweek's advice passed the CI input-freshness check. */
+  available: boolean;
+  /** Why not, shown verbatim in the app. */
+  unavailable_reason: string | null;
+}
+
+export interface ModelAvailability {
+  available: boolean;
+  reason: string | null;
 }
 
 export interface ModelTransfer {
@@ -890,6 +899,8 @@ export interface ModelGameweek {
   gameweek: number;
   deadline: string | null;
   decided_at: string | null;
+  /** Per model: did every input it needs pass the freshness check for this decision? Advice and points appear only for models that did (fail closed). */
+  availability: Record<string, ModelAvailability>;
   advice: Record<string, ModelAdvice>;
   /** Null until the gameweek is finished and scored. */
   actual: Record<string, ModelActual> | null;

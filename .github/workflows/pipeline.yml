@@ -80,9 +80,128 @@ jobs:
             echo "run=$(fpl-dof-schedule --decide pipeline)" >> "$GITHUB_OUTPUT"
           fi
 
-  run:
+  # The five frozen prospective models (engine, C3, C1, A, A+odds; tag frozen-2026-10-13). Runs the
+  # frozen harness unmodified from the vendored content bundle, checked file-by-file against the
+  # manifest's hashes. Fail closed, but never blocks the champion: `continue-on-error` here, and
+  # every model whose inputs are stale or missing is marked unavailable in status/GW{n}.json, so
+  # the published models.json never shows it with partial data. See prospective/README.md.
+  prospective:
     needs: [guard]
     if: needs.guard.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    continue-on-error: true
+    permissions:
+      contents: write # appends the prospective record to the `ledger` branch
+    env:
+      OMP_NUM_THREADS: "3"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      # The harness hardcodes the paths it was frozen at; recreate them rather than edit it.
+      - name: Extract the frozen bundle to its frozen paths
+        run: |
+          set -eu
+          sudo mkdir -p /workspace && sudo chown "$USER" /workspace
+          tar -xzf prospective/bundle/frozen-2026-10-13.tar.gz -C /tmp
+          mv /tmp/frozen /workspace/fpl_dof2_frozen
+          mv /tmp/harness /workspace/fpl_prospective
+          python -m venv /workspace/fpl_dof2/.venv
+          /workspace/fpl_dof2/.venv/bin/python -m pip install -q -e /workspace/fpl_dof2_frozen/pipeline
+          python -m pip install -q -e "pipeline[dev]"
+
+      - name: Restore the prospective record from the `ledger` branch
+        run: |
+          set -eu
+          if git ls-remote --exit-code --heads origin ledger >/dev/null 2>&1; then
+            git fetch --depth=1 origin ledger:refs/remotes/origin/ledger
+            git worktree add /tmp/ledger-branch origin/ledger
+            latest="$(ls /tmp/ledger-branch/prospective/gw*.tgz 2>/dev/null | sort | tail -n 1 || true)"
+            if [ -n "$latest" ]; then python pipeline/scripts/prospective_ci.py unpack "$latest"; fi
+            git worktree remove /tmp/ledger-branch --force
+          fi
+
+      - name: Verify the bundle and fetch the odds history
+        run: python pipeline/scripts/prospective_ci.py prepare
+
+      - name: Plan (decide inside 36h of the deadline; score finished gameweeks)
+        id: plan
+        run: python pipeline/scripts/prospective_ci.py plan
+
+      # Only on deciding runs (once per gameweek). The community archive is immutable per season,
+      # so its bronze is cached; the live season is re-fetched every time.
+      - name: Cache archive bronze
+        if: steps.plan.outputs.decide == 'true'
+        uses: actions/cache@v4
+        with:
+          path: /workspace/fpl_prospective/data/bronze/fplarchive
+          key: fplarchive-bronze-2023-2026-v1
+
+      - name: Refresh silver (FPL API + xG/xA + archive backfill)
+        if: steps.plan.outputs.decide == 'true'
+        env:
+          FPL_DOF_CONFIG_FILE: config/ci-backtest.yaml
+        run: |
+          set +e
+          fpl-dof --data-dir /workspace/fpl_prospective/data ingest && \
+            fpl-dof --data-dir /workspace/fpl_prospective/data transform
+          ok=$([ $? -eq 0 ] && echo 1 || echo 0)
+          python pipeline/scripts/prospective_ci.py silver --ok "$ok"
+
+      - name: Score finished gameweeks (frozen score.py)
+        if: steps.plan.outputs.score == 'true'
+        working-directory: /workspace/fpl_prospective
+        run: /workspace/fpl_dof2/.venv/bin/python score.py
+
+      - name: Decide the next gameweek (frozen decide.py)
+        if: steps.plan.outputs.decide == 'true'
+        working-directory: /workspace/fpl_prospective
+        env:
+          FPL_DOF_TEAM_ID: ${{ inputs.team_id || vars.FPL_DOF_TEAM_ID }}
+        run: /workspace/fpl_dof2/.venv/bin/python decide.py
+
+      - name: Record input freshness for new decisions (fail closed)
+        if: always()
+        run: python pipeline/scripts/prospective_ci.py status
+
+      - name: Pack the record
+        if: always()
+        run: python pipeline/scripts/prospective_ci.py pack "$RUNNER_TEMP/prospective.tgz"
+
+      # Identical bytes are a no-op; decisions inside the tarball are create-only by the harness.
+      - name: Record on the `ledger` branch
+        if: always() && steps.plan.outputs.gw != '' && steps.plan.outputs.gw != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+          python pipeline/scripts/retention.py permanent "$RUNNER_TEMP/prospective.tgz" \
+            --remote "$remote" --branch ledger --source prospective \
+            --gameweek "${{ steps.plan.outputs.gw }}" --checkout-dir .ledger-staging
+
+      - name: Hand the record to the publish job
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: prospective-record
+          # Record paths only, never the silver/bronze under data/.
+          path: |
+            /workspace/fpl_prospective/decisions/
+            /workspace/fpl_prospective/status/
+            /workspace/fpl_prospective/scores.csv
+            /workspace/fpl_prospective/report.md
+          if-no-files-found: ignore
+          retention-days: 7
+
+  run:
+    needs: [guard, prospective]
+    # The champion never waits on the frozen models: run whatever the prospective job did.
+    if: always() && needs.guard.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -131,6 +250,14 @@ jobs:
             git worktree remove /tmp/ledger-branch --force
           fi
 
+      # No record (prospective job failed) → models.json lists every frozen model as unavailable.
+      - name: Fetch the prospective record
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: prospective-record
+          path: prospective-record
+
       # Runs the exact E0 code path (D-10): `fpl-dof run --only ...`, no CI-only branch anywhere.
       - name: Run the pipeline (transform through publish)
         env:
@@ -139,6 +266,7 @@ jobs:
           # to None and the run falls back to a declared squad / no league respectively.
           FPL_DOF_TEAM_ID: ${{ inputs.team_id || vars.FPL_DOF_TEAM_ID }}
           FPL_DOF_LEAGUE_ID: ${{ inputs.league_id || vars.FPL_DOF_LEAGUE_ID }}
+          FPL_DOF_MODELS_SOURCE_DIR: ${{ github.workspace }}/prospective-record
         run: >
           fpl-dof run
           --only transform quality forecast optimise week decision publish
