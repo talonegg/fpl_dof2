@@ -4,10 +4,11 @@
 # `web/public/data/` is gitignored (it is generated, not source), so a build from a bare checkout
 # has no data to serve. This workflow prefers the artefact pipeline.yml just uploaded (the freshest
 # possible contract, from the run that triggered this deploy); if that is unavailable — e.g. a
-# push-to-main deploy with no recent pipeline run — it falls back to whatever pipeline.yml last
-# published by the last successful pipeline run, or ships dataless rather than failing (DP-15,
-# architecture §10.3: "a deploy fails → previous site remains live" — this makes that the *default*
-# behaviour of actions/deploy-pages, which only swaps the live site on success).
+# push-to-main deploy with no recent pipeline run — it falls back to a recent pipeline run that
+# actually uploaded `web-data-contract`. Guard-only pipeline skips still report success but ship no
+# artefact; treating those as "latest success" used to redeploy a dataless shell and wipe live week
+# advice. If no contract can be restored, the build fails so actions/deploy-pages leaves the previous
+# site live (DP-15, architecture §10.3).
 
 name: Deploy
 
@@ -48,9 +49,9 @@ jobs:
           run-id: ${{ github.event.workflow_run.id }}
 
       # The `data` branch has never carried a `web/v1` copy — it is rebuilt from bronze alone on
-      # every ingest — so the previous fallback found nothing (DL-68). The last successful
-      # pipeline run's artefact is what was actually deployed before, and is what to redeploy.
-      - name: Fall back to the last successful pipeline run's contract
+      # every ingest — so the previous fallback found nothing (DL-68). Prefer a recent successful
+      # pipeline run that actually uploaded the contract (guard-only skips are "success" with none).
+      - name: Fall back to a recent pipeline run's contract
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -59,14 +60,19 @@ jobs:
             echo "contract already present from the triggering run's artifact"
             exit 0
           fi
-          run_id="$(gh run list --workflow=pipeline.yml --status=success --limit=1 --json databaseId --jq '.[0].databaseId' || true)"
-          if [ -n "$run_id" ]; then
-            gh run download "$run_id" --name web-data-contract --dir web/public/data/v1 \
-              && echo "restored contract from pipeline run $run_id" \
-              || echo "::warning::pipeline run $run_id has no downloadable contract artefact"
-          fi
-          if [ -z "$(ls -A web/public/data/v1 2>/dev/null)" ]; then
-            echo "::warning::no published contract found anywhere; deploying the app shell only"
+          restored=""
+          while read -r run_id; do
+            [ -z "$run_id" ] && continue
+            if gh run download "$run_id" --name web-data-contract --dir web/public/data/v1; then
+              echo "restored contract from pipeline run $run_id"
+              restored=1
+              break
+            fi
+            echo "::warning::pipeline run $run_id has no downloadable contract artefact"
+          done < <(gh run list --workflow=pipeline.yml --status=success --limit=20 --json databaseId --jq '.[].databaseId')
+          if [ -z "$restored" ] || [ -z "$(ls -A web/public/data/v1 2>/dev/null)" ]; then
+            echo "::error::no published contract found; failing so the previous Pages site stays live"
+            exit 1
           fi
 
       - uses: actions/setup-node@v4

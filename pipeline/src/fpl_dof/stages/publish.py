@@ -29,6 +29,7 @@ from fpl_dof.publish.fixtures import build_fixtures
 from fpl_dof.publish.health import build_health
 from fpl_dof.publish.history import build_history
 from fpl_dof.publish.league import build_league
+from fpl_dof.publish.models_compare import build_models
 from fpl_dof.publish.season_log import build_log
 from fpl_dof.publish.typescript import write_types
 from fpl_dof.rules.models import GameRules
@@ -114,6 +115,19 @@ def run(ctx: StageContext) -> StageResult:
         )
     else:
         removed.append("log.json")
+
+    # The five-model comparison: absent until the prospective harness has recorded a decision.
+    models_payload = _models(ctx, season)
+    published_models = False
+    if models_payload is not None:
+        try:
+            path = contract.write("models", models_payload, destination)
+            outputs.append(Output(path=path, rows=len(models_payload["gameweeks"])))
+            published_models = True
+        except Exception as exc:  # optional artefact: never fails the champion's publish
+            log.warning("publish.models_dropped", extra={"error": repr(exc)})
+    if not published_models:
+        removed.append("models.json")
 
     # The weekly decision and the multi-gameweek plan, when there are any. Their absence is normal
     # before the season starts (DL-20), so a missing file is not an error.
@@ -548,6 +562,39 @@ def _season_log(ctx: StageContext, season: str) -> dict[str, Any] | None:
         advice=read_all_advice(ctx.layout),
         contract_version=CONTRACT_VERSION,
     )
+
+
+def _models(ctx: StageContext, season: str) -> dict[str, Any] | None:
+    """models.json from the prospective harness's record, or ``None`` when there is none.
+
+    A malformed record is logged and skipped: the comparison is optional and must never fail the
+    publish of the champion's artefacts.
+    """
+    cfg = ctx.config.publish.models
+    if not cfg.source_dir:
+        return None
+    root = Path(cfg.source_dir)
+    try:
+        decisions = [
+            json.loads(p.read_text(encoding="utf-8"))
+            for p in sorted((root / "decisions").glob("GW*.json"))
+        ]
+        scores_path = root / "scores.csv"
+        scores = (
+            [{str(k): v for k, v in r.items()} for r in pd.read_csv(scores_path).to_dict("records")]
+            if scores_path.exists()
+            else []
+        )
+        return build_models(
+            season=season,
+            decisions=decisions,
+            scores=scores,
+            frozen_tag=cfg.frozen_tag,
+            contract_version=CONTRACT_VERSION,
+        )
+    except Exception as exc:
+        log.warning("publish.models_dropped", extra={"error": repr(exc)})
+        return None
 
 
 def _latest_finished(gameweeks: pd.DataFrame) -> int | None:

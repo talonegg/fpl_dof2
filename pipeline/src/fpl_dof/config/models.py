@@ -2076,12 +2076,31 @@ class HealthArtefactConfig(_Section):
     )
 
 
+class ModelsArtefactConfig(_Section):
+    """The five-model comparison artefact, ``models.json``."""
+
+    source_dir: str | None = Field(
+        default=None,
+        description=(
+            "Directory holding the prospective harness's frozen record: decisions/GW{n}.json "
+            "(advice recorded before each deadline) and scores.csv (points after each gameweek). "
+            "Unset, or with no decision recorded yet, models.json is not published and any stale "
+            "copy is removed."
+        ),
+    )
+    frozen_tag: str | None = Field(
+        default="frozen-2026-10-13",
+        description="The git tag the compared models were frozen at, shown beside the comparison.",
+    )
+
+
 class PublishConfig(_Section):
     """Tunables that shape published artefacts rather than the models behind them."""
 
     history: HistoryArtefactConfig = HistoryArtefactConfig()
     fixtures: FixtureTickerConfig = FixtureTickerConfig()
     health: HealthArtefactConfig = HealthArtefactConfig()
+    models: ModelsArtefactConfig = ModelsArtefactConfig()
 
 
 class ScheduleConfig(_Section):
