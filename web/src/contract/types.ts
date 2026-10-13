@@ -852,6 +852,15 @@ export interface ModelInfo {
   label: string;
   role: "champion" | "challenger" | "comparison";
   description: string;
+  /** Whether the latest gameweek's advice passed the CI input-freshness check. */
+  available: boolean;
+  /** Why not, shown verbatim in the app. */
+  unavailable_reason: string | null;
+}
+
+export interface ModelAvailability {
+  available: boolean;
+  reason: string | null;
 }
 
 export interface ModelTransfer {
@@ -890,6 +899,8 @@ export interface ModelGameweek {
   gameweek: number;
   deadline: string | null;
   decided_at: string | null;
+  /** Per model: did every input it needs pass the freshness check for this decision? Advice and points appear only for models that did (fail closed). */
+  availability: Record<string, ModelAvailability>;
   advice: Record<string, ModelAdvice>;
   /** Null until the gameweek is finished and scored. */
   actual: Record<string, ModelActual> | null;
@@ -919,4 +930,76 @@ export interface Models {
   models: ModelInfo[];
   gameweeks: ModelGameweek[];
   season_to_date: ModelSeason[];
+}
+
+export interface ModelHistoryModel {
+  id: "champion" | "challenger" | "engine" | "a" | "a_odds";
+  label: string;
+  role: "champion" | "challenger" | "comparison";
+  available: boolean;
+  unavailable_reason: string | null;
+}
+
+export interface ModelHistoryEntry {
+  /** Final XI after auto-subs, armband (vice fallback), net of hits. */
+  points: number;
+  points_before_hits: number;
+  hit_points: number;
+  n_transfers: number;
+  transfers: string[];
+  captain: string;
+  vice_captain: string;
+  captain_points: number;
+  vice_used: boolean;
+  n_autosubs: number;
+  cumulative: number;
+  rank: number;
+  cumulative_rank: number;
+}
+
+export interface ModelHistoryGameweek {
+  gameweek: number;
+  models: Record<string, ModelHistoryEntry>;
+}
+
+export interface ModelHistoryDelta {
+  mean: number;
+  ci_low: number;
+  ci_high: number;
+  total: number;
+  /** The 95% CI excludes zero. One season; not a decision rule. */
+  significant: boolean;
+  gameweeks_better: number;
+  gameweeks_worse: number;
+}
+
+export interface ModelHistorySummary {
+  model: string;
+  total: number;
+  mean_per_gameweek: number;
+  /** Gameweeks ranked first of the five (ties shared). */
+  gameweeks_won: number;
+  hit_points: number;
+  final_rank: number;
+  delta_vs_champion: null | ModelHistoryDelta;
+}
+
+/** How the five frozen models would have played a finished season in the realistic walk-forward backtest (FPL auto-subs, vice-captain fallback, deadline availability, hits). A backtest, not real play. Built offline and checked in as a static file (web/public/static/models_history_2526.json) because CI cannot run the backtest; it is not written by `fpl-dof publish`. */
+export interface ModelsHistory {
+  contract_version: 1;
+  season: string;
+  kind: "backtest";
+  caveat: string;
+  champion: string;
+  /** Where the numbers came from: frozen tag, simulator commit, forecast caches, settings. */
+  provenance: Record<string, string>;
+  bootstrap: {
+    draws: number;
+    seed: number;
+    unit: string;
+    level: number;
+  };
+  models: ModelHistoryModel[];
+  gameweeks: ModelHistoryGameweek[];
+  summary: ModelHistorySummary[];
 }

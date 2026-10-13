@@ -38,6 +38,8 @@ ENV_MAP: dict[str, tuple[str, ...]] = {
     "FPL_DOF_USER_AGENT_CONTACT": ("http", "user_agent_contact"),
     "FPL_DOF_TEAM_ID": ("entry", "team_id"),
     "FPL_DOF_LEAGUE_ID": ("entry", "league_id"),
+    # Where CI extracts the frozen prospective record (decisions/, status/, scores.csv).
+    "FPL_DOF_MODELS_SOURCE_DIR": ("publish", "models", "source_dir"),
 }
 
 LOCAL_OVERRIDE_ENV = "FPL_DOF_CONFIG_FILE"

@@ -13,6 +13,7 @@ import { LogRoute } from "./routes/LogRoute";
 import { SettingsRoute } from "./routes/SettingsRoute";
 import { HealthRoute } from "./routes/HealthRoute";
 import { ModelsRoute } from "./routes/ModelsRoute";
+import { HistoryRoute } from "./routes/HistoryRoute";
 import { NotFoundRoute } from "./routes/NotFoundRoute";
 import "./App.css";
 
@@ -37,6 +38,7 @@ export function AppRoutes() {
         <Route path="log" element={<LogRoute />} />
         <Route path="settings" element={<SettingsRoute />} />
         <Route path="models" element={<ModelsRoute />} />
+        <Route path="history" element={<HistoryRoute />} />
         <Route path="health" element={<HealthRoute />} />
         <Route path="*" element={<NotFoundRoute />} />
       </Route>

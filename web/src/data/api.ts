@@ -6,6 +6,7 @@ import type {
   Log,
   Meta,
   Models,
+  ModelsHistory,
   Plan,
   Players,
   Rules,
@@ -240,6 +241,25 @@ export async function fetchModels(): Promise<Models | null> {
     if (contentType && !contentType.includes("json")) return null;
     const body = (await res.json()) as Models;
     return body && typeof body === "object" && Array.isArray(body.gameweeks) ? body : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The checked-in 2025/26 model-history backtest. Static, shipped with the app, not pipeline data. */
+export const MODELS_HISTORY_URL = `${import.meta.env.BASE_URL}static/models_history_2526.json`;
+
+/** The 2025/26 model history. **Never throws**: null when missing, non-JSON or malformed. */
+export async function fetchModelsHistory(): Promise<ModelsHistory | null> {
+  try {
+    const res = await fetch(MODELS_HISTORY_URL);
+    if (!res.ok) return null;
+    const contentType = res.headers.get("content-type") ?? "";
+    if (contentType && !contentType.includes("json")) return null;
+    const body = (await res.json()) as ModelsHistory;
+    return body && typeof body === "object" && Array.isArray(body.summary) && Array.isArray(body.gameweeks)
+      ? body
+      : null;
   } catch {
     return null;
   }

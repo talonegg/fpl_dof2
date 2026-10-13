@@ -1,4 +1,4 @@
-import { useRef } from "react";
+import { useId, useRef } from "react";
 import type { KeyboardEvent } from "react";
 import { Link } from "react-router-dom";
 import { useModel } from "../../data/DataProvider";
@@ -22,8 +22,31 @@ import "./models.css";
  * - small screens: a native `<select>`, which every mobile OS renders as its own touch-friendly
  *   picker or bottom sheet.
  */
-export function ModelSelector() {
-  const { effective, setModel, available } = useModel();
+export function ModelSelector({
+  available: availableOverride,
+  value,
+  onChange,
+  label = "Recommendation model",
+  showCompareLink = true,
+  testId = "model-toggle",
+  note: noteOverride,
+}: {
+  /** Standalone use (e.g. the model history page): which models can be picked. */
+  available?: ModelChoice[];
+  value?: ModelChoice;
+  onChange?: (model: ModelChoice) => void;
+  label?: string;
+  showCompareLink?: boolean;
+  testId?: string;
+  /** Replaces the live/comparison note, for pages where the choice only highlights. */
+  note?: string;
+} = {}) {
+  const prefix = testId === "model-toggle" ? "model" : testId;
+  const global = useModel();
+  const available = availableOverride ?? global.available;
+  const effective = value ?? global.effective;
+  const setModel = onChange ?? global.setModel;
+  const noteId = `model-selector-note-${useId().replace(/:/g, "")}`;
   const refs = useRef<Partial<Record<ModelChoice, HTMLButtonElement | null>>>({});
   const enabled = MODEL_CHOICES.filter((m) => available.includes(m));
 
@@ -48,14 +71,14 @@ export function ModelSelector() {
     : "Live advice: champion. Other models are comparisons.";
 
   return (
-    <div className="model-toggle" data-testid="model-toggle">
+    <div className="model-toggle" data-testid={testId}>
       <div
         className="model-segmented"
         role="radiogroup"
-        aria-label="Recommendation model"
-        aria-describedby="model-selector-note"
+        aria-label={label}
+        aria-describedby={noteId}
         onKeyDown={onKeyDown}
-        data-testid="model-segmented"
+        data-testid={`${prefix}-segmented`}
       >
         {MODEL_CHOICES.map((choice) => {
           const disabled = !available.includes(choice);
@@ -74,7 +97,7 @@ export function ModelSelector() {
               disabled={disabled}
               title={disabled ? "Not published this run" : MODEL_DESCRIPTIONS[choice]}
               className={`model-toggle-button${checked ? " active" : ""}`}
-              data-testid={`model-toggle-${choice}`}
+              data-testid={`${testId}-${choice}`}
               onClick={() => setModel(choice)}
             >
               {MODEL_SHORT_LABELS[choice]}
@@ -82,13 +105,13 @@ export function ModelSelector() {
           );
         })}
       </div>
-      <label className="model-select" data-testid="model-select-wrap">
+      <label className="model-select" data-testid={`${prefix}-select-wrap`}>
         <span className="model-select-label">Model</span>
         <select
           value={effective}
           onChange={(e) => setModel(e.target.value as ModelChoice)}
-          aria-describedby="model-selector-note"
-          data-testid="model-select"
+          aria-describedby={noteId}
+          data-testid={`${prefix}-select`}
         >
           {MODEL_CHOICES.map((choice) => (
             <option key={choice} value={choice} disabled={!available.includes(choice)}>
@@ -99,14 +122,14 @@ export function ModelSelector() {
         </select>
       </label>
       <span
-        id="model-selector-note"
+        id={noteId}
         className="model-toggle-note"
         role="status"
-        data-testid="model-toggle-note"
+        data-testid={`${testId}-note`}
       >
-        {note}
+        {noteOverride ?? note}
       </span>
-      {available.length > 1 && (
+      {showCompareLink && available.length > 1 && (
         <Link to="/models" className="model-toggle-diff" data-testid="model-diff-link">
           Compare all models
         </Link>

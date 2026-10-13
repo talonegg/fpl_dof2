@@ -1,0 +1,19 @@
+.history h3 { margin-top: 1.5rem; }
+.history-caveat { border-left: 4px solid #d9822b; background: rgba(217, 130, 43, 0.12); padding: 0.5rem 0.75rem; }
+.history .is-highlight { background: rgba(47, 111, 237, 0.12); }
+.history td.is-best { font-weight: 700; }
+.history-sub { opacity: 0.7; font-size: 0.8em; }
+.history-sig { color: #16a34a; font-weight: 700; }
+.history-text { text-align: left !important; white-space: normal !important; min-width: 12rem; }
+.history-gw-scroll { max-height: 70vh; }
+.history-gw thead th { position: sticky; top: 0; background: var(--surface, Canvas); }
+.history-chart svg { width: 100%; height: auto; max-height: 320px; }
+.models-legend-item.is-highlight { font-weight: 700; }
+.history-axis-note { opacity: 0.7; }
+.history-provenance { margin-top: 1rem; }
+.history-provenance dt { font-weight: 600; text-transform: capitalize; }
+.history-provenance dd { margin: 0 0 0.4rem; }
+@media (max-width: 767px) {
+  .history-summary th:nth-child(7), .history-summary td:nth-child(7) { display: none; }
+}
+.history-summary th[scope="row"], .history-summary th:nth-child(2) { text-align: left; }
