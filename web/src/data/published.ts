@@ -1,4 +1,4 @@
-import { DATA_BASE, fetchMeta, fetchPlan, fetchPlayers, fetchRules, fetchSquad, fetchWeek } from "./api";
+import { DATA_BASE, fetchChallengerWeek, fetchMeta, fetchPlan, fetchPlayers, fetchRules, fetchSquad, fetchWeek } from "./api";
 import { warmPublishedCache } from "./offline";
 import { effectiveSquad } from "../components/squad/effective";
 import type { Meta, Plan, Players, Rules, Squad, Week } from "../contract/types";
@@ -17,6 +17,10 @@ export interface PublishedData {
   squad: Squad;
   week: Week | null;
   plan: Plan | null;
+  /** The challenger's week (champion/challenger). Null when it was not published. */
+  challenger: Week | null;
+  /** squad.json as published, before the in-season substitution, so either model's advice can be applied. */
+  publishedSquad: Squad;
 }
 
 /**
@@ -41,8 +45,9 @@ export function loadPublishedData(): Promise<PublishedData> {
       fetchSquad(),
       fetchWeek(),
       fetchPlan(),
+      fetchChallengerWeek(),
     ])
-      .then(([meta, rules, players, squad, week, plan]) => {
+      .then(([meta, rules, players, squad, week, plan, challenger]) => {
         // Fire-and-forget, deliberately after the data has resolved and never awaited: warming the
         // offline cache must not delay the first paint, and a failure to warm it must not turn a
         // successful load into an error (DP-15). See `offline.ts` for why the page does this rather
@@ -50,7 +55,16 @@ export function loadPublishedData(): Promise<PublishedData> {
         void warmPublishedCache({ dataBase: DATA_BASE });
         // In-season the from-scratch solve is skipped (DL-67); every consumer of `squad` then
         // reads this week's advised fifteen instead, substituted once here rather than per view.
-        return { meta, rules, players, squad: effectiveSquad(squad, week, players), week, plan };
+        return {
+          meta,
+          rules,
+          players,
+          squad: effectiveSquad(squad, week, players),
+          week,
+          plan,
+          challenger,
+          publishedSquad: squad,
+        };
       })
       .catch((error: unknown) => {
         // A failed load must not be cached, or the retry button would replay the failure for ever.

@@ -17,16 +17,24 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
 from fpl_dof.forecast.form import form_by_player_id, trailing_form
-from fpl_dof.frames import as_float
+from fpl_dof.frames import as_float, as_int
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.obs.manifest import utcnow
+from fpl_dof.optimise.captain import (
+    apply_price_position_captain,
+    price_position_scores,
+    relabel_selection,
+)
 from fpl_dof.optimise.transfer import TransferRecommendation, recommend_transfers
 from fpl_dof.pipeline import Output, StageContext, StageResult
 from fpl_dof.rules.models import GameRules, Position
+from fpl_dof.shadow.c1 import MODEL_NAME as C1_MODEL_NAME
+from fpl_dof.shadow.c1 import Challenger, fit_challenger, run_shadow_safely
 from fpl_dof.silver.store import read_table, read_table_optional
 from fpl_dof.silver.tables import Table
 from fpl_dof.squad.selection import Candidate, SelectionError, select_team
@@ -46,6 +54,9 @@ from fpl_dof.week.reconcile import Reconciliation, reconcile
 log = get_logger(__name__)
 
 WEEK_FILENAME = "week.json"
+CHALLENGER_FILENAME = "week_challenger.json"
+CHAMPION_MODEL = {"id": "engine", "label": "Champion", "role": "champion"}
+CHALLENGER_MODEL = {"id": C1_MODEL_NAME, "label": "Challenger (C1)", "role": "challenger"}
 SKIPPED_REASON_KEY = "skipped_reason"
 
 
@@ -103,6 +114,16 @@ def run(ctx: StageContext) -> StageResult:
     recommendation = recommend_transfers(
         forecast, state, rules, ctx.config.transfers, ctx.config.optimiser
     )
+    history_all = read_table_optional(silver, season, Table.PLAYER_GAMEWEEK)
+    scores: dict[int, float] | None = None
+    if ctx.config.optimiser.captain_rule == "price_position":
+        scores = price_position_scores(forecast, history_all)
+        if scores is None:
+            log.warning("week.captain_rule_fallback", extra={"reason": "no history to fit B0"})
+        else:
+            recommendation = apply_price_position_captain(
+                recommendation, forecast, scores, ctx.config.optimiser.captain_multiplier
+            )
     alerts = collect_alerts(
         state=state,
         players=players,
@@ -128,9 +149,63 @@ def run(ctx: StageContext) -> StageResult:
         deadline=deadline,
         reconciliation=reconciliation,
         form=form,
+        captain_scores=scores,
     )
+    payload["model"] = CHAMPION_MODEL
     path = _write(gold, payload)
     record_advice(ctx.layout, payload)
+
+    # C1 shadow: logged beside the engine, never read back into the live recommendation, and
+    # isolated so any failure of it is a warning in shadow_c1.json rather than a failed run.
+    #
+    # Champion/challenger: the same fitted C1 is also published in full as week_challenger.json.
+    # The champion is already on disk by now, so nothing here can stop it publishing.
+    shadow_path = None
+    challenger_path = None
+    (gold / CHALLENGER_FILENAME).unlink(missing_ok=True)  # never leave a stale challenger behind
+    if ctx.config.optimiser.shadow_c1:
+        c1_inputs: dict[str, Any] = {
+            "forecast": forecast,
+            "history": history_all if history_all is not None else pd.DataFrame(),
+            "players": players,
+            "fixtures": _read_fixtures(silver, season),
+            "state": state,
+            "rules": rules,
+            "transfer_config": ctx.config.transfers,
+            "optimiser_config": ctx.config.optimiser,
+        }
+        challenger: Challenger | BaseException
+        try:
+            challenger = fit_challenger(gameweek=deadline.gameweek, **c1_inputs)
+        except Exception as exc:
+            challenger = exc
+        if ctx.config.optimiser.publish_challenger and isinstance(challenger, Challenger):
+            challenger_path = _write_challenger_safely(
+                gold,
+                challenger,
+                ctx=ctx,
+                rules=rules,
+                state=state,
+                alerts=alerts,
+                deadline=deadline,
+                reconciliation=reconciliation,
+                form=form,
+            )
+        shadow_path = run_shadow_safely(
+            gold=gold,
+            run_id=ctx.run_id,
+            gameweek=deadline.gameweek,
+            engine=recommendation,
+            result=challenger,
+            forecast=forecast,
+            history=history_all if history_all is not None else pd.DataFrame(),
+            players=players,
+            fixtures=_read_fixtures(silver, season),
+            state=state,
+            rules=rules,
+            transfer_config=ctx.config.transfers,
+            optimiser_config=ctx.config.optimiser,
+        )
 
     for line in [
         *describe_deadline(deadline),
@@ -151,8 +226,55 @@ def run(ctx: StageContext) -> StageResult:
             "alerts": len(alerts),
             "urgent_alerts": sum(1 for a in alerts if a.severity.label == "urgent"),
         },
-        outputs=[Output(path=path, rows=len(state.players))],
+        outputs=[
+            Output(path=path, rows=len(state.players)),
+            *([Output(path=shadow_path)] if shadow_path is not None else []),
+            *([Output(path=challenger_path)] if challenger_path is not None else []),
+        ],
     )
+
+
+def _write_challenger_safely(
+    gold: Path,
+    challenger: Challenger,
+    *,
+    ctx: StageContext,
+    rules: GameRules,
+    state: SquadState,
+    alerts: list[Alert],
+    deadline: DeadlineView,
+    reconciliation: Reconciliation | None,
+    form: dict[int, tuple[float | None, int | None]] | None,
+) -> Path | None:
+    """C1's answer in week.json's own schema. Never raises: the challenger cannot fail the run."""
+    try:
+        payload = _payload(
+            ctx=ctx,
+            rules=rules,
+            state=state,
+            forecast=challenger.forecast,
+            recommendation=challenger.recommendation,
+            alerts=alerts,
+            deadline=deadline,
+            reconciliation=reconciliation,
+            form=form,
+            captain_scores=challenger.captain_scores,
+        )
+        payload["model"] = CHALLENGER_MODEL
+        path = gold / CHALLENGER_FILENAME
+        path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        return path
+    except Exception as exc:
+        log.warning("week.challenger_failed", extra={"error": repr(exc)})
+        (gold / CHALLENGER_FILENAME).unlink(missing_ok=True)
+        return None
+
+
+def _read_fixtures(silver: Path, season: str) -> pd.DataFrame:
+    try:
+        return read_table(silver, season, Table.FIXTURE)
+    except Exception:
+        return pd.DataFrame()
 
 
 def _write(gold: Path, payload: dict[str, object]) -> Path:
@@ -221,6 +343,7 @@ def _payload(
     deadline: DeadlineView,
     reconciliation: Reconciliation | None,
     form: dict[int, tuple[float | None, int | None]] | None = None,
+    captain_scores: dict[int, float] | None = None,
 ) -> dict[str, object]:
     chosen = recommendation.recommended
     lookup = forecast.set_index("player_id")
@@ -277,6 +400,13 @@ def _payload(
             captain_multiplier=ctx.config.optimiser.captain_multiplier,
             start_probability_floor=0.0,
             locked_player_ids=locked,
+        )
+    if captain_scores is not None:
+        selection = relabel_selection(
+            selection,
+            captain_scores,
+            {as_int(i): as_float(v) for i, v in lookup["xp_next"].items()},
+            ctx.config.optimiser.captain_multiplier,
         )
 
     return {

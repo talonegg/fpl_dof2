@@ -1,5 +1,6 @@
 import type { Week } from "../../contract/types";
 import { formatPoints, formatPrice } from "../../format";
+import { ModelBadge } from "../models/ModelBadge";
 import { rollComparison, formatSignedPoints, formatTransferLabel } from "./roll";
 
 type Recommendation = NonNullable<Week["recommendation"]>;
@@ -29,7 +30,9 @@ export function RecommendationCard({
       aria-labelledby="dash-recommendation-heading"
       data-testid="dashboard-recommendation"
     >
-      <h2 id="dash-recommendation-heading">This week</h2>
+      <h2 id="dash-recommendation-heading">
+        This week <ModelBadge />
+      </h2>
 
       <p className="dash-recommendation-action" data-testid="week-rationale">
         {recommendation.rationale}

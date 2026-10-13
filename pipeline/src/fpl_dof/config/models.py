@@ -1451,6 +1451,32 @@ class OptimiserConfig(_Section):
             "A locked player is exempt: an explicit human override outranks the heuristic."
         ),
     )
+    captain_rule: Literal["price_position", "model"] = Field(
+        default="price_position",
+        description=(
+            "How the weekly recommendation picks captain and vice inside the chosen XI. "
+            "`price_position`: highest B0 (per-position price line) score, then second highest "
+            "for vice — the walk-forward backtest's b0 captain, +2.20 captain pts/GW over the "
+            "model's own pick across 2023/24-2025/26, which skews to GKP/DEF. `model`: the "
+            "solver's own xp-maximising captain (the previous behaviour)."
+        ),
+    )
+    shadow_c1: bool = Field(
+        default=True,
+        description=(
+            "Run the C1 shadow model (boosted per-position xG + minutes) beside the engine in the "
+            "week stage and log its XI, captain and transfers to shadow_c1.json. Never changes the "
+            "live recommendation, and its failures are logged, not raised."
+        ),
+    )
+    publish_challenger: bool = Field(
+        default=True,
+        description=(
+            "Champion/challenger: also publish C1's full weekly answer (transfers, captain/vice, "
+            "XI and bench) as week_challenger.json, in week.json's schema, so the app can toggle "
+            "between the two. Requires shadow_c1. A challenger failure never blocks the champion."
+        ),
+    )
     squad_solve: Literal["preseason", "always"] = Field(
         default="preseason",
         description=(

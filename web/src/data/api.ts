@@ -205,3 +205,23 @@ export function resetTrendCaches(): void {
   healthCache = null;
   logCache = null;
 }
+
+/**
+ * The challenger's week (champion/challenger), in week.json's own schema.
+ *
+ * **Never throws.** The challenger is optional by design: the pipeline skips it when C1 fails, a
+ * bundle can be deployed against older data, and an SPA host answers a missing path with HTML.
+ * Every one of those is "no challenger", and none of them may take the champion down with it.
+ */
+export async function fetchChallengerWeek(): Promise<Week | null> {
+  try {
+    const res = await fetch(`${DATA_BASE}/week_challenger.json`);
+    if (!res.ok) return null;
+    const contentType = res.headers.get("content-type") ?? "";
+    if (contentType && !contentType.includes("json")) return null;
+    const body = (await res.json()) as Week;
+    return body && typeof body === "object" && "deadline" in body ? body : null;
+  } catch {
+    return null;
+  }
+}

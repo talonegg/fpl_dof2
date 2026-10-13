@@ -14,6 +14,17 @@
       "description": "True when no squad could be established. Before the first gameweek is scored there is no picks endpoint to read (DL-20), so this is a normal state and not a failure."
     },
     "skipped_reason": { "type": "string" },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "role"],
+      "description": "Which model produced this recommendation. week.json is the champion (the live engine); week_challenger.json, when present, is the challenger in the same schema (champion/challenger).",
+      "properties": {
+        "id": { "type": "string" },
+        "label": { "type": "string" },
+        "role": { "type": "string", "enum": ["champion", "challenger"] }
+      }
+    },
     "deadline": {
       "type": "object",
       "additionalProperties": false,
