@@ -179,6 +179,7 @@ def test_shadow_real_failure_with_no_history_is_contained(
         transfer_config=TransferConfig(),
         optimiser_config=CONFIG,
     )
+    assert path is not None
     assert json.loads(Path(path).read_text())["status"] == "failed"
     pd.testing.assert_frame_equal(fc, before)  # the live forecast frame is never mutated
 
