@@ -1,0 +1,3576 @@
+{
+ "contract_version": 1,
+ "season": "2025/26",
+ "kind": "backtest",
+ "caveat": "Backtest, not real play: a walk-forward replay of the frozen models over a finished season. Each model starts 2025/26 with its own fresh squad, uses no chips, and sees only data from before each deadline. Real results will differ.",
+ "champion": "champion",
+ "provenance": {
+  "frozen_tag": "frozen-2026-10-13 (79e080c)",
+  "simulator": "forge/autosubs 3de5329 backtest.simulate (autosubs.py identical to the frozen tag)",
+  "forecasts": "walk-forward caches: engine=baseline, C3=minutes_v2, C1=vec_xg2, A=comp_A (forge/round2), A+odds=comp_ot (round 3, e0390a4)",
+  "captain": "engine: engine captain/vice; others: price/position (B0) captain, vice = 2nd by B0",
+  "settings": "deadline availability from fplcache (strictly before deadline); FPL auto-subs + vice fallback; 1 FT rolling to 5, -4 per extra; no chips; fresh squad at GW1",
+  "reproduces": "engine 47.47, C3 47.84, C1 50.76 pts/GW = RESULTS_autosubs.md L1 auto-subs 2025/26"
+ },
+ "bootstrap": {
+  "draws": 2000,
+  "seed": 0,
+  "unit": "gameweek",
+  "level": 0.95
+ },
+ "models": [
+  {
+   "id": "champion",
+   "label": "Champion (C3)",
+   "role": "champion",
+   "available": true,
+   "unavailable_reason": null
+  },
+  {
+   "id": "challenger",
+   "label": "Challenger (C1)",
+   "role": "challenger",
+   "available": true,
+   "unavailable_reason": null
+  },
+  {
+   "id": "engine",
+   "label": "Engine",
+   "role": "comparison",
+   "available": true,
+   "unavailable_reason": null
+  },
+  {
+   "id": "a",
+   "label": "Model A",
+   "role": "comparison",
+   "available": true,
+   "unavailable_reason": null
+  },
+  {
+   "id": "a_odds",
+   "label": "A + odds",
+   "role": "comparison",
+   "available": true,
+   "unavailable_reason": null
+  }
+ ],
+ "gameweeks": [
+  {
+   "gameweek": 1,
+   "models": {
+    "champion": {
+     "points": 59.0,
+     "points_before_hits": 59.0,
+     "hit_points": 0.0,
+     "n_transfers": 0,
+     "transfers": [],
+     "captain": "Ødegaard",
+     "vice_captain": "Raya",
+     "captain_points": 5.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 59.0,
+     "rank": 1,
+     "cumulative_rank": 1
+    },
+    "challenger": {
+     "points": 43.0,
+     "points_before_hits": 43.0,
+     "hit_points": 0.0,
+     "n_transfers": 0,
+     "transfers": [],
+     "captain": "Palmer",
+     "vice_captain": "Saka",
+     "captain_points": 3.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 43.0,
+     "rank": 5,
+     "cumulative_rank": 5
+    },
+    "engine": {
+     "points": 51.0,
+     "points_before_hits": 51.0,
+     "hit_points": 0.0,
+     "n_transfers": 0,
+     "transfers": [],
+     "captain": "Mitoma",
+     "vice_captain": "Raya",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 51.0,
+     "rank": 3,
+     "cumulative_rank": 3
+    },
+    "a": {
+     "points": 45.0,
+     "points_before_hits": 45.0,
+     "hit_points": 0.0,
+     "n_transfers": 0,
+     "transfers": [],
+     "captain": "Mohamed Salah",
+     "vice_captain": "Palmer",
+     "captain_points": 8.0,
+     "vice_used": false,
+     "n_autosubs": 2,
+     "cumulative": 45.0,
+     "rank": 4,
+     "cumulative_rank": 4
+    },
+    "a_odds": {
+     "points": 57.0,
+     "points_before_hits": 57.0,
+     "hit_points": 0.0,
+     "n_transfers": 0,
+     "transfers": [],
+     "captain": "Mohamed Salah",
+     "vice_captain": "Palmer",
+     "captain_points": 8.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 57.0,
+     "rank": 2,
+     "cumulative_rank": 2
+    }
+   }
+  },
+  {
+   "gameweek": 2,
+   "models": {
+    "champion": {
+     "points": 30.0,
+     "points_before_hits": 30.0,
+     "hit_points": 0.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Manuel Akanji → Ballard",
+      "Gvardiol → Gudmundsson"
+     ],
+     "captain": "Ødegaard",
+     "vice_captain": "Raya",
+     "captain_points": 1.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 89.0,
+     "rank": 5,
+     "cumulative_rank": 4
+    },
+    "challenger": {
+     "points": 40.0,
+     "points_before_hits": 40.0,
+     "hit_points": 0.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Gvardiol → Van Hecke",
+      "Callum Marshall → Eliezer Mayenda Dossou"
+     ],
+     "captain": "Palmer",
+     "vice_captain": "Saka",
+     "captain_points": 0.0,
+     "vice_used": true,
+     "n_autosubs": 1,
+     "cumulative": 83.0,
+     "rank": 4,
+     "cumulative_rank": 5
+    },
+    "engine": {
+     "points": 42.0,
+     "points_before_hits": 42.0,
+     "hit_points": 0.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Schär → Ballard",
+      "Gvardiol → Gudmundsson"
+     ],
+     "captain": "Raya",
+     "vice_captain": "Ballard",
+     "captain_points": 6.0,
+     "vice_used": false,
+     "n_autosubs": 2,
+     "cumulative": 93.0,
+     "rank": 3,
+     "cumulative_rank": 2
+    },
+    "a": {
+     "points": 45.0,
+     "points_before_hits": 45.0,
+     "hit_points": 0.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Kudus → Barnes",
+      "Delap → Eliezer Mayenda Dossou"
+     ],
+     "captain": "Mohamed Salah",
+     "vice_captain": "Palmer",
+     "captain_points": 5.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 90.0,
+     "rank": 2,
+     "cumulative_rank": 3
+    },
+    "a_odds": {
+     "points": 55.0,
+     "points_before_hits": 55.0,
+     "hit_points": 0.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Gvardiol → Gabriel",
+      "Kerkez → Calafiori"
+     ],
+     "captain": "Mohamed Salah",
+     "vice_captain": "Palmer",
+     "captain_points": 5.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 112.0,
+     "rank": 1,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 3,
+   "models": {
+    "champion": {
+     "points": 55.0,
+     "points_before_hits": 55.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Ballard → Lewis-Potter"
+     ],
+     "captain": "Pickford",
+     "vice_captain": "Eze",
+     "captain_points": 1.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 144.0,
+     "rank": 1,
+     "cumulative_rank": 3
+    },
+    "challenger": {
+     "points": 31.0,
+     "points_before_hits": 35.0,
+     "hit_points": -4.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Michael Obafemi → Wood",
+      "Palmer → Gibbs-White"
+     ],
+     "captain": "Cunha",
+     "vice_captain": "Mbeumo",
+     "captain_points": 1.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 114.0,
+     "rank": 5,
+     "cumulative_rank": 5
+    },
+    "engine": {
+     "points": 55.0,
+     "points_before_hits": 55.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Ballard → Schär"
+     ],
+     "captain": "Schär",
+     "vice_captain": "Pickford",
+     "captain_points": 6.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 148.0,
+     "rank": 1,
+     "cumulative_rank": 2
+    },
+    "a": {
+     "points": 46.0,
+     "points_before_hits": 46.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Palmer → Gibbs-White"
+     ],
+     "captain": "Mohamed Salah",
+     "vice_captain": "Mbeumo",
+     "captain_points": 3.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 136.0,
+     "rank": 3,
+     "cumulative_rank": 4
+    },
+    "a_odds": {
+     "points": 42.0,
+     "points_before_hits": 42.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Palmer → B.Fernandes"
+     ],
+     "captain": "Mohamed Salah",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 3.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 154.0,
+     "rank": 4,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 4,
+   "models": {
+    "champion": {
+     "points": 47.0,
+     "points_before_hits": 47.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Aït-Nouri → Andersen"
+     ],
+     "captain": "Ødegaard",
+     "vice_captain": "Raya",
+     "captain_points": 1.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 191.0,
+     "rank": 5,
+     "cumulative_rank": 4
+    },
+    "challenger": {
+     "points": 49.0,
+     "points_before_hits": 53.0,
+     "hit_points": -4.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Wood → Gyökeres",
+      "Saka → Grealish"
+     ],
+     "captain": "Mbeumo",
+     "vice_captain": "Pickford",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 163.0,
+     "rank": 3,
+     "cumulative_rank": 5
+    },
+    "engine": {
+     "points": 61.0,
+     "points_before_hits": 61.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Aït-Nouri → Andersen"
+     ],
+     "captain": "Andersen",
+     "vice_captain": "Raya",
+     "captain_points": 10.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 209.0,
+     "rank": 1,
+     "cumulative_rank": 1
+    },
+    "a": {
+     "points": 56.0,
+     "points_before_hits": 56.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Eliezer Mayenda Dossou → Gyökeres"
+     ],
+     "captain": "Mohamed Salah",
+     "vice_captain": "Mbeumo",
+     "captain_points": 9.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 192.0,
+     "rank": 2,
+     "cumulative_rank": 3
+    },
+    "a_odds": {
+     "points": 48.0,
+     "points_before_hits": 52.0,
+     "hit_points": -4.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Marmoush → Smith Rowe",
+      "Delap → Ekitiké"
+     ],
+     "captain": "Mohamed Salah",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 9.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 202.0,
+     "rank": 4,
+     "cumulative_rank": 2
+    }
+   }
+  },
+  {
+   "gameweek": 5,
+   "models": {
+    "champion": {
+     "points": 40.0,
+     "points_before_hits": 40.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Schär → Emmanuel Agbadou"
+     ],
+     "captain": "Raya",
+     "vice_captain": "Eze",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 231.0,
+     "rank": 2,
+     "cumulative_rank": 3
+    },
+    "challenger": {
+     "points": 29.0,
+     "points_before_hits": 33.0,
+     "hit_points": -4.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Schär → Gudmundsson",
+      "Eliezer Mayenda Dossou → Ekitiké"
+     ],
+     "captain": "Mbeumo",
+     "vice_captain": "Pickford",
+     "captain_points": 3.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 192.0,
+     "rank": 4,
+     "cumulative_rank": 5
+    },
+    "engine": {
+     "points": 38.0,
+     "points_before_hits": 38.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Schär → Emmanuel Agbadou"
+     ],
+     "captain": "Emmanuel Agbadou",
+     "vice_captain": "Raya",
+     "captain_points": 3.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 247.0,
+     "rank": 3,
+     "cumulative_rank": 2
+    },
+    "a": {
+     "points": 29.0,
+     "points_before_hits": 29.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Watkins → Thiago"
+     ],
+     "captain": "Mohamed Salah",
+     "vice_captain": "Mbeumo",
+     "captain_points": 5.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 221.0,
+     "rank": 4,
+     "cumulative_rank": 4
+    },
+    "a_odds": {
+     "points": 46.0,
+     "points_before_hits": 46.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Wan-Bissaka → J.Timber"
+     ],
+     "captain": "Mohamed Salah",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 5.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 248.0,
+     "rank": 1,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 6,
+   "models": {
+    "champion": {
+     "points": 34.0,
+     "points_before_hits": 34.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Mitoma → B.Fernandes"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Raya",
+     "captain_points": -1.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 265.0,
+     "rank": 5,
+     "cumulative_rank": 4
+    },
+    "challenger": {
+     "points": 35.0,
+     "points_before_hits": 39.0,
+     "hit_points": -4.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Wan-Bissaka → Andersen",
+      "Ekitiké → Evanilson"
+     ],
+     "captain": "Mbeumo",
+     "vice_captain": "Pickford",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 227.0,
+     "rank": 3,
+     "cumulative_rank": 5
+    },
+    "engine": {
+     "points": 35.0,
+     "points_before_hits": 35.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Mitoma → B.Fernandes"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Tarkowski",
+     "captain_points": -1.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 282.0,
+     "rank": 3,
+     "cumulative_rank": 2
+    },
+    "a": {
+     "points": 46.0,
+     "points_before_hits": 46.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Barnes → Semenyo"
+     ],
+     "captain": "Mohamed Salah",
+     "vice_captain": "Mbeumo",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 267.0,
+     "rank": 2,
+     "cumulative_rank": 3
+    },
+    "a_odds": {
+     "points": 59.0,
+     "points_before_hits": 63.0,
+     "hit_points": -4.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Mohamed Salah → Semenyo",
+      "Ekitiké → Haaland"
+     ],
+     "captain": "Haaland",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 16.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 307.0,
+     "rank": 1,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 7,
+   "models": {
+    "champion": {
+     "points": 35.0,
+     "points_before_hits": 35.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Lewis-Potter → Alderete"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Raya",
+     "captain_points": 3.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 300.0,
+     "rank": 5,
+     "cumulative_rank": 4
+    },
+    "challenger": {
+     "points": 67.0,
+     "points_before_hits": 67.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Andersen → J.Timber"
+     ],
+     "captain": "Mbeumo",
+     "vice_captain": "Cunha",
+     "captain_points": 6.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 294.0,
+     "rank": 3,
+     "cumulative_rank": 5
+    },
+    "engine": {
+     "points": 40.0,
+     "points_before_hits": 40.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Emmanuel Agbadou → Alderete"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Raya",
+     "captain_points": 3.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 322.0,
+     "rank": 4,
+     "cumulative_rank": 3
+    },
+    "a": {
+     "points": 69.0,
+     "points_before_hits": 69.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Wan-Bissaka → J.Timber"
+     ],
+     "captain": "Mohamed Salah",
+     "vice_captain": "Mbeumo",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 336.0,
+     "rank": 2,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 87.0,
+     "points_before_hits": 87.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Aït-Nouri → Digne"
+     ],
+     "captain": "Haaland",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 8.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 394.0,
+     "rank": 1,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 8,
+   "models": {
+    "champion": {
+     "points": 66.0,
+     "points_before_hits": 66.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Ødegaard → Semenyo"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Raya",
+     "captain_points": 8.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 366.0,
+     "rank": 2,
+     "cumulative_rank": 4
+    },
+    "challenger": {
+     "points": 60.0,
+     "points_before_hits": 60.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Grealish → Schade"
+     ],
+     "captain": "Mbeumo",
+     "vice_captain": "Pickford",
+     "captain_points": 9.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 354.0,
+     "rank": 5,
+     "cumulative_rank": 5
+    },
+    "engine": {
+     "points": 64.0,
+     "points_before_hits": 64.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Solanke → Mateta"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Sarr",
+     "captain_points": 8.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 386.0,
+     "rank": 3,
+     "cumulative_rank": 3
+    },
+    "a": {
+     "points": 64.0,
+     "points_before_hits": 64.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Caicedo → Anderson"
+     ],
+     "captain": "Mohamed Salah",
+     "vice_captain": "Semenyo",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 400.0,
+     "rank": 3,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 80.0,
+     "points_before_hits": 80.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Smith Rowe → Hutchinson"
+     ],
+     "captain": "Haaland",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 13.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 474.0,
+     "rank": 1,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 9,
+   "models": {
+    "champion": {
+     "points": 39.0,
+     "points_before_hits": 39.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Eze → Christie"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Raya",
+     "captain_points": 4.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 405.0,
+     "rank": 5,
+     "cumulative_rank": 5
+    },
+    "challenger": {
+     "points": 71.0,
+     "points_before_hits": 71.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Tarkowski → Botman"
+     ],
+     "captain": "Mbeumo",
+     "vice_captain": "Cunha",
+     "captain_points": 15.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 425.0,
+     "rank": 1,
+     "cumulative_rank": 4
+    },
+    "engine": {
+     "points": 46.0,
+     "points_before_hits": 46.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Mac Allister → Christie"
+     ],
+     "captain": "Mateta",
+     "vice_captain": "Christie",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 432.0,
+     "rank": 4,
+     "cumulative_rank": 3
+    },
+    "a": {
+     "points": 57.0,
+     "points_before_hits": 57.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Gvardiol → Rodon"
+     ],
+     "captain": "Mohamed Salah",
+     "vice_captain": "Semenyo",
+     "captain_points": 6.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 457.0,
+     "rank": 2,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 50.0,
+     "points_before_hits": 50.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Youssef Ramalho Chermiti → Kroupi.Jr"
+     ],
+     "captain": "Haaland",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 524.0,
+     "rank": 3,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 10,
+   "models": {
+    "champion": {
+     "points": 50.0,
+     "points_before_hits": 50.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Gudmundsson → Gabriel"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Semenyo",
+     "captain_points": 5.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 455.0,
+     "rank": 4,
+     "cumulative_rank": 5
+    },
+    "challenger": {
+     "points": 48.0,
+     "points_before_hits": 48.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Van Hecke → Kieran Trippier"
+     ],
+     "captain": "Mbeumo",
+     "vice_captain": "Gabriel",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 473.0,
+     "rank": 5,
+     "cumulative_rank": 4
+    },
+    "engine": {
+     "points": 58.0,
+     "points_before_hits": 58.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Saliba → Gabriel"
+     ],
+     "captain": "Gabriel",
+     "vice_captain": "Mateta",
+     "captain_points": 12.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 490.0,
+     "rank": 3,
+     "cumulative_rank": 3
+    },
+    "a": {
+     "points": 69.0,
+     "points_before_hits": 69.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Collins → Gabriel"
+     ],
+     "captain": "Mohamed Salah",
+     "vice_captain": "Mbeumo",
+     "captain_points": 10.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 526.0,
+     "rank": 2,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 76.0,
+     "points_before_hits": 76.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Scarlett → Mateta"
+     ],
+     "captain": "Haaland",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 13.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 600.0,
+     "rank": 1,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 11,
+   "models": {
+    "champion": {
+     "points": 27.0,
+     "points_before_hits": 27.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Semenyo → P.M.Sarr"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Raya",
+     "captain_points": 5.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 482.0,
+     "rank": 4,
+     "cumulative_rank": 5
+    },
+    "challenger": {
+     "points": 49.0,
+     "points_before_hits": 49.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Gyökeres → João Pedro"
+     ],
+     "captain": "Mbeumo",
+     "vice_captain": "Gabriel",
+     "captain_points": 7.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 522.0,
+     "rank": 2,
+     "cumulative_rank": 3
+    },
+    "engine": {
+     "points": 26.0,
+     "points_before_hits": 26.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Eze → P.M.Sarr"
+     ],
+     "captain": "Gabriel",
+     "vice_captain": "P.M.Sarr",
+     "captain_points": 1.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 516.0,
+     "rank": 5,
+     "cumulative_rank": 4
+    },
+    "a": {
+     "points": 59.0,
+     "points_before_hits": 59.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Gyökeres → Jarrod Bowen"
+     ],
+     "captain": "Mbeumo",
+     "vice_captain": "Gabriel",
+     "captain_points": 7.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 585.0,
+     "rank": 1,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 34.0,
+     "points_before_hits": 34.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Kudus → Tomáš Souček"
+     ],
+     "captain": "Haaland",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 4.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 634.0,
+     "rank": 3,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 12,
+   "models": {
+    "champion": {
+     "points": 31.0,
+     "points_before_hits": 31.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Sarr → Tomáš Souček"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Raya",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 513.0,
+     "rank": 5,
+     "cumulative_rank": 5
+    },
+    "challenger": {
+     "points": 37.0,
+     "points_before_hits": 37.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Gabriel → Saliba"
+     ],
+     "captain": "Mbeumo",
+     "vice_captain": "Cunha",
+     "captain_points": 1.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 559.0,
+     "rank": 2,
+     "cumulative_rank": 3
+    },
+    "engine": {
+     "points": 32.0,
+     "points_before_hits": 32.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Sarr → Tomáš Souček"
+     ],
+     "captain": "Tomáš Souček",
+     "vice_captain": "Mateta",
+     "captain_points": 1.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 548.0,
+     "rank": 4,
+     "cumulative_rank": 4
+    },
+    "a": {
+     "points": 60.0,
+     "points_before_hits": 60.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Gabriel → Marc Cucurella Saseta"
+     ],
+     "captain": "Mohamed Salah",
+     "vice_captain": "Mbeumo",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 645.0,
+     "rank": 1,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 36.0,
+     "points_before_hits": 36.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Gabriel → Muñoz"
+     ],
+     "captain": "Haaland",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 670.0,
+     "rank": 3,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 13,
+   "models": {
+    "champion": {
+     "points": 45.0,
+     "points_before_hits": 45.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Christie → Donyell Malen"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Pickford",
+     "captain_points": 11.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 558.0,
+     "rank": 1,
+     "cumulative_rank": 5
+    },
+    "challenger": {
+     "points": 38.0,
+     "points_before_hits": 38.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "João Pedro → Mateta"
+     ],
+     "captain": "Mbeumo",
+     "vice_captain": "J.Timber",
+     "captain_points": 1.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 597.0,
+     "rank": 3,
+     "cumulative_rank": 3
+    },
+    "engine": {
+     "points": 37.0,
+     "points_before_hits": 37.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Christie → Rice"
+     ],
+     "captain": "Tomáš Souček",
+     "vice_captain": "Rice",
+     "captain_points": 1.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 585.0,
+     "rank": 4,
+     "cumulative_rank": 4
+    },
+    "a": {
+     "points": 34.0,
+     "points_before_hits": 34.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Semenyo → Schade"
+     ],
+     "captain": "Mohamed Salah",
+     "vice_captain": "Mbeumo",
+     "captain_points": 0.0,
+     "vice_used": true,
+     "n_autosubs": 2,
+     "cumulative": 679.0,
+     "rank": 5,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 44.0,
+     "points_before_hits": 44.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Semenyo → Donyell Malen"
+     ],
+     "captain": "Haaland",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 714.0,
+     "rank": 2,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 14,
+   "models": {
+    "champion": {
+     "points": 43.0,
+     "points_before_hits": 43.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Gabriel → Lacroix"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Raya",
+     "captain_points": 4.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 601.0,
+     "rank": 2,
+     "cumulative_rank": 5
+    },
+    "challenger": {
+     "points": 29.0,
+     "points_before_hits": 33.0,
+     "hit_points": -4.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Cunha → B.Fernandes",
+      "Saliba → Virgil"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Mbeumo",
+     "captain_points": 4.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 626.0,
+     "rank": 5,
+     "cumulative_rank": 4
+    },
+    "engine": {
+     "points": 42.0,
+     "points_before_hits": 42.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Gabriel → Kyle Walker-Peters"
+     ],
+     "captain": "Tomáš Souček",
+     "vice_captain": "Mateta",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 627.0,
+     "rank": 3,
+     "cumulative_rank": 3
+    },
+    "a": {
+     "points": 37.0,
+     "points_before_hits": 37.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Gibbs-White → Neto"
+     ],
+     "captain": "Mohamed Salah",
+     "vice_captain": "Mbeumo",
+     "captain_points": 1.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 716.0,
+     "rank": 4,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 71.0,
+     "points_before_hits": 71.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Tomáš Souček → Neto"
+     ],
+     "captain": "Haaland",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 14.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 785.0,
+     "rank": 1,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 15,
+   "models": {
+    "champion": {
+     "points": 68.0,
+     "points_before_hits": 68.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Emmanuel Agbadou → Dorgu"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Pickford",
+     "captain_points": 18.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 669.0,
+     "rank": 2,
+     "cumulative_rank": 5
+    },
+    "challenger": {
+     "points": 73.0,
+     "points_before_hits": 77.0,
+     "hit_points": -4.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Kieran Trippier → Rúben",
+      "J.Timber → O'Reilly"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Mbeumo",
+     "captain_points": 18.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 699.0,
+     "rank": 1,
+     "cumulative_rank": 3
+    },
+    "engine": {
+     "points": 62.0,
+     "points_before_hits": 62.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "P.M.Sarr → Donyell Malen"
+     ],
+     "captain": "Donyell Malen",
+     "vice_captain": "Tomáš Souček",
+     "captain_points": 1.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 689.0,
+     "rank": 3,
+     "cumulative_rank": 4
+    },
+    "a": {
+     "points": 48.0,
+     "points_before_hits": 48.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Nathan Fraser → Woltemade"
+     ],
+     "captain": "Mohamed Salah",
+     "vice_captain": "Mbeumo",
+     "captain_points": 0.0,
+     "vice_used": true,
+     "n_autosubs": 2,
+     "cumulative": 764.0,
+     "rank": 4,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 47.0,
+     "points_before_hits": 47.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Maximilian Kilman → O'Reilly"
+     ],
+     "captain": "Haaland",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 832.0,
+     "rank": 5,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 16,
+   "models": {
+    "champion": {
+     "points": 48.0,
+     "points_before_hits": 48.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "P.M.Sarr → Anthony Gordon"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Raya",
+     "captain_points": 13.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 717.0,
+     "rank": 4,
+     "cumulative_rank": 5
+    },
+    "challenger": {
+     "points": 67.0,
+     "points_before_hits": 67.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Schade → Amad"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Mbeumo",
+     "captain_points": 13.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 766.0,
+     "rank": 2,
+     "cumulative_rank": 3
+    },
+    "engine": {
+     "points": 41.0,
+     "points_before_hits": 41.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Szoboszlai → Anthony Gordon"
+     ],
+     "captain": "Anthony Gordon",
+     "vice_captain": "Tomáš Souček",
+     "captain_points": 1.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 730.0,
+     "rank": 5,
+     "cumulative_rank": 4
+    },
+    "a": {
+     "points": 56.0,
+     "points_before_hits": 56.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Mohamed Salah → Saka"
+     ],
+     "captain": "Saka",
+     "vice_captain": "Mbeumo",
+     "captain_points": 11.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 820.0,
+     "rank": 3,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 74.0,
+     "points_before_hits": 78.0,
+     "hit_points": -4.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Gakpo → Saka",
+      "Muñoz → Van den Berg"
+     ],
+     "captain": "Haaland",
+     "vice_captain": "Saka",
+     "captain_points": 13.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 906.0,
+     "rank": 1,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 17,
+   "models": {
+    "champion": {
+     "points": 46.0,
+     "points_before_hits": 46.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Alderete → Collins"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Raya",
+     "captain_points": 1.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 763.0,
+     "rank": 4,
+     "cumulative_rank": 5
+    },
+    "challenger": {
+     "points": 36.0,
+     "points_before_hits": 40.0,
+     "hit_points": -4.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Botman → Ibrahima Konaté",
+      "Mbeumo → Semenyo"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Pickford",
+     "captain_points": 1.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 802.0,
+     "rank": 5,
+     "cumulative_rank": 3
+    },
+    "engine": {
+     "points": 64.0,
+     "points_before_hits": 64.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Alderete → Collins"
+     ],
+     "captain": "Anthony Gordon",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 10.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 794.0,
+     "rank": 2,
+     "cumulative_rank": 4
+    },
+    "a": {
+     "points": 53.0,
+     "points_before_hits": 53.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Mbeumo → Foden"
+     ],
+     "captain": "Saka",
+     "vice_captain": "Foden",
+     "captain_points": 3.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 873.0,
+     "rank": 3,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 69.0,
+     "points_before_hits": 69.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Calafiori → Collins"
+     ],
+     "captain": "Haaland",
+     "vice_captain": "Saka",
+     "captain_points": 16.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 975.0,
+     "rank": 1,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 18,
+   "models": {
+    "champion": {
+     "points": 43.0,
+     "points_before_hits": 43.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Saliba → Lewis-Potter"
+     ],
+     "captain": "Raya",
+     "vice_captain": "Anthony Gordon",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 806.0,
+     "rank": 2,
+     "cumulative_rank": 5
+    },
+    "challenger": {
+     "points": 45.0,
+     "points_before_hits": 45.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "B.Fernandes → Foden"
+     ],
+     "captain": "Foden",
+     "vice_captain": "Pickford",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 847.0,
+     "rank": 1,
+     "cumulative_rank": 3
+    },
+    "engine": {
+     "points": 37.0,
+     "points_before_hits": 37.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Kyle Walker-Peters → Lewis-Potter"
+     ],
+     "captain": "Anthony Gordon",
+     "vice_captain": "Lewis-Potter",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 831.0,
+     "rank": 5,
+     "cumulative_rank": 4
+    },
+    "a": {
+     "points": 41.0,
+     "points_before_hits": 41.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Schade → Grealish"
+     ],
+     "captain": "Saka",
+     "vice_captain": "Foden",
+     "captain_points": 7.0,
+     "vice_used": false,
+     "n_autosubs": 2,
+     "cumulative": 914.0,
+     "rank": 3,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 40.0,
+     "points_before_hits": 40.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "B.Fernandes → Foden"
+     ],
+     "captain": "Haaland",
+     "vice_captain": "Saka",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 2,
+     "cumulative": 1015.0,
+     "rank": 4,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 19,
+   "models": {
+    "champion": {
+     "points": 56.0,
+     "points_before_hits": 56.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Solanke → Watkins"
+     ],
+     "captain": "Raya",
+     "vice_captain": "Anthony Gordon",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 862.0,
+     "rank": 3,
+     "cumulative_rank": 5
+    },
+    "challenger": {
+     "points": 57.0,
+     "points_before_hits": 57.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Gakpo → Anthony Gordon"
+     ],
+     "captain": "Foden",
+     "vice_captain": "Pickford",
+     "captain_points": 3.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 904.0,
+     "rank": 2,
+     "cumulative_rank": 3
+    },
+    "engine": {
+     "points": 65.0,
+     "points_before_hits": 65.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Strand Larsen → Watkins"
+     ],
+     "captain": "Anthony Gordon",
+     "vice_captain": "Watkins",
+     "captain_points": 5.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 896.0,
+     "rank": 1,
+     "cumulative_rank": 4
+    },
+    "a": {
+     "points": 51.0,
+     "points_before_hits": 51.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Muñoz → Rúben"
+     ],
+     "captain": "Saka",
+     "vice_captain": "Foden",
+     "captain_points": 6.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 965.0,
+     "rank": 4,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 46.0,
+     "points_before_hits": 46.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "J.Timber → Hincapie"
+     ],
+     "captain": "Haaland",
+     "vice_captain": "Saka",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1061.0,
+     "rank": 5,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 20,
+   "models": {
+    "champion": {
+     "points": 34.0,
+     "points_before_hits": 34.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "B.Fernandes → Leandro Trossard"
+     ],
+     "captain": "Raya",
+     "vice_captain": "Anthony Gordon",
+     "captain_points": 1.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 896.0,
+     "rank": 4,
+     "cumulative_rank": 5
+    },
+    "challenger": {
+     "points": 42.0,
+     "points_before_hits": 42.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "O'Reilly → Pedro Porro"
+     ],
+     "captain": "Foden",
+     "vice_captain": "Pickford",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 946.0,
+     "rank": 2,
+     "cumulative_rank": 3
+    },
+    "engine": {
+     "points": 40.0,
+     "points_before_hits": 40.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "B.Fernandes → Leandro Trossard"
+     ],
+     "captain": "Watkins",
+     "vice_captain": "Anthony Gordon",
+     "captain_points": 7.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 936.0,
+     "rank": 3,
+     "cumulative_rank": 4
+    },
+    "a": {
+     "points": 56.0,
+     "points_before_hits": 56.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Grealish → Gibbs-White"
+     ],
+     "captain": "Saka",
+     "vice_captain": "Foden",
+     "captain_points": 4.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1021.0,
+     "rank": 1,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 31.0,
+     "points_before_hits": 31.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Neto → Anthony Gordon"
+     ],
+     "captain": "Haaland",
+     "vice_captain": "Saka",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1092.0,
+     "rank": 5,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 21,
+   "models": {
+    "champion": {
+     "points": 50.0,
+     "points_before_hits": 50.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Andersen → Tarkowski"
+     ],
+     "captain": "Pickford",
+     "vice_captain": "Anthony Gordon",
+     "captain_points": 3.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 946.0,
+     "rank": 3,
+     "cumulative_rank": 5
+    },
+    "challenger": {
+     "points": 52.0,
+     "points_before_hits": 52.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Rúben → Collins"
+     ],
+     "captain": "Foden",
+     "vice_captain": "Pickford",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 998.0,
+     "rank": 2,
+     "cumulative_rank": 3
+    },
+    "engine": {
+     "points": 42.0,
+     "points_before_hits": 42.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Tomáš Souček → Enzo"
+     ],
+     "captain": "Tarkowski",
+     "vice_captain": "Rice",
+     "captain_points": 4.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 978.0,
+     "rank": 4,
+     "cumulative_rank": 4
+    },
+    "a": {
+     "points": 72.0,
+     "points_before_hits": 72.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Rodon → Collins"
+     ],
+     "captain": "Saka",
+     "vice_captain": "Foden",
+     "captain_points": 3.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1093.0,
+     "rank": 1,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 41.0,
+     "points_before_hits": 41.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Donyell Malen → Brooks"
+     ],
+     "captain": "Haaland",
+     "vice_captain": "Saka",
+     "captain_points": 6.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1133.0,
+     "rank": 5,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 22,
+   "models": {
+    "champion": {
+     "points": 38.0,
+     "points_before_hits": 38.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Donyell Malen → Bruno G."
+     ],
+     "captain": "Raya",
+     "vice_captain": "Anthony Gordon",
+     "captain_points": 6.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 984.0,
+     "rank": 2,
+     "cumulative_rank": 5
+    },
+    "challenger": {
+     "points": 38.0,
+     "points_before_hits": 38.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Amad → Rogers"
+     ],
+     "captain": "Foden",
+     "vice_captain": "Pickford",
+     "captain_points": 1.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1036.0,
+     "rank": 2,
+     "cumulative_rank": 3
+    },
+    "engine": {
+     "points": 53.0,
+     "points_before_hits": 53.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Donyell Malen → B.Fernandes"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Watkins",
+     "captain_points": 10.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1031.0,
+     "rank": 1,
+     "cumulative_rank": 4
+    },
+    "a": {
+     "points": 38.0,
+     "points_before_hits": 38.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Gibbs-White → Wirtz"
+     ],
+     "captain": "Saka",
+     "vice_captain": "Foden",
+     "captain_points": 1.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1131.0,
+     "rank": 2,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 25.0,
+     "points_before_hits": 25.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Foden → Wirtz"
+     ],
+     "captain": "Haaland",
+     "vice_captain": "Saka",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1158.0,
+     "rank": 5,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 23,
+   "models": {
+    "champion": {
+     "points": 58.0,
+     "points_before_hits": 58.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Pickford → Donnarumma"
+     ],
+     "captain": "Donnarumma",
+     "vice_captain": "Watkins",
+     "captain_points": 8.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1042.0,
+     "rank": 2,
+     "cumulative_rank": 5
+    },
+    "challenger": {
+     "points": 59.0,
+     "points_before_hits": 59.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Ibrahima Konaté → Van de Ven"
+     ],
+     "captain": "Foden",
+     "vice_captain": "Semenyo",
+     "captain_points": 1.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1095.0,
+     "rank": 1,
+     "cumulative_rank": 3
+    },
+    "engine": {
+     "points": 42.0,
+     "points_before_hits": 42.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Gudmundsson → Mukiele"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Rice",
+     "captain_points": 5.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1073.0,
+     "rank": 3,
+     "cumulative_rank": 4
+    },
+    "a": {
+     "points": 36.0,
+     "points_before_hits": 36.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Thiago → Mateta"
+     ],
+     "captain": "Saka",
+     "vice_captain": "Wirtz",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1167.0,
+     "rank": 4,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 25.0,
+     "points_before_hits": 25.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Brooks → Cherki"
+     ],
+     "captain": "Haaland",
+     "vice_captain": "Saka",
+     "captain_points": 1.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1183.0,
+     "rank": 5,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 24,
+   "models": {
+    "champion": {
+     "points": 40.0,
+     "points_before_hits": 40.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Tomáš Souček → Enzo"
+     ],
+     "captain": "Donnarumma",
+     "vice_captain": "Anthony Gordon",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1082.0,
+     "rank": 4,
+     "cumulative_rank": 5
+    },
+    "challenger": {
+     "points": 34.0,
+     "points_before_hits": 34.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Mateta → Brobbey"
+     ],
+     "captain": "Foden",
+     "vice_captain": "Semenyo",
+     "captain_points": 1.0,
+     "vice_used": false,
+     "n_autosubs": 2,
+     "cumulative": 1129.0,
+     "rank": 5,
+     "cumulative_rank": 4
+    },
+    "engine": {
+     "points": 57.0,
+     "points_before_hits": 57.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Anthony Gordon → Bruno G."
+     ],
+     "captain": "Bruno G.",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 0.0,
+     "vice_used": true,
+     "n_autosubs": 2,
+     "cumulative": 1130.0,
+     "rank": 3,
+     "cumulative_rank": 3
+    },
+    "a": {
+     "points": 68.0,
+     "points_before_hits": 68.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Mateta → Brobbey"
+     ],
+     "captain": "Saka",
+     "vice_captain": "Wirtz",
+     "captain_points": 0.0,
+     "vice_used": true,
+     "n_autosubs": 1,
+     "cumulative": 1235.0,
+     "rank": 1,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 60.0,
+     "points_before_hits": 60.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Mateta → Awoniyi"
+     ],
+     "captain": "Haaland",
+     "vice_captain": "Saka",
+     "captain_points": 5.0,
+     "vice_used": false,
+     "n_autosubs": 3,
+     "cumulative": 1243.0,
+     "rank": 2,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 25,
+   "models": {
+    "champion": {
+     "points": 60.0,
+     "points_before_hits": 60.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Mateta → Beto"
+     ],
+     "captain": "Raya",
+     "vice_captain": "Tarkowski",
+     "captain_points": 7.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1142.0,
+     "rank": 1,
+     "cumulative_rank": 5
+    },
+    "challenger": {
+     "points": 36.0,
+     "points_before_hits": 36.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Pedro Porro → Gabriel"
+     ],
+     "captain": "Gabriel",
+     "vice_captain": "Foden",
+     "captain_points": 6.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1165.0,
+     "rank": 5,
+     "cumulative_rank": 4
+    },
+    "engine": {
+     "points": 49.0,
+     "points_before_hits": 49.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Mateta → Beto"
+     ],
+     "captain": "Beto",
+     "vice_captain": "Enzo",
+     "captain_points": 1.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1179.0,
+     "rank": 3,
+     "cumulative_rank": 3
+    },
+    "a": {
+     "points": 44.0,
+     "points_before_hits": 44.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Saka → B.Fernandes"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Wirtz",
+     "captain_points": 10.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1279.0,
+     "rank": 4,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 52.0,
+     "points_before_hits": 52.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Saka → B.Fernandes"
+     ],
+     "captain": "Haaland",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 11.0,
+     "vice_used": false,
+     "n_autosubs": 2,
+     "cumulative": 1295.0,
+     "rank": 2,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 26,
+   "models": {
+    "champion": {
+     "points": 36.0,
+     "points_before_hits": 36.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Szoboszlai → Martinelli"
+     ],
+     "captain": "Raya",
+     "vice_captain": "Martinelli",
+     "captain_points": 3.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1178.0,
+     "rank": 5,
+     "cumulative_rank": 5
+    },
+    "challenger": {
+     "points": 73.0,
+     "points_before_hits": 73.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Anthony Gordon → Rice"
+     ],
+     "captain": "Gabriel",
+     "vice_captain": "Rice",
+     "captain_points": 7.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1238.0,
+     "rank": 1,
+     "cumulative_rank": 3
+    },
+    "engine": {
+     "points": 43.0,
+     "points_before_hits": 43.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Leandro Trossard → Martinelli"
+     ],
+     "captain": "Martinelli",
+     "vice_captain": "Raya",
+     "captain_points": 3.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1222.0,
+     "rank": 3,
+     "cumulative_rank": 4
+    },
+    "a": {
+     "points": 43.0,
+     "points_before_hits": 47.0,
+     "hit_points": -4.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Rúben → Gabriel",
+      "Collins → Santiago Ignacio Bueno"
+     ],
+     "captain": "Gabriel",
+     "vice_captain": "J.Timber",
+     "captain_points": 7.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1322.0,
+     "rank": 3,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 69.0,
+     "points_before_hits": 73.0,
+     "hit_points": -4.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Anthony Gordon → Rice",
+      "Collins → Gabriel"
+     ],
+     "captain": "Gabriel",
+     "vice_captain": "Haaland",
+     "captain_points": 7.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1364.0,
+     "rank": 2,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 27,
+   "models": {
+    "champion": {
+     "points": 23.0,
+     "points_before_hits": 23.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Bruno G. → B.Fernandes"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Donnarumma",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1201.0,
+     "rank": 4,
+     "cumulative_rank": 5
+    },
+    "challenger": {
+     "points": 34.0,
+     "points_before_hits": 34.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Evanilson → Thiago"
+     ],
+     "captain": "Gabriel",
+     "vice_captain": "Pickford",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1272.0,
+     "rank": 2,
+     "cumulative_rank": 3
+    },
+    "engine": {
+     "points": 23.0,
+     "points_before_hits": 23.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Bruno G. → Palmer"
+     ],
+     "captain": "Beto",
+     "vice_captain": "Martinelli",
+     "captain_points": 1.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1245.0,
+     "rank": 4,
+     "cumulative_rank": 4
+    },
+    "a": {
+     "points": 34.0,
+     "points_before_hits": 34.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Foden → Enzo"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Gabriel",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1356.0,
+     "rank": 2,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 45.0,
+     "points_before_hits": 49.0,
+     "hit_points": -4.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Haaland → Šeško",
+      "Hutchinson → Palmer"
+     ],
+     "captain": "Palmer",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 3.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1409.0,
+     "rank": 1,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 28,
+   "models": {
+    "champion": {
+     "points": 63.0,
+     "points_before_hits": 63.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Dorgu → Virgil"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Donnarumma",
+     "captain_points": 13.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1264.0,
+     "rank": 2,
+     "cumulative_rank": 5
+    },
+    "challenger": {
+     "points": 61.0,
+     "points_before_hits": 61.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Brobbey → Calvert-Lewin"
+     ],
+     "captain": "Gabriel",
+     "vice_captain": "Pickford",
+     "captain_points": 9.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1333.0,
+     "rank": 3,
+     "cumulative_rank": 3
+    },
+    "engine": {
+     "points": 55.0,
+     "points_before_hits": 55.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Mukiele → Digne"
+     ],
+     "captain": "Beto",
+     "vice_captain": "Palmer",
+     "captain_points": 9.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1300.0,
+     "rank": 5,
+     "cumulative_rank": 4
+    },
+    "a": {
+     "points": 70.0,
+     "points_before_hits": 70.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Wirtz → Wilson"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Gabriel",
+     "captain_points": 13.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1426.0,
+     "rank": 1,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 60.0,
+     "points_before_hits": 60.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Wirtz → Tavernier"
+     ],
+     "captain": "Palmer",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 1.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1469.0,
+     "rank": 4,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 29,
+   "models": {
+    "champion": {
+     "points": 53.0,
+     "points_before_hits": 53.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Watkins → Raúl Jiménez Rodríguez"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Donnarumma",
+     "captain_points": 8.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1317.0,
+     "rank": 5,
+     "cumulative_rank": 5
+    },
+    "challenger": {
+     "points": 56.0,
+     "points_before_hits": 56.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Foden → Gakpo"
+     ],
+     "captain": "Gabriel",
+     "vice_captain": "Semenyo",
+     "captain_points": 11.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1389.0,
+     "rank": 3,
+     "cumulative_rank": 3
+    },
+    "engine": {
+     "points": 54.0,
+     "points_before_hits": 54.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Collins → Virgil"
+     ],
+     "captain": "Beto",
+     "vice_captain": "Virgil",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1354.0,
+     "rank": 4,
+     "cumulative_rank": 4
+    },
+    "a": {
+     "points": 75.0,
+     "points_before_hits": 75.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Neto → Semenyo"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Gabriel",
+     "captain_points": 8.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1501.0,
+     "rank": 1,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 69.0,
+     "points_before_hits": 69.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Awoniyi → Jarrod Bowen"
+     ],
+     "captain": "Palmer",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 9.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1538.0,
+     "rank": 2,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 30,
+   "models": {
+    "champion": {
+     "points": 56.0,
+     "points_before_hits": 56.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Jarrod Bowen → João Pedro"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Raya",
+     "captain_points": 10.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1373.0,
+     "rank": 1,
+     "cumulative_rank": 5
+    },
+    "challenger": {
+     "points": 53.0,
+     "points_before_hits": 53.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Van de Ven → Senesi"
+     ],
+     "captain": "Gabriel",
+     "vice_captain": "Semenyo",
+     "captain_points": 9.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1442.0,
+     "rank": 2,
+     "cumulative_rank": 3
+    },
+    "engine": {
+     "points": 47.0,
+     "points_before_hits": 47.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Watkins → João Pedro"
+     ],
+     "captain": "Beto",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1401.0,
+     "rank": 5,
+     "cumulative_rank": 4
+    },
+    "a": {
+     "points": 51.0,
+     "points_before_hits": 51.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Brobbey → Šeško"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Gabriel",
+     "captain_points": 10.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1552.0,
+     "rank": 3,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 50.0,
+     "points_before_hits": 50.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Digne → Virgil"
+     ],
+     "captain": "Palmer",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1588.0,
+     "rank": 4,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 31,
+   "models": {
+    "champion": {
+     "points": 88.0,
+     "points_before_hits": 88.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Donnarumma → Martinez"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Virgil",
+     "captain_points": 13.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1461.0,
+     "rank": 1,
+     "cumulative_rank": 4
+    },
+    "challenger": {
+     "points": 65.0,
+     "points_before_hits": 65.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Semenyo → Anthony Gordon"
+     ],
+     "captain": "Pickford",
+     "vice_captain": "Virgil",
+     "captain_points": 7.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1507.0,
+     "rank": 2,
+     "cumulative_rank": 3
+    },
+    "engine": {
+     "points": 57.0,
+     "points_before_hits": 57.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Digne → Thiaw"
+     ],
+     "captain": "Thiaw",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 0.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1458.0,
+     "rank": 4,
+     "cumulative_rank": 5
+    },
+    "a": {
+     "points": 61.0,
+     "points_before_hits": 61.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "J.Timber → Bassey"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Marc Cucurella Saseta",
+     "captain_points": 13.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1613.0,
+     "rank": 3,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 43.0,
+     "points_before_hits": 47.0,
+     "hit_points": -4.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Cherki → Anthony Gordon",
+      "O'Reilly → Thiaw"
+     ],
+     "captain": "Palmer",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1631.0,
+     "rank": 5,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 32,
+   "models": {
+    "champion": {
+     "points": 39.0,
+     "points_before_hits": 39.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Enzo → Gomes"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Raya",
+     "captain_points": 4.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1500.0,
+     "rank": 5,
+     "cumulative_rank": 4
+    },
+    "challenger": {
+     "points": 67.0,
+     "points_before_hits": 67.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Watkins → Jarrod Bowen"
+     ],
+     "captain": "Gabriel",
+     "vice_captain": "Pickford",
+     "captain_points": 4.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1574.0,
+     "rank": 1,
+     "cumulative_rank": 3
+    },
+    "engine": {
+     "points": 40.0,
+     "points_before_hits": 40.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Enzo → Gomes"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Beto",
+     "captain_points": 4.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1498.0,
+     "rank": 4,
+     "cumulative_rank": 5
+    },
+    "a": {
+     "points": 45.0,
+     "points_before_hits": 45.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Enzo → Rice"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Gabriel",
+     "captain_points": 4.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1658.0,
+     "rank": 3,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 55.0,
+     "points_before_hits": 55.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Vicario → Kelleher"
+     ],
+     "captain": "Palmer",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 4.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1686.0,
+     "rank": 2,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 33,
+   "models": {
+    "champion": {
+     "points": 57.0,
+     "points_before_hits": 57.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Raya → Donnarumma"
+     ],
+     "captain": "Donnarumma",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 8.0,
+     "vice_used": false,
+     "n_autosubs": 2,
+     "cumulative": 1557.0,
+     "rank": 3,
+     "cumulative_rank": 4
+    },
+    "challenger": {
+     "points": 75.0,
+     "points_before_hits": 75.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Rice → Groß"
+     ],
+     "captain": "Gabriel",
+     "vice_captain": "Senesi",
+     "captain_points": 0.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1649.0,
+     "rank": 1,
+     "cumulative_rank": 3
+    },
+    "engine": {
+     "points": 55.0,
+     "points_before_hits": 55.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Pickford → Donnarumma"
+     ],
+     "captain": "Donnarumma",
+     "vice_captain": "Palmer",
+     "captain_points": 8.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1553.0,
+     "rank": 4,
+     "cumulative_rank": 5
+    },
+    "a": {
+     "points": 50.0,
+     "points_before_hits": 54.0,
+     "hit_points": -4.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Maximilian Kilman → Bogle",
+      "Santiago Ignacio Bueno → Bijol"
+     ],
+     "captain": "Semenyo",
+     "vice_captain": "Marc Cucurella Saseta",
+     "captain_points": 5.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1708.0,
+     "rank": 5,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 62.0,
+     "points_before_hits": 66.0,
+     "hit_points": -4.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Hincapie → Bijol",
+      "Jörgensen → Verbruggen"
+     ],
+     "captain": "Palmer",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1748.0,
+     "rank": 2,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 34,
+   "models": {
+    "champion": {
+     "points": 33.0,
+     "points_before_hits": 33.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "João Pedro → Mateta"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Virgil",
+     "captain_points": 5.0,
+     "vice_used": false,
+     "n_autosubs": 2,
+     "cumulative": 1590.0,
+     "rank": 5,
+     "cumulative_rank": 5
+    },
+    "challenger": {
+     "points": 57.0,
+     "points_before_hits": 61.0,
+     "hit_points": -4.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Calvert-Lewin → Watkins",
+      "Anthony Gordon → Rice"
+     ],
+     "captain": "Gabriel",
+     "vice_captain": "Virgil",
+     "captain_points": 8.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1706.0,
+     "rank": 2,
+     "cumulative_rank": 3
+    },
+    "engine": {
+     "points": 45.0,
+     "points_before_hits": 45.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "João Pedro → Mateta"
+     ],
+     "captain": "Mateta",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 2.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1598.0,
+     "rank": 4,
+     "cumulative_rank": 4
+    },
+    "a": {
+     "points": 60.0,
+     "points_before_hits": 60.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Bijol → Collins"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Gabriel",
+     "captain_points": 5.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1768.0,
+     "rank": 1,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 46.0,
+     "points_before_hits": 50.0,
+     "hit_points": -4.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Anthony Gordon → Szoboszlai",
+      "Palmer → Xavi"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Gabriel",
+     "captain_points": 5.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1794.0,
+     "rank": 3,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 35,
+   "models": {
+    "champion": {
+     "points": 40.0,
+     "points_before_hits": 40.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Leandro Trossard → Gibbs-White"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Donnarumma",
+     "captain_points": 5.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1630.0,
+     "rank": 5,
+     "cumulative_rank": 5
+    },
+    "challenger": {
+     "points": 56.0,
+     "points_before_hits": 56.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Virgil → Fofana"
+     ],
+     "captain": "Gabriel",
+     "vice_captain": "Pickford",
+     "captain_points": 6.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1762.0,
+     "rank": 3,
+     "cumulative_rank": 3
+    },
+    "engine": {
+     "points": 43.0,
+     "points_before_hits": 43.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Palmer → Gibbs-White"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Gibbs-White",
+     "captain_points": 5.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1641.0,
+     "rank": 4,
+     "cumulative_rank": 4
+    },
+    "a": {
+     "points": 65.0,
+     "points_before_hits": 65.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Šeško → Gyökeres"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Gabriel",
+     "captain_points": 5.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1833.0,
+     "rank": 1,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 59.0,
+     "points_before_hits": 59.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Kroupi.Jr → Abraham"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Gabriel",
+     "captain_points": 5.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1853.0,
+     "rank": 2,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 36,
+   "models": {
+    "champion": {
+     "points": 77.0,
+     "points_before_hits": 81.0,
+     "hit_points": -4.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Gibbs-White → Sarr",
+      "Gomes → Cherki"
+     ],
+     "captain": "Donnarumma",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 14.0,
+     "vice_used": false,
+     "n_autosubs": 2,
+     "cumulative": 1707.0,
+     "rank": 1,
+     "cumulative_rank": 4
+    },
+    "challenger": {
+     "points": 64.0,
+     "points_before_hits": 64.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Gudmundsson → O'Reilly"
+     ],
+     "captain": "Gabriel",
+     "vice_captain": "O'Reilly",
+     "captain_points": 11.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1826.0,
+     "rank": 3,
+     "cumulative_rank": 3
+    },
+    "engine": {
+     "points": 63.0,
+     "points_before_hits": 67.0,
+     "hit_points": -4.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Rice → Sarr",
+      "Gibbs-White → Cherki"
+     ],
+     "captain": "Cherki",
+     "vice_captain": "Mateta",
+     "captain_points": 5.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1704.0,
+     "rank": 4,
+     "cumulative_rank": 5
+    },
+    "a": {
+     "points": 66.0,
+     "points_before_hits": 70.0,
+     "hit_points": -4.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Rice → Bernardo Mota Veiga de Carvalho e Silva",
+      "Bassey → Lacroix"
+     ],
+     "captain": "Semenyo",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 12.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1899.0,
+     "rank": 2,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 59.0,
+     "points_before_hits": 63.0,
+     "hit_points": -4.0,
+     "n_transfers": 2,
+     "transfers": [
+      "Van den Berg → Lacroix",
+      "Xavi → Semenyo"
+     ],
+     "captain": "Semenyo",
+     "vice_captain": "B.Fernandes",
+     "captain_points": 12.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1912.0,
+     "rank": 5,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 37,
+   "models": {
+    "champion": {
+     "points": 52.0,
+     "points_before_hits": 52.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Anthony Gordon → Longstaff"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Donnarumma",
+     "captain_points": 9.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1759.0,
+     "rank": 4,
+     "cumulative_rank": 4
+    },
+    "challenger": {
+     "points": 58.0,
+     "points_before_hits": 58.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Gibbs-White → Semenyo"
+     ],
+     "captain": "Gabriel",
+     "vice_captain": "Pickford",
+     "captain_points": 6.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1884.0,
+     "rank": 2,
+     "cumulative_rank": 3
+    },
+    "engine": {
+     "points": 48.0,
+     "points_before_hits": 48.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Gomes → Longstaff"
+     ],
+     "captain": "Longstaff",
+     "vice_captain": "Raya",
+     "captain_points": 1.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1752.0,
+     "rank": 5,
+     "cumulative_rank": 5
+    },
+    "a": {
+     "points": 53.0,
+     "points_before_hits": 53.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Woltemade → Calvert-Lewin"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Gabriel",
+     "captain_points": 9.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1952.0,
+     "rank": 3,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 68.0,
+     "points_before_hits": 68.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Jarrod Bowen → Gyökeres"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Gabriel",
+     "captain_points": 9.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 1980.0,
+     "rank": 1,
+     "cumulative_rank": 1
+    }
+   }
+  },
+  {
+   "gameweek": 38,
+   "models": {
+    "champion": {
+     "points": 59.0,
+     "points_before_hits": 59.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Martinelli → Gibbs-White"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Donnarumma",
+     "captain_points": 14.0,
+     "vice_used": false,
+     "n_autosubs": 2,
+     "cumulative": 1818.0,
+     "rank": 2,
+     "cumulative_rank": 4
+    },
+    "challenger": {
+     "points": 45.0,
+     "points_before_hits": 45.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Pickford → Donnarumma"
+     ],
+     "captain": "Gabriel",
+     "vice_captain": "Donnarumma",
+     "captain_points": 1.0,
+     "vice_used": false,
+     "n_autosubs": 4,
+     "cumulative": 1929.0,
+     "rank": 5,
+     "cumulative_rank": 3
+    },
+    "engine": {
+     "points": 52.0,
+     "points_before_hits": 52.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Martinelli → Gibbs-White"
+     ],
+     "captain": "Gibbs-White",
+     "vice_captain": "Raya",
+     "captain_points": 9.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 1804.0,
+     "rank": 4,
+     "cumulative_rank": 5
+    },
+    "a": {
+     "points": 66.0,
+     "points_before_hits": 66.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Wilson → Garner"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Gabriel",
+     "captain_points": 14.0,
+     "vice_used": false,
+     "n_autosubs": 0,
+     "cumulative": 2018.0,
+     "rank": 1,
+     "cumulative_rank": 2
+    },
+    "a_odds": {
+     "points": 54.0,
+     "points_before_hits": 54.0,
+     "hit_points": 0.0,
+     "n_transfers": 1,
+     "transfers": [
+      "Lacroix → O'Reilly"
+     ],
+     "captain": "B.Fernandes",
+     "vice_captain": "Gabriel",
+     "captain_points": 14.0,
+     "vice_used": false,
+     "n_autosubs": 1,
+     "cumulative": 2034.0,
+     "rank": 3,
+     "cumulative_rank": 1
+    }
+   }
+  }
+ ],
+ "summary": [
+  {
+   "model": "champion",
+   "total": 1818.0,
+   "mean_per_gameweek": 47.84,
+   "gameweeks_won": 7,
+   "hit_points": -4.0,
+   "final_rank": 4,
+   "delta_vs_champion": null
+  },
+  {
+   "model": "challenger",
+   "total": 1929.0,
+   "mean_per_gameweek": 50.76,
+   "gameweeks_won": 7,
+   "hit_points": -32.0,
+   "final_rank": 3,
+   "delta_vs_champion": {
+    "mean": 2.92,
+    "ci_low": -2.05,
+    "ci_high": 7.87,
+    "total": 111.0,
+    "significant": false,
+    "gameweeks_better": 22,
+    "gameweeks_worse": 15
+   }
+  },
+  {
+   "model": "engine",
+   "total": 1804.0,
+   "mean_per_gameweek": 47.47,
+   "gameweeks_won": 4,
+   "hit_points": -4.0,
+   "final_rank": 5,
+   "delta_vs_champion": {
+    "mean": -0.37,
+    "ci_low": -3.55,
+    "ci_high": 2.71,
+    "total": -14.0,
+    "significant": false,
+    "gameweeks_better": 17,
+    "gameweeks_worse": 19
+   }
+  },
+  {
+   "model": "a",
+   "total": 2018.0,
+   "mean_per_gameweek": 53.11,
+   "gameweeks_won": 10,
+   "hit_points": -12.0,
+   "final_rank": 2,
+   "delta_vs_champion": {
+    "mean": 5.26,
+    "ci_low": 0.05,
+    "ci_high": 10.42,
+    "total": 200.0,
+    "significant": true,
+    "gameweeks_better": 22,
+    "gameweeks_worse": 15
+   }
+  },
+  {
+   "model": "a_odds",
+   "total": 2034.0,
+   "mean_per_gameweek": 53.53,
+   "gameweeks_won": 11,
+   "hit_points": -36.0,
+   "final_rank": 1,
+   "delta_vs_champion": {
+    "mean": 5.68,
+    "ci_low": -0.47,
+    "ci_high": 11.63,
+    "total": 216.0,
+    "significant": false,
+    "gameweeks_better": 22,
+    "gameweeks_worse": 16
+   }
+  }
+ ]
+}
