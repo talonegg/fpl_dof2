@@ -1,7 +1,7 @@
-import { DATA_BASE, fetchChallengerWeek, fetchMeta, fetchPlan, fetchPlayers, fetchRules, fetchSquad, fetchWeek } from "./api";
+import { DATA_BASE, fetchChallengerWeek, fetchMeta, fetchModels, fetchPlan, fetchPlayers, fetchRules, fetchSquad, fetchWeek } from "./api";
 import { warmPublishedCache } from "./offline";
 import { effectiveSquad } from "../components/squad/effective";
-import type { Meta, Plan, Players, Rules, Squad, Week } from "../contract/types";
+import type { Meta, Models, Plan, Players, Rules, Squad, Week } from "../contract/types";
 
 /**
  * Everything the published contract carries, loaded as one unit.
@@ -19,6 +19,8 @@ export interface PublishedData {
   plan: Plan | null;
   /** The challenger's week (champion/challenger). Null when it was not published. */
   challenger: Week | null;
+  /** The five-model comparison (models.json). Null when it was not published. */
+  models: Models | null;
   /** squad.json as published, before the in-season substitution, so either model's advice can be applied. */
   publishedSquad: Squad;
 }
@@ -46,8 +48,9 @@ export function loadPublishedData(): Promise<PublishedData> {
       fetchWeek(),
       fetchPlan(),
       fetchChallengerWeek(),
+      fetchModels(),
     ])
-      .then(([meta, rules, players, squad, week, plan, challenger]) => {
+      .then(([meta, rules, players, squad, week, plan, challenger, models]) => {
         // Fire-and-forget, deliberately after the data has resolved and never awaited: warming the
         // offline cache must not delay the first paint, and a failure to warm it must not turn a
         // successful load into an error (DP-15). See `offline.ts` for why the page does this rather
@@ -63,6 +66,7 @@ export function loadPublishedData(): Promise<PublishedData> {
           week,
           plan,
           challenger,
+          models,
           publishedSquad: squad,
         };
       })

@@ -72,7 +72,7 @@ describe("warmPublishedCache", () => {
     const result = await warmPublishedCache({ dataBase, cacheStorage: storage });
 
     expect(result.failed).toEqual(["week", "plan"]);
-    expect(result.added).toEqual(["meta", "rules", "players", "squad", "week_challenger"]);
+    expect(result.added).toEqual(["meta", "rules", "players", "squad", "week_challenger", "models"]);
   });
 
   it("reports an unsupported environment rather than throwing", async () => {
@@ -105,7 +105,7 @@ describe("warmPublishedCache", () => {
   it("warms the six eager artefacts and not the lazy ones", () => {
     // `history.json` fully populated is larger than the other six combined (DL-37). If it ever ends
     // up in this list, a first visit pays for it whether or not the reader opens a player page.
-    expect([...WARMED_ARTEFACTS]).toEqual(["meta", "rules", "players", "squad", "week", "plan", "week_challenger"]);
+    expect([...WARMED_ARTEFACTS]).toEqual(["meta", "rules", "players", "squad", "week", "plan", "week_challenger", "models"]);
     expect(WARMED_ARTEFACTS).not.toContain("history");
     expect(WARMED_ARTEFACTS).not.toContain("fixtures");
   });

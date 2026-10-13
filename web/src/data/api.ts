@@ -5,6 +5,7 @@ import type {
   League,
   Log,
   Meta,
+  Models,
   Plan,
   Players,
   Rules,
@@ -221,6 +222,24 @@ export async function fetchChallengerWeek(): Promise<Week | null> {
     if (contentType && !contentType.includes("json")) return null;
     const body = (await res.json()) as Week;
     return body && typeof body === "object" && "deadline" in body ? body : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The five-model comparison (`models.json`). **Never throws**, for the same reasons the challenger
+ * does not: it is optional, absent until the prospective harness records a decision, and must
+ * never take the champion down with it.
+ */
+export async function fetchModels(): Promise<Models | null> {
+  try {
+    const res = await fetch(`${DATA_BASE}/models.json`);
+    if (!res.ok) return null;
+    const contentType = res.headers.get("content-type") ?? "";
+    if (contentType && !contentType.includes("json")) return null;
+    const body = (await res.json()) as Models;
+    return body && typeof body === "object" && Array.isArray(body.gameweeks) ? body : null;
   } catch {
     return null;
   }

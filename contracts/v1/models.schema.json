@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/talonegg/fpl_dof2/contracts/v1/models.schema.json",
+  "title": "Models",
+  "description": "The five frozen models side by side (generalises week_challenger.json). Per gameweek: each model's pre-deadline advice, recorded before the deadline by the prospective harness, and — once the gameweek is finished — the points it actually scored (final XI after auto-subs, armband with vice fallback, minus hits). Live advice is the champion's alone; every other model is a comparison. Absent until the harness has recorded a decision, so like log.json its absence is a normal published state.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "season", "champion", "frozen", "models", "gameweeks", "season_to_date"],
+  "properties": {
+    "contract_version": { "type": "integer", "const": 1 },
+    "season": { "type": "string" },
+    "champion": { "type": "string", "description": "The model id whose advice is live." },
+    "frozen": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tag", "code_commit"],
+      "properties": {
+        "tag": { "type": ["string", "null"] },
+        "code_commit": { "type": ["string", "null"] }
+      }
+    },
+    "models": { "type": "array", "items": { "$ref": "#/$defs/model_info" } },
+    "gameweeks": { "type": "array", "items": { "$ref": "#/$defs/model_gameweek" } },
+    "season_to_date": { "type": "array", "items": { "$ref": "#/$defs/model_season" } }
+  },
+  "$defs": {
+    "model_info": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "key", "label", "role", "description"],
+      "properties": {
+        "id": { "type": "string", "enum": ["champion", "challenger", "engine", "a", "a_odds"] },
+        "key": { "type": "string", "description": "The harness's model key (C3, C1, engine, A, A_odds)." },
+        "label": { "type": "string" },
+        "role": { "type": "string", "enum": ["champion", "challenger", "comparison"] },
+        "description": { "type": "string" }
+      }
+    },
+    "model_transfer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["out", "out_name", "in", "in_name"],
+      "properties": {
+        "out": { "type": ["integer", "null"] },
+        "out_name": { "type": "string" },
+        "in": { "type": ["integer", "null"] },
+        "in_name": { "type": "string" }
+      }
+    },
+    "model_advice": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["transfers", "n_transfers", "hit_points", "starting", "starting_names", "bench_order", "bench_names", "captain", "captain_name", "vice_captain", "vice_name", "expected_points"],
+      "properties": {
+        "transfers": { "type": "array", "items": { "$ref": "#/$defs/model_transfer" } },
+        "n_transfers": { "type": "integer", "minimum": 0 },
+        "hit_points": { "type": "integer", "maximum": 0 },
+        "starting": { "type": "array", "items": { "type": "integer" } },
+        "starting_names": { "type": "array", "items": { "type": "string" } },
+        "bench_order": { "type": "array", "items": { "type": "integer" } },
+        "bench_names": { "type": "array", "items": { "type": "string" } },
+        "captain": { "type": ["integer", "null"] },
+        "captain_name": { "type": "string" },
+        "vice_captain": { "type": ["integer", "null"] },
+        "vice_name": { "type": "string" },
+        "expected_points": { "type": "number", "description": "xPts of the XI with the armband, net of hits." }
+      }
+    },
+    "model_actual": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["points", "points_before_hits", "hit_points", "n_autosubs", "vice_used", "armband_points"],
+      "properties": {
+        "points": { "type": "number" },
+        "points_before_hits": { "type": "number" },
+        "hit_points": { "type": "number" },
+        "n_autosubs": { "type": "integer", "minimum": 0 },
+        "vice_used": { "type": "boolean" },
+        "armband_points": { "type": "number" }
+      }
+    },
+    "model_gameweek": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gameweek", "deadline", "decided_at", "advice", "actual"],
+      "properties": {
+        "gameweek": { "type": "integer", "minimum": 1 },
+        "deadline": { "type": ["string", "null"] },
+        "decided_at": { "type": ["string", "null"] },
+        "advice": { "type": "object", "additionalProperties": { "$ref": "#/$defs/model_advice" } },
+        "actual": {
+          "type": ["object", "null"],
+          "description": "Null until the gameweek is finished and scored.",
+          "additionalProperties": { "$ref": "#/$defs/model_actual" }
+        }
+      }
+    },
+    "model_season": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "gameweeks_scored", "total", "per_gameweek"],
+      "properties": {
+        "model": { "type": "string" },
+        "gameweeks_scored": { "type": "integer", "minimum": 0 },
+        "total": { "type": "number" },
+        "per_gameweek": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["gameweek", "points", "cumulative"],
+            "properties": {
+              "gameweek": { "type": "integer" },
+              "points": { "type": "number" },
+              "cumulative": { "type": "number" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -46,6 +46,9 @@ ARTEFACTS: dict[str, str] = {
     # picks for it, so like `league` its absence is a normal published state. Fetched lazily by
     # `/log` alone.
     "log": "log.schema.json",
+    # The five-model comparison (generalises week_challenger.json). Written only when the
+    # prospective harness has recorded a decision, so its absence is a normal published state.
+    "models": "models.schema.json",
 }
 
 

@@ -844,3 +844,79 @@ export interface Log {
   };
   gameweeks: LogGameweek[];
 }
+
+export interface ModelInfo {
+  id: "champion" | "challenger" | "engine" | "a" | "a_odds";
+  /** The harness's model key (C3, C1, engine, A, A_odds). */
+  key: string;
+  label: string;
+  role: "champion" | "challenger" | "comparison";
+  description: string;
+}
+
+export interface ModelTransfer {
+  out: number | null;
+  out_name: string;
+  in: number | null;
+  in_name: string;
+}
+
+export interface ModelAdvice {
+  transfers: ModelTransfer[];
+  n_transfers: number;
+  hit_points: number;
+  starting: number[];
+  starting_names: string[];
+  bench_order: number[];
+  bench_names: string[];
+  captain: number | null;
+  captain_name: string;
+  vice_captain: number | null;
+  vice_name: string;
+  /** xPts of the XI with the armband, net of hits. */
+  expected_points: number;
+}
+
+export interface ModelActual {
+  points: number;
+  points_before_hits: number;
+  hit_points: number;
+  n_autosubs: number;
+  vice_used: boolean;
+  armband_points: number;
+}
+
+export interface ModelGameweek {
+  gameweek: number;
+  deadline: string | null;
+  decided_at: string | null;
+  advice: Record<string, ModelAdvice>;
+  /** Null until the gameweek is finished and scored. */
+  actual: Record<string, ModelActual> | null;
+}
+
+export interface ModelSeason {
+  model: string;
+  gameweeks_scored: number;
+  total: number;
+  per_gameweek: {
+    gameweek: number;
+    points: number;
+    cumulative: number;
+  }[];
+}
+
+/** The five frozen models side by side (generalises week_challenger.json). Per gameweek: each model's pre-deadline advice, recorded before the deadline by the prospective harness, and — once the gameweek is finished — the points it actually scored (final XI after auto-subs, armband with vice fallback, minus hits). Live advice is the champion's alone; every other model is a comparison. Absent until the harness has recorded a decision, so like log.json its absence is a normal published state. */
+export interface Models {
+  contract_version: 1;
+  season: string;
+  /** The model id whose advice is live. */
+  champion: string;
+  frozen: {
+    tag: string | null;
+    code_commit: string | null;
+  };
+  models: ModelInfo[];
+  gameweeks: ModelGameweek[];
+  season_to_date: ModelSeason[];
+}

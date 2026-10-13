@@ -2,7 +2,8 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from "react";
 import { loadPublishedData, resetPublishedDataCache } from "./published";
 import type { PublishedData } from "./published";
-import { readModelChoice, storeModelChoice } from "./model";
+import { MODEL_CHOICES, readModelChoice, storeModelChoice } from "./model";
+import type { ModelGameweek } from "../contract/types";
 import type { ModelChoice } from "./model";
 import { effectiveSquad } from "../components/squad/effective";
 
@@ -113,19 +114,42 @@ export function withModel(data: PublishedData, model: ModelChoice): PublishedDat
   };
 }
 
-/** The model actually in effect, and whether the challenger is available. */
+/** Which models have something published to show. The champion always does. */
+export function availableModels(data: PublishedData): ModelChoice[] {
+  const inModels = new Set((data.models?.models ?? []).map((m) => m.id));
+  const latest = latestModelGameweek(data);
+  return MODEL_CHOICES.filter((m) => {
+    if (m === "champion") return true;
+    if (m === "challenger") return data.challenger !== null;
+    return inModels.has(m) && latest?.advice[m] !== undefined;
+  });
+}
+
+/** The most recent gameweek the harness recorded advice for, or null. */
+export function latestModelGameweek(data: PublishedData): ModelGameweek | null {
+  const gws = data.models?.gameweeks ?? [];
+  return gws.length > 0 ? gws[gws.length - 1] : null;
+}
+
+/** The model actually in effect, which models are available, and which one `week` is from. */
 export function useModel(): {
   model: ModelChoice;
   effective: ModelChoice;
+  /** The model the week (and squad) on screen came from: the champion unless C1 is chosen. */
+  weekModel: "champion" | "challenger";
   setModel: (model: ModelChoice) => void;
+  available: ModelChoice[];
   challengerAvailable: boolean;
 } {
   const { state, model, setModel } = useDataState();
-  const challengerAvailable = state.status === "ready" && state.data.challenger !== null;
+  const available = state.status === "ready" ? availableModels(state.data) : ["champion" as const];
+  const effective = available.includes(model) ? model : "champion";
   return {
     model,
-    effective: model === "challenger" && challengerAvailable ? "challenger" : "champion",
+    effective,
+    weekModel: effective === "challenger" ? "challenger" : "champion",
     setModel,
-    challengerAvailable,
+    available,
+    challengerAvailable: available.includes("challenger"),
   };
 }

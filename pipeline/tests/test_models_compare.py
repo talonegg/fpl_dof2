@@ -1,0 +1,145 @@
+"""The five-model comparison artefact: assembled from the harness record, never re-scored."""
+
+from __future__ import annotations
+
+import json
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any
+
+import pytest
+
+from fpl_dof.config.models import ModelsArtefactConfig
+from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
+from fpl_dof.publish.models_compare import MODEL_REGISTRY, build_models
+from fpl_dof.stages import publish
+
+
+def _pick(cap: int, xp: float, hit: int = 0) -> dict[str, Any]:
+    return {
+        "transfers": [{"out": 101, "out_name": "Out", "in": 111, "in_name": "In"}] if hit else [],
+        "n_transfers": 2 if hit else 0,
+        "hit_points": hit,
+        "xi": list(range(100, 111)),
+        "xi_names": [f"P{i}" for i in range(11)],
+        "bench_order": [112, 113, 114],
+        "bench_gk": 115,
+        "bench_names": ["GK2", "B1", "B2", "B3"],
+        "captain": cap,
+        "captain_name": f"P{cap - 100}",
+        "vice": 100,
+        "vice_name": "P0",
+        "xp_xi": xp,
+    }
+
+
+def _decision(gw: int) -> dict[str, Any]:
+    keys = [k for k, *_ in MODEL_REGISTRY]
+    return {
+        "gw": gw,
+        "deadline": f"2026-10-{gw:02d}T09:00:00+00:00",
+        "decided_at": f"2026-10-{gw:02d}T01:00:00+00:00",
+        "code_commit": "79e080c",
+        "code_to_element": {str(c): c - 99 for c in range(100, 116)},
+        "models": {k: _pick(105, 50.0 + i, hit=-4 if k == "C1" else 0) for i, k in enumerate(keys)}
+        | {"mystery": _pick(101, 1.0)},
+    }
+
+
+def _score(gw: int, model: str, points: float) -> dict[str, Any]:
+    return {
+        "gw": gw,
+        "model": model,
+        "points": points,
+        "points_before_hits": points + 4 if model == "C1" else points,
+        "hit_points": -4 if model == "C1" else 0,
+        "n_autosubs": 1,
+        "vice_used": "False",
+        "armband_pts": 12,
+    }
+
+
+def _payload() -> dict[str, Any]:
+    payload = build_models(
+        season="2026/27",
+        decisions=[_decision(8), _decision(7)],
+        scores=[_score(7, "C3", 60), _score(7, "C1", 52), _score(7, "A", 70), _score(9, "C3", 1)],
+        frozen_tag="frozen-2026-10-13",
+        contract_version=CONTRACT_VERSION,
+    )
+    assert payload is not None
+    return payload
+
+
+def test_none_without_decisions() -> None:
+    assert (
+        build_models(season="s", decisions=[], scores=[], frozen_tag=None, contract_version=1)
+        is None
+    )
+
+
+def test_payload_matches_schema() -> None:
+    Contract(root=find_contracts_root()).validate("models", _payload())
+
+
+def test_all_five_models_in_display_order_champion_first() -> None:
+    p = _payload()
+    assert [m["id"] for m in p["models"]] == ["champion", "challenger", "engine", "a", "a_odds"]
+    assert p["champion"] == "champion"
+    assert p["models"][0]["role"] == "champion"
+    assert {m["role"] for m in p["models"][2:]} == {"comparison"}
+
+
+def test_advice_maps_codes_to_element_ids_and_keeps_hits() -> None:
+    gw7 = _payload()["gameweeks"][0]
+    assert gw7["gameweek"] == 7
+    champ = gw7["advice"]["champion"]
+    assert champ["starting"] == list(range(1, 12))
+    assert champ["bench_order"] == [16, 13, 14, 15]  # GK first, then outfield order
+    assert champ["captain"] == 6 and champ["vice_captain"] == 1
+    assert gw7["advice"]["challenger"]["hit_points"] == -4
+    assert gw7["advice"]["challenger"]["transfers"][0] == {
+        "out": 2,
+        "out_name": "Out",
+        "in": 12,
+        "in_name": "In",
+    }
+    assert "mystery" not in gw7["advice"]
+
+
+def test_actuals_and_season_to_date() -> None:
+    p = _payload()
+    gw7, gw8 = p["gameweeks"]
+    assert gw7["actual"]["challenger"]["points"] == 52
+    assert gw7["actual"]["challenger"]["hit_points"] == -4
+    assert gw8["actual"] is None  # not finished yet
+    totals = {s["model"]: s for s in p["season_to_date"]}
+    assert totals["a"]["total"] == 70 and totals["a"]["gameweeks_scored"] == 1
+    assert totals["engine"]["gameweeks_scored"] == 0
+    # A score for a gameweek with no recorded advice is unattributable and ignored.
+    assert totals["champion"]["per_gameweek"] == [{"gameweek": 7, "points": 60, "cumulative": 60}]
+
+
+def _ctx(source: Path | None) -> Any:
+    cfg = ModelsArtefactConfig(source_dir=str(source) if source else None)
+    return SimpleNamespace(config=SimpleNamespace(publish=SimpleNamespace(models=cfg)))
+
+
+def test_stage_reads_harness_dir(tmp_path: Path) -> None:
+    (tmp_path / "decisions").mkdir()
+    (tmp_path / "decisions" / "GW7.json").write_text(json.dumps(_decision(7)))
+    (tmp_path / "scores.csv").write_text(
+        "gw,model,points,points_before_hits,hit_points,n_autosubs,vice_used,armband_pts\n"
+        "7,C3,61,61,0,0,True,0\n"
+    )
+    payload = publish._models(_ctx(tmp_path), "2026/27")
+    assert payload is not None
+    assert payload["gameweeks"][0]["actual"]["champion"]["vice_used"] is True
+
+
+@pytest.mark.parametrize("make", ["unset", "empty", "corrupt"])
+def test_stage_returns_none_when_absent_or_bad(tmp_path: Path, make: str) -> None:
+    if make == "corrupt":
+        (tmp_path / "decisions").mkdir()
+        (tmp_path / "decisions" / "GW7.json").write_text("{not json")
+    assert publish._models(_ctx(None if make == "unset" else tmp_path), "2026/27") is None
