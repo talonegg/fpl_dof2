@@ -2,6 +2,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import { useDataState } from "../data/DataProvider";
 import { Header } from "../components/Header";
 import { ThemeToggle } from "./ThemeToggle";
+import { LockButton } from "../gate/PasswordGate";
 import { NAV_ITEMS } from "../routes/nav";
 import { ModelSelector } from "../components/models/ModelSelector";
 
@@ -40,6 +41,7 @@ export function AppLayout() {
             </ul>
           </nav>
           <ThemeToggle />
+          <LockButton />
         </div>
       </header>
 

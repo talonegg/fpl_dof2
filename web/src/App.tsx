@@ -15,6 +15,8 @@ import { HealthRoute } from "./routes/HealthRoute";
 import { ModelsRoute } from "./routes/ModelsRoute";
 import { HistoryRoute } from "./routes/HistoryRoute";
 import { NotFoundRoute } from "./routes/NotFoundRoute";
+import { PasswordGate } from "./gate/PasswordGate";
+import { BUILD_PASSWORD_HASH } from "./gate/hash";
 import "./App.css";
 
 /**
@@ -59,15 +61,18 @@ export function AppRoutes() {
 export function App() {
   return (
     <ThemeProvider>
-      <DataProvider>
-        <HashRouter
-          // Opt in to the v6→v7 behaviour changes now, while there are six routes rather than
-          // twelve. Both are behavioural, not cosmetic, and both are cheap to adopt here.
-          future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
-        >
-          <AppRoutes />
-        </HashRouter>
-      </DataProvider>
+      {/* The gate sits above DataProvider: nothing under data/v1 is fetched before unlock. */}
+      <PasswordGate expectedHash={BUILD_PASSWORD_HASH}>
+        <DataProvider>
+          <HashRouter
+            // Opt in to the v6→v7 behaviour changes now, while there are six routes rather than
+            // twelve. Both are behavioural, not cosmetic, and both are cheap to adopt here.
+            future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
+          >
+            <AppRoutes />
+          </HashRouter>
+        </DataProvider>
+      </PasswordGate>
     </ThemeProvider>
   );
 }
