@@ -8,7 +8,7 @@ import type { Phase, Season } from "./season";
 
 const pts = (v: number) => String(Math.round(v));
 
-export const PHASE_LABELS: Record<Phase, string> = { replay: "Replay", prospective: "Prospective" };
+export const PHASE_LABELS: Record<Phase, string> = { replay: "Replay", prospective: "Live" };
 const PHASE_HELP: Record<Phase, string> = {
   replay: "Retrospective: frozen models run after the gameweek was played",
   prospective: "Picks recorded before the deadline, scored afterwards",
@@ -77,7 +77,7 @@ function SeasonChart({ season }: { season: Season }) {
           </span>
         ))}
         <span className="history-axis-note" data-testid="season-line-legend">
-          Shaded, faint thin line = replay · solid line with dots = prospective
+          Shaded, faint thin line = replay · solid line with dots = live
         </span>
       </figcaption>
     </figure>
@@ -97,7 +97,7 @@ export function SeasonView({ replay, models }: { replay: SeasonReplay | null; mo
       <p className="history-asof" data-testid="season-asof">
         As of GW{latest}
         {asOf.replay ? ` · GW1–${asOf.replay} replay` : ""}
-        {asOf.prospective ? ` · GW${(asOf.replay ?? 0) + 1}–${asOf.prospective} prospective` : " · no prospective gameweek scored yet"}
+        {asOf.prospective ? ` · GW${(asOf.replay ?? 0) + 1}–${asOf.prospective} live` : " · no live gameweek scored yet"}
       </p>
       <ul className="season-legend" data-testid="season-legend">
         <li>
@@ -123,7 +123,7 @@ export function SeasonView({ replay, models }: { replay: SeasonReplay | null; mo
             <tr>
               <th scope="col">Model</th>
               <th scope="col">Replay</th>
-              <th scope="col">Prospective</th>
+              <th scope="col">Live</th>
               <th scope="col">Total</th>
             </tr>
           </thead>
@@ -179,11 +179,6 @@ export function SeasonView({ replay, models }: { replay: SeasonReplay | null; mo
         </table>
       </div>
 
-      {/* Hook for Alchemy's per-player xP-vs-actual accuracy scoring. Schema not defined yet: do not guess it. */}
-      <section className="season-accuracy" data-testid="season-accuracy-placeholder" aria-labelledby="season-accuracy-heading">
-        <h3 id="season-accuracy-heading">Forecast accuracy (xP vs actual)</h3>
-        <p className="models-note">Coming later: per-player expected-vs-actual points accuracy for each model.</p>
-      </section>
     </section>
   );
 }
