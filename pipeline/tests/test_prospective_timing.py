@@ -44,6 +44,10 @@ FROZEN_CONFIG_SHA256 = {
 }
 ORIGINAL_MANIFEST_BODY = "25952fc2864c95d5102afd132ae7dfb5539a0bf0c02a8ccc5a2525036de7c2e8"
 REFROZEN_MANIFEST_BODY = "edc07c0ed2ab60edc41a5872e1502c2b189f07435f22c59585f76232049829fa"
+#: Second harness-only re-freeze (xP accuracy: decide.py hashes + keeps the xP files).
+XP_REFROZEN_MANIFEST_BODY = "312f2b0db78ccb2238945e6578bbce164c581b1348e5ac01519a7299a29cbcdd"
+OLD_DECIDE = "d85949d15ae370d3ae14e2d31c5ee228c71eeaf31892cddb65496ad706418f37"
+NEW_DECIDE = "a3b18858c92416624cb83d4f3d9d98522ddafdffd0fbfb2af09b3c76505496de"
 OLD_LIVE_FRAME = "fac8584647ad8d64f67010cd3b425be09a6c638126cbf3afa38836b42c7631f9"
 NEW_LIVE_FRAME = "cf432ea97b0b21d9b71fd8097d312bc79de88adb36ce440b1c9f3facb52d1a3e"
 
@@ -88,9 +92,12 @@ def test_refreeze_keeps_every_model_config_hash(manifest: dict[str, Any]) -> Non
 
 def test_refreeze_is_recorded_and_the_manifest_is_self_consistent(manifest: dict[str, Any]) -> None:
     assert manifest_body_ok(manifest)
-    assert manifest["manifest_body_sha256"] == REFROZEN_MANIFEST_BODY
+    assert manifest["manifest_body_sha256"] == XP_REFROZEN_MANIFEST_BODY
     assert manifest["frozen_tag"] == "frozen-2026-10-13"
-    (entry,) = manifest["refreezes"]
+    entry, xp_entry = manifest["refreezes"]
+    assert xp_entry["manifest_body_sha256"]["old"] == REFROZEN_MANIFEST_BODY
+    assert xp_entry["harness_files"] == {"decide.py": {"old": OLD_DECIDE, "new": NEW_DECIDE}}
+    assert manifest["harness_files_sha256"]["decide.py"] == NEW_DECIDE
     assert entry["manifest_body_sha256"]["old"] == ORIGINAL_MANIFEST_BODY
     assert entry["harness_files"] == {
         "prospective/live_frame.py": {"old": OLD_LIVE_FRAME, "new": NEW_LIVE_FRAME}

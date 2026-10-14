@@ -215,6 +215,13 @@ jobs:
         working-directory: /workspace/fpl_prospective
         run: /workspace/fpl_dof2/.venv/bin/python score.py
 
+      # Per-player xP accuracy (prospective/PREREG_C1_vs_C3.md). Not frozen code and never a gate:
+      # it reads the hashed xP files decide.py kept and writes xp_scores*.csv / xp_calibration.csv.
+      - name: Score per-player xP accuracy (score_xp.py)
+        if: steps.plan.outputs.score == 'true'
+        continue-on-error: true
+        run: python pipeline/scripts/score_xp.py
+
       - name: Decide the next gameweek (frozen decide.py)
         if: steps.window.outputs.decide == 'true'
         working-directory: /workspace/fpl_prospective
@@ -253,6 +260,9 @@ jobs:
             /workspace/fpl_prospective/status/
             /workspace/fpl_prospective/scores.csv
             /workspace/fpl_prospective/report.md
+            /workspace/fpl_prospective/xp_scores.csv
+            /workspace/fpl_prospective/xp_scores_paired.csv
+            /workspace/fpl_prospective/xp_calibration.csv
           if-no-files-found: ignore
           retention-days: 7
 

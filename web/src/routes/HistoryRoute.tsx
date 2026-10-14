@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useState } from "react";
-import { fetchModelsHistory } from "../data/api";
-import type { ModelsHistory } from "../contract/types";
+import { fetchModels, fetchModelsHistory, fetchSeasonReplay } from "../data/api";
+import type { Models, ModelsHistory } from "../contract/types";
+import type { SeasonReplay } from "../components/history/season";
 import { ModelHistoryView } from "../components/history/ModelHistoryView";
+import { SeasonView } from "../components/history/SeasonView";
 
 type State = { status: "loading" } | { status: "absent" } | { status: "ready"; history: ModelsHistory };
 
@@ -24,6 +26,18 @@ export function HistoryRoute() {
     };
   }, [attempt]);
 
+  // The current season is optional: replay (static) + prospective (models.json). Never blocks 2025/26.
+  const [current, setCurrent] = useState<{ replay: SeasonReplay | null; models: Models | null }>({ replay: null, models: null });
+  useEffect(() => {
+    let cancelled = false;
+    void Promise.all([fetchSeasonReplay(), fetchModels()]).then(([replay, models]) => {
+      if (!cancelled) setCurrent({ replay, models });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   if (state.status === "loading") {
     return (
       <section data-testid="history-loading">
@@ -42,5 +56,10 @@ export function HistoryRoute() {
       </section>
     );
   }
-  return <ModelHistoryView history={state.history} />;
+  return (
+    <>
+      <SeasonView replay={current.replay} models={current.models} />
+      <ModelHistoryView history={state.history} />
+    </>
+  );
 }

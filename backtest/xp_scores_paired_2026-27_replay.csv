@@ -1,0 +1,10 @@
+season,subset,metric,model,comparator,family,n_gw,mean_delta,sd_delta,p_signflip,p_holm
+2026/27,all,mae,C1,C3,primary,6,0.166484,0.134423,0.059947,0.059947
+2026/27,all,mae,engine,C3,secondary,6,0.064071,0.009118,0.030248,0.090745
+2026/27,all,mae,A,C1,secondary,6,-0.112108,0.127709,0.124394,0.124394
+2026/27,avail_prior,mae,C1,C3,primary,6,0.223746,0.185304,0.059947,0.059947
+2026/27,avail_prior,mae,engine,C3,secondary,6,0.083378,0.008064,0.030248,0.090745
+2026/27,avail_prior,mae,A,C1,secondary,6,-0.151557,0.161610,0.124394,0.124394
+2026/27,top50_union,mae,C1,C3,primary,6,0.600221,0.656125,0.090445,0.090445
+2026/27,top50_union,mae,engine,C3,secondary,6,0.091775,0.035159,0.030248,0.090745
+2026/27,top50_union,mae,A,C1,secondary,6,-0.387332,0.304203,0.059947,0.119894
