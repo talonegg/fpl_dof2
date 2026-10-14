@@ -1,0 +1,169 @@
+{
+ "contract_version": 1,
+ "season": "2026/27",
+ "kind": "replay",
+ "caveat": "Replay, not live: the frozen models (tag frozen-2026-10-13) were run after these gameweeks had been played, seeing only data from before each deadline. These picks were never recorded before a deadline.",
+ "frozen_tag": "frozen-2026-10-13 (79e080c)",
+ "models": [
+  "champion",
+  "challenger",
+  "engine",
+  "a"
+ ],
+ "missing_models": {
+  "a_odds": "not in the GW1-6 replay run"
+ },
+ "as_of_gameweek": 6,
+ "gameweeks": [
+  {
+   "gameweek": 1,
+   "models": {
+    "engine": {
+     "points": 38.0,
+     "hit_points": 0.0,
+     "captain": "Gibbs-White"
+    },
+    "champion": {
+     "points": 43.0,
+     "hit_points": 0.0,
+     "captain": "B.Fernandes"
+    },
+    "challenger": {
+     "points": 49.0,
+     "hit_points": 0.0,
+     "captain": "Gabriel"
+    },
+    "a": {
+     "points": 37.0,
+     "hit_points": 0.0,
+     "captain": "Saka"
+    }
+   }
+  },
+  {
+   "gameweek": 2,
+   "models": {
+    "engine": {
+     "points": 81.0,
+     "hit_points": 0.0,
+     "captain": "Tzolakis"
+    },
+    "champion": {
+     "points": 112.0,
+     "hit_points": 0.0,
+     "captain": "B.Fernandes"
+    },
+    "challenger": {
+     "points": 62.0,
+     "hit_points": 0.0,
+     "captain": "Gabriel"
+    },
+    "a": {
+     "points": 66.0,
+     "hit_points": 0.0,
+     "captain": "Saka"
+    }
+   }
+  },
+  {
+   "gameweek": 3,
+   "models": {
+    "engine": {
+     "points": 50.0,
+     "hit_points": 0.0,
+     "captain": "Tzolakis"
+    },
+    "champion": {
+     "points": 43.0,
+     "hit_points": 0.0,
+     "captain": "B.Fernandes"
+    },
+    "challenger": {
+     "points": 53.0,
+     "hit_points": 0.0,
+     "captain": "Gabriel"
+    },
+    "a": {
+     "points": 45.0,
+     "hit_points": 0.0,
+     "captain": "Saka"
+    }
+   }
+  },
+  {
+   "gameweek": 4,
+   "models": {
+    "engine": {
+     "points": 45.0,
+     "hit_points": 0.0,
+     "captain": "Tzolakis"
+    },
+    "champion": {
+     "points": 38.0,
+     "hit_points": 0.0,
+     "captain": "B.Fernandes"
+    },
+    "challenger": {
+     "points": 57.0,
+     "hit_points": 0.0,
+     "captain": "Gabriel"
+    },
+    "a": {
+     "points": 49.0,
+     "hit_points": 0.0,
+     "captain": "Saka"
+    }
+   }
+  },
+  {
+   "gameweek": 5,
+   "models": {
+    "engine": {
+     "points": 61.0,
+     "hit_points": 0.0,
+     "captain": "Muñoz"
+    },
+    "champion": {
+     "points": 58.0,
+     "hit_points": 0.0,
+     "captain": "B.Fernandes"
+    },
+    "challenger": {
+     "points": 51.0,
+     "hit_points": 0.0,
+     "captain": "Gabriel"
+    },
+    "a": {
+     "points": 58.0,
+     "hit_points": 0.0,
+     "captain": "Saka"
+    }
+   }
+  },
+  {
+   "gameweek": 6,
+   "models": {
+    "engine": {
+     "points": 43.0,
+     "hit_points": 0.0,
+     "captain": "Haaland"
+    },
+    "champion": {
+     "points": 36.0,
+     "hit_points": 0.0,
+     "captain": "B.Fernandes"
+    },
+    "challenger": {
+     "points": 36.0,
+     "hit_points": -4.0,
+     "captain": "B.Fernandes"
+    },
+    "a": {
+     "points": 45.0,
+     "hit_points": 0.0,
+     "captain": "Saka"
+    }
+   }
+  }
+ ]
+}

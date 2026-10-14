@@ -7,6 +7,7 @@ import type {
   Meta,
   Models,
   ModelsHistory,
+  SeasonReplay,
   Plan,
   Players,
   Rules,
@@ -260,6 +261,23 @@ export async function fetchModelsHistory(): Promise<ModelsHistory | null> {
     return body && typeof body === "object" && Array.isArray(body.summary) && Array.isArray(body.gameweeks)
       ? body
       : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The checked-in 2026/27 GW1–6 replay. Static, shipped with the app. */
+export const SEASON_REPLAY_URL = `${import.meta.env.BASE_URL}static/models_history_2627_replay.json`;
+
+/** The 2026/27 replay. **Never throws**: null when missing, non-JSON or malformed. */
+export async function fetchSeasonReplay(): Promise<SeasonReplay | null> {
+  try {
+    const res = await fetch(SEASON_REPLAY_URL);
+    if (!res.ok) return null;
+    const contentType = res.headers.get("content-type") ?? "";
+    if (contentType && !contentType.includes("json")) return null;
+    const body = (await res.json()) as SeasonReplay;
+    return body && typeof body === "object" && body.kind === "replay" && Array.isArray(body.gameweeks) ? body : null;
   } catch {
     return null;
   }
