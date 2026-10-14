@@ -55,7 +55,7 @@
   "frozen_at": "2026-10-13T12:05:47.147470+00:00",
   "frozen_tag": "frozen-2026-10-13",
   "harness_files_sha256": {
-    "decide.py": "d85949d15ae370d3ae14e2d31c5ee228c71eeaf31892cddb65496ad706418f37",
+    "decide.py": "a3b18858c92416624cb83d4f3d9d98522ddafdffd0fbfb2af09b3c76505496de",
     "prospective/common.py": "fa82e3072c79bc528a242b125e70e632178f56c27dfc154e8f7de3c161e5ce02",
     "prospective/freeze_lib.py": "1bdcf64f8fe22c94c2043a9fa7003e0d57bed03f12c449a21c5d60ff419ab1fb",
     "prospective/live_frame.py": "cf432ea97b0b21d9b71fd8097d312bc79de88adb36ce440b1c9f3facb52d1a3e",
@@ -66,7 +66,7 @@
     "score.py": "c0b486bf6f06ed7787ac52072d083aae6591cd8d8f0b36b88ef79f389887f66a",
     "verify.py": "d0775ad0dd0d2b3d22ee0e0d1f8f0d7e21ca16f4f59fe79824ae96e00a96231a"
   },
-  "manifest_body_sha256": "edc07c0ed2ab60edc41a5872e1502c2b189f07435f22c59585f76232049829fa",
+  "manifest_body_sha256": "312f2b0db78ccb2238945e6578bbce164c581b1348e5ac01519a7299a29cbcdd",
   "models": {
     "A": {
       "config": {
@@ -86,7 +86,7 @@
         "backtest/vector_models.py": "5f54691d7d8fabda48ad035cd152afbf41271c13a168ab99b9edc0b8a0ef36a4"
       },
       "name": "A",
-      "source_sha256": "562d4477aa73fccf9294ecce6750b044b551acb60f3bd071b67c2becbefe940f"
+      "source_sha256": "b2b56f1b3b5a78c18890b33fd2afdc483e4ebe5697d979f8919850f491f88245"
     },
     "A_odds": {
       "config": {
@@ -114,7 +114,7 @@
         "backtest/vector_models.py": "5f54691d7d8fabda48ad035cd152afbf41271c13a168ab99b9edc0b8a0ef36a4"
       },
       "name": "A_odds",
-      "source_sha256": "bfbbea05d5311d90d3191276702da16b1a792d6b1595625ae85287fb85b064a9"
+      "source_sha256": "624dd82dc00c3373ee44da49fae680e36b862c25e154d41c3b3956c986918cf0"
     },
     "C1": {
       "config": {
@@ -133,7 +133,7 @@
         "backtest/vector_models.py": "5f54691d7d8fabda48ad035cd152afbf41271c13a168ab99b9edc0b8a0ef36a4"
       },
       "name": "C1",
-      "source_sha256": "16992f42dc43128a8f2ae0b56011eab671923d2ed0cebeaa9546d73e83ae7b92"
+      "source_sha256": "6b8e8a71005f1b69264583f52e4a345f00ad457402762a36e658e51ed10b9460"
     },
     "C3": {
       "config": {
@@ -153,7 +153,7 @@
       "description": "Champion: engine + minutes_v2 + price/position (B0) captain; vice = 2nd by B0",
       "model_files_sha256": {},
       "name": "C3",
-      "source_sha256": "f0cd6b63e7f5f207dad158c7813fcdcfea84cc6e718ba85595d9dcbbb71c6a4b"
+      "source_sha256": "7cef51ba37eba4a53e58e02f2e90ae9ecbb3813726584398418bcbd9c1db8fe6"
     },
     "engine": {
       "config": {
@@ -173,7 +173,7 @@
       "description": "Reference: original engine (xp_v1 ComponentPredictor with minutes_v2 forced OFF, since the frozen config default is now ON), engine captain/vice",
       "model_files_sha256": {},
       "name": "engine",
-      "source_sha256": "f0cd6b63e7f5f207dad158c7813fcdcfea84cc6e718ba85595d9dcbbb71c6a4b"
+      "source_sha256": "7cef51ba37eba4a53e58e02f2e90ae9ecbb3813726584398418bcbd9c1db8fe6"
     }
   },
   "refreezes": [
@@ -209,6 +209,41 @@
         "engine": {
           "new": "f0cd6b63e7f5f207dad158c7813fcdcfea84cc6e718ba85595d9dcbbb71c6a4b",
           "old": "1ce5933605422cb86e960cc8eafa4807b193ffda5b5c5c14516c780b789c3297"
+        }
+      }
+    },
+    {
+      "at": "2026-10-14T22:40:00+11:00",
+      "harness_files": {
+        "decide.py": {
+          "new": "a3b18858c92416624cb83d4f3d9d98522ddafdffd0fbfb2af09b3c76505496de",
+          "old": "d85949d15ae370d3ae14e2d31c5ee228c71eeaf31892cddb65496ad706418f37"
+        }
+      },
+      "manifest_body_sha256": {
+        "old": "edc07c0ed2ab60edc41a5872e1502c2b189f07435f22c59585f76232049829fa"
+      },
+      "reason": "xP accuracy: decide.py hashes each model's xp_{model}.parquet and avail.parquet into decisions/GW{n}.json (xp_sha256) and copies them to data/gold/xp/GW{n}/ (harness-only; no model config or file changes)",
+      "source_sha256": {
+        "A": {
+          "new": "b2b56f1b3b5a78c18890b33fd2afdc483e4ebe5697d979f8919850f491f88245",
+          "old": "562d4477aa73fccf9294ecce6750b044b551acb60f3bd071b67c2becbefe940f"
+        },
+        "A_odds": {
+          "new": "624dd82dc00c3373ee44da49fae680e36b862c25e154d41c3b3956c986918cf0",
+          "old": "bfbbea05d5311d90d3191276702da16b1a792d6b1595625ae85287fb85b064a9"
+        },
+        "C1": {
+          "new": "6b8e8a71005f1b69264583f52e4a345f00ad457402762a36e658e51ed10b9460",
+          "old": "16992f42dc43128a8f2ae0b56011eab671923d2ed0cebeaa9546d73e83ae7b92"
+        },
+        "C3": {
+          "new": "7cef51ba37eba4a53e58e02f2e90ae9ecbb3813726584398418bcbd9c1db8fe6",
+          "old": "f0cd6b63e7f5f207dad158c7813fcdcfea84cc6e718ba85595d9dcbbb71c6a4b"
+        },
+        "engine": {
+          "new": "7cef51ba37eba4a53e58e02f2e90ae9ecbb3813726584398418bcbd9c1db8fe6",
+          "old": "f0cd6b63e7f5f207dad158c7813fcdcfea84cc6e718ba85595d9dcbbb71c6a4b"
         }
       }
     }

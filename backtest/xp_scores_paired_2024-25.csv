@@ -1,0 +1,7 @@
+season,subset,metric,model,comparator,family,n_gw,mean_delta,sd_delta,p_signflip,p_holm
+2024/25,all,mae,C1,C3,primary,38,0.006566,0.039119,0.310084,0.310084
+2024/25,all,mae,engine,C3,secondary,38,0.019502,0.006151,0.000050,0.000150
+2024/25,all,mae,A,C1,secondary,38,0.052522,0.038136,0.000050,0.000150
+2024/25,top50_union,mae,C1,C3,primary,38,0.197421,0.212336,0.000050,0.000050
+2024/25,top50_union,mae,engine,C3,secondary,38,0.014912,0.023511,0.000200,0.000400
+2024/25,top50_union,mae,A,C1,secondary,38,-0.073961,0.141224,0.002200,0.002200

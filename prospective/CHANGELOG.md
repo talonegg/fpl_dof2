@@ -19,3 +19,25 @@ record approved **harness-only** fixes. Each one is also written into `manifest.
 | `bundle/frozen-2026-10-13.tar.gz` | `50b1ba38ffe8fec279bbc18114ca7a5e7c2a30257dd39d2ac091b98c9e7e0745` | `6645b491d13b1c2241f15cc3b1b076c22e01df39ee9982dacd91c57cc328459a` |
 
 - **Side effect:** each model's `source_sha256` changes, because by construction it covers the harness file hashes. Old and new values are listed in the manifest entry.
+
+## 2026-10-14T22:40:00+11:00 (11:40 UTC): keep and hash the xP files
+
+- **Approved by:** pending Katryn (built locally, not pushed).
+- **What changed:** `harness/decide.py`. After every model has decided, decide.py hashes each
+  `xp_{model}.parquet` and `avail.parquet` into the decision document (`xp_sha256`, `xp_gold_dir`)
+  and copies them to `data/gold/xp/GW{n}/` before writing `decisions/GW{n}.json`. Dry runs are
+  unchanged. This lets `pipeline/scripts/score_xp.py` score per-player xP accuracy on files that are
+  tamper-evident and survive cache cleaning.
+- **Unchanged:** every model, feature, weight, config, pick and state. `config_sha256` and
+  `model_files_sha256` of all five models are identical to the original freeze
+  (`pipeline/tests/test_frozen_configs_unchanged.py`).
+- **Hashes:**
+
+| | old | new |
+|---|---|---|
+| `manifest_body_sha256` | `edc07c0ed2ab60edc41a5872e1502c2b189f07435f22c59585f76232049829fa` | `312f2b0db78ccb2238945e6578bbce164c581b1348e5ac01519a7299a29cbcdd` |
+| `harness/decide.py` | `d85949d15ae370d3ae14e2d31c5ee228c71eeaf31892cddb65496ad706418f37` | `a3b18858c92416624cb83d4f3d9d98522ddafdffd0fbfb2af09b3c76505496de` |
+| `bundle/manifest.json` (file) | `474971094309e9bf9472a140adfe3dae59bee5fe5ffdc4786b13aafb253c4c65` | `02a8dce9e7c2634cd4d54816c056e9840d49bfaa04faa5672ae0e3587f2c3856` |
+| `bundle/frozen-2026-10-13.tar.gz` | `6645b491d13b1c2241f15cc3b1b076c22e01df39ee9982dacd91c57cc328459a` | `b4809b1828f23ca09f3dcbcd98654036657b7980dfdf704d1dc84fa0d2baafcb` |
+
+- **Side effect:** each model's `source_sha256` changes (it covers harness hashes).
