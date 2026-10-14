@@ -83,8 +83,9 @@ describe("model history page", () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it("is linked from the nav", () => {
-    expect(NAV_ITEMS.find((n) => n.path === "/history")?.label).toBe("Model history");
+  it("is folded into the Models page: no separate nav tab", () => {
+    expect(NAV_ITEMS.find((n) => n.path === "/history")).toBeUndefined();
+    expect(NAV_ITEMS.find((n) => n.path === "/models")?.label).toBe("Models");
   });
 
   it("shows the backtest caveat, the ranked summary with deltas and CIs", async () => {

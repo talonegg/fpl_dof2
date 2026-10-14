@@ -21,7 +21,6 @@ export const NAV_ITEMS: NavItem[] = [
   { path: "/league", label: "Mini-league", shortLabel: "League" },
   { path: "/log", label: "Season log", shortLabel: "Log" },
   { path: "/models", label: "Models", shortLabel: "Models" },
-  { path: "/history", label: "Model history", shortLabel: "History" },
   { path: "/settings", label: "Settings", shortLabel: "Settings" },
   // Last on purpose. It is the page you open when something looks wrong, not one you navigate to
   // in the ordinary run of a gameweek, and putting it ahead of the views that answer "who do I

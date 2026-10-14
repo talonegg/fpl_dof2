@@ -54,16 +54,15 @@ describe("buildSeason", () => {
 });
 
 describe("SeasonView", () => {
-  it("labels replay vs prospective rows, the as-of note and the accuracy placeholder", () => {
+  it("labels replay vs prospective rows, and the as-of note", () => {
     render(<SeasonView replay={replay} models={models([gw(3, { champion: actual(70), engine: actual(20) })])} />);
-    expect(screen.getByTestId("season-asof").textContent).toBe("As of GW3 · GW1–2 replay · GW3–3 prospective");
+    expect(screen.getByTestId("season-asof").textContent).toBe("As of GW3 · GW1–2 replay · GW3–3 live");
     expect(within(screen.getByTestId("season-gw-1")).getByTestId("phase-replay")).toBeTruthy();
     expect(within(screen.getByTestId("season-gw-3")).getByTestId("phase-prospective")).toBeTruthy();
     expect(screen.getByTestId("season-total-champion").textContent).toBe("160");
     const chart = screen.getByTestId("season-chart");
     expect(chart.querySelectorAll('polyline[data-phase="replay"]').length).toBe(2);
     expect(chart.querySelectorAll('polyline[data-phase="prospective"]').length).toBe(2);
-    expect(screen.getByTestId("season-accuracy-placeholder")).toBeTruthy();
   });
 
   it("renders nothing with no data", () => {
