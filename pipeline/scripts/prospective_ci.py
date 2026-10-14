@@ -3,6 +3,7 @@
 
     python pipeline/scripts/prospective_ci.py prepare   # verify bundle, fetch odds history
     python pipeline/scripts/prospective_ci.py plan      # -> GITHUB_OUTPUT: decide=, score=, gw=
+                                                        #    (timing rule: fpl_dof.prospective.timing)
     python pipeline/scripts/prospective_ci.py silver --ok 0|1   # record the silver refresh
     python pipeline/scripts/prospective_ci.py status    # fail-closed status for new decisions
     python pipeline/scripts/prospective_ci.py pack OUT  # deterministic tarball of the record
@@ -31,6 +32,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from fpl_dof.prospective.bundle import verify_bundle
 from fpl_dof.prospective.fdcouk import fetch_history
 from fpl_dof.prospective.freshness import assess, silver_stats
+from fpl_dof.prospective.timing import DECIDE_WINDOW, decide_timing, odds_coverage
 
 ROOT = Path(os.environ.get("PROSPECTIVE_ROOT", "/workspace/fpl_prospective"))
 FROZEN = Path(os.environ.get("PROSPECTIVE_FROZEN", "/workspace/fpl_dof2_frozen"))
@@ -39,7 +41,7 @@ STATUS = ROOT / "status"
 SEASON = "2026/27"
 API = "https://fantasy.premierleague.com/api/"
 UA = "fpl-dof-ci/1.0 (+https://github.com/talonegg/fpl_dof2; low-rate)"
-DECIDE_WINDOW_H = 36.0
+ODDS_URL = "https://www.football-data.co.uk/fixtures.csv"
 #: What survives between runs (on the `ledger` branch). raw/ and cache/ are rebuilt; the
 #: decision documents record the sha256 of every raw input they used.
 RECORD = ("decisions", "state", "status", "scores.csv", "report.md")
@@ -105,12 +107,24 @@ def _last_finished(bootstrap: dict[str, Any]) -> int:
 def plan() -> int:
     bs = _bootstrap()
     nxt = next((e for e in bs["events"] if e["is_next"]), None)
-    decide, gw = False, 0
+    decide, gw, reason, coverage = False, 0, "no next gameweek", [0, 0]
     if nxt is not None:
         gw = int(nxt["id"])
         deadline = dt.datetime.fromisoformat(nxt["deadline_time"].replace("Z", "+00:00"))
-        hours = (deadline - _now()).total_seconds() / 3600
-        decide = 0 < hours <= DECIDE_WINDOW_H and not (ROOT / "decisions" / f"GW{gw}.json").exists()
+        already = (ROOT / "decisions" / f"GW{gw}.json").exists()
+        joined = total = 0
+        if not already and dt.timedelta(0) < deadline - _now() <= DECIDE_WINDOW:
+            fixtures = json.loads(_get(API + "fixtures/"))
+            try:
+                csv_bytes = _get(ODDS_URL)
+            except OSError as exc:
+                print(f"plan: fixtures.csv fetch failed ({exc}); treating odds as absent")
+                csv_bytes = b""
+            joined, total = odds_coverage(csv_bytes, gw, bs["teams"], fixtures)
+        timing = decide_timing(
+            now=_now(), deadline=deadline, already_decided=already, joined=joined, total=total
+        )
+        decide, reason, coverage = timing.decide, timing.reason, [joined, total]
     finished = {e["id"] for e in bs["events"] if e["finished"] and e["data_checked"]}
     decided = {int(p.stem[2:]) for p in (ROOT / "decisions").glob("GW*.json")}
     scores = ROOT / "scores.csv"
@@ -128,6 +142,8 @@ def plan() -> int:
         {
             "gw": gw,
             "decide": decide,
+            "decide_reason": reason,
+            "odds_coverage": coverage,
             "score": score,
             "last_finished": _last_finished(bs),
             "at": _now().isoformat(),
@@ -138,7 +154,7 @@ def plan() -> int:
     if out:
         with Path(out).open("a", encoding="utf-8") as f:
             f.write(lines)
-    print(lines.strip().replace("\n", " "))
+    print(lines.strip().replace("\n", " ") + f" ({reason})")
     return 0
 
 
