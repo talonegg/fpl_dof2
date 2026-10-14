@@ -19,6 +19,37 @@ from fpl_dof.rules.models import ApiRules, GameRules
 from fpl_dof.sources.fpl.adapter import FplApiAdapter
 
 
+class VirtualClock:
+    """A monotonic clock that only moves when something sleeps on it."""
+
+    def __init__(self, start: float = 1_000.0) -> None:
+        self.now = start
+        self.slept: list[float] = []
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.slept.append(seconds)
+        self.now += max(0.0, seconds)
+
+
+@pytest.fixture(autouse=True)
+def virtual_clock(monkeypatch: pytest.MonkeyPatch) -> VirtualClock:
+    """Rate-limit pauses and retry backoff advance a virtual clock instead of sleeping.
+
+    The transport reads its clock/sleep defaults at construction (fetch.DEFAULT_CLOCK/SLEEP), so
+    every Fetcher and RateLimiter a test builds paces on virtual time. Tests that pass their own
+    ``sleep``/``clock`` keep them. Production defaults are untouched.
+    """
+    from fpl_dof.sources import fetch
+
+    clock = VirtualClock()
+    monkeypatch.setattr(fetch, "DEFAULT_SLEEP", clock.sleep)
+    monkeypatch.setattr(fetch, "DEFAULT_CLOCK", clock.monotonic)
+    return clock
+
+
 @pytest.fixture(autouse=True)
 def no_accidental_network(request: pytest.FixtureRequest) -> Iterator[None]:
     """Fail loudly rather than quietly reaching the internet.
