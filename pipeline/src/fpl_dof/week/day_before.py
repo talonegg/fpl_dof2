@@ -82,7 +82,7 @@ def gate(
     try:
         found = next_deadline(bootstrap, now)
     except (KeyError, TypeError, ValueError) as exc:
-        return GateDecision(False, f"skip: malformed bootstrap-static ({exc!r})")
+        return GateDecision(False, f"skip: malformed FPL events data ({exc!r})")
     if found is None:
         return GateDecision(False, "skip: no upcoming deadline (season over?)")
     gw, deadline = found
