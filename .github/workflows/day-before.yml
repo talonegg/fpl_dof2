@@ -1,0 +1,75 @@
+# Day-before refresh: one full ingest → pipeline → deploy at about 07:00 Sydney time on the calendar
+# day before each gameweek deadline (e.g. Friday morning for a Saturday deadline).
+#
+# GitHub drops and delays cron firings on this repo, so this fires every 20 minutes at odd minutes
+# from 19:07 to 22:47 UTC (05:07–09:47 Sydney under AEST or AEDT). The gate proceeds on the first
+# firing on or after 07:00 Sydney on the day before the next FPL deadline (bootstrap-static), and is
+# idempotent: once that gameweek's "[day-before GW{n}]" ingest is queued, running or succeeded,
+# later firings are logged no-ops (a failed one is retried by the next firing).
+# Logic and tests: pipeline/src/fpl_dof/week/day_before.py.
+#
+# It reuses the existing chain rather than duplicating it: the gate dispatches `Ingest (slow)` with
+# reason="day-before GW{n}" (its run is titled "[day-before GW{n}]"); that run's completion triggers `Pipeline`
+# (workflow_run), whose success triggers `Deploy` (workflow_run). Both recognise the title and fail
+# closed: Pipeline does not run on a failed ingest, never writes a prospective decision on this path,
+# and Deploy skips rather than redeploying an older contract when the new one is missing or stale.
+#
+# Concurrency: its own group. 19:07–22:47 UTC is clear of the nightly pipeline (01:11 UTC, fallback
+# 03:47), ingest-slow (02:23, fallback 05:41) and — the deadline being > 14 h away — of every
+# deadline-relative run; the dispatched runs join their workflows' own groups.
+
+name: Day-before refresh
+
+on:
+  schedule:
+    - cron: "7,27,47 19-22 * * *" # every 20 min, 05:07–09:47 Sydney (AEST or AEDT)
+  workflow_dispatch: # manual: skips the 07:00 check; keeps "deadline is tomorrow" and the dedupe
+
+concurrency:
+  group: day-before
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      actions: read # gh run list: has this gameweek's day-before ingest already run?
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+      gameweek: ${{ steps.gate.outputs.gameweek }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - name: Install fpl-dof
+        run: python -m pip install -e pipeline
+      # Always exits 0 — an unreadable FPL API or run list is a logged skip, never a partial run.
+      - name: First firing from 07:00 Sydney the day before the deadline, once per GW?
+        id: gate
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >
+          python pipeline/scripts/day_before_gate.py
+          ${{ github.event_name == 'workflow_dispatch' && '--manual' || '' }}
+
+  refresh:
+    needs: [gate]
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write # dispatch Ingest (slow); GITHUB_TOKEN-dispatched runs do start workflows
+    steps:
+      - name: Start the full ingest (Pipeline and Deploy follow via workflow_run)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run ingest-slow.yml --repo "${{ github.repository }}" \
+            --ref "${{ github.event.repository.default_branch }}" -f reason="day-before GW${{ needs.gate.outputs.gameweek }}"
+          echo "day-before refresh started for GW${{ needs.gate.outputs.gameweek }}"

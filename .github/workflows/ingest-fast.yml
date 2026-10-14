@@ -16,7 +16,7 @@ name: Ingest (fast)
 
 on:
   schedule:
-    - cron: "0 * * * *" # hourly, UTC always — the guard step decides whether to actually fetch
+    - cron: "7 * * * *" # hourly at :07 (off the :00 peak GitHub sheds) — the guard decides whether to fetch
   workflow_dispatch:
 
 concurrency:

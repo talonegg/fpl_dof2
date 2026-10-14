@@ -2135,20 +2135,24 @@ class ScheduleConfig(_Section):
         ),
     )
     pipeline_offsets_minutes: tuple[int, ...] = Field(
-        default=(180, 45),
+        default=(360, 180, 90, 45),
         description=(
             "Minutes before the deadline at which the pipeline produces a recommendation: T-3h "
             "for a considered answer while there is still time to act on it, and T-45m as the "
-            "last automatic refresh before the R-09 freeze."
+            "last automatic refresh before the R-09 freeze. T-6h and T-90m were added (schedule "
+            "hardening, 2026-10-14) because GitHub drops and delays cron firings on this repo: "
+            "four windows give the pipeline, and the prospective decision inside its 14 h window, "
+            "several chances instead of two."
         ),
     )
     pipeline_cron_interval_minutes: int = Field(
-        default=15,
+        default=18,
         gt=0,
         description=(
-            "How often pipeline.yml's guard job fires. It must match the cron in that workflow — "
-            "it is declared here so the tolerance below can be validated against it, rather than "
-            "the two drifting apart silently."
+            "The longest gap between pipeline.yml's guard firings. It must match the cron in that "
+            "workflow (`7,23,41,53 * * * *`: odd minutes, off the :00/:30 peaks GitHub sheds, "
+            "longest gap 18 minutes) — declared here so the tolerance below can be validated "
+            "against it, rather than the two drifting apart silently."
         ),
     )
     pipeline_window_tolerance_minutes: float = Field(

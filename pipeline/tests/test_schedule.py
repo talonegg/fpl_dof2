@@ -140,26 +140,37 @@ def test_the_t_minus_3h_window_behaves_the_same_way() -> None:
     assert _pipeline(179) is False
 
 
-def test_a_quarter_hourly_cron_cannot_step_over_a_window() -> None:
-    """Every 15-minute firing pattern hits both windows at least once.
+#: pipeline.yml's deadline-relative cron, `7,23,41,53 * * * *`.
+GUARD_MINUTES = (7, 23, 41, 53)
 
-    The offsets are fixed but the deadline's minute-of-hour is not, so the set of
-    ``minutes_to_deadline`` values a :15 cron produces is offset by an arbitrary phase. If the
-    tolerance were no wider than the interval, some phases would jump the window entirely and the
-    pre-deadline run would silently never happen for those gameweeks.
+
+def test_the_odd_minute_cron_cannot_step_over_a_window() -> None:
+    """Every deadline minute-of-hour: the `7,23,41,53` firings hit every window at least once.
+
+    The offsets are fixed but the deadline's minute-of-hour is not. If the tolerance were no wider
+    than the longest gap between firings, some deadlines would jump a window entirely.
     """
-    interval = CONFIG.pipeline_cron_interval_minutes
-    for phase in range(interval):
+    nxt = GUARD_MINUTES[1:] + GUARD_MINUTES[:1]
+    gaps = [(b - a) % 60 for a, b in zip(GUARD_MINUTES, nxt, strict=True)]
+    assert max(gaps) == CONFIG.pipeline_cron_interval_minutes
+    for deadline_minute in range(60):
+        firings = [(deadline_minute - m) % 60 + 60 * h for h in range(12) for m in GUARD_MINUTES]
         fired = {
             offset
             for offset in CONFIG.pipeline_offsets_minutes
-            for minutes in range(phase, 12 * 60, interval)
+            for minutes in firings
             if offset <= minutes <= offset + CONFIG.pipeline_window_tolerance_minutes
         }
         assert fired == set(CONFIG.pipeline_offsets_minutes), (
-            f"a deadline at phase {phase} misses window(s) "
+            f"a deadline at :{deadline_minute:02d} misses window(s) "
             f"{set(CONFIG.pipeline_offsets_minutes) - fired}"
         )
+
+
+def test_several_decision_chances_fall_inside_the_prospective_14h_window() -> None:
+    tolerance = CONFIG.pipeline_window_tolerance_minutes
+    inside = [o for o in CONFIG.pipeline_offsets_minutes if o + tolerance <= 14 * 60]
+    assert len(inside) >= 4
 
 
 def test_an_unknown_deadline_stands_the_deadline_trigger_down() -> None:
@@ -201,12 +212,13 @@ def test_the_shipped_defaults_are_the_ones_the_workflows_assume() -> None:
     """A change to any of these needs the matching change in `.github/workflows/`.
 
     The cron expressions cannot import Python, so this is the only place the two can be held
-    together. `pipeline_cron_interval_minutes` mirrors `*/15 * * * *` in pipeline.yml; the boundary
+    together. `pipeline_cron_interval_minutes` mirrors `7,23,41,53 * * * *` in pipeline.yml; the
+    boundary
     hours mirror the four-hourly cadence ingest-fast.yml's hourly cron stands in for.
     """
     assert CONFIG.fast_ingest_boundary_hours == (0, 4, 8, 12, 16, 20)
-    assert CONFIG.pipeline_offsets_minutes == (180, 45)
-    assert CONFIG.pipeline_cron_interval_minutes == 15
+    assert CONFIG.pipeline_offsets_minutes == (360, 180, 90, 45)
+    assert CONFIG.pipeline_cron_interval_minutes == 18
     assert CONFIG.deadline_freeze_minutes == 45.0
 
 
