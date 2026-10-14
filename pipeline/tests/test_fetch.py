@@ -10,6 +10,7 @@ import httpx
 import pytest
 import respx
 
+from conftest import VirtualClock
 from fpl_dof.config.models import HttpConfig, RateLimitConfig, RetryConfig
 from fpl_dof.sources.bronze import BronzeStore
 from fpl_dof.sources.errors import (
@@ -54,12 +55,35 @@ def _fetcher(tmp_path: Path, config: HttpConfig | None = None) -> Fetcher:
 
 
 def test_rate_limiter_waits_for_the_minimum_interval() -> None:
+    now = [100.0]
     slept: list[float] = []
-    limiter = RateLimiter(2.0, sleep=slept.append)
-    limiter.wait()
-    limiter.wait()
+
+    def sleep(seconds: float) -> None:
+        slept.append(seconds)
+        now[0] += seconds
+
+    limiter = RateLimiter(2.0, sleep=sleep, clock=lambda: now[0])
+    limiter.wait()  # first call never waits
+    assert slept == []
+    limiter.wait()  # back-to-back: waits the full interval
     assert limiter.min_interval == 0.5
-    assert slept and slept[0] <= 0.5
+    assert slept == [pytest.approx(0.5)]
+    now[0] += 0.2  # 0.2 s of work: only the remainder is waited
+    limiter.wait()
+    assert slept[-1] == pytest.approx(0.3)
+    now[0] += 1.0  # longer than the interval: no wait at all
+    limiter.wait()
+    assert len(slept) == 2
+
+
+def test_the_suite_runs_on_a_virtual_clock(virtual_clock: VirtualClock) -> None:
+    """The autouse fixture swaps the transport defaults: pacing advances virtual time only."""
+    limiter = RateLimiter(2.0)
+    start = virtual_clock.now
+    for _ in range(5):
+        limiter.wait()
+    assert virtual_clock.now - start == pytest.approx(2.0)
+    assert virtual_clock.slept == [pytest.approx(0.5)] * 4
 
 
 def test_user_agent_identifies_the_client_honestly() -> None:

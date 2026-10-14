@@ -31,14 +31,31 @@ from fpl_dof.sources.errors import (
 log = get_logger(__name__)
 
 
-class RateLimiter:
-    """Minimum-interval limiter. Deliberately serial and deliberately simple."""
+#: Process-wide defaults for the transport's clock and sleep. Production uses the real ones; the
+#: test suite swaps both for a virtual clock (tests/conftest.py) so politeness pauses and retry
+#: backoff advance time without actually waiting. Read at construction, never cached at import.
+DEFAULT_SLEEP: Callable[[float], None] = time.sleep
+DEFAULT_CLOCK: Callable[[], float] = time.monotonic
 
-    def __init__(self, requests_per_second: float, *, sleep: Callable[[float], None] | None = None):
+
+class RateLimiter:
+    """Minimum-interval limiter. Deliberately serial and deliberately simple.
+
+    ``sleep`` and ``clock`` are injectable (defaulting to the module defaults above) so the
+    pacing can be asserted against a virtual clock rather than wall time.
+    """
+
+    def __init__(
+        self,
+        requests_per_second: float,
+        *,
+        sleep: Callable[[float], None] | None = None,
+        clock: Callable[[], float] | None = None,
+    ):
         self.min_interval = 1.0 / requests_per_second
-        self._sleep = sleep or time.sleep
+        self._sleep = sleep or DEFAULT_SLEEP
         self._last: float | None = None
-        self._monotonic = time.monotonic
+        self._monotonic = clock or DEFAULT_CLOCK
 
     def wait(self) -> None:
         now = self._monotonic()
@@ -101,14 +118,17 @@ class Fetcher:
         client: httpx.Client | None = None,
         run_id: str | None = None,
         sleep: Callable[[float], None] | None = None,
+        clock: Callable[[], float] | None = None,
         rng: random.Random | None = None,
     ) -> None:
         self.config = config
         self.bronze = bronze
         self.run_id = run_id
-        self._sleep = sleep or time.sleep
+        self._sleep = sleep or DEFAULT_SLEEP
         self._rng = rng or random.Random()
-        self._limiter = RateLimiter(config.rate_limit.requests_per_second, sleep=self._sleep)
+        self._limiter = RateLimiter(
+            config.rate_limit.requests_per_second, sleep=self._sleep, clock=clock
+        )
         self._owns_client = client is None
         self.client = client or httpx.Client(
             timeout=config.timeout_seconds,
