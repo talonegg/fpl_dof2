@@ -53,6 +53,9 @@ ARTEFACTS: dict[str, str] = {
     # web/public/static/ because CI cannot run the backtest. Never written by the publish stage;
     # registered here so it is validated and gets generated TypeScript types.
     "models_history": "models_history.schema.json",
+    # All-player next-GW xP MAE across seasons. Built from xp_scores CSVs and checked in / published
+    # for the models page. Registered here for validation and generated TypeScript types.
+    "xp_accuracy": "xp_accuracy.schema.json",
 }
 
 

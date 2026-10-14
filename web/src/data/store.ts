@@ -16,7 +16,7 @@ import type {
 } from "../contract/types";
 import { effectiveSquad } from "../components/squad/effective";
 import type { SeasonReplay } from "../components/history/season";
-import type { XpAccuracy } from "../components/models/accuracy";
+import type { XpAccuracy } from "../contract/types";
 import { warmPublishedCache } from "./offline";
 import type { WarmOptions, WarmResult } from "./offline";
 

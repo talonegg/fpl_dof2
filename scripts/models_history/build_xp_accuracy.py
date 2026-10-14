@@ -11,59 +11,29 @@ page shows the replay only. Subset ``all`` (the pre-registered primary populatio
 
 from __future__ import annotations
 
-import csv
 import json
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "pipeline" / "src"))
+
+from fpl_dof.publish.benchmark import build_xp_accuracy
+from fpl_dof.publish.contract import Contract, find_contracts_root
+
 DATA = ROOT / "scripts" / "models_history" / "data"
 OUT = ROOT / "web" / "public" / "static" / "xp_accuracy.json"
-IDS = {
-    "C3": "champion",
-    "C1": "challenger",
-    "engine": "engine",
-    "A": "a",
-    "A_odds": "a_odds",
-}
 SOURCES = (
-    ("2025/26", "backtest", "xp_scores_2025-26.csv"),
-    ("2026/27", "replay", "xp_scores_2026-27_replay.csv"),
+    ("2025/26", "backtest", DATA / "xp_scores_2025-26.csv"),
+    ("2026/27", "replay", DATA / "xp_scores_2026-27_replay.csv"),
 )
 
 
-def season(name: str, kind: str, path: Path) -> dict:
-    gws: dict[int, dict[str, float]] = {}
-    tot: dict[str, list[float]] = {}
-    with path.open(encoding="utf-8") as f:
-        for r in csv.DictReader(f):
-            if r["subset"] != "all" or not r["mae"]:
-                continue
-            m, n, mae = IDS[r["model"]], int(r["n_rows"]), float(r["mae"])
-            gws.setdefault(int(r["gw"]), {})[m] = round(mae, 4)
-            t = tot.setdefault(m, [0.0, 0.0])
-            t[0] += mae * n
-            t[1] += n
-    return {
-        "season": name,
-        "kind": kind,
-        "gameweeks": [
-            {"gameweek": g, "phase": kind, "mae": gws[g]} for g in sorted(gws)
-        ],
-        "pooled_mae": {m: round(s / n, 4) for m, (s, n) in tot.items() if n},
-        "missing_models": {
-            m: "no saved predictions" for m in IDS.values() if m not in tot
-        },
-    }
-
-
 def main() -> int:
-    doc = {
-        "contract_version": 1,
-        "metric": "all-player MAE of next-GW xP vs actual FPL points (lower is better)",
-        "seasons": [
-            season(n, k, DATA / f) for n, k, f in SOURCES if (DATA / f).exists()
-        ],
-    }
+    doc = build_xp_accuracy(SOURCES)
+    contract = Contract(root=find_contracts_root(ROOT))
+    contract.validate("xp_accuracy", doc)
+    OUT.parent.mkdir(parents=True, exist_ok=True)
     OUT.write_text(json.dumps(doc, indent=1) + "\n", encoding="utf-8")
     print(f"wrote {OUT}")
     return 0

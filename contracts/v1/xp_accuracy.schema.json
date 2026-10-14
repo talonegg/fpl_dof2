@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/talonegg/fpl_dof2/contracts/v1/xp_accuracy.schema.json",
+  "title": "XpAccuracy",
+  "description": "Per-GW all-player xP MAE across seasons (backtest, replay, and live prospective).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "metric", "seasons"],
+  "properties": {
+    "contract_version": { "type": "integer", "const": 1 },
+    "metric": { "type": "string" },
+    "seasons": { "type": "array", "items": { "$ref": "#/$defs/xp_accuracy_season" } }
+  },
+  "$defs": {
+    "xp_accuracy_gameweek": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gameweek", "phase", "mae"],
+      "properties": {
+        "gameweek": { "type": "integer", "minimum": 1 },
+        "phase": { "type": "string", "enum": ["backtest", "replay", "prospective"] },
+        "mae": { "type": "object", "additionalProperties": { "type": "number" } }
+      }
+    },
+    "xp_accuracy_season": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["season", "kind", "gameweeks", "pooled_mae", "missing_models"],
+      "properties": {
+        "season": { "type": "string" },
+        "kind": { "type": "string", "enum": ["backtest", "replay", "prospective"] },
+        "gameweeks": { "type": "array", "items": { "$ref": "#/$defs/xp_accuracy_gameweek" } },
+        "pooled_mae": { "type": "object", "additionalProperties": { "type": "number" } },
+        "missing_models": { "type": "object", "additionalProperties": { "type": "string" } }
+      }
+    }
+  }
+}
