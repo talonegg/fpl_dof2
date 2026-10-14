@@ -44,7 +44,18 @@ UA = "fpl-dof-ci/1.0 (+https://github.com/talonegg/fpl_dof2; low-rate)"
 ODDS_URL = "https://www.football-data.co.uk/fixtures.csv"
 #: What survives between runs (on the `ledger` branch). raw/ and cache/ are rebuilt; the
 #: decision documents record the sha256 of every raw input they used.
-RECORD = ("decisions", "state", "status", "scores.csv", "report.md")
+RECORD = (
+    "decisions",
+    "state",
+    "status",
+    "scores.csv",
+    "report.md",
+    # Per-player xP accuracy (score_xp.py) and the kept, hashed xP files it scores.
+    "xp_scores.csv",
+    "xp_scores_paired.csv",
+    "xp_calibration.csv",
+    "data/gold/xp",
+)
 
 
 def _now() -> dt.datetime:
@@ -246,14 +257,18 @@ def pack(out: Path) -> int:
     return 0
 
 
+def _in_record(name: str) -> bool:
+    """True for a record path itself or anything under a record directory (``data/gold/xp/...``)."""
+    p = Path(name)
+    if p.is_absolute() or ".." in p.parts:
+        return False
+    return any(name == r or name.startswith(r + "/") for r in RECORD)
+
+
 def unpack(tarball: Path) -> int:
     """Restore only the record's own paths; anything else in the tarball is ignored."""
     with tarfile.open(tarball, "r:gz") as tar:
-        members = [
-            m
-            for m in tar.getmembers()
-            if m.isfile() and Path(m.name).parts and Path(m.name).parts[0] in RECORD
-        ]
+        members = [m for m in tar.getmembers() if m.isfile() and _in_record(m.name)]
         tar.extractall(ROOT, members=members, filter="data")
     print(f"restored {len(members)} files from {tarball}")
     return 0
