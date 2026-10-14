@@ -18,8 +18,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 DATA = ROOT / "scripts" / "models_history" / "data"
 OUT = ROOT / "web" / "public" / "static" / "xp_accuracy.json"
-IDS = {"C3": "champion", "C1": "challenger", "engine": "engine", "A": "a", "A_odds": "a_odds"}
-SOURCES = (("2025/26", "backtest", "xp_scores_2025-26.csv"), ("2026/27", "replay", "xp_scores_2026-27_replay.csv"))
+IDS = {
+    "C3": "champion",
+    "C1": "challenger",
+    "engine": "engine",
+    "A": "a",
+    "A_odds": "a_odds",
+}
+SOURCES = (
+    ("2025/26", "backtest", "xp_scores_2025-26.csv"),
+    ("2026/27", "replay", "xp_scores_2026-27_replay.csv"),
+)
 
 
 def season(name: str, kind: str, path: Path) -> dict:
@@ -37,9 +46,13 @@ def season(name: str, kind: str, path: Path) -> dict:
     return {
         "season": name,
         "kind": kind,
-        "gameweeks": [{"gameweek": g, "phase": kind, "mae": gws[g]} for g in sorted(gws)],
+        "gameweeks": [
+            {"gameweek": g, "phase": kind, "mae": gws[g]} for g in sorted(gws)
+        ],
         "pooled_mae": {m: round(s / n, 4) for m, (s, n) in tot.items() if n},
-        "missing_models": {m: "no saved predictions" for m in IDS.values() if m not in tot},
+        "missing_models": {
+            m: "no saved predictions" for m in IDS.values() if m not in tot
+        },
     }
 
 
@@ -47,7 +60,9 @@ def main() -> int:
     doc = {
         "contract_version": 1,
         "metric": "all-player MAE of next-GW xP vs actual FPL points (lower is better)",
-        "seasons": [season(n, k, DATA / f) for n, k, f in SOURCES if (DATA / f).exists()],
+        "seasons": [
+            season(n, k, DATA / f) for n, k, f in SOURCES if (DATA / f).exists()
+        ],
     }
     OUT.write_text(json.dumps(doc, indent=1) + "\n", encoding="utf-8")
     print(f"wrote {OUT}")
