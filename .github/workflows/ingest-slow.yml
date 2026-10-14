@@ -4,11 +4,18 @@
 # line in the minutes recount that led to DL-12.
 
 name: Ingest (slow)
+# day-before.yml dispatches this with reason=day-before; Pipeline and Deploy key off the title.
+run-name: ${{ inputs.reason == 'day-before' && 'Ingest (slow) [day-before]' || 'Ingest (slow)' }}
 
 on:
   schedule:
     - cron: "20 2 * * *" # 02:20 UTC — off-peak for both UK and AEST, well before the nightly pipeline
   workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why this run was started (day-before.yml sets 'day-before')."
+        required: false
+        type: string
 
 concurrency:
   group: ingest-slow

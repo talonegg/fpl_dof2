@@ -12,6 +12,11 @@
 # workflow file does not duplicate that logic and must not be changed to bypass it under pressure.
 
 name: Pipeline
+# A run that follows the day-before ingest carries "[day-before]" so Deploy can apply its stricter
+# fail-closed rules (see day-before.yml).
+run-name: >-
+  ${{ github.event_name == 'workflow_run' && contains(github.event.workflow_run.display_title, '[day-before]')
+  && 'Pipeline [day-before]' || 'Pipeline' }}
 
 on:
   schedule:
@@ -53,6 +58,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       run: ${{ steps.decide.outputs.run }}
+      day_before: ${{ steps.decide.outputs.day_before }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -73,8 +79,16 @@ jobs:
           fi
       - name: Decide whether to run
         id: decide
+        env:
+          DAY_BEFORE: ${{ github.event_name == 'workflow_run' && contains(github.event.workflow_run.display_title, '[day-before]') }}
+          UPSTREAM: ${{ github.event.workflow_run.conclusion }}
         run: |
-          if [ "${{ github.event_name }}" != "schedule" ] || [ "${{ github.event.schedule }}" != "*/15 * * * *" ]; then
+          echo "day_before=$DAY_BEFORE" >> "$GITHUB_OUTPUT"
+          if [ "$DAY_BEFORE" = "true" ] && [ "$UPSTREAM" != "success" ]; then
+            # Fail closed: never refresh models on a failed day-before ingest.
+            echo "::warning title=Day-before refresh skipped::the day-before ingest concluded '$UPSTREAM'; not running the pipeline"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" != "schedule" ] || [ "${{ github.event.schedule }}" != "*/15 * * * *" ]; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
             echo "run=$(fpl-dof-schedule --decide pipeline)" >> "$GITHUB_OUTPUT"
@@ -132,17 +146,32 @@ jobs:
         id: plan
         run: python pipeline/scripts/prospective_ci.py plan
 
+      # The day-before refresh never writes a frozen decision early: decide is forced to false (and
+      # recorded in plan.json) on that path. Every other trigger passes the plan through unchanged.
+      - name: Day-before veto on deciding
+        id: window
+        env:
+          DAY_BEFORE: ${{ needs.guard.outputs.day_before }}
+          PLANNED: ${{ steps.plan.outputs.decide }}
+        run: |
+          if [ "$DAY_BEFORE" = "true" ]; then
+            python pipeline/scripts/day_before_gate.py --veto-plan /workspace/fpl_prospective/ci/plan.json
+            echo "decide=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "decide=$PLANNED" >> "$GITHUB_OUTPUT"
+          fi
+
       # Only on deciding runs (once per gameweek). The community archive is immutable per season,
       # so its bronze is cached; the live season is re-fetched every time.
       - name: Cache archive bronze
-        if: steps.plan.outputs.decide == 'true'
+        if: steps.window.outputs.decide == 'true'
         uses: actions/cache@v4
         with:
           path: /workspace/fpl_prospective/data/bronze/fplarchive
           key: fplarchive-bronze-2023-2026-v1
 
       - name: Refresh silver (FPL API + xG/xA + archive backfill)
-        if: steps.plan.outputs.decide == 'true'
+        if: steps.window.outputs.decide == 'true'
         env:
           FPL_DOF_CONFIG_FILE: config/ci-backtest.yaml
         run: |
@@ -158,7 +187,7 @@ jobs:
         run: /workspace/fpl_dof2/.venv/bin/python score.py
 
       - name: Decide the next gameweek (frozen decide.py)
-        if: steps.plan.outputs.decide == 'true'
+        if: steps.window.outputs.decide == 'true'
         working-directory: /workspace/fpl_prospective
         env:
           FPL_DOF_TEAM_ID: ${{ inputs.team_id || vars.FPL_DOF_TEAM_ID }}

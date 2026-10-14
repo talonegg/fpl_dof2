@@ -32,6 +32,14 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # Day-before chain (day-before.yml): deploy only after a successful Pipeline run; a failed one
+    # is skipped outright rather than redeploying an older contract.
+    if: >-
+      !(github.event_name == 'workflow_run'
+        && contains(github.event.workflow_run.display_title, '[day-before]')
+        && github.event.workflow_run.conclusion != 'success')
+    env:
+      DAY_BEFORE: ${{ github.event_name == 'workflow_run' && contains(github.event.workflow_run.display_title, '[day-before]') }}
     steps:
       - uses: actions/checkout@v4
 
@@ -51,7 +59,14 @@ jobs:
       # The `data` branch has never carried a `web/v1` copy — it is rebuilt from bronze alone on
       # every ingest — so the previous fallback found nothing (DL-68). Prefer a recent successful
       # pipeline run that actually uploaded the contract (guard-only skips are "success" with none).
+      # Day-before: only the contract that run just produced, and only if it is fresh. No fallback
+      # to an older run's contract — that would be a stale deploy (#39: fail closed).
+      - name: Day-before - require the fresh contract
+        if: env.DAY_BEFORE == 'true'
+        run: python pipeline/scripts/contract_fresh.py web/public/data/v1 --max-age-hours 6
+
       - name: Fall back to a recent pipeline run's contract
+        if: env.DAY_BEFORE != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

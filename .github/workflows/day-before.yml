@@ -1,0 +1,65 @@
+# Day-before refresh: one full ingest → pipeline → deploy at about 07:00 Sydney time on the calendar
+# day before each gameweek deadline (e.g. Friday morning for a Saturday deadline).
+#
+# GitHub cron is UTC and Sydney switches between AEST (UTC+10) and AEDT (UTC+11), so this fires at
+# both 20:00 and 21:00 UTC and the gate keeps only the firing that is 07:00 in Sydney that day —
+# then only if the next FPL deadline (bootstrap-static) falls on the next Sydney calendar day.
+# Logic and tests: pipeline/src/fpl_dof/week/day_before.py.
+#
+# It reuses the existing chain rather than duplicating it: the gate dispatches `Ingest (slow)` with
+# reason=day-before (its run is titled "[day-before]"); that run's completion triggers `Pipeline`
+# (workflow_run), whose success triggers `Deploy` (workflow_run). Both recognise the title and fail
+# closed: Pipeline does not run on a failed ingest, never writes a prospective decision on this path,
+# and Deploy skips rather than redeploying an older contract when the new one is missing or stale.
+#
+# Concurrency: its own group. 20:00–21:00 UTC is 06:00–08:00 in Sydney — clear of the nightly
+# pipeline (01:00 UTC), ingest-slow (02:20 UTC) and, because the deadline is at least 17 h away,
+# of the T-3h/T-45m deadline-relative runs; the dispatched runs join their workflows' own groups.
+
+name: Day-before refresh
+
+on:
+  schedule:
+    - cron: "0 20 * * *" # 07:00 AEDT (UTC+11)
+    - cron: "0 21 * * *" # 07:00 AEST (UTC+10)
+  workflow_dispatch: # manual: skips the hour check, keeps the "deadline is tomorrow" check
+
+concurrency:
+  group: day-before
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.gate.outputs.run }}
+      gameweek: ${{ steps.gate.outputs.gameweek }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      # stdlib only; always exits 0 — an unreadable FPL API is a logged skip, never a partial run.
+      - name: Is the next deadline tomorrow (Sydney)?
+        id: gate
+        run: python pipeline/scripts/day_before_gate.py --cron "${{ github.event.schedule }}"
+
+  refresh:
+    needs: [gate]
+    if: needs.gate.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write # dispatch Ingest (slow); GITHUB_TOKEN-dispatched runs do start workflows
+    steps:
+      - name: Start the full ingest (Pipeline and Deploy follow via workflow_run)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh workflow run ingest-slow.yml --repo "${{ github.repository }}" \
+            --ref "${{ github.event.repository.default_branch }}" -f reason=day-before
+          echo "day-before refresh started for GW${{ needs.gate.outputs.gameweek }}"
