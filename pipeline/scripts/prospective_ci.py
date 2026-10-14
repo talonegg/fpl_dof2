@@ -3,7 +3,7 @@
 
     python pipeline/scripts/prospective_ci.py prepare   # verify bundle, fetch odds history
     python pipeline/scripts/prospective_ci.py plan      # -> GITHUB_OUTPUT: decide=, score=, gw=
-                                                        #    (timing rule: fpl_dof.prospective.timing)
+    #   (timing rule: fpl_dof.prospective.timing)
     python pipeline/scripts/prospective_ci.py silver --ok 0|1   # record the silver refresh
     python pipeline/scripts/prospective_ci.py status    # fail-closed status for new decisions
     python pipeline/scripts/prospective_ci.py pack OUT  # deterministic tarball of the record
