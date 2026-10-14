@@ -1,7 +1,7 @@
 {
   "gameweek": 7,
-  "run_id": "20261014T030501Z-bdd0db2b",
-  "recorded_at": "2026-10-14T03:05:30.027924Z",
+  "run_id": "20261014T103728Z-7fe57b1e",
+  "recorded_at": "2026-10-14T10:37:46.498823Z",
   "advised": {
     "gameweek": 7,
     "squad": [
@@ -25,10 +25,10 @@
       496,
       112,
       277,
-      8,
       115,
-      411,
+      8,
       399,
+      411,
       124,
       426,
       237,
@@ -43,15 +43,15 @@
     "captain": 411,
     "vice_captain": 426,
     "formation": "1-4-4-2",
-    "expected_points": 40.626
+    "expected_points": 40.66
   },
   "recommendation": {
-    "rationale": "2 free transfer(s) gain 5.25 expected points",
+    "rationale": "2 free transfer(s) gain 5.08 expected points",
     "is_roll": false,
     "transfers": 2,
     "hit_points": 0,
-    "net_expected_points": 40.6257,
-    "gain_over_roll": 5.2452,
+    "net_expected_points": 40.6604,
+    "gain_over_roll": 5.0817,
     "bank_after": 0.0,
     "moves": [
       {
@@ -59,14 +59,14 @@
           "player_id": 259,
           "web_name": "Diop",
           "price": 4.0,
-          "xp_next": 1.072,
+          "xp_next": 1.202,
           "form_points_per_match": 2.4
         },
         "in": {
           "player_id": 112,
           "web_name": "Van Hecke",
           "price": 4.9,
-          "xp_next": 4.376,
+          "xp_next": 4.331,
           "form_points_per_match": 4.8
         }
       },
@@ -75,14 +75,14 @@
           "player_id": 450,
           "web_name": "Livramento",
           "price": 4.9,
-          "xp_next": 0.451,
+          "xp_next": 0.484,
           "form_points_per_match": 2.0
         },
         "in": {
           "player_id": 277,
           "web_name": "Egan",
           "price": 4.1,
-          "xp_next": 3.798,
+          "xp_next": 3.738,
           "form_points_per_match": 5.2
         }
       }
@@ -91,15 +91,15 @@
       {
         "transfers": 0,
         "hit_points": 0,
-        "net_expected_points": 35.3805,
+        "net_expected_points": 35.5787,
         "gain_over_roll": 0.0,
         "moves": []
       },
       {
         "transfers": 1,
         "hit_points": 0,
-        "net_expected_points": 38.6848,
-        "gain_over_roll": 3.3043,
+        "net_expected_points": 38.7075,
+        "gain_over_roll": 3.1288,
         "moves": [
           "Livramento (\u00a34.9m) -> Van Hecke (\u00a34.9m)"
         ]
@@ -107,8 +107,8 @@
       {
         "transfers": 2,
         "hit_points": 0,
-        "net_expected_points": 40.6257,
-        "gain_over_roll": 5.2452,
+        "net_expected_points": 40.6604,
+        "gain_over_roll": 5.0817,
         "moves": [
           "Diop (\u00a34.0m) -> Van Hecke (\u00a34.9m)",
           "Livramento (\u00a34.9m) -> Egan (\u00a34.1m)"
