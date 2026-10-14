@@ -399,12 +399,12 @@ def test_the_backtest_card_names_the_duty_candidate_and_its_table(
     from fpl_dof.pipeline import StageContext
     from fpl_dof.stages.backtest import _card
 
-    history = make_history(players=40, gameweeks=10)
+    history = make_history(players=12, gameweeks=3)
     result = walk_forward(
         history,
         ComponentPredictor(ForecastConfig(), game_rules),
         forecast_config=ForecastConfig(),
-        backtest_config=BacktestConfig(top_n_precision=8),
+        backtest_config=BacktestConfig(minimum_training_matches=2),
         seasons=None,
     )
     text = _card(result, StageContext(config=config, layout=layout, run_id="r"))

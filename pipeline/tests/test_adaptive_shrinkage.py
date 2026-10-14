@@ -27,10 +27,12 @@ import pytest
 
 from fpl_dof.config.models import (
     AdaptiveShrinkageConfig,
+    BacktestConfig,
     Config,
     DiscriminationConfig,
     ForecastConfig,
 )
+from fpl_dof.forecast.backtest import BacktestResult, walk_forward
 from fpl_dof.forecast.metrics import (
     evaluate,
     head_size_by_position,
@@ -253,23 +255,27 @@ def test_each_position_gets_a_head_as_deep_as_it_goes_into_a_squad() -> None:
     assert head_size_by_position(20, {}) == {}
 
 
-def test_the_harness_reports_the_head_per_position(game_rules: GameRules) -> None:
-    """End to end: a real predictor, a real walk, and a per-position split that is populated.
-
-    E10's definition of done requires every metric in the epic to be reported per position, and a
-    breakdown that silently comes back empty would satisfy nothing while looking like it did.
-    """
-    from fpl_dof.config.models import BacktestConfig
-    from fpl_dof.forecast.backtest import walk_forward
-
+@pytest.fixture(scope="module")
+def adaptive_walk_result(game_rules: GameRules) -> BacktestResult:
     history = make_history(players=40, gameweeks=10)
-    result = walk_forward(
+    return walk_forward(
         history,
         ComponentPredictor(ForecastConfig(), game_rules),
         forecast_config=ForecastConfig(),
         backtest_config=BacktestConfig(top_n_precision=8),
         seasons=None,
     )
+
+
+def test_the_harness_reports_the_head_per_position(
+    adaptive_walk_result: BacktestResult,
+) -> None:
+    """End to end: a real predictor, a real walk, and a per-position split that is populated.
+
+    E10's definition of done requires every metric in the epic to be reported per position, and a
+    breakdown that silently comes back empty would satisfy nothing while looking like it did.
+    """
+    result = adaptive_walk_result
     assert set(result.model.top_n_precision_by_position) == {"GKP", "DEF", "MID", "FWD"}
     assert set(result.model.calibration_slope_by_position) == {"GKP", "DEF", "MID", "FWD"}
     # And the aggregate is a real number rather than the pinned zero it used to be.
@@ -277,7 +283,7 @@ def test_the_harness_reports_the_head_per_position(game_rules: GameRules) -> Non
 
 
 def test_the_backtest_card_reports_the_head_of_the_ranking(
-    game_rules: GameRules, config: Config, layout: DataLayout
+    config: Config, layout: DataLayout, adaptive_walk_result: BacktestResult
 ) -> None:
     """The card is what a human reads before a deadline, so a section that silently renders empty
     is worse than one that is absent — it looks like a measurement (DP-13, DP-09).
@@ -285,19 +291,10 @@ def test_the_backtest_card_reports_the_head_of_the_ranking(
     E10 is graded on this section. If the per-position table ever comes back as a row of dashes,
     the epic's definition of done is being satisfied by a heading rather than by numbers.
     """
-    from fpl_dof.config.models import BacktestConfig
-    from fpl_dof.forecast.backtest import walk_forward
     from fpl_dof.pipeline import StageContext
     from fpl_dof.stages.backtest import _card
 
-    history = make_history(players=40, gameweeks=10)
-    result = walk_forward(
-        history,
-        ComponentPredictor(ForecastConfig(), game_rules),
-        forecast_config=ForecastConfig(),
-        backtest_config=BacktestConfig(top_n_precision=8),
-        seasons=None,
-    )
+    result = adaptive_walk_result
     text = _card(result, StageContext(config=config, layout=layout, run_id="r"))
 
     assert "## The head of the ranking (E10)" in text

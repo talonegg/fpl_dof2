@@ -195,6 +195,7 @@ def to_contract(view: DeadlineView) -> dict[str, object]:
 
 # --- CI Run Helpers ---
 
+
 def _created(run: Mapping[str, Any]) -> dt.datetime:
     return dt.datetime.fromisoformat(str(run["createdAt"]).replace("Z", "+00:00"))
 
@@ -236,6 +237,7 @@ def start_of_utc_day(now: dt.datetime) -> dt.datetime:
 
 
 # --- Day-Before Gate ---
+
 
 def marker(gameweek: int) -> str:
     """The run-title marker of a day-before ingest for this gameweek."""

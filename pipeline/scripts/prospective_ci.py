@@ -245,7 +245,9 @@ def pack(out: Path) -> int:
         if p.is_file():
             files.append((p, item))
         elif p.is_dir():
-            files += [(f, f.relative_to(ROOT).as_posix()) for f in sorted(p.rglob("*")) if f.is_file()]
+            files += [
+                (f, f.relative_to(ROOT).as_posix()) for f in sorted(p.rglob("*")) if f.is_file()
+            ]
     buf = io.BytesIO()
     with tarfile.open(fileobj=buf, mode="w") as tar:
         for path, arc in sorted(files, key=lambda x: x[1]):

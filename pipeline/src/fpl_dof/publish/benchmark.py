@@ -69,13 +69,9 @@ def build_xp_accuracy_season(
     return {
         "season": name,
         "kind": kind,
-        "gameweeks": [
-            {"gameweek": g, "phase": kind, "mae": gws[g]} for g in sorted(gws)
-        ],
+        "gameweeks": [{"gameweek": g, "phase": kind, "mae": gws[g]} for g in sorted(gws)],
         "pooled_mae": {m: round(s / n, 4) for m, (s, n) in tot.items() if n},
-        "missing_models": {
-            m: "no saved predictions" for m in ids.values() if m not in tot
-        },
+        "missing_models": {m: "no saved predictions" for m in ids.values() if m not in tot},
     }
 
 
