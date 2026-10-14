@@ -1,4 +1,4 @@
-import type { Models, SeasonReplay } from "../../contract/types";
+import type { Models } from "../../contract/types";
 import { MODEL_CHOICES } from "../../data/model";
 import type { ModelChoice } from "../../data/model";
 
@@ -26,6 +26,24 @@ export interface Season {
   /** Last gameweek with any result, per phase (null if none). */
   asOf: { replay: number | null; prospective: number | null };
   totals: Partial<Record<ModelChoice, { replay: number; prospective: number; total: number }>>;
+}
+
+/** The checked-in 2026/27 GW1-6 replay (scripts/models_history/build_replay_2627.py). Retrospective:
+ * the frozen models run after these gameweeks were played. Static app data, not a pipeline contract,
+ * so it is typed here rather than in the generated contract/types.ts. */
+export interface SeasonReplay {
+  contract_version: 1;
+  season: string;
+  kind: "replay";
+  caveat: string;
+  frozen_tag: string;
+  models: string[];
+  missing_models: Record<string, string>;
+  as_of_gameweek: number;
+  gameweeks: {
+    gameweek: number;
+    models: Record<string, { points: number; hit_points: number; captain: string }>;
+  }[];
 }
 
 const isModel = (m: string): m is ModelChoice => (MODEL_CHOICES as readonly string[]).includes(m);

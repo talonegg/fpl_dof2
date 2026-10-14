@@ -7,7 +7,6 @@ import type {
   Meta,
   Models,
   ModelsHistory,
-  SeasonReplay,
   Plan,
   Players,
   Rules,
@@ -265,6 +264,8 @@ export async function fetchModelsHistory(): Promise<ModelsHistory | null> {
     return null;
   }
 }
+
+import type { SeasonReplay } from "../components/history/season";
 
 /** The checked-in 2026/27 GW1–6 replay. Static, shipped with the app. */
 export const SEASON_REPLAY_URL = `${import.meta.env.BASE_URL}static/models_history_2627_replay.json`;

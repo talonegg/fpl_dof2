@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchModels, fetchModelsHistory, fetchSeasonReplay } from "../data/api";
-import type { Models, ModelsHistory, SeasonReplay } from "../contract/types";
+import type { Models, ModelsHistory } from "../contract/types";
+import type { SeasonReplay } from "../components/history/season";
 import { ModelHistoryView } from "../components/history/ModelHistoryView";
 import { SeasonView } from "../components/history/SeasonView";
 

@@ -1,4 +1,5 @@
-import type { Models, SeasonReplay } from "../../contract/types";
+import type { Models } from "../../contract/types";
+import type { SeasonReplay } from "./season";
 import { MODEL_LABELS } from "../../data/model";
 import type { ModelChoice } from "../../data/model";
 import { COLOURS, DASHES } from "../models/modelStyle";

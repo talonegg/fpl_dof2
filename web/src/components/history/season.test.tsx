@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import type { Models, ModelGameweek, SeasonReplay } from "../../contract/types";
+import type { Models, ModelGameweek } from "../../contract/types";
+import type { SeasonReplay } from "./season";
 import { buildSeason } from "./season";
 import { SeasonView } from "./SeasonView";
 

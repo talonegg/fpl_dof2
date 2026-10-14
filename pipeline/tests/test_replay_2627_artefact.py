@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import importlib.util
 import json
-from types import ModuleType
 from pathlib import Path
+from types import ModuleType
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "models_history" / "build_replay_2627.py"
