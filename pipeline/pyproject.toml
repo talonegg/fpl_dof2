@@ -33,6 +33,7 @@ dev = [
     "pandas-stubs>=2.2",
     "pytest>=8.3",
     "pytest-cov>=6.0",
+    "pytest-timeout>=2.3",
     "respx>=0.22",
     "ruff>=0.9",
     "types-jsonschema>=4.23",
@@ -78,7 +79,10 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-q --strict-markers"
+# No -q here: CI passes -q itself, and -q twice (-qq) suppresses the summary line.
+addopts = "--strict-markers"
+# Generous per-test ceiling so a genuine hang fails with a traceback instead of stalling the job.
+timeout = 120
 markers = [
     "network: hits the live FPL API; deselected by default in CI",
     "slow: measured in minutes, not seconds; deselected by default. Run with --slow",

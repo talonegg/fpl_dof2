@@ -13,3 +13,5 @@ verify.py's git-HEAD check.
 Raw football-data.co.uk CSVs (E0 2023/24–2025/26) are **not** redistributed: CI downloads them and
 accepts them only if their sha256 matches the manifest. Changing anything in the bundle is a new
 freeze, not an edit.
+
+Approved harness-only fixes are applied with `prospective/refreeze.py`. The patched files live in `prospective/harness_patches/`, and each fix is logged in `CHANGELOG.md` and in the `refreezes` entries of `manifest.json`. The script refuses to run if any model's config or model files would change.

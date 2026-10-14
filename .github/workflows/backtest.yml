@@ -10,7 +10,7 @@ name: Backtest
 
 on:
   schedule:
-    - cron: "0 16 * * 2" # 16:00 UTC Tuesday — well clear of any deadline, once a week
+    - cron: "17 16 * * 2" # 16:17 UTC Tuesday (odd minute) — well clear of any deadline, once a week
   workflow_dispatch:
 
 concurrency:
