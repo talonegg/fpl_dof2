@@ -70,7 +70,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
-      - run: python -m pip install -e "pipeline[dev]"
+          cache: pip
+          cache-dependency-path: pipeline/pyproject.toml
+      - run: python -m pip install -e pipeline
       - name: Restore bronze and silver from the `data` branch
         run: |
           set -eu
@@ -144,6 +146,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
+          cache: pip
+          cache-dependency-path: pipeline/pyproject.toml
 
       # The harness hardcodes the paths it was frozen at; recreate them rather than edit it.
       - name: Extract the frozen bundle to its frozen paths
@@ -280,6 +284,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
+          cache: pip
+          cache-dependency-path: pipeline/pyproject.toml
 
       - uses: actions/setup-node@v4
         with:

@@ -24,7 +24,7 @@ function CumulativeChart({ history, ids, highlight }: { history: ModelsHistory; 
   const B = 28;
   const x = (i: number) => L + ((W - L - R) * i) / Math.max(1, gws.length - 1);
   const y = (v: number) => H - B - ((H - T - B) * v) / max;
-  const ticks = [0, 0.25, 0.5, 0.75, 1].map((f) => Math.round((max * f) / 100) * 100);
+  const ticks = Array.from(new Set([0, 0.25, 0.5, 0.75, 1].map((f) => Math.round((max * f) / 100) * 100)));
   const order = [...ids.filter((m) => m !== highlight), highlight];
   const summary = ids
     .map((m) => `${MODEL_LABELS[m]} ${pts(history.gameweeks[gws.length - 1].models[m]?.cumulative ?? 0)}`)

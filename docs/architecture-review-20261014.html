@@ -1,0 +1,297 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Architecture review for fpl_dof2</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      .seam { stroke-dasharray: 4 4; }
+      .leak { stroke: #dc2626; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans antialiased">
+    <main class="max-w-5xl mx-auto px-6 py-12 space-y-12">
+      <!-- Header -->
+      <header class="border-b border-stone-200 pb-6 flex flex-col sm:flex-row sm:items-baseline justify-between gap-4">
+        <div>
+          <h1 class="text-3xl font-serif font-bold text-slate-950 tracking-tight">Architecture review: fpl_dof2</h1>
+          <p class="text-sm font-mono text-slate-500 mt-1">2026-10-14 · Deepening candidates</p>
+        </div>
+        <!-- Legend -->
+        <div class="flex items-center gap-4 text-xs font-mono text-slate-600 bg-white px-3 py-2 rounded-md border border-stone-200">
+          <span class="flex items-center gap-1.5"><span class="w-3 h-3 border border-slate-700 bg-slate-50 inline-block"></span> module</span>
+          <span class="flex items-center gap-1.5"><span class="w-3 border-t-2 border-dashed border-slate-700 inline-block"></span> seam</span>
+          <span class="flex items-center gap-1.5"><span class="w-3 border-t-2 border-red-600 inline-block"></span> leak</span>
+          <span class="flex items-center gap-1.5"><span class="w-3 h-3 bg-slate-900 inline-block"></span> deep module</span>
+        </div>
+      </header>
+
+      <!-- Candidates -->
+      <section id="candidates" class="space-y-12">
+        <!-- Candidate 1 -->
+        <article id="candidate-web-data" class="bg-white rounded-xl border border-stone-200 p-8 shadow-sm space-y-6">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="text-2xl font-serif font-bold text-slate-900">1. Collapse the web client data layer</h2>
+            <div class="flex items-center gap-2">
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">Strong</span>
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono bg-slate-100 text-slate-700">in-process</span>
+            </div>
+          </div>
+
+          <div class="font-mono text-xs text-slate-500 space-y-0.5 bg-stone-50 p-3 rounded-lg border border-stone-200">
+            <div>web/src/data/api.ts</div>
+            <div>web/src/data/published.ts</div>
+            <div>web/src/data/DataProvider.tsx</div>
+            <div>web/src/components/models/accuracy.ts</div>
+            <div>web/src/components/models/ModelsPage.tsx</div>
+          </div>
+
+          <!-- Diagram: Side-by-Side Mass / Structural diagram -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+            <!-- Before -->
+            <div class="rounded-lg border border-red-200 bg-red-50/20 p-4 flex flex-col justify-between">
+              <div class="text-xs font-mono uppercase tracking-wider text-red-700 font-semibold mb-3">Before: Shallow modules & scattered caches</div>
+              <div class="space-y-2 py-2">
+                <div class="border border-red-300 bg-white rounded p-2 text-xs font-mono">
+                  <div class="font-bold text-red-900">api.ts (16 loose fetchers)</div>
+                  <div class="text-[10px] text-slate-500">fetchMeta, fetchRules, fetchWeek, fetchPlan, fetchHistory, fetchFixtures, fetchLeague, fetchHealth, fetchLog, fetchModels...</div>
+                  <div class="mt-1 flex gap-1 flex-wrap text-[9px] text-red-600 font-sans">
+                    <span class="bg-red-50 border border-red-200 px-1 rounded">5 ad-hoc promise caches</span>
+                    <span class="bg-red-50 border border-red-200 px-1 rounded">missing caches on static files</span>
+                  </div>
+                </div>
+                <div class="border border-red-300 bg-white rounded p-2 text-xs font-mono">
+                  <div class="font-bold text-red-900">published.ts + accuracy.ts</div>
+                  <div class="text-[10px] text-slate-500">separate eager cache + detached fetchXpAccuracy with manual typing</div>
+                </div>
+                <div class="flex justify-center text-red-500 text-sm font-mono font-bold">↓ leakage across seam ↓</div>
+                <div class="grid grid-cols-3 gap-1.5 text-center text-[10px] font-mono text-slate-700">
+                  <div class="bg-white border border-stone-300 rounded p-1.5">ModelsPage<br/><span class="text-[9px] text-red-600">useStatic() hook</span></div>
+                  <div class="bg-white border border-stone-300 rounded p-1.5">PlayerRoute<br/><span class="text-[9px] text-slate-500">fetchHistory()</span></div>
+                  <div class="bg-white border border-stone-300 rounded p-1.5">HealthRoute<br/><span class="text-[9px] text-slate-500">fetchHealth()</span></div>
+                </div>
+              </div>
+              <div class="text-[11px] text-red-800 font-mono mt-2">Friction: Each route manages separate state, retries, and network lifecycle.</div>
+            </div>
+
+            <!-- After -->
+            <div class="rounded-lg border border-emerald-300 bg-emerald-50/20 p-4 flex flex-col justify-between">
+              <div class="text-xs font-mono uppercase tracking-wider text-emerald-800 font-semibold mb-3">After: Deep DataStore module</div>
+              <div class="space-y-3 py-2">
+                <div class="rounded-lg border-2 border-slate-900 bg-slate-900 text-white p-4 space-y-2">
+                  <div class="text-xs font-mono font-bold text-emerald-400">Deep module: DataStore</div>
+                  <div class="border-b border-slate-700 pb-1 text-[11px] font-mono text-slate-300">
+                    Interface: <code class="text-white">get(artefact)</code> · <code class="text-white">useArtefact(key)</code> · <code class="text-white">reload()</code>
+                  </div>
+                  <div class="text-[10px] text-slate-400 font-mono pt-1 space-y-1">
+                    <div>▪ Transparent eager preloading (core 6 artefacts)</div>
+                    <div>▪ Transparent lazy promise memoisation (trends & static)</div>
+                    <div>▪ Uniform offline service-worker cache warming</div>
+                    <div>▪ Single seam for schema validation and error fallback</div>
+                  </div>
+                </div>
+                <div class="flex justify-center text-emerald-700 text-sm font-mono font-bold">↓ single clean seam ↓</div>
+                <div class="grid grid-cols-3 gap-1.5 text-center text-[10px] font-mono text-slate-700">
+                  <div class="bg-white border border-emerald-400 rounded p-1.5 font-semibold">ModelsPage</div>
+                  <div class="bg-white border border-emerald-400 rounded p-1.5 font-semibold">PlayerRoute</div>
+                  <div class="bg-white border border-emerald-400 rounded p-1.5 font-semibold">HealthRoute</div>
+                </div>
+              </div>
+              <div class="text-[11px] text-emerald-800 font-mono mt-2">Depth: 16 fetchers and 6 caches collapse behind one interface.</div>
+            </div>
+          </div>
+
+          <div class="space-y-3 pt-2">
+            <div>
+              <span class="text-xs font-mono uppercase tracking-wider text-slate-500 font-bold block mb-1">Problem</span>
+              <p class="text-slate-700 text-sm">The web client data layer exposes 16 shallow fetch functions and 6 module-scope caches with inconsistent error handling and missing offline warming.</p>
+            </div>
+            <div>
+              <span class="text-xs font-mono uppercase tracking-wider text-slate-500 font-bold block mb-1">Solution</span>
+              <p class="text-slate-700 text-sm">Deepen into a unified DataStore module presenting a single query interface with transparent eager preloading, lazy memoisation, and offline warming.</p>
+            </div>
+            <div>
+              <span class="text-xs font-mono uppercase tracking-wider text-slate-500 font-bold block mb-1">Wins</span>
+              <ul class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-slate-700">
+                <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> locality: network caching in one module</li>
+                <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> leverage: one interface, N routes</li>
+                <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> offline warming satisfies all artefacts</li>
+                <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> tests mock one unified interface</li>
+                <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> delete duplicate useStatic component polling</li>
+                <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> contract validation runs across seam</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <!-- Candidate 2 -->
+        <article id="candidate-cadence" class="bg-white rounded-xl border border-stone-200 p-8 shadow-sm space-y-6">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="text-2xl font-serif font-bold text-slate-900">2. Consolidate Gameweek Cadence and Refresh Gating</h2>
+            <div class="flex items-center gap-2">
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">Strong</span>
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono bg-slate-100 text-slate-700">in-process</span>
+            </div>
+          </div>
+
+          <div class="font-mono text-xs text-slate-500 space-y-0.5 bg-stone-50 p-3 rounded-lg border border-stone-200">
+            <div>pipeline/src/fpl_dof/week/day_before.py</div>
+            <div>pipeline/src/fpl_dof/week/ci_runs.py</div>
+            <div>pipeline/src/fpl_dof/week/deadline.py</div>
+            <div>pipeline/src/fpl_dof/week/schedule.py</div>
+            <div>pipeline/src/fpl_dof/stages/week.py</div>
+          </div>
+
+          <!-- Diagram: Mermaid Flowchart -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+            <!-- Before -->
+            <div class="rounded-lg border border-red-200 bg-red-50/20 p-4 flex flex-col justify-between">
+              <div class="text-xs font-mono uppercase tracking-wider text-red-700 font-semibold mb-2">Before: Fragmented timetable & cron logic</div>
+              <pre class="mermaid">
+                flowchart TD
+                  A[CI / CLI Callers] --> B[day_before.py]
+                  A --> C[schedule.py]
+                  A --> D[deadline.py]
+                  B -.leak.-> E[Raw GitHub JSON]
+                  B -.leak.-> F[ZoneInfo Sydney]
+                  D -.leak.-> G[Europe/London]
+                  classDef leak stroke:#dc2626,stroke-width:2px;
+                  class E,F,G leak
+              </pre>
+              <div class="text-[11px] text-red-800 font-mono mt-2">Friction: Duplicate next_deadline algorithms in day_before.py and deadline.py.</div>
+            </div>
+
+            <!-- After -->
+            <div class="rounded-lg border border-emerald-300 bg-emerald-50/20 p-4 flex flex-col justify-between">
+              <div class="text-xs font-mono uppercase tracking-wider text-emerald-800 font-semibold mb-2">After: Deep Cadence module</div>
+              <pre class="mermaid">
+                flowchart TD
+                  A[CI / CLI Callers] --> B[fpl_dof.week.cadence]
+                  subgraph Cadence ["Cadence (Deep Module)"]
+                    C[Zone Shifting UK/Sydney]
+                    D[Gameweek Deadlines]
+                    E[Idempotency & Gates]
+                  end
+                  B --> Cadence
+                  classDef deep fill:#0f172a,stroke:#38bdf8,stroke-width:2px,color:#fff;
+                  class B,Cadence deep
+              </pre>
+              <div class="text-[11px] text-emerald-800 font-mono mt-2">Depth: One interface evaluate(now, runs) decides execution and deadlines.</div>
+            </div>
+          </div>
+
+          <div class="space-y-3 pt-2">
+            <div>
+              <span class="text-xs font-mono uppercase tracking-wider text-slate-500 font-bold block mb-1">Problem</span>
+              <p class="text-slate-700 text-sm">Timetable extraction, Sydney/London timezone offsets, and CI idempotency checks are shallowly duplicated across four sibling modules.</p>
+            </div>
+            <div>
+              <span class="text-xs font-mono uppercase tracking-wider text-slate-500 font-bold block mb-1">Solution</span>
+              <p class="text-slate-700 text-sm">Deepen into one Cadence module presenting a single decision interface that evaluates workflow triggers and deadlines from raw timetable inputs.</p>
+            </div>
+            <div>
+              <span class="text-xs font-mono uppercase tracking-wider text-slate-500 font-bold block mb-1">Wins</span>
+              <ul class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-slate-700">
+                <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> locality: timezone math concentrated once</li>
+                <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> leverage: pipeline and CI share interface</li>
+                <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> delete duplicate deadline parsing implementations</li>
+                <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> tests verify cadence through one seam</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <!-- Candidate 3 -->
+        <article id="candidate-models" class="bg-white rounded-xl border border-stone-200 p-8 shadow-sm space-y-6">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="text-2xl font-serif font-bold text-slate-900">3. Unify Model Evaluation and Benchmark Datasets</h2>
+            <div class="flex items-center gap-2">
+              <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800">Worth exploring</span>
+              <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-mono bg-slate-100 text-slate-700">ports & adapters</span>
+            </div>
+          </div>
+
+          <div class="font-mono text-xs text-slate-500 space-y-0.5 bg-stone-50 p-3 rounded-lg border border-stone-200">
+            <div>pipeline/src/fpl_dof/publish/models_compare.py</div>
+            <div>pipeline/src/fpl_dof/publish/models_history.py</div>
+            <div>scripts/models_history/build_xp_accuracy.py</div>
+            <div>contracts/v1/models.schema.json</div>
+            <div>contracts/v1/models_history.schema.json</div>
+          </div>
+
+          <!-- Diagram: Cross-Section Visual -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-stretch">
+            <!-- Before -->
+            <div class="rounded-lg border border-red-200 bg-red-50/20 p-4 flex flex-col justify-between">
+              <div class="text-xs font-mono uppercase tracking-wider text-red-700 font-semibold mb-3">Before: 3 Fractured Artefacts & Out-of-band scripts</div>
+              <div class="space-y-2 py-2">
+                <div class="h-10 border-l-4 border-red-400 bg-white rounded p-2 text-xs font-mono flex items-center justify-between">
+                  <span>models.json</span>
+                  <span class="text-[10px] text-slate-500">live prospective harness</span>
+                </div>
+                <div class="h-10 border-l-4 border-red-400 bg-white rounded p-2 text-xs font-mono flex items-center justify-between">
+                  <span>models_history_2526.json</span>
+                  <span class="text-[10px] text-slate-500">checked-in static backtest</span>
+                </div>
+                <div class="h-10 border-l-4 border-red-400 bg-white rounded p-2 text-xs font-mono flex items-center justify-between">
+                  <span>xp_accuracy.json</span>
+                  <span class="text-[10px] text-slate-500">scripts/build_xp_accuracy.py</span>
+                </div>
+              </div>
+              <div class="text-[11px] text-red-800 font-mono mt-2">Friction: Bypasses contract generator; manual client TypeScript types.</div>
+            </div>
+
+            <!-- After -->
+            <div class="rounded-lg border border-emerald-300 bg-emerald-50/20 p-4 flex flex-col justify-between">
+              <div class="text-xs font-mono uppercase tracking-wider text-emerald-800 font-semibold mb-3">After: Consolidated ModelBenchmark contract</div>
+              <div class="py-2">
+                <div class="border-l-4 border-emerald-500 rounded bg-slate-900 text-white p-4 space-y-2">
+                  <div class="text-xs font-mono font-bold text-emerald-400">Deep module: ModelBenchmarkBuilder</div>
+                  <div class="text-[11px] text-slate-300 font-mono">Consolidates live advice, replay records, and MAE accuracy metrics.</div>
+                  <div class="text-[10px] text-slate-400 font-mono">Single schema: contracts/v1/models_benchmark.schema.json</div>
+                </div>
+              </div>
+              <div class="text-[11px] text-emerald-800 font-mono mt-2">Depth: One schema contract, one TypeScript generator target.</div>
+            </div>
+          </div>
+
+          <div class="space-y-3 pt-2">
+            <div>
+              <span class="text-xs font-mono uppercase tracking-wider text-slate-500 font-bold block mb-1">Problem</span>
+              <p class="text-slate-700 text-sm">The five-model comparison splits live decisions, historical replays, and MAE accuracy scores across separate files and ad-hoc scripts.</p>
+            </div>
+            <div>
+              <span class="text-xs font-mono uppercase tracking-wider text-slate-500 font-bold block mb-1">Solution</span>
+              <p class="text-slate-700 text-sm">Deepen the model evaluation publishing module to emit a unified contract bundle verified by schema.</p>
+            </div>
+            <div>
+              <span class="text-xs font-mono uppercase tracking-wider text-slate-500 font-bold block mb-1">Wins</span>
+              <ul class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-slate-700">
+                <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> locality: accuracy logic moves into pipeline</li>
+                <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> leverage: contract generator types all models</li>
+                <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> delete hand-typed client interfaces</li>
+                <li class="flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span> one seam validates model benchmarks</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- Top Recommendation -->
+      <section id="top-recommendation" class="bg-slate-900 text-white rounded-xl p-8 border border-slate-800 space-y-4">
+        <div class="text-xs font-mono uppercase tracking-wider text-emerald-400 font-bold">Top recommendation</div>
+        <h3 class="text-2xl font-serif font-bold text-white">
+          <a href="#candidate-web-data" class="hover:text-emerald-400 transition-colors">1. Collapse the web client data layer</a>
+        </h3>
+        <p class="text-slate-300 text-sm leading-relaxed">
+          Tackle this first because the recent addition of model benchmarking, replay data, and accuracy scores caused network fetching and caching logic to sprawl into individual components. Deepening into a unified <code class="text-emerald-300 font-mono">DataStore</code> module gives immediate leverage across all routes and establishes a clean seam for offline warming.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

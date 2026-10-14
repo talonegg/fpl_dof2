@@ -18,16 +18,13 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-#: Harness model key -> (web id, label, role, description). Order is the display order.
-MODEL_REGISTRY: tuple[tuple[str, str, str, str, str], ...] = (
-    ("C3", "champion", "Champion (C3)", "champion", "Engine + minutes_v2, price/position captain"),
-    ("C1", "challenger", "Challenger (C1)", "challenger", "Boosted xG + minutes model"),
-    ("engine", "engine", "Engine", "comparison", "Original engine, engine captain"),
-    ("A", "a", "Model A", "comparison", "Component xPts model"),
-    ("A_odds", "a_odds", "A + odds", "comparison", "Model A with the odds team layer"),
+from fpl_dof.publish.benchmark import (
+    CHAMPION_KEY,
+    MODEL_REGISTRY,
 )
-CHAMPION_KEY = "C3"
-_BY_KEY = {key: (wid, label, role, desc) for key, wid, label, role, desc in MODEL_REGISTRY}
+from fpl_dof.publish.benchmark import (
+    REGISTRY_BY_KEY as _BY_KEY,
+)
 
 
 def _element(code: Any, code_to_element: Mapping[str, Any]) -> int | None:

@@ -14,15 +14,13 @@ from typing import Any
 
 import numpy as np
 
-#: Web model id -> (label, role). Display order; the champion is first.
-HISTORY_MODELS: tuple[tuple[str, str, str], ...] = (
-    ("champion", "Champion (C3)", "champion"),
-    ("challenger", "Challenger (C1)", "challenger"),
-    ("engine", "Engine", "comparison"),
-    ("a", "Model A", "comparison"),
-    ("a_odds", "A + odds", "comparison"),
+from fpl_dof.publish.benchmark import (
+    CHAMPION_WEB_ID as CHAMPION,
 )
-CHAMPION = "champion"
+from fpl_dof.publish.benchmark import (
+    HISTORY_MODELS,
+)
+
 BOOTSTRAP_DRAWS = 2000
 BOOTSTRAP_SEED = 0
 

@@ -10,8 +10,9 @@ from typing import Any
 import pytest
 
 from fpl_dof.config.models import ModelsArtefactConfig
+from fpl_dof.publish.benchmark import MODEL_REGISTRY
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
-from fpl_dof.publish.models_compare import MODEL_REGISTRY, build_models
+from fpl_dof.publish.models_compare import build_models
 from fpl_dof.stages import publish
 
 

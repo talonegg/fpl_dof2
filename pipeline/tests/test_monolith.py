@@ -78,6 +78,11 @@ def _walk(history: pd.DataFrame) -> BacktestResult:
     )
 
 
+@pytest.fixture(scope="module")
+def dense_walk_result() -> BacktestResult:
+    return _walk(dense_history())
+
+
 def _fitted(history: pd.DataFrame | None = None) -> tuple[MonolithPredictor, pd.DataFrame]:
     """A monolith fitted on a frame shaped like the one the harness actually hands it.
 
@@ -270,9 +275,11 @@ def test_the_decision_path_is_scanned_and_actually_exists() -> None:
         assert (SRC / package).is_dir(), package
 
 
-def test_the_monolith_column_is_never_the_graded_prediction() -> None:
+def test_the_monolith_column_is_never_the_graded_prediction(
+    dense_walk_result: BacktestResult,
+) -> None:
     """Two columns, two meanings. The report reads the chain's, always."""
-    result = _walk(dense_history())
+    result = dense_walk_result
     assert MONOLITH_COLUMN in result.predictions.columns
     assert result.model.name != result.monolith.name
     assert not np.allclose(
@@ -284,13 +291,15 @@ def test_the_monolith_column_is_never_the_graded_prediction() -> None:
 # --- it is reported, every run ------------------------------------------------------------------
 
 
-def test_every_run_reports_the_gap_overall_and_per_position() -> None:
+def test_every_run_reports_the_gap_overall_and_per_position(
+    dense_walk_result: BacktestResult,
+) -> None:
     """E10-S5's acceptance criterion, stated as the thing a reader can actually find.
 
     Overall *and* per position, because E10 §0 grades everything per position — a gap concentrated
     in one position is a statement about that position's formulation, not about interpretability.
     """
-    result = _walk(dense_history())
+    result = dense_walk_result
 
     assert result.monolith.observations > 0
     published = result.as_dict()
@@ -314,9 +323,11 @@ def test_every_run_reports_the_gap_overall_and_per_position() -> None:
     assert monolith["calibration_slope_by_position"]
 
 
-def test_the_report_names_the_library_and_the_feature_count() -> None:
+def test_the_report_names_the_library_and_the_feature_count(
+    dense_walk_result: BacktestResult,
+) -> None:
     """An inert benchmark must be visible as inert, so what it was is recorded, not implied."""
-    result = _walk(dense_history())
+    result = dense_walk_result
     described = result.monolith_description
     assert "HistGradientBoosting" in str(described["library"])
     features = described["features"]
@@ -325,9 +336,11 @@ def test_the_report_names_the_library_and_the_feature_count() -> None:
     assert POSITION in features
 
 
-def test_the_gap_is_measured_against_the_chain_rather_than_against_b0() -> None:
+def test_the_gap_is_measured_against_the_chain_rather_than_against_b0(
+    dense_walk_result: BacktestResult,
+) -> None:
     """So its MAE skill column reads as skill over what we ship, with no subtraction to do."""
-    result = _walk(dense_history())
+    result = dense_walk_result
     expected = 1.0 - (result.monolith.mae / result.model.mae)
     assert result.monolith.mae_skill_score == pytest.approx(expected)
 
@@ -431,21 +444,24 @@ def test_predicting_before_fitting_is_an_error_rather_than_a_zero() -> None:
 # --- it can actually learn ----------------------------------------------------------------------
 
 
-def test_the_monolith_beats_the_constant_baseline() -> None:
+def test_the_monolith_beats_the_constant_baseline(
+    dense_walk_result: BacktestResult,
+) -> None:
     """Sanity in the opposite direction, and it matters more here than anywhere else.
 
     A monolith that had quietly stopped learning would report a *small* gap, which is the most
     reassuring possible way for this benchmark to be broken: the report would say explainability
     costs nothing and mean that the benchmark measures nothing.
     """
-    result = _walk(dense_history())
+    result = dense_walk_result
     assert result.monolith.mae < result.mean_baseline.mae
     assert result.predictions[MONOLITH_COLUMN].std() > 0
 
 
 def test_two_runs_on_one_history_report_one_gap() -> None:
     """DP-11. The fit is otherwise deterministic, so the seed is the only channel that can vary."""
-    first, second = _walk(dense_history()), _walk(dense_history())
+    history = dense_history()
+    first, second = _walk(history), _walk(history)
     assert first.explainability_gap == pytest.approx(second.explainability_gap, nan_ok=True)
     pd.testing.assert_series_equal(
         first.predictions[MONOLITH_COLUMN], second.predictions[MONOLITH_COLUMN]

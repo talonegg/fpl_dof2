@@ -358,9 +358,16 @@ def _walk(config: ForecastConfig, rules: GameRules) -> BacktestResult:
     )
 
 
-def test_the_minutes_brier_is_reported_rather_than_null(game_rules: GameRules) -> None:
+@pytest.fixture(scope="module")
+def default_walk_result(game_rules: GameRules) -> BacktestResult:
+    return _walk(ForecastConfig(), game_rules)
+
+
+def test_the_minutes_brier_is_reported_rather_than_null(
+    default_walk_result: BacktestResult,
+) -> None:
     """D-14, closed. The field E3-S3's acceptance criterion named has a number in it."""
-    result = _walk(ForecastConfig(), game_rules)
+    result = default_walk_result
 
     calibration = result.minutes_calibration
     assert calibration is not None
@@ -372,10 +379,10 @@ def test_the_minutes_brier_is_reported_rather_than_null(game_rules: GameRules) -
 
 
 def test_the_brier_is_reported_per_position_and_per_minutes_band(
-    game_rules: GameRules,
+    default_walk_result: BacktestResult,
 ) -> None:
     """E10 grades every metric per position: a gain confined to forwards is not a gain."""
-    result = _walk(ForecastConfig(), game_rules)
+    result = default_walk_result
     calibration = result.minutes_calibration
     assert calibration is not None
 
@@ -386,7 +393,7 @@ def test_the_brier_is_reported_per_position_and_per_minutes_band(
 
 
 def test_the_minutes_brier_counts_the_players_who_did_not_feature(
-    game_rules: GameRules,
+    default_walk_result: BacktestResult,
 ) -> None:
     """The decision this measurement turns on.
 
@@ -395,7 +402,7 @@ def test_the_minutes_brier_counts_the_players_who_did_not_feature(
     are the majority of the population and they are *what is being calibrated*. Measured only where
     somebody played, every minutes model scores superbly, because the answer is always yes.
     """
-    result = _walk(ForecastConfig(), game_rules)
+    result = default_walk_result
     calibration = result.minutes_calibration
     assert calibration is not None
 
@@ -419,9 +426,11 @@ def test_a_predictor_with_no_minutes_model_says_so_rather_than_inventing_a_score
     assert any("minutes distribution" in warning for warning in result.warnings)
 
 
-def test_both_distributions_reach_the_predictions_frame(game_rules: GameRules) -> None:
+def test_both_distributions_reach_the_predictions_frame(
+    default_walk_result: BacktestResult,
+) -> None:
     """So the evidence is re-checkable from the parquet rather than only from the report."""
-    result = _walk(ForecastConfig(), game_rules)
+    result = default_walk_result
     frame = result.predictions
 
     for band in MINUTES_BANDS:
@@ -434,6 +443,7 @@ def test_both_distributions_reach_the_predictions_frame(game_rules: GameRules) -
 
 def test_the_candidate_is_measurable_and_the_default_is_not_disturbed_by_it(
     game_rules: GameRules,
+    default_walk_result: BacktestResult,
 ) -> None:
     """The evidence loop DL-47 asks for: the same grid, once with the flag off and once on.
 
@@ -442,7 +452,7 @@ def test_the_candidate_is_measurable_and_the_default_is_not_disturbed_by_it(
     backtest's finding, recorded in the decision log; a test that asserted it would be a test that
     has to be rewritten every time the evidence changes.
     """
-    default = _walk(ForecastConfig(), game_rules)
+    default = default_walk_result
     candidate = _walk(_v2_config(), game_rules)
 
     assert default.minutes_calibration is not None

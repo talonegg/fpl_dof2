@@ -1003,3 +1003,24 @@ export interface ModelsHistory {
   gameweeks: ModelHistoryGameweek[];
   summary: ModelHistorySummary[];
 }
+
+export interface XpAccuracyGameweek {
+  gameweek: number;
+  phase: "backtest" | "replay" | "prospective";
+  mae: Record<string, number>;
+}
+
+export interface XpAccuracySeason {
+  season: string;
+  kind: "backtest" | "replay" | "prospective";
+  gameweeks: XpAccuracyGameweek[];
+  pooled_mae: Record<string, number>;
+  missing_models: Record<string, string>;
+}
+
+/** Per-GW all-player xP MAE across seasons (backtest, replay, and live prospective). */
+export interface XpAccuracy {
+  contract_version: 1;
+  metric: string;
+  seasons: XpAccuracySeason[];
+}
