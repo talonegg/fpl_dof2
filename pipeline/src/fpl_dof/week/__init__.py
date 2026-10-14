@@ -5,7 +5,7 @@ doing" — which is the question that has to be answerable 37 more times.
 """
 
 from fpl_dof.week.alerts import Alert, AlertSeverity, collect_alerts
-from fpl_dof.week.deadline import DeadlineView, describe_deadline, next_deadline
+from fpl_dof.week.cadence import DeadlineView, describe_deadline, next_deadline
 from fpl_dof.week.reconcile import Divergence, Reconciliation, reconcile
 from fpl_dof.week.schedule import ScheduleDecision, fast_ingest_decision, pipeline_decision
 

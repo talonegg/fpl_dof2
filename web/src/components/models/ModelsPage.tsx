@@ -1,16 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { Models, ModelsHistory } from "../../contract/types";
-import { fetchModelsHistory, fetchSeasonReplay } from "../../data/api";
 import { useDataState } from "../../data/DataProvider";
+import { useArtefact } from "../../data/store";
 import { MODEL_CHOICES, MODEL_DESCRIPTIONS, MODEL_LABELS } from "../../data/model";
 import type { ModelChoice } from "../../data/model";
 import { ModelHistoryView } from "../history/ModelHistoryView";
 import { SeasonView } from "../history/SeasonView";
-import type { SeasonReplay } from "../history/season";
 import "../history/history.css";
 import { AccuracySection } from "./AccuracySection";
-import { fetchXpAccuracy } from "./accuracy";
 import type { XpAccuracy } from "./accuracy";
 import { ModelBadge } from "./ModelBadge";
 import { ModelDiffView } from "./ModelDiffView";
@@ -59,23 +57,6 @@ const SECTIONS = [
   ["history", "History"],
 ] as const;
 
-type Loaded<T> = { status: "loading" } | { status: "ready"; value: T | null };
-
-function useStatic<T>(load: () => Promise<T | null>): Loaded<T> {
-  const [s, set] = useState<Loaded<T>>({ status: "loading" });
-  useEffect(() => {
-    let off = false;
-    void load().then((value) => {
-      if (!off) set({ status: "ready", value });
-    });
-    return () => {
-      off = true;
-    };
-  }, []);
-  return s;
-}
-
-const val = <T,>(l: Loaded<T>): T | null => (l.status === "ready" ? l.value : null);
 
 function unavailableNow(models: Models | null, m: ModelChoice): string | null {
   const last = models?.gameweeks[models.gameweeks.length - 1];
@@ -143,9 +124,9 @@ function SummaryTable({ history, accuracy, models }: { history: ModelsHistory | 
 export function ModelsPage() {
   const { state } = useDataState();
   const data = state.status === "ready" ? state.data : null;
-  const history = useStatic(fetchModelsHistory);
-  const replay = useStatic<SeasonReplay>(fetchSeasonReplay);
-  const accuracy = useStatic<XpAccuracy>(fetchXpAccuracy);
+  const history = useArtefact("models_history_2526");
+  const replay = useArtefact("models_history_2627_replay");
+  const accuracy = useArtefact("xp_accuracy");
   const [params] = useSearchParams();
   const section = params.get("section");
   const allLoaded = history.status === "ready" && replay.status === "ready" && accuracy.status === "ready";
@@ -167,7 +148,7 @@ export function ModelsPage() {
 
       <section className="models-page-section" id="models-summary" aria-labelledby="models-summary-heading">
         <h2 id="models-summary-heading">Summary</h2>
-        <SummaryTable history={val(history)} accuracy={val(accuracy)} models={models} />
+        <SummaryTable history={history.data} accuracy={accuracy.data} models={models} />
         <p className="models-note">
           Backtest XI pts/GW: realistic walk-forward 2025/26 (auto-subs, vice fallback, hits, no chips) — not real play. xP
           MAE: all-player mean absolute error of next-GW xP, lower is better. “—” = no data for that model.
@@ -178,7 +159,7 @@ export function ModelsPage() {
         <h2 id="models-details-heading">Details</h2>
         <div className="models-detail-grid" data-testid="models-details">
           {MODEL_CHOICES.map((m) => {
-            const b = val(history)?.summary.find((s) => s.model === m);
+            const b = history.data?.summary.find((s) => s.model === m);
             return (
               <article key={m} className="models-detail-card" data-testid={`models-detail-${m}`}>
                 <h3>
@@ -215,15 +196,15 @@ export function ModelsPage() {
         )}
       </section>
 
-      <AccuracySection accuracy={val(accuracy)} status={accuracy.status} />
+      <AccuracySection accuracy={accuracy.data} status={accuracy.status === "loading" ? "loading" : "ready"} />
 
       <section className="models-page-section" id="models-history" aria-labelledby="models-history-heading">
         <h2 id="models-history-heading">History</h2>
-        <SeasonView replay={val(replay)} models={models} />
+        <SeasonView replay={replay.data} models={models} />
         {history.status === "loading" ? (
           <p data-testid="history-loading">Loading the model history…</p>
-        ) : val(history) ? (
-          <ModelHistoryView history={val(history)!} />
+        ) : history.data ? (
+          <ModelHistoryView history={history.data} />
         ) : (
           <p data-testid="history-absent">The 2025/26 backtest file could not be loaded.</p>
         )}

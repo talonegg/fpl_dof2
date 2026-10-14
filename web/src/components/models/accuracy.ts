@@ -13,18 +13,11 @@ export interface XpAccuracy {
   seasons: XpAccuracySeason[];
 }
 
-export const XP_ACCURACY_URL = `${import.meta.env.BASE_URL}static/xp_accuracy.json`;
+import { XP_ACCURACY_URL, dataStore } from "../../data/store";
+
+export { XP_ACCURACY_URL };
 
 /** **Never throws**: null when missing, non-JSON or malformed. */
-export async function fetchXpAccuracy(): Promise<XpAccuracy | null> {
-  try {
-    const res = await fetch(XP_ACCURACY_URL);
-    if (!res.ok) return null;
-    const contentType = res.headers.get("content-type") ?? "";
-    if (contentType && !contentType.includes("json")) return null;
-    const body = (await res.json()) as XpAccuracy;
-    return body && typeof body === "object" && Array.isArray(body.seasons) ? body : null;
-  } catch {
-    return null;
-  }
+export function fetchXpAccuracy(): Promise<XpAccuracy | null> {
+  return dataStore.get("xp_accuracy");
 }
