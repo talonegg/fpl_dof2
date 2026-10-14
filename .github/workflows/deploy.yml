@@ -36,10 +36,10 @@ jobs:
     # is skipped outright rather than redeploying an older contract.
     if: >-
       !(github.event_name == 'workflow_run'
-        && contains(github.event.workflow_run.display_title, '[day-before]')
+        && contains(github.event.workflow_run.display_title, '[day-before')
         && github.event.workflow_run.conclusion != 'success')
     env:
-      DAY_BEFORE: ${{ github.event_name == 'workflow_run' && contains(github.event.workflow_run.display_title, '[day-before]') }}
+      DAY_BEFORE: ${{ github.event_name == 'workflow_run' && contains(github.event.workflow_run.display_title, '[day-before') }}
     steps:
       - uses: actions/checkout@v4
 

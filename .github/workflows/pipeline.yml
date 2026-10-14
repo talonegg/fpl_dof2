@@ -15,13 +15,16 @@ name: Pipeline
 # A run that follows the day-before ingest carries "[day-before]" so Deploy can apply its stricter
 # fail-closed rules (see day-before.yml).
 run-name: >-
-  ${{ github.event_name == 'workflow_run' && contains(github.event.workflow_run.display_title, '[day-before]')
+  ${{ github.event_name == 'workflow_run' && contains(github.event.workflow_run.display_title, '[day-before')
   && 'Pipeline [day-before]' || 'Pipeline' }}
 
 on:
   schedule:
-    - cron: "0 1 * * *" # nightly, unconditional
-    - cron: "*/15 * * * *" # deadline-relative guard, every 15 minutes — see ScheduleConfig
+    # Schedule hardening (2026-10-14): GitHub drops and delays cron firings on this repo, worst at
+    # :00/:30. Every cron is on odd minutes, and the nightly run has a fallback firing.
+    - cron: "11 1 * * *" # nightly, unconditional
+    - cron: "47 3 * * *" # nightly fallback: no-op if today's nightly `run` job already succeeded
+    - cron: "7,23,41,53 * * * *" # deadline-relative guard (longest gap 18 min) — see ScheduleConfig
   workflow_run:
     workflows: ["Ingest (slow)"]
     types: [completed]
@@ -55,6 +58,9 @@ jobs:
     # deadline-relative cron consults fpl-dof-schedule — the nightly cron, the post-ingest-slow
     # trigger, and manual dispatch proceed unconditionally (they are not deadline-relative, so
     # there is no window to be inside or outside of).
+    permissions:
+      contents: read
+      actions: read # gh run view/list for the upstream-ingest and fallback checks
     runs-on: ubuntu-latest
     outputs:
       run: ${{ steps.decide.outputs.run }}
@@ -80,18 +86,41 @@ jobs:
       - name: Decide whether to run
         id: decide
         env:
-          DAY_BEFORE: ${{ github.event_name == 'workflow_run' && contains(github.event.workflow_run.display_title, '[day-before]') }}
-          UPSTREAM: ${{ github.event.workflow_run.conclusion }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          EVENT: ${{ github.event_name }}
+          SCHEDULE: ${{ github.event.schedule }}
+          DAY_BEFORE: ${{ github.event_name == 'workflow_run' && contains(github.event.workflow_run.display_title, '[day-before') }}
+          UPSTREAM_ID: ${{ github.event.workflow_run.id }}
         run: |
           echo "day_before=$DAY_BEFORE" >> "$GITHUB_OUTPUT"
-          if [ "$DAY_BEFORE" = "true" ] && [ "$UPSTREAM" != "success" ]; then
-            # Fail closed: never refresh models on a failed day-before ingest.
-            echo "::warning title=Day-before refresh skipped::the day-before ingest concluded '$UPSTREAM'; not running the pipeline"
-            echo "run=false" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event_name }}" != "schedule" ] || [ "${{ github.event.schedule }}" != "*/15 * * * *" ]; then
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          else
+          if [ "$EVENT" = "workflow_run" ]; then
+            # What the triggering Ingest (slow) run's `ingest` job actually did. A fallback firing
+            # that found today's ingest already done skips that job: nothing new, so no rerun.
+            ingest="$(gh run view "$UPSTREAM_ID" --repo "${{ github.repository }}" --json jobs \
+              --jq '.jobs[] | select(.name == "ingest") | .conclusion' 2>/dev/null || echo unknown)"
+            echo "upstream ingest job: ${ingest:-none}"
+            if [ "$ingest" = "skipped" ]; then
+              echo "upstream ingest was a fallback no-op; nothing to refresh"
+              echo "run=false" >> "$GITHUB_OUTPUT"
+            elif [ "$DAY_BEFORE" = "true" ] && [ "$ingest" != "success" ]; then
+              # Fail closed: never refresh models on a failed (or unknown) day-before ingest.
+              echo "::warning title=Day-before refresh skipped::the day-before ingest job concluded '${ingest:-none}'; not running the pipeline"
+              echo "run=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "run=true" >> "$GITHUB_OUTPUT"
+            fi
+          elif [ "$EVENT" = "schedule" ] && [ "$SCHEDULE" = "7,23,41,53 * * * *" ]; then
             echo "run=$(fpl-dof-schedule --decide pipeline)" >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT" = "schedule" ] && [ "$SCHEDULE" = "47 3 * * *" ]; then
+            python pipeline/scripts/ci_runs.py today-done --workflow pipeline.yml --job run
+            if grep -q '^done=true$' "$GITHUB_OUTPUT"; then
+              echo "nightly already succeeded today; fallback is a no-op"
+              echo "run=false" >> "$GITHUB_OUTPUT"
+            else
+              echo "run=true" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
           fi
 
   # The five frozen prospective models (engine, C3, C1, A, A+odds; tag frozen-2026-10-13). Runs the

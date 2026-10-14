@@ -1,32 +1,41 @@
 """The day-before refresh gate (pure; stdlib only, so the gate job needs no install).
 
-Goal: one full refresh (ingest → pipeline → deploy) at about 07:00 Sydney time on the calendar day
-before each gameweek deadline — e.g. Friday morning for a Saturday deadline.
+Goal: one full refresh (ingest → pipeline → deploy) on the morning of the calendar day before each
+gameweek deadline in Sydney — e.g. Friday morning for a Saturday deadline.
 
-GitHub cron is UTC and Sydney moves between AEST (UTC+10) and AEDT (UTC+11), so the workflow fires
-at both candidate times, 20:00 and 21:00 UTC. Exactly one of them is 07:00 in Sydney on any given
-day; the gate takes the firing's *nominal* cron time (not the possibly-delayed start time) and
-proceeds only if that is 07:00 Sydney **and** the next deadline falls on the next Sydney calendar
-day. Anything it cannot establish — API down, malformed JSON, no upcoming deadline — is a skip with
-a reason, never a partial run.
+GitHub drops and delays cron firings on this repo, so the workflow fires many times (every 20
+minutes at odd minutes, 19:07 to 22:47 UTC = 05:07 to 09:47 Sydney under either offset). The gate
+proceeds on the **first** firing that is on or after 07:00 Sydney time on the day before the next
+deadline, and is idempotent: once a day-before ingest for that gameweek is queued, running or
+succeeded (its run title carries ``[day-before GW{n}]``), every later firing is a logged no-op. A
+failed one is retried by the next firing. Anything the gate cannot establish — FPL API down,
+malformed JSON, no upcoming deadline, GitHub's run list unreadable — is a skip with a reason,
+never a partial run.
 
-Prospective decisions are never written by this refresh: a deadline "tomorrow" is at least
-``24 - 7 = 17`` hours after a 07:00 run, outside the prospective 14 h decision window, and the
-pipeline vetoes ``decide`` for day-before runs regardless (belt and braces).
+Prospective decisions are never written by this refresh: a deadline "tomorrow" is more than 14 h
+after a morning firing (at least 14 h 13 m after 09:47), and the pipeline vetoes ``decide`` for
+day-before runs regardless (belt and braces).
 """
 
 from __future__ import annotations
 
 import datetime as dt
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 from zoneinfo import ZoneInfo
 
+from fpl_dof.week.ci_runs import active_or_succeeded
+
 SYDNEY = ZoneInfo("Australia/Sydney")
 LOCAL_HOUR = 7
-#: 07:00 AEDT (UTC+11) and 07:00 AEST (UTC+10).
-CRON_UTC_HOURS = (20, 21)
+#: Every 20 minutes at odd minutes, 19:07 to 22:47 UTC (05:07 to 09:47 Sydney, AEST or AEDT).
+CRON = "7,27,47 19-22 * * *"
+
+
+def marker(gameweek: int) -> str:
+    """The run-title marker of a day-before ingest for this gameweek."""
+    return f"[day-before GW{gameweek}]"
 
 
 @dataclass(frozen=True)
@@ -39,15 +48,6 @@ class GateDecision:
     def lines(self) -> str:
         dl = self.deadline_utc.isoformat() if self.deadline_utc else ""
         return f"run={str(self.run).lower()}\ngameweek={self.gameweek or ''}\ndeadline={dl}\n"
-
-
-def nominal_fire_time(now: dt.datetime, cron_hour: int) -> dt.datetime:
-    """The UTC time the firing was scheduled for (GitHub may start it late)."""
-    start = now.astimezone(dt.UTC)
-    nominal = start.replace(hour=cron_hour, minute=0, second=0, microsecond=0)
-    if nominal > start:  # a late start that crossed midnight UTC
-        nominal -= dt.timedelta(days=1)
-    return nominal
 
 
 def next_deadline(bootstrap: Mapping[str, Any], now: dt.datetime) -> tuple[int, dt.datetime] | None:
@@ -70,19 +70,15 @@ def gate(
     now: dt.datetime,
     bootstrap: Mapping[str, Any] | None,
     error: str | None = None,
-    cron_hour: int | None = None,
+    prior_runs: Iterable[Mapping[str, Any]] | None = (),
+    runs_error: str | None = None,
+    manual: bool = False,
 ) -> GateDecision:
-    """``cron_hour`` is the firing's cron UTC hour; None for a manual dispatch (no hour check)."""
+    """``prior_runs``: recent Ingest (slow) runs (``gh run list --json``) for the idempotency check.
+    ``manual``: a workflow_dispatch skips the 07:00 check, nothing else."""
     if error is not None or bootstrap is None:
         return GateDecision(False, f"skip: could not read the FPL deadline ({error or 'no data'})")
-    when = now if cron_hour is None else nominal_fire_time(now, cron_hour)
-    local = when.astimezone(SYDNEY)
-    if cron_hour is not None and local.hour != LOCAL_HOUR:
-        return GateDecision(
-            False,
-            f"skip: this firing is {local:%H:%M %Z} in Sydney; "
-            f"the {LOCAL_HOUR:02d}:00 one is the other cron",
-        )
+    local = now.astimezone(SYDNEY)
     try:
         found = next_deadline(bootstrap, now)
     except (KeyError, TypeError, ValueError) as exc:
@@ -97,6 +93,28 @@ def gate(
             False,
             f"skip: GW{gw} deadline is {dl_local:%a %d %b %H:%M %Z}, "
             f"not tomorrow ({tomorrow:%a %d %b})",
+            gw,
+            deadline,
+        )
+    if not manual and local.hour < LOCAL_HOUR:
+        return GateDecision(
+            False, f"skip: {local:%H:%M %Z} is before {LOCAL_HOUR:02d}:00 Sydney", gw, deadline
+        )
+    if runs_error is not None or prior_runs is None:
+        return GateDecision(
+            False,
+            f"skip: cannot check for an earlier day-before run ({runs_error or 'no data'}); "
+            "the next firing retries",
+            gw,
+            deadline,
+        )
+    earlier = active_or_succeeded(prior_runs, title_contains=marker(gw))
+    if earlier is not None:
+        state = earlier.get("conclusion") or earlier.get("status")
+        return GateDecision(
+            False,
+            f"no-op: the day-before refresh for GW{gw} already ran "
+            f"(run {earlier.get('databaseId')}, {state})",
             gw,
             deadline,
         )
