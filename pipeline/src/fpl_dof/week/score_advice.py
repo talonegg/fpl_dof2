@@ -93,9 +93,7 @@ def score_lineup(
     autosubs_out: list[int] = []
 
     # 1. Goalkeeper substitution
-    gkp_starters = [
-        pid for pid in starting if pid in perfs and perfs[pid].position == Position.GKP
-    ]
+    gkp_starters = [pid for pid in starting if pid in perfs and perfs[pid].position == Position.GKP]
     if gkp_starters:
         start_gkp = gkp_starters[0]
         if perfs[start_gkp].minutes == 0 and advised.bench_gkp is not None:
@@ -112,9 +110,7 @@ def score_lineup(
     outfield_starters_0min = [
         pid
         for pid in starting
-        if pid in perfs
-        and perfs[pid].position != Position.GKP
-        and perfs[pid].minutes == 0
+        if pid in perfs and perfs[pid].position != Position.GKP and perfs[pid].minutes == 0
     ]
 
     for zero_pid in outfield_starters_0min:
@@ -197,9 +193,7 @@ def score_model_recommendations(
         scored_models.append((name, res))
 
     # Sort descending by net points, then gross points, then name
-    scored_models.sort(
-        key=lambda item: (-item[1].net_points, -item[1].points_before_hits, item[0])
-    )
+    scored_models.sort(key=lambda item: (-item[1].net_points, -item[1].points_before_hits, item[0]))
 
     ranked: list[ModelRankScore] = []
     for rank_idx, (name, sc) in enumerate(scored_models, start=1):

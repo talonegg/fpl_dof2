@@ -243,9 +243,7 @@ def test_hindsight_is_populated_and_validates_against_contract(
     }
     record_advice(layout, payload)
 
-    positions = (
-        ["GKP"] * 2 + ["DEF"] * 5 + ["MID"] * 5 + ["FWD"] * 3 + ["MID"]
-    )  # 16 players
+    positions = ["GKP"] * 2 + ["DEF"] * 5 + ["MID"] * 5 + ["FWD"] * 3 + ["MID"]  # 16 players
     pool_rows = []
     gw_perf_rows = []
     for pid in range(1, 17):
