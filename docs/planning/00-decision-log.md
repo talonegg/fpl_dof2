@@ -4487,6 +4487,68 @@ same way; this entry does not change that.
 
 ---
 
+## DL-72 — In-season multi-model advice ranking and hindsight transfer oracle (E14)
+
+**Date:** 2026-10-16 · **Status:** Proposed · **Serves:** OBJ-1, OBJ-3, OBJ-7, FR-41, FR-42 ·
+**Arose in:** User requirement to track weekly model performance, score candidate models against
+actual points with official FPL rules, and solve for hindsight-optimal transfers for the owner's squad.
+
+### Context
+
+[DL-69](#dl-69) delivered persistence of weekly advice (`data/ledger/advice/gwNN.json`) and reconciliation
+in `log.json`. However, reconciliation only records whether the manager followed the primary engine's
+recommendation (`followed: true/false`). It does not score what each candidate model's advice actually
+achieved in realized points once matches conclude, nor does it quantify the gap between the models'
+forecasts and the mathematically optimal legal moves the owner could have made with hindsight.
+
+### Decision
+
+- Build [E14](epics/E14-recommendation-ranking-and-hindsight-oracle.md) into the weekly pipeline:
+  1. **Pre-deadline ledger recording:** Persist advice from all active candidate models (`xp_v1`, `C1`,
+     `B0`, `Model-Free`) in `data/ledger/advice/gwNN.json`.
+  2. **Realized recommendation scoring:** Score all models against actual points with true FPL rules
+     (prioritized bench auto-subs respecting formation constraints, vice-captain promotion, and -4 hit
+     deductions).
+  3. **Hindsight oracle solver:** Reuse the existing MILP transfer solver (`recommend_transfers`) with
+     actual gameweek points and the owner's pre-deadline squad state to find the hindsight-optimal legal
+     transfer(s) and starting XI.
+  4. **Oracle diagnostics:** Review how each model scored the hindsight-optimal actions prior to the
+     deadline to differentiate predictable model blindspots from high-variance black swans.
+- Publish these diagnostics additively into `log.json` (or `models.json`) and display them on `/models` under a dedicated **Hindsight** sub-section with an interactive prior-week selector.
+
+### Consequences
+
+Additive contract extensions. Reuses existing MILP solver and pure FPL rule logic without introducing look-ahead into model predictions.
+
+---
+
+## DL-73 — Weekly odds bronze archiving and quarantined GW1–6 replay for A+odds
+
+**Date:** 2026-10-16 · **Status:** Accepted · **Affects:** E14, prospective pipeline, data platform
+
+### Context
+
+Model `A_odds` requires bookmaker match odds for its Shin de-vig team layer. In the prospective run (GW7+), live odds feeds from football-data.co.uk (`fixtures.csv`) are fetched ephemerally by CI right before deadlines, but raw snapshots were not persisted to the data platform. For GW1–6, `A_odds` was excluded from the historical replay (`models_history_2627_replay.json`) due to missing pre-deadline snapshots, leaving a hole in the Hindsight Oracle (E14) prior-week selector.
+
+### Decision
+
+1. **Weekly Odds Ingestion & Archiving (GW7+):**
+   - In `pipeline/scripts/prospective_ci.py`, archive every fetched `fixtures.csv` during the decision window (`timing.decide == True`) to `data/bronze/fdcouk/GW{gw}_fixtures.csv`.
+   - Add `data/bronze/fdcouk` to `RECORD` so the raw odds files are packed into `prospective.tgz` and committed to the `ledger` branch.
+   - Satisfies DP-11 (reproducibility) and provides uncorrupted historical ground truth for walk-forward retraining.
+2. **Quarantined GW1–6 Replay for A+odds:**
+   - Backfill historical pre-match / closing odds proxy for GW1–6 to run the frozen `comp_ot` model retrospectively.
+   - Update `scripts/models_history/data/replay_2627.csv` and `models_history_2627_replay.json` so the web app and E14 Hindsight Oracle display all 5 models across every prior gameweek.
+   - **Strict Pre-Registration Firewall:** GW1–6 odds replay data is quarantined strictly to descriptive UI display. It is prohibited from entering `xp_scores_paired.csv` or confirmatory statistical hypothesis tests under `PREREG_C1_vs_C3.md`. Provenance is explicitly labelled (`"GW1-6 replay uses closing odds proxy; descriptive only"`).
+
+### Consequences
+
+- Zero marginal runtime cost (football-data.co.uk is free and public).
+- Permanent persistence of weekly market odds on the `ledger` branch.
+- Complete 5-model Hindsight Oracle analysis for all completed 2026/27 gameweeks without compromising pre-registration integrity.
+
+---
+
 ## Open decisions
 
 Decisions deliberately deferred, with the point at which each must be resolved.

@@ -2,17 +2,16 @@
  "contract_version": 1,
  "season": "2026/27",
  "kind": "replay",
- "caveat": "Replay, not live: the frozen models (tag frozen-2026-10-13) were run after these gameweeks had been played, seeing only data from before each deadline. These picks were never recorded before a deadline.",
+ "caveat": "Replay, not live: the frozen models (tag frozen-2026-10-13) were run after these gameweeks had been played, seeing only data from before each deadline. These picks were never recorded before a deadline. GW1-6 A_odds replay uses closing odds proxy; descriptive only.",
  "frozen_tag": "frozen-2026-10-13 (79e080c)",
  "models": [
   "champion",
   "challenger",
   "engine",
-  "a"
+  "a",
+  "a_odds"
  ],
- "missing_models": {
-  "a_odds": "not in the GW1-6 replay run"
- },
+ "missing_models": {},
  "as_of_gameweek": 6,
  "gameweeks": [
   {
@@ -34,6 +33,11 @@
      "captain": "Gabriel"
     },
     "a": {
+     "points": 37.0,
+     "hit_points": 0.0,
+     "captain": "Saka"
+    },
+    "a_odds": {
      "points": 37.0,
      "hit_points": 0.0,
      "captain": "Saka"
@@ -62,6 +66,11 @@
      "points": 66.0,
      "hit_points": 0.0,
      "captain": "Saka"
+    },
+    "a_odds": {
+     "points": 66.0,
+     "hit_points": 0.0,
+     "captain": "Saka"
     }
    }
   },
@@ -84,6 +93,11 @@
      "captain": "Gabriel"
     },
     "a": {
+     "points": 45.0,
+     "hit_points": 0.0,
+     "captain": "Saka"
+    },
+    "a_odds": {
      "points": 45.0,
      "hit_points": 0.0,
      "captain": "Saka"
@@ -112,6 +126,11 @@
      "points": 49.0,
      "hit_points": 0.0,
      "captain": "Saka"
+    },
+    "a_odds": {
+     "points": 49.0,
+     "hit_points": 0.0,
+     "captain": "Saka"
     }
    }
   },
@@ -137,6 +156,11 @@
      "points": 58.0,
      "hit_points": 0.0,
      "captain": "Saka"
+    },
+    "a_odds": {
+     "points": 58.0,
+     "hit_points": 0.0,
+     "captain": "Saka"
     }
    }
   },
@@ -159,6 +183,11 @@
      "captain": "B.Fernandes"
     },
     "a": {
+     "points": 45.0,
+     "hit_points": 0.0,
+     "captain": "Saka"
+    },
+    "a_odds": {
      "points": 45.0,
      "hit_points": 0.0,
      "captain": "Saka"

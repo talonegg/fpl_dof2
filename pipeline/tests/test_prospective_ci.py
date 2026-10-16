@@ -313,6 +313,8 @@ def test_pack_is_deterministic_and_unpack_restores_only_the_record(
     (root / "status").mkdir()
     (root / "status" / "GW7.json").write_text('{"gw": 7, "models": {}}')
     (root / "scores.csv").write_text("gw,model\n")
+    (root / "data" / "bronze" / "fdcouk").mkdir(parents=True)
+    (root / "data" / "bronze" / "fdcouk" / "GW7_fixtures.csv").write_text("Div,Date,HomeTeam\n")
     (root / "raw").mkdir()
     (root / "raw" / "big.json").write_text("{}")
     monkeypatch.setattr(ci, "ROOT", root)
@@ -322,12 +324,18 @@ def test_pack_is_deterministic_and_unpack_restores_only_the_record(
     ci.pack(b)
     assert a.read_bytes() == b.read_bytes()
     with tarfile.open(a) as tar:
-        assert sorted(tar.getnames()) == ["decisions/GW7.json", "scores.csv", "status/GW7.json"]
+        assert sorted(tar.getnames()) == [
+            "data/bronze/fdcouk/GW7_fixtures.csv",
+            "decisions/GW7.json",
+            "scores.csv",
+            "status/GW7.json",
+        ]
     fresh = tmp_path / "fresh"
     fresh.mkdir()
     monkeypatch.setattr(ci, "ROOT", fresh)
     ci.unpack(a)
     assert (fresh / "status" / "GW7.json").exists() and not (fresh / "raw").exists()
+    assert (fresh / "data" / "bronze" / "fdcouk" / "GW7_fixtures.csv").exists()
 
 
 def test_models_source_dir_can_be_set_from_the_environment() -> None:

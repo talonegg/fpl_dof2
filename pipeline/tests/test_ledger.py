@@ -16,6 +16,7 @@ import pandas as pd
 from fpl_dof.paths import DataLayout
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
 from fpl_dof.publish.season_log import build_log
+from fpl_dof.rules.models import GameRules
 from fpl_dof.week.ledger import advice_path, read_advice, read_all_advice, record_advice
 
 SQUAD = list(range(1, 16))
@@ -219,4 +220,75 @@ def test_the_log_validates_against_its_contract(tmp_path: Path) -> None:
         advice=read_all_advice(layout),
         contract_version=CONTRACT_VERSION,
     )
+    Contract(root=find_contracts_root()).validate("log", log)
+
+
+def test_hindsight_is_populated_and_validates_against_contract(
+    tmp_path: Path, game_rules: GameRules
+) -> None:
+    layout = DataLayout(root=tmp_path)
+    payload = _week_payload(2, captain=1)
+    payload["models"] = {
+        "c1": {
+            "advised": {
+                "starting": [1, 3, 4, 5, 6, 8, 9, 10, 11, 13, 14],
+                "bench_order": [15, 7, 12],
+                "reserve_goalkeeper": 2,
+                "captain": 13,
+                "vice_captain": 1,
+                "expected_points": 45.0,
+            },
+            "transfers": 0,
+        }
+    }
+    record_advice(layout, payload)
+
+    positions = (
+        ["GKP"] * 2 + ["DEF"] * 5 + ["MID"] * 5 + ["FWD"] * 3 + ["MID"]
+    )  # 16 players
+    pool_rows = []
+    gw_perf_rows = []
+    for pid in range(1, 17):
+        pos = positions[pid - 1]
+        pool_rows.append(
+            {
+                "player_id": pid,
+                "web_name": f"P{pid}",
+                "position": pos,
+                "team_id": (pid % 5) + 1,
+                "price": 5.0,
+                "now_cost": 5.0,
+                "start_cost": 5.0,
+            }
+        )
+        gw_perf_rows.append(
+            {
+                "gameweek": 2,
+                "player_id": pid,
+                "web_name": f"P{pid}",
+                "position": pos,
+                "minutes": 90,
+                "total_points": 10 if pid in (1, 16) else 4,
+            }
+        )
+
+    log = build_log(
+        entry_id=7,
+        season="2026/27",
+        picks=pd.concat([_picks(1), _picks(2, captain=1)], ignore_index=True),
+        entry_gameweeks=_scores(1, 2),
+        chips=None,
+        advice=read_all_advice(layout),
+        contract_version=CONTRACT_VERSION,
+        player_gameweek=pd.DataFrame(gw_perf_rows),
+        player_pool=pd.DataFrame(pool_rows),
+        rules=game_rules,
+    )
+
+    gw2 = log["gameweeks"][1]
+    assert gw2["hindsight"] is not None
+    assert "rankings" in gw2["hindsight"]
+    assert "optimal" in gw2["hindsight"]
+    assert "diagnostics" in gw2["hindsight"]
+    assert len(gw2["hindsight"]["rankings"]) >= 2  # played, xp_v1, c1
     Contract(root=find_contracts_root()).validate("log", log)

@@ -57,6 +57,10 @@
         "reconciliation": {
           "description": "Null whenever advised is null: there is nothing to compare.",
           "oneOf": [{ "$ref": "#/$defs/log_reconciliation" }, { "type": "null" }]
+        },
+        "hindsight": {
+          "description": "Multi-model realized score rankings, hindsight optimal ceiling, and oracle gap diagnostics (E14). Optional / null when not scored.",
+          "oneOf": [{ "$ref": "#/$defs/log_hindsight" }, { "type": "null" }]
         }
       }
     },
@@ -154,6 +158,159 @@
               "reason": { "type": "string" }
             }
           }
+        }
+      }
+    },
+    "log_hindsight": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rankings", "optimal", "diagnostics"],
+      "properties": {
+        "rankings": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/log_model_rank" }
+        },
+        "optimal": { "$ref": "#/$defs/log_hindsight_optimal" },
+        "diagnostics": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/log_oracle_diagnostic" }
+        }
+      }
+    },
+    "log_model_rank": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model_name", "rank", "score"],
+      "properties": {
+        "model_name": { "type": "string" },
+        "rank": { "type": "integer", "minimum": 1 },
+        "score": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "final_starting",
+            "points_before_hits",
+            "hit_points",
+            "net_points",
+            "captain_id",
+            "vice_used",
+            "armband_points",
+            "autosubs_in",
+            "autosubs_out",
+            "expected_points",
+            "prediction_delta"
+          ],
+          "properties": {
+            "final_starting": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+            "points_before_hits": { "type": "integer" },
+            "hit_points": { "type": "integer" },
+            "net_points": { "type": "integer" },
+            "captain_id": { "type": "integer", "minimum": 1 },
+            "vice_used": { "type": "boolean" },
+            "armband_points": { "type": "integer" },
+            "autosubs_in": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+            "autosubs_out": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+            "expected_points": { "type": "number" },
+            "prediction_delta": { "type": "number" }
+          }
+        }
+      }
+    },
+    "log_hindsight_optimal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["gameweek", "baseline_roll", "optimal_single", "optimal_overall", "all_options"],
+      "properties": {
+        "gameweek": { "type": "integer", "minimum": 1, "maximum": 38 },
+        "baseline_roll": { "$ref": "#/$defs/log_hindsight_plan" },
+        "optimal_single": {
+          "oneOf": [{ "$ref": "#/$defs/log_hindsight_plan" }, { "type": "null" }]
+        },
+        "optimal_overall": { "$ref": "#/$defs/log_hindsight_plan" },
+        "all_options": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/log_hindsight_plan" }
+        }
+      }
+    },
+    "log_hindsight_plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "transfers_count",
+        "moves",
+        "starting",
+        "captain_id",
+        "captain_name",
+        "points_before_hits",
+        "hit_points",
+        "net_points",
+        "gain_over_roll"
+      ],
+      "properties": {
+        "transfers_count": { "type": "integer", "minimum": 0 },
+        "moves": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "player_out_id",
+              "player_out_name",
+              "player_in_id",
+              "player_in_name",
+              "selling_price",
+              "buying_price"
+            ],
+            "properties": {
+              "player_out_id": { "type": "integer", "minimum": 1 },
+              "player_out_name": { "type": "string" },
+              "player_in_id": { "type": "integer", "minimum": 1 },
+              "player_in_name": { "type": "string" },
+              "selling_price": { "type": "number" },
+              "buying_price": { "type": "number" }
+            }
+          }
+        },
+        "starting": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+        "captain_id": { "type": "integer", "minimum": 1 },
+        "captain_name": { "type": "string" },
+        "points_before_hits": { "type": "integer" },
+        "hit_points": { "type": "integer" },
+        "net_points": { "type": "integer" },
+        "gain_over_roll": { "type": "number" }
+      }
+    },
+    "log_oracle_diagnostic": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "player_id",
+        "player_name",
+        "role",
+        "actual_points",
+        "category",
+        "explanation",
+        "models_xp",
+        "models_trapped"
+      ],
+      "properties": {
+        "player_id": { "type": "integer", "minimum": 1 },
+        "player_name": { "type": "string" },
+        "role": { "type": "string" },
+        "actual_points": { "type": "integer" },
+        "category": {
+          "type": "string",
+          "enum": ["model_blindspot", "high_variance_outlier", "captaincy_trap"]
+        },
+        "explanation": { "type": "string" },
+        "models_xp": {
+          "type": "object",
+          "additionalProperties": { "type": "number" }
+        },
+        "models_trapped": {
+          "type": "array",
+          "items": { "type": "string" }
         }
       }
     }

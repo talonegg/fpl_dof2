@@ -55,6 +55,8 @@ RECORD = (
     "xp_scores_paired.csv",
     "xp_calibration.csv",
     "data/gold/xp",
+    # Raw pre-deadline odds snapshots for prospective gameweeks (GW7+)
+    "data/bronze/fdcouk",
 )
 
 
@@ -136,6 +138,10 @@ def plan() -> int:
             now=_now(), deadline=deadline, already_decided=already, joined=joined, total=total
         )
         decide, reason, coverage = timing.decide, timing.reason, [joined, total]
+        if decide and csv_bytes:
+            bronze_odds = ROOT / "data" / "bronze" / "fdcouk" / f"GW{gw}_fixtures.csv"
+            bronze_odds.parent.mkdir(parents=True, exist_ok=True)
+            bronze_odds.write_bytes(csv_bytes)
     finished = {e["id"] for e in bs["events"] if e["finished"] and e["data_checked"]}
     decided = {int(p.stem[2:]) for p in (ROOT / "decisions").glob("GW*.json")}
     scores = ROOT / "scores.csv"

@@ -105,7 +105,7 @@ def run(ctx: StageContext) -> StageResult:
 
     # The season log (DL-69): absent until a team ID is configured and the game has recorded picks
     # for it, for the same reason `league.json` is — a stale one would describe a different owner.
-    season_log = _season_log(ctx, season)
+    season_log = _season_log(ctx, season, rules)
     if season_log is not None:
         outputs.append(
             Output(
@@ -541,7 +541,9 @@ def _league(ctx: StageContext, season: str, gameweeks: pd.DataFrame) -> dict[str
     )
 
 
-def _season_log(ctx: StageContext, season: str) -> dict[str, Any] | None:
+def _season_log(
+    ctx: StageContext, season: str, rules: GameRules | None = None
+) -> dict[str, Any] | None:
     """The season log, or ``None`` when there is no owner or no picks to log yet (DL-69)."""
     entry_id = ctx.config.entry.team_id
     if entry_id is None:
@@ -553,6 +555,7 @@ def _season_log(ctx: StageContext, season: str) -> dict[str, Any] | None:
     picks = picks[picks["entry_id"] == entry_id]
     if picks.empty:
         return None
+    effective_rules = rules if rules is not None else read_rules(ctx, season)
     return build_log(
         entry_id=entry_id,
         season=season,
@@ -561,6 +564,11 @@ def _season_log(ctx: StageContext, season: str) -> dict[str, Any] | None:
         chips=read_table_optional(silver, season, Table.ENTRY_CHIP),
         advice=read_all_advice(ctx.layout),
         contract_version=CONTRACT_VERSION,
+        player_gameweek=read_table_optional(silver, season, Table.PLAYER_GAMEWEEK),
+        player_pool=read_table_optional(silver, season, Table.PLAYER),
+        rules=effective_rules,
+        transfer_config=ctx.config.transfers,
+        optimiser_config=ctx.config.optimiser,
     )
 
 

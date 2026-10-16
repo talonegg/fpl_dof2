@@ -8,8 +8,10 @@ import type { ModelChoice } from "../../data/model";
 import { ModelHistoryView } from "../history/ModelHistoryView";
 import { SeasonView } from "../history/SeasonView";
 import "../history/history.css";
+import { useLog } from "../log/useLog";
 import { AccuracySection } from "./AccuracySection";
 import type { XpAccuracy } from "./accuracy";
+import { HindsightSection } from "./HindsightSection";
 import { ModelBadge } from "./ModelBadge";
 import { ModelDiffView } from "./ModelDiffView";
 import { ModelsSeasonView } from "./ModelsSeasonView";
@@ -54,6 +56,7 @@ const SECTIONS = [
   ["summary", "Summary"],
   ["details", "Details"],
   ["accuracy", "Accuracy"],
+  ["hindsight", "Hindsight"],
   ["history", "History"],
 ] as const;
 
@@ -127,6 +130,7 @@ export function ModelsPage() {
   const history = useArtefact("models_history_2526");
   const replay = useArtefact("models_history_2627_replay");
   const accuracy = useArtefact("xp_accuracy");
+  const { state: logState } = useLog();
   const [params] = useSearchParams();
   const section = params.get("section");
   const allLoaded = history.status === "ready" && replay.status === "ready" && accuracy.status === "ready";
@@ -197,6 +201,12 @@ export function ModelsPage() {
       </section>
 
       <AccuracySection accuracy={accuracy.data} status={accuracy.status === "loading" ? "loading" : "ready"} />
+
+      <HindsightSection
+        log={logState.status === "ready" ? logState.log : null}
+        players={data?.players ?? null}
+        status={logState.status}
+      />
 
       <section className="models-page-section" id="models-history" aria-labelledby="models-history-heading">
         <h2 id="models-history-heading">History</h2>

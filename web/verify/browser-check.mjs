@@ -77,11 +77,29 @@ function percentile(values, p) {
 
 const browser = await chromium.launch();
 
+const UNLOCK_KEY = "fpl-dof:unlocked-hash";
+const UNLOCK_HASH =
+  process.env.VITE_FPL_PASSWORD_HASH ??
+  "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
+
+async function newContext(options = {}) {
+  const context = await browser.newContext(options);
+  await context.addInitScript(
+    ({ key, hash }) => {
+      try {
+        window.localStorage.setItem(key, hash);
+      } catch {}
+    },
+    { key: UNLOCK_KEY, hash: UNLOCK_HASH },
+  );
+  return context;
+}
+
 // Invariant 8: the browser reads published static artefacts and calls no external API.
 const externalRequests = [];
 
 for (const viewport of VIEWPORTS) {
-  const context = await browser.newContext({
+  const context = await newContext({
     viewport: { width: viewport.width, height: viewport.height },
     deviceScaleFactor: 1,
   });
@@ -465,7 +483,7 @@ for (const viewport of VIEWPORTS) {
 
 notes.push("\n== accessibility: keyboard and colour-independence ==");
 {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const context = await newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
   page.on("request", (request) => {
     const url = request.url();
@@ -692,7 +710,7 @@ notes.push("\n== accessibility: keyboard and colour-independence ==");
 
 notes.push("\n== progressive web app ==");
 {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const context = await newContext({ viewport: { width: 390, height: 844 } });
   const page = await context.newPage();
   const pwaExternal = [];
   page.on("request", (request) => {
@@ -879,7 +897,7 @@ notes.push("\n== performance: emulated Pixel 5 on throttled 4G ==");
   // Ten cold loads. One sample is an anecdote; the budget is stated as a p95, so it needs a
   // distribution, and each load gets a fresh context so nothing is served from a warm cache.
   for (let run = 0; run < 10; run += 1) {
-    const context = await browser.newContext({
+    const context = await newContext({
       ...devices["Pixel 5"],
       // The service worker would serve the second run from cache and make the numbers a fiction.
       // First paint on a *cold* visit is what the budget is about.

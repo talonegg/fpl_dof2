@@ -777,6 +777,8 @@ export interface LogGameweek {
   advised: LogAdvised | null;
   /** Null whenever advised is null: there is nothing to compare. */
   reconciliation: LogReconciliation | null;
+  /** Multi-model realized score rankings, hindsight optimal ceiling, and oracle gap diagnostics (E14). Optional / null when not scored. */
+  hindsight?: LogHindsight | null;
 }
 
 export interface LogPlayed {
@@ -827,6 +829,68 @@ export interface LogReconciliation {
     played: number[];
     reason: string;
   }[];
+}
+
+export interface LogHindsight {
+  rankings: LogModelRank[];
+  optimal: LogHindsightOptimal;
+  diagnostics: LogOracleDiagnostic[];
+}
+
+export interface LogModelRank {
+  model_name: string;
+  rank: number;
+  score: {
+    final_starting: number[];
+    points_before_hits: number;
+    hit_points: number;
+    net_points: number;
+    captain_id: number;
+    vice_used: boolean;
+    armband_points: number;
+    autosubs_in: number[];
+    autosubs_out: number[];
+    expected_points: number;
+    prediction_delta: number;
+  };
+}
+
+export interface LogHindsightOptimal {
+  gameweek: number;
+  baseline_roll: LogHindsightPlan;
+  optimal_single: LogHindsightPlan | null;
+  optimal_overall: LogHindsightPlan;
+  all_options: LogHindsightPlan[];
+}
+
+export interface LogHindsightPlan {
+  transfers_count: number;
+  moves: {
+    player_out_id: number;
+    player_out_name: string;
+    player_in_id: number;
+    player_in_name: string;
+    selling_price: number;
+    buying_price: number;
+  }[];
+  starting: number[];
+  captain_id: number;
+  captain_name: string;
+  points_before_hits: number;
+  hit_points: number;
+  net_points: number;
+  gain_over_roll: number;
+}
+
+export interface LogOracleDiagnostic {
+  player_id: number;
+  player_name: string;
+  role: string;
+  actual_points: number;
+  category: "model_blindspot" | "high_variance_outlier" | "captaincy_trap";
+  explanation: string;
+  models_xp: Record<string, number>;
+  models_trapped: string[];
 }
 
 /** The season log: per finished gameweek, what the owner played, what it scored, what the pipeline advised beforehand, and how the two differ (DL-69, E8 §3). Advice is read from the ledger written before each deadline and is null where none was recorded — it is never reconstructed after the event. */
