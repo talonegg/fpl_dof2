@@ -19,6 +19,7 @@
         "code_commit": { "type": ["string", "null"] }
       }
     },
+    "provisional": { "type": "boolean", "description": "True when the latest gameweek is a provisional preview (no frozen decision yet). Absent means false." },
     "models": { "type": "array", "items": { "$ref": "#/$defs/model_info" } },
     "gameweeks": { "type": "array", "items": { "$ref": "#/$defs/model_gameweek" } },
     "season_to_date": { "type": "array", "items": { "$ref": "#/$defs/model_season" } }
@@ -35,7 +36,8 @@
         "role": { "type": "string", "enum": ["champion", "challenger", "comparison"] },
         "description": { "type": "string" },
         "available": { "type": "boolean", "description": "Whether the latest gameweek's advice passed the CI input-freshness check." },
-        "unavailable_reason": { "type": ["string", "null"], "description": "Why not, shown verbatim in the app." }
+        "unavailable_reason": { "type": ["string", "null"], "description": "Why not, shown verbatim in the app." },
+        "provisional": { "type": "boolean", "description": "The latest advice is a provisional preview that freezes at the decision window. Absent means false." }
       }
     },
     "model_availability": {
@@ -108,7 +110,8 @@
           "type": ["object", "null"],
           "description": "Null until the gameweek is finished and scored.",
           "additionalProperties": { "$ref": "#/$defs/model_actual" }
-        }
+        },
+        "provisional": { "type": "boolean", "description": "A dry-run preview of current advice, published before the frozen decision exists and replaced by it at the decision window. Never scored. Absent means false." }
       }
     },
     "model_season": {

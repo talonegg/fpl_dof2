@@ -920,6 +920,8 @@ export interface ModelInfo {
   available: boolean;
   /** Why not, shown verbatim in the app. */
   unavailable_reason: string | null;
+  /** The latest advice is a provisional preview that freezes at the decision window. Absent means false. */
+  provisional?: boolean;
 }
 
 export interface ModelAvailability {
@@ -968,6 +970,8 @@ export interface ModelGameweek {
   advice: Record<string, ModelAdvice>;
   /** Null until the gameweek is finished and scored. */
   actual: Record<string, ModelActual> | null;
+  /** A dry-run preview of current advice, published before the frozen decision exists and replaced by it at the decision window. Never scored. Absent means false. */
+  provisional?: boolean;
 }
 
 export interface ModelSeason {
@@ -991,6 +995,8 @@ export interface Models {
     tag: string | null;
     code_commit: string | null;
   };
+  /** True when the latest gameweek is a provisional preview (no frozen decision yet). Absent means false. */
+  provisional?: boolean;
   models: ModelInfo[];
   gameweeks: ModelGameweek[];
   season_to_date: ModelSeason[];

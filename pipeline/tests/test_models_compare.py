@@ -183,3 +183,56 @@ def test_stage_returns_none_when_absent_or_bad(tmp_path: Path, make: str) -> Non
         (tmp_path / "decisions").mkdir()
         (tmp_path / "decisions" / "GW7.json").write_text("{not json")
     assert publish._models(_ctx(None if make == "unset" else tmp_path), "2026/27") is None
+
+
+# --- provisional previews --------------------------------------------------------------------
+
+
+def _preview(gw: int, *stale: str) -> dict[str, Any]:
+    return _decision(gw) | {"provisional": True, "preview_status": _ok(*stale)}
+
+
+def test_preview_is_published_as_provisional_until_the_frozen_decision_exists() -> None:
+    p = build_models(
+        season="2026/27",
+        decisions=[_decision(7)],
+        scores=[_score(7, "C3", 60), _score(8, "C3", 99)],
+        frozen_tag="frozen-2026-10-13",
+        contract_version=CONTRACT_VERSION,
+        statuses={7: _ok()},
+        previews=[_preview(8, "A_odds")],
+    )
+    assert p is not None
+    Contract(root=find_contracts_root()).validate("models", p)
+    gw7, gw8 = p["gameweeks"]
+    assert gw7["provisional"] is False and gw8["provisional"] is True
+    assert p["provisional"] is True
+    assert set(gw8["advice"]) == {"champion", "challenger", "engine", "a"}  # still fail closed
+    assert gw8["actual"] is None  # a preview is never scored
+    info = {m["id"]: m for m in p["models"]}
+    assert info["engine"]["provisional"] is True and info["a_odds"]["available"] is False
+
+
+def test_frozen_decision_replaces_the_preview() -> None:
+    p = build_models(
+        season="2026/27",
+        decisions=[_decision(7), _decision(8)],
+        scores=[],
+        frozen_tag=None,
+        contract_version=CONTRACT_VERSION,
+        statuses={7: _ok(), 8: _ok()},
+        previews=[_preview(8)],
+    )
+    assert p is not None
+    assert [g["gameweek"] for g in p["gameweeks"]] == [7, 8]
+    assert not any(g["provisional"] for g in p["gameweeks"]) and p["provisional"] is False
+    assert not any(m["provisional"] for m in p["models"])
+
+
+def test_preview_alone_publishes_and_stage_reads_preview_dir(tmp_path: Path) -> None:
+    (tmp_path / "preview").mkdir()
+    (tmp_path / "preview" / "GW7.json").write_text(json.dumps(_preview(7)))
+    payload = publish._models(_ctx(tmp_path), "2026/27")
+    assert payload is not None and payload["provisional"] is True
+    assert payload["gameweeks"][0]["decided_at"] is not None
+    Contract(root=find_contracts_root()).validate("models", payload)

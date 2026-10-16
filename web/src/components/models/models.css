@@ -53,3 +53,22 @@
 .models-advice-item h4 { margin: 0 0 0.3rem; }
 .models-advice-item p { margin: 0.2rem 0; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Provisional (pre-window preview) advice: dashed amber so it never reads as the frozen record. */
+.provisional-badge {
+  display: inline-block;
+  padding: 0 0.4em;
+  border: 1px dashed #b7791f;
+  border-radius: 0.6em;
+  color: #975a16;
+  font-size: 0.75em;
+  font-weight: 600;
+  line-height: 1.5;
+  cursor: help;
+  white-space: nowrap;
+}
+@media (prefers-color-scheme: dark) {
+  .provisional-badge { color: #f6ad55; border-color: #f6ad55; }
+}
+.provisional-dot { color: #b7791f; font-weight: 600; }
+.models-provisional-note { margin: 0.25rem 0 0.75rem; }

@@ -10,7 +10,12 @@ import {
   isComparison,
 } from "../../data/model";
 import type { ModelChoice } from "../../data/model";
+import { PROVISIONAL_TITLE, ProvisionalBadge } from "./ProvisionalBadge";
 import "./models.css";
+
+/** Why a model cannot be picked right now. */
+export const NOT_PUBLISHED_TITLE =
+  "Not available: this model has no advice published for the current gameweek yet, or its inputs failed the freshness check.";
 
 /**
  * The model selector: champion (default) plus the four frozen comparison models.
@@ -30,6 +35,7 @@ export function ModelSelector({
   showCompareLink = true,
   testId = "model-toggle",
   note: noteOverride,
+  provisional: provisionalOverride,
 }: {
   /** Standalone use (e.g. the model history page): which models can be picked. */
   available?: ModelChoice[];
@@ -40,11 +46,14 @@ export function ModelSelector({
   testId?: string;
   /** Replaces the live/comparison note, for pages where the choice only highlights. */
   note?: string;
+  /** Standalone use: which models' advice is provisional. */
+  provisional?: ModelChoice[];
 } = {}) {
   const prefix = testId === "model-toggle" ? "model" : testId;
   const global = useModel();
   const available = availableOverride ?? global.available;
   const effective = value ?? global.effective;
+  const provisional = provisionalOverride ?? global.provisional;
   const setModel = onChange ?? global.setModel;
   const noteId = `model-selector-note-${useId().replace(/:/g, "")}`;
   const refs = useRef<Partial<Record<ModelChoice, HTMLButtonElement | null>>>({});
@@ -83,6 +92,7 @@ export function ModelSelector({
         {MODEL_CHOICES.map((choice) => {
           const disabled = !available.includes(choice);
           const checked = effective === choice;
+          const prov = !disabled && provisional.includes(choice);
           return (
             <button
               key={choice}
@@ -92,15 +102,26 @@ export function ModelSelector({
               type="button"
               role="radio"
               aria-checked={checked}
-              aria-label={`${MODEL_LABELS[choice]}${isComparison(choice) ? " (comparison)" : " (live)"}`}
+              aria-label={`${MODEL_LABELS[choice]}${isComparison(choice) ? " (comparison)" : " (live)"}${prov ? " (provisional)" : ""}`}
               tabIndex={checked ? 0 : -1}
               disabled={disabled}
-              title={disabled ? "Not published this run" : MODEL_DESCRIPTIONS[choice]}
+              title={
+                disabled
+                  ? NOT_PUBLISHED_TITLE
+                  : prov
+                  ? `${MODEL_DESCRIPTIONS[choice]}. ${PROVISIONAL_TITLE}`
+                  : MODEL_DESCRIPTIONS[choice]
+              }
               className={`model-toggle-button${checked ? " active" : ""}`}
               data-testid={`${testId}-${choice}`}
               onClick={() => setModel(choice)}
             >
               {MODEL_SHORT_LABELS[choice]}
+              {prov && (
+                <span className="provisional-dot" aria-hidden="true" data-testid={`${testId}-${choice}-provisional`}>
+                  {" "}·P
+                </span>
+              )}
             </button>
           );
         })}
@@ -117,6 +138,7 @@ export function ModelSelector({
             <option key={choice} value={choice} disabled={!available.includes(choice)}>
               {MODEL_LABELS[choice]}
               {isComparison(choice) ? " — comparison" : " — live"}
+              {provisional.includes(choice) && available.includes(choice) ? " (provisional)" : ""}
             </option>
           ))}
         </select>
@@ -129,6 +151,7 @@ export function ModelSelector({
       >
         {noteOverride ?? note}
       </span>
+      {provisional.includes(effective) && <ProvisionalBadge testId={`${prefix}-provisional`} />}
       {showCompareLink && available.length > 1 && (
         <Link to="/models" className="model-toggle-diff" data-testid="model-diff-link">
           Compare all models

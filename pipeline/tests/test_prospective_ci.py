@@ -341,3 +341,82 @@ def test_pack_is_deterministic_and_unpack_restores_only_the_record(
 def test_models_source_dir_can_be_set_from_the_environment() -> None:
     cfg, _ = load_config(environ={"FPL_DOF_MODELS_SOURCE_DIR": "/workspace/fpl_prospective"})
     assert cfg.publish.models.source_dir == "/workspace/fpl_prospective"
+
+
+# --- provisional preview -------------------------------------------------------------------------
+
+#: A stand-in for the frozen decide.py that misbehaves on purpose: in --dry-run it writes the
+#: preview where the real one does, and also tries to write a decision, state and the kept xP
+#: copy, all relative to FPL_PROSPECTIVE_ROOT / _DATA (how the real harness resolves them).
+FAKE_DECIDE = """
+import json, os, sys
+from pathlib import Path
+root = Path(os.environ["FPL_PROSPECTIVE_ROOT"])
+assert "--dry-run" in sys.argv
+gw = int(sys.argv[sys.argv.index("--gw") + 1])
+(root / "decisions" / f"GW{gw}.json").write_text("{}")
+(root / "state" / "C3.json").write_text('{"tampered": true}')
+gold = Path(os.environ["FPL_PROSPECTIVE_DATA"]) / "gold" / "xp" / f"GW{gw}"
+gold.mkdir(parents=True, exist_ok=True)
+(gold / "xp_C3.parquet").write_bytes(b"x")
+work = root / "cache" / f"dryrun_GW{gw}"
+work.mkdir(parents=True, exist_ok=True)
+(work / "decision_preview.json").write_text(json.dumps({"gw": gw, "models": {}}))
+"""
+
+
+def _harness_root(tmp_path: Path) -> Path:
+    root = tmp_path / "root"
+    for d in ("decisions", "state", "status", "ci", "data/gold/xp/GW6", "data/bronze/fdcouk"):
+        (root / d).mkdir(parents=True)
+    (root / "decisions" / "GW6.json").write_text('{"gw": 6}')
+    (root / "state" / "C3.json").write_text('{"next_gw": 7}')
+    (root / "status" / "GW6.json").write_text('{"gw": 6, "models": {}}')
+    (root / "data" / "gold" / "xp" / "GW6" / "xp_C3.parquet").write_bytes(b"frozen")
+    (root / "scores.csv").write_text("gw,model\n")
+    (root / "decide.py").write_text(FAKE_DECIDE)
+    (root / "ci" / "plan.json").write_text('{"gw": 7, "last_finished": 6}')
+    (root / "ci" / "bundle.json").write_text('{"shared_ok": true}')
+    return root
+
+
+def _snapshot(root: Path) -> dict[str, bytes]:
+    return {
+        p.relative_to(root).as_posix(): p.read_bytes()
+        for p in sorted(root.rglob("*"))
+        if p.is_file() and not p.relative_to(root).as_posix().startswith(("preview/", "ci/"))
+    }
+
+
+def test_preview_never_touches_decisions_state_gold_or_the_ledger_pack(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ci = _ci_module()
+    root = _harness_root(tmp_path)
+    monkeypatch.setattr(ci, "ROOT", root)
+    monkeypatch.setattr(ci, "PREP", root / "ci")
+    monkeypatch.setattr(ci, "PREVIEW", root / "preview")
+    monkeypatch.setattr(ci, "HARNESS_PY", "/nonexistent")  # falls back to this interpreter
+    before = _snapshot(root)
+    ci.pack(tmp_path / "before.tgz")
+    assert ci.main(["preview"]) == 0
+    # Byte-identical, and no new files, anywhere outside preview/ (decisions, state, data/gold/xp).
+    assert _snapshot(root) == before
+    ci.pack(tmp_path / "after.tgz")
+    assert (tmp_path / "before.tgz").read_bytes() == (tmp_path / "after.tgz").read_bytes()
+    doc = json.loads((root / "preview" / "GW7.json").read_text())
+    assert doc["gw"] == 7 and doc["provisional"] is True and "preview_status" in doc
+    assert not ci._in_record("preview/GW7.json")  # never packed, never restored
+
+
+def test_preview_skips_a_decided_gameweek_or_an_unverified_bundle(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ci = _ci_module()
+    root = _harness_root(tmp_path)
+    monkeypatch.setattr(ci, "ROOT", root)
+    monkeypatch.setattr(ci, "PREP", root / "ci")
+    monkeypatch.setattr(ci, "PREVIEW", root / "preview")
+    assert ci.preview(6) == 0 and not (root / "preview").exists()
+    (root / "ci" / "bundle.json").write_text('{"shared_ok": false}')
+    assert ci.preview(7) == 0 and not (root / "preview").exists()
