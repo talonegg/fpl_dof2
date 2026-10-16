@@ -420,3 +420,74 @@ def test_preview_skips_a_decided_gameweek_or_an_unverified_bundle(
     assert ci.preview(6) == 0 and not (root / "preview").exists()
     (root / "ci" / "bundle.json").write_text('{"shared_ok": false}')
     assert ci.preview(7) == 0 and not (root / "preview").exists()
+
+
+def test_plan_creates_the_dirs_decide_writes_into(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """decide.py writes state/<model>.json without creating state/ (run 38974140926)."""
+    ci = _ci_module()
+    root = tmp_path / "root"
+    root.mkdir()
+    monkeypatch.setattr(ci, "ROOT", root)
+    monkeypatch.setattr(ci, "_bootstrap", lambda: (_ for _ in ()).throw(RuntimeError("stop")))
+    with pytest.raises(RuntimeError, match="stop"):
+        ci.plan()
+    assert (root / "state").is_dir() and (root / "decisions").is_dir()
+    assert "state" in ci.RECORD  # and the state then survives on the ledger
+
+
+def _rebuild_module() -> Any:
+    spec = importlib.util.spec_from_file_location(
+        "rebuild_gw_state", REPO / "pipeline" / "scripts" / "rebuild_gw_state.py"
+    )
+    assert spec and spec.loader
+    mod = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(mod)
+    return mod
+
+
+def _gw_record(root: Path) -> None:
+    gold = root / "data" / "gold" / "xp" / "GW7"
+    gold.mkdir(parents=True)
+    (gold / "xp_engine.parquet").write_bytes(b"xp")
+    real = {"players": [1, 2], "bank": 5, "free_transfers": 1, "source": "picks GW6"}
+    pick = {"transfers": [], "captain_name": "X", "vice_name": "Y", "hit_points": 0}
+    doc = {
+        "gw": 7,
+        "real_squad_start": real,
+        "xp_gold_dir": "data/gold/xp/GW7",
+        "xp_sha256": {"engine": hashlib.sha256(b"xp").hexdigest()},
+        "models": {"engine": pick},
+    }
+    (root / "decisions").mkdir()
+    (root / "decisions" / "GW7.json").write_text(json.dumps(doc))
+
+
+def test_rebuild_state_replays_from_the_seed_and_checks_the_pick(tmp_path: Path) -> None:
+    rb = _rebuild_module()
+    _gw_record(tmp_path)
+    seen: list[dict[str, Any]] = []
+
+    def pdecide(pf: Any, st: dict[str, Any], gw: int, *_: Any) -> Any:
+        seen.append(st)
+        ns = {**st, "next_gw": gw + 1}
+        return {"transfers": [], "captain_name": "X", "vice_name": "Y", "hit_points": 0}, ns
+
+    out = rb.rebuild(tmp_path, 7, pdecide, {"engine": {"config": {}}}, None, None, Path.read_bytes)
+    assert seen[0]["players"] == [1, 2] and seen[0]["next_gw"] == 7 and seen[0]["log"] == []
+    assert out["engine"]["next_gw"] == 8
+
+
+def test_rebuild_state_refuses_on_a_different_pick_or_hash(tmp_path: Path) -> None:
+    rb = _rebuild_module()
+    _gw_record(tmp_path)
+
+    def other(pf: Any, st: dict[str, Any], gw: int, *_: Any) -> Any:
+        return {"transfers": [], "captain_name": "Z", "vice_name": "Y", "hit_points": 0}, st
+
+    with pytest.raises(SystemExit, match="captain_name"):
+        rb.rebuild(tmp_path, 7, other, {"engine": {"config": {}}}, None, None, Path.read_bytes)
+    (tmp_path / "data/gold/xp/GW7/xp_engine.parquet").write_bytes(b"tampered")
+    with pytest.raises(SystemExit, match="sha256"):
+        rb.rebuild(tmp_path, 7, other, {"engine": {"config": {}}}, None, None, Path.read_bytes)
