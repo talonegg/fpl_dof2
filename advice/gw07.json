@@ -1,7 +1,7 @@
 {
   "gameweek": 7,
-  "run_id": "20261016T222907Z-72bf4379",
-  "recorded_at": "2026-10-16T22:29:30.458749Z",
+  "run_id": "20261016T224354Z-62529e3b",
+  "recorded_at": "2026-10-16T22:44:31.902452Z",
   "advised": {
     "gameweek": 7,
     "squad": [
@@ -23,10 +23,10 @@
     ],
     "starting": [
       496,
+      8,
       112,
       277,
       115,
-      8,
       399,
       411,
       124,
@@ -35,23 +35,23 @@
       464
     ],
     "bench_order": [
-      175,
       165,
+      175,
       368
     ],
     "reserve_goalkeeper": 109,
     "captain": 411,
     "vice_captain": 426,
     "formation": "1-4-4-2",
-    "expected_points": 40.66
+    "expected_points": 39.552
   },
   "recommendation": {
-    "rationale": "2 free transfer(s) gain 5.45 expected points",
+    "rationale": "2 free transfer(s) gain 4.53 expected points",
     "is_roll": false,
     "transfers": 2,
     "hit_points": 0,
-    "net_expected_points": 40.6604,
-    "gain_over_roll": 5.451,
+    "net_expected_points": 39.5525,
+    "gain_over_roll": 4.527,
     "bank_after": 0.0,
     "moves": [
       {
@@ -59,15 +59,15 @@
           "player_id": 259,
           "web_name": "Diop",
           "price": 4.0,
-          "xp_next": 1.202,
-          "form_points_per_match": 2.4
+          "xp_next": 1.176,
+          "form_points_per_match": 2.333
         },
         "in": {
           "player_id": 112,
           "web_name": "Van Hecke",
           "price": 4.9,
-          "xp_next": 4.331,
-          "form_points_per_match": 4.8
+          "xp_next": 3.713,
+          "form_points_per_match": 4.5
         }
       },
       {
@@ -75,15 +75,15 @@
           "player_id": 450,
           "web_name": "Livramento",
           "price": 4.9,
-          "xp_next": 0.484,
+          "xp_next": 0.0,
           "form_points_per_match": 2.0
         },
         "in": {
           "player_id": 277,
           "web_name": "Egan",
           "price": 4.1,
-          "xp_next": 3.738,
-          "form_points_per_match": 5.2
+          "xp_next": 3.554,
+          "form_points_per_match": 4.5
         }
       }
     ],
@@ -91,15 +91,15 @@
       {
         "transfers": 0,
         "hit_points": 0,
-        "net_expected_points": 35.2094,
+        "net_expected_points": 35.0255,
         "gain_over_roll": 0.0,
         "moves": []
       },
       {
         "transfers": 1,
         "hit_points": 0,
-        "net_expected_points": 38.3382,
-        "gain_over_roll": 3.1288,
+        "net_expected_points": 37.5628,
+        "gain_over_roll": 2.5373,
         "moves": [
           "Livramento (\u00a34.9m) -> Van Hecke (\u00a34.9m)"
         ]
@@ -107,8 +107,8 @@
       {
         "transfers": 2,
         "hit_points": 0,
-        "net_expected_points": 40.6604,
-        "gain_over_roll": 5.451,
+        "net_expected_points": 39.5525,
+        "gain_over_roll": 4.527,
         "moves": [
           "Diop (\u00a34.0m) -> Van Hecke (\u00a34.9m)",
           "Livramento (\u00a34.9m) -> Egan (\u00a34.1m)"
@@ -122,26 +122,10 @@
     "entry_id": 4529900,
     "as_of_gameweek": 6,
     "bank": 0.1,
-    "sell_value": 101.1,
-    "budget": 101.2,
+    "sell_value": 100.5,
+    "budget": 100.6,
     "free_transfers": 3,
     "chips_used": [],
-    "warnings": [
-      "no purchase price for player 109; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 259; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 115; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 8; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 426; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 399; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 237; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 124; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 411; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 165; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 464; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 496; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 368; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 450; using the current price, which understates the sell-on fee for anyone who has risen",
-      "no purchase price for player 175; using the current price, which understates the sell-on fee for anyone who has risen"
-    ]
+    "warnings": []
   }
 }
