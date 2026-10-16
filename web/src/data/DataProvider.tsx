@@ -128,6 +128,16 @@ export function availableModels(data: PublishedData): ModelChoice[] {
   });
 }
 
+/**
+ * Models whose latest published advice is a provisional preview: computed before the frozen
+ * decision exists, and replaced by it at the decision window.
+ */
+export function provisionalModels(data: PublishedData): ModelChoice[] {
+  const latest = latestModelGameweek(data);
+  if (!latest?.provisional) return [];
+  return MODEL_CHOICES.filter((m) => m !== "champion" && latest.advice[m] !== undefined);
+}
+
 /** The most recent gameweek the harness recorded advice for, or null. */
 export function latestModelGameweek(data: PublishedData): ModelGameweek | null {
   const gws = data.models?.gameweeks ?? [];
@@ -142,6 +152,8 @@ export function useModel(): {
   weekModel: "champion" | "challenger";
   setModel: (model: ModelChoice) => void;
   available: ModelChoice[];
+  /** Available models whose advice is provisional (not yet frozen). */
+  provisional: ModelChoice[];
   challengerAvailable: boolean;
 } {
   const { state, model, setModel } = useDataState();
@@ -153,6 +165,7 @@ export function useModel(): {
     weekModel: effective === "challenger" ? "challenger" : "champion",
     setModel,
     available,
+    provisional: state.status === "ready" ? provisionalModels(state.data) : [],
     challengerAvailable: available.includes("challenger"),
   };
 }

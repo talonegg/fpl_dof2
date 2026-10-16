@@ -179,6 +179,16 @@ jobs:
         id: plan
         run: python pipeline/scripts/prospective_ci.py plan
 
+      # The latest provisional preview for this gameweek (written by a day-before run), so every
+      # run until the frozen decision keeps publishing it. Cache only; never the ledger.
+      - name: Restore the provisional preview
+        if: steps.plan.outputs.gw != '' && steps.plan.outputs.gw != '0'
+        uses: actions/cache/restore@v4
+        with:
+          path: /workspace/fpl_prospective/preview
+          key: prospective-preview-gw${{ steps.plan.outputs.gw }}-${{ github.run_id }}
+          restore-keys: prospective-preview-gw${{ steps.plan.outputs.gw }}-
+
       # The day-before refresh never writes a frozen decision early: decide is forced to false (and
       # recorded in plan.json) on that path. Every other trigger passes the plan through unchanged.
       - name: Day-before veto on deciding
@@ -197,14 +207,14 @@ jobs:
       # Only on deciding runs (once per gameweek). The community archive is immutable per season,
       # so its bronze is cached; the live season is re-fetched every time.
       - name: Cache archive bronze
-        if: steps.window.outputs.decide == 'true'
+        if: steps.window.outputs.decide == 'true' || needs.guard.outputs.day_before == 'true'
         uses: actions/cache@v4
         with:
           path: /workspace/fpl_prospective/data/bronze/fplarchive
           key: fplarchive-bronze-2023-2026-v1
 
       - name: Refresh silver (FPL API + xG/xA + archive backfill)
-        if: steps.window.outputs.decide == 'true'
+        if: steps.window.outputs.decide == 'true' || needs.guard.outputs.day_before == 'true'
         env:
           FPL_DOF_CONFIG_FILE: config/ci-backtest.yaml
         run: |
@@ -232,6 +242,27 @@ jobs:
         env:
           FPL_DOF_TEAM_ID: ${{ inputs.team_id || vars.FPL_DOF_TEAM_ID }}
         run: /workspace/fpl_dof2/.venv/bin/python decide.py
+
+      # Provisional advice so every model shows on the Models page before its frozen decision.
+      # Day-before refresh runs only (once per gameweek) to bound CI cost. Runs the frozen
+      # decide.py --dry-run against a scratch copy of the harness root; writes preview/GW{n}.json,
+      # which is not part of the record (never packed to `ledger`) and is verified not to touch it.
+      - name: Provisional preview (dry run, scratch copy)
+        id: preview
+        if: needs.guard.outputs.day_before == 'true' && steps.window.outputs.decide != 'true'
+        continue-on-error: true
+        timeout-minutes: 25
+        env:
+          FPL_DOF_TEAM_ID: ${{ inputs.team_id || vars.FPL_DOF_TEAM_ID }}
+        run: python pipeline/scripts/prospective_ci.py preview
+
+      - name: Keep the provisional preview for later runs
+        if: steps.preview.outcome == 'success'
+        continue-on-error: true # nothing to save when the preview was skipped
+        uses: actions/cache/save@v4
+        with:
+          path: /workspace/fpl_prospective/preview
+          key: prospective-preview-gw${{ steps.plan.outputs.gw }}-${{ github.run_id }}
 
       - name: Record input freshness for new decisions (fail closed)
         if: always()
@@ -262,6 +293,7 @@ jobs:
           path: |
             /workspace/fpl_prospective/decisions/
             /workspace/fpl_prospective/status/
+            /workspace/fpl_prospective/preview/
             /workspace/fpl_prospective/scores.csv
             /workspace/fpl_prospective/report.md
             /workspace/fpl_prospective/xp_scores.csv

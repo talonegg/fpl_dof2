@@ -597,7 +597,12 @@ def _models(ctx: StageContext, season: str) -> dict[str, Any] | None:
         for p in sorted((root / "status").glob("GW*.json")):
             doc = json.loads(p.read_text(encoding="utf-8"))
             statuses[int(p.stem[2:])] = doc
+        previews = [
+            json.loads(p.read_text(encoding="utf-8"))
+            for p in sorted((root / "preview").glob("GW*.json"))
+        ]
         return build_models(
+            previews=previews,
             season=season,
             decisions=decisions,
             scores=scores,
