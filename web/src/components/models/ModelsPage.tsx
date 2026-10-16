@@ -15,6 +15,7 @@ import { HindsightSection } from "./HindsightSection";
 import { ModelBadge } from "./ModelBadge";
 import { ModelDiffView } from "./ModelDiffView";
 import { ModelsSeasonView } from "./ModelsSeasonView";
+import { ProvisionalBadge } from "./ProvisionalBadge";
 import "./models.css";
 import "./modelsPage.css";
 
@@ -97,10 +98,18 @@ function SummaryTable({ history, accuracy, models }: { history: ModelsHistory | 
           {MODEL_CHOICES.map((m) => {
             const b = back.get(m);
             const now = unavailableNow(models, m);
+            const last = models?.gameweeks[models.gameweeks.length - 1];
+            const prov = !!last?.provisional && last.advice[m] !== undefined;
             return (
               <tr key={m} data-testid={`models-summary-${m}`}>
                 <th scope="row">
                   <ModelBadge model={m} /> <span className="history-sub">{MODEL_FACTS[m].key}</span>
+                  {prov && (
+                    <>
+                      {" "}
+                      <ProvisionalBadge testId={`summary-provisional-${m}`} />
+                    </>
+                  )}
                 </th>
                 <td className="models-what">{MODEL_DESCRIPTIONS[m]}</td>
                 <td data-testid={`summary-xi-${m}`}>{f(b?.mean_per_gameweek, 2)}</td>
@@ -152,6 +161,13 @@ export function ModelsPage() {
 
       <section className="models-page-section" id="models-summary" aria-labelledby="models-summary-heading">
         <h2 id="models-summary-heading">Summary</h2>
+        {models?.provisional && (
+          <p className="models-provisional-note" data-testid="models-provisional-note">
+            <ProvisionalBadge testId="models-provisional-banner" /> GW
+            {models.gameweeks[models.gameweeks.length - 1]?.gameweek} advice is a preview of each model’s current pick. It
+            freezes at the decision window before the deadline, when the frozen decision replaces it.
+          </p>
+        )}
         <SummaryTable history={history.data} accuracy={accuracy.data} models={models} />
         <p className="models-note">
           Backtest XI pts/GW: realistic walk-forward 2025/26 (auto-subs, vice fallback, hits, no chips) — not real play. xP

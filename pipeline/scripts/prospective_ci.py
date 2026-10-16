@@ -6,6 +6,7 @@
     #   (timing rule: fpl_dof.prospective.timing)
     python pipeline/scripts/prospective_ci.py silver --ok 0|1   # record the silver refresh
     python pipeline/scripts/prospective_ci.py status    # fail-closed status for new decisions
+    python pipeline/scripts/prospective_ci.py preview   # provisional advice (scratch copy, dry run)
     python pipeline/scripts/prospective_ci.py pack OUT  # deterministic tarball of the record
     python pipeline/scripts/prospective_ci.py unpack TARBALL
 
@@ -18,11 +19,15 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import io
 import json
 import os
+import shutil
+import subprocess
 import sys
 import tarfile
+import tempfile
 import urllib.request
 from pathlib import Path
 from typing import Any
@@ -38,6 +43,13 @@ ROOT = Path(os.environ.get("PROSPECTIVE_ROOT", "/workspace/fpl_prospective"))
 FROZEN = Path(os.environ.get("PROSPECTIVE_FROZEN", "/workspace/fpl_dof2_frozen"))
 PREP = ROOT / "ci"
 STATUS = ROOT / "status"
+#: Provisional (pre-window) advice. Deliberately NOT in RECORD: never packed to the ledger branch,
+#: never restored by unpack, never read as a decision. Handed to publish as models.json preview.
+PREVIEW = ROOT / "preview"
+#: Hard cap on one preview run; the frozen decide.py takes roughly the same time as a real decide.
+#: The interpreter the frozen harness is run with in CI (decide.py hardcodes it for model_runner).
+HARNESS_PY = os.environ.get("PROSPECTIVE_PY", "/workspace/fpl_dof2/.venv/bin/python")
+PREVIEW_TIMEOUT_S = int(os.environ.get("PROSPECTIVE_PREVIEW_TIMEOUT", "1500"))
 SEASON = "2026/27"
 API = "https://fantasy.premierleague.com/api/"
 UA = "fpl-dof-ci/1.0 (+https://github.com/talonegg/fpl_dof2; low-rate)"
@@ -182,9 +194,8 @@ def silver(ok: bool) -> int:
     return 0
 
 
-def status() -> int:
-    """Write status/GW{n}.json for every decision without one. Decisions are create-only, so the
-    status is computed once, right after the decision, against the inputs that decision used."""
+def _assess(doc: dict[str, Any]) -> dict[str, Any]:
+    """The fail-closed input check for one decision document (frozen or preview)."""
     from fpl_dof.prospective.bundle import BundleReport
 
     b = _read(PREP / "bundle.json") or {}
@@ -213,23 +224,131 @@ def status() -> int:
             refresh_ok=bool(srec.get("refresh_ok")),
             refreshed_at=dt.datetime.fromisoformat(refreshed) if refreshed else None,
         )
-    for p in sorted((ROOT / "decisions").glob("GW*.json")):
-        target = STATUS / p.name
-        if target.exists():
-            continue
-        doc = json.loads(p.read_text(encoding="utf-8"))
-        result = assess(
+    return dict(
+        assess(
             doc,
             bundle=report,
             silver=stats,
             last_finished=int(plan_doc.get("last_finished", 0)),
             odds_history=odds,
         )
+    )
+
+
+def status() -> int:
+    """Write status/GW{n}.json for every decision without one. Decisions are create-only, so the
+    status is computed once, right after the decision, against the inputs that decision used."""
+    for p in sorted((ROOT / "decisions").glob("GW*.json")):
+        target = STATUS / p.name
+        if target.exists():
+            continue
+        doc = json.loads(p.read_text(encoding="utf-8"))
+        result = _assess(doc)
         _write(target, {"gw": doc.get("gw"), "assessed_at": _now().isoformat(), "models": result})
         print(
             f"status {p.stem}: "
             + ", ".join(f"{m}={'ok' if r['available'] else r['reason']}" for m, r in result.items())
         )
+    return 0
+
+
+def _record_digest() -> dict[str, str]:
+    """sha256 of every file in the record, keyed by its record path."""
+    out: dict[str, str] = {}
+    for item in RECORD:
+        p = ROOT / item
+        files = (
+            [p]
+            if p.is_file()
+            else sorted(f for f in p.rglob("*") if f.is_file())
+            if p.is_dir()
+            else []
+        )
+        for f in files:
+            out[f.relative_to(ROOT).as_posix()] = hashlib.sha256(f.read_bytes()).hexdigest()
+    return out
+
+
+def _scratch_ignore(directory: str, names: list[str]) -> set[str]:
+    """What the scratch copy leaves out: per-run caches/raw inputs, the decisions and the kept xP
+    copies (a dry run reads neither), and any earlier preview."""
+    rel = Path(directory).resolve().relative_to(ROOT.resolve()).as_posix()
+    skip = {"cache", "raw", "decisions", "preview"} if rel == "." else set()
+    if rel == "data":
+        skip.add("gold")
+    return skip & set(names)
+
+
+def preview(gw: int | None = None) -> int:
+    """Provisional advice for the next gameweek, before its frozen decision exists.
+
+    Runs the frozen ``decide.py --dry-run`` unmodified against a *scratch copy* of the harness
+    root (``FPL_PROSPECTIVE_ROOT`` is the harness's own override), so even a misbehaving run cannot
+    touch ``decisions/``, ``state/``, ``data/gold/xp`` or anything the ledger pack reads. The
+    resulting ``decision_preview.json`` is copied to ``preview/GW{n}.json`` with its fail-closed
+    input check, and the record is verified byte-identical afterwards. Never fails the job.
+    """
+    plan_doc = _read(PREP / "plan.json") or {}
+    gw = gw or int(plan_doc.get("gw") or 0)
+    bundle = _read(PREP / "bundle.json") or {}
+    reason = None
+    if gw <= 0:
+        reason = "no next gameweek"
+    elif (ROOT / "decisions" / f"GW{gw}.json").exists():
+        reason = f"GW{gw} already has a frozen decision"
+    elif not bundle.get("shared_ok"):
+        reason = "bundle not verified"  # never run unverified frozen code
+    if reason:
+        print(f"preview: skipped ({reason})")
+        return 0
+    before = _record_digest()
+    target = PREVIEW / f"GW{gw}.json"
+    with tempfile.TemporaryDirectory(prefix="prospective-preview-") as tmp:
+        scratch = Path(tmp) / "root"
+        shutil.copytree(ROOT, scratch, ignore=_scratch_ignore, symlinks=True)
+        (scratch / "decisions").mkdir()
+        env = {
+            **os.environ,
+            "FPL_PROSPECTIVE_ROOT": str(scratch),
+            "FPL_PROSPECTIVE_DATA": str(scratch / "data"),
+        }
+        try:
+            proc = subprocess.run(
+                [
+                    HARNESS_PY if Path(HARNESS_PY).exists() else sys.executable,
+                    "decide.py",
+                    "--dry-run",
+                    "--gw",
+                    str(gw),
+                ],
+                cwd=scratch,
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=PREVIEW_TIMEOUT_S,
+                check=False,
+            )
+            print(proc.stdout[-4000:])
+            out = scratch / "cache" / f"dryrun_GW{gw}" / "decision_preview.json"
+            doc = json.loads(out.read_text(encoding="utf-8")) if out.exists() else None
+            if proc.returncode != 0 or doc is None:
+                print(f"preview: decide.py --dry-run failed (exit {proc.returncode})")
+                print(proc.stderr[-4000:])
+                doc = None
+        except subprocess.TimeoutExpired:
+            print(f"preview: timed out after {PREVIEW_TIMEOUT_S}s")
+            doc = None
+    if _record_digest() != before:  # cannot happen via the scratch copy; fail loudly if it does
+        raise SystemExit("preview: the prospective record changed; refusing to publish a preview")
+    if doc is None:
+        return 0
+    if (ROOT / "decisions" / f"GW{gw}.json").exists():
+        print(f"preview: GW{gw} was decided meanwhile; preview discarded")
+        return 0
+    doc["provisional"] = True
+    doc["preview_status"] = {"assessed_at": _now().isoformat(), "models": _assess(doc)}
+    _write(target, doc)
+    print(f"preview: wrote {target}")
     return 0
 
 
@@ -290,6 +409,8 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("silver")
     s.add_argument("--ok", type=int, required=True)
     sub.add_parser("status")
+    pv = sub.add_parser("preview")
+    pv.add_argument("--gw", type=int, default=None)
     p = sub.add_parser("pack")
     p.add_argument("out", type=Path)
     u = sub.add_parser("unpack")
@@ -303,6 +424,8 @@ def main(argv: list[str] | None = None) -> int:
         return silver(bool(a.ok))
     if a.cmd == "status":
         return status()
+    if a.cmd == "preview":
+        return preview(a.gw)
     if a.cmd == "pack":
         return pack(a.out)
     return unpack(a.tarball)

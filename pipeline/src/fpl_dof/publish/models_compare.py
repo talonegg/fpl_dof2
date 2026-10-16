@@ -2,7 +2,8 @@
 
 Generalises ``week_challenger.json``: rather than one extra model in week.json's schema, every
 frozen model's pre-deadline advice per gameweek, the points each actually scored once the gameweek
-is finished, and a season-to-date table.
+is finished, and a season-to-date table. Before a gameweek's frozen decision exists, a dry-run
+preview of each model's current advice may stand in for it, flagged ``provisional``.
 
 **This module scores nothing.** The advice is what the prospective harness recorded *before* each
 deadline (``decisions/GW{n}.json``) and the points are what its scorer wrote afterwards
@@ -91,6 +92,7 @@ def build_models(
     frozen_tag: str | None,
     contract_version: int,
     statuses: Mapping[int, Mapping[str, Any]] | None = None,
+    previews: Sequence[Mapping[str, Any]] = (),
 ) -> dict[str, Any] | None:
     """The ``models.json`` payload, or ``None`` when the harness has recorded no decision yet.
 
@@ -102,10 +104,18 @@ def build_models(
     missing or stale is published as unavailable with the reason, and neither its advice nor its
     points for that gameweek appear. A gameweek with no recorded check makes every model
     unavailable: no check is not the same as a passed check.
+
+    **Provisional previews.** ``previews`` are ``decide.py --dry-run`` documents (same shape as a
+    decision, with their own input check under ``preview_status``) for gameweeks that have no
+    frozen decision yet. They are published with ``provisional: true`` and are dropped the moment
+    a frozen decision for that gameweek exists, so the frozen record always wins.
     """
-    if not decisions:
+    decided = {int(d["gw"]) for d in decisions}
+    pending = [p for p in previews if int(p["gw"]) not in decided]
+    if not decisions and not pending:
         return None
-    by_gw = sorted(decisions, key=lambda d: int(d["gw"]))
+    preview_checks = {int(p["gw"]): p.get("preview_status") for p in pending}
+    by_gw = sorted([*decisions, *pending], key=lambda d: int(d["gw"]))
     actual_by_gw: dict[int, dict[str, Any]] = {}
     for row in scores:
         key = str(row.get("model", ""))
@@ -118,7 +128,8 @@ def build_models(
     for doc in by_gw:
         gw = int(doc["gw"])
         c2e = {str(k): v for k, v in dict(doc.get("code_to_element", {})).items()}
-        check = (statuses or {}).get(gw)
+        provisional = gw in preview_checks
+        check = preview_checks[gw] if provisional else (statuses or {}).get(gw)
         availability: dict[str, dict[str, Any]] = {}
         advice = {}
         for key, pick in dict(doc.get("models", {})).items():
@@ -147,11 +158,13 @@ def build_models(
                 "decided_at": doc.get("decided_at"),
                 "availability": availability,
                 "advice": advice,
-                "actual": actual or None,
+                "actual": None if provisional else (actual or None),
+                "provisional": provisional,
             }
         )
 
     latest = gameweeks[-1]["availability"] if gameweeks else {}
+    latest_provisional = bool(gameweeks and gameweeks[-1]["provisional"])
     models = [
         {
             "id": wid,
@@ -163,6 +176,7 @@ def build_models(
             "unavailable_reason": latest.get(wid, {}).get("reason")
             if wid in latest
             else "not decided this gameweek",
+            "provisional": latest_provisional and wid in latest,
         }
         for key, wid, label, role, desc in MODEL_REGISTRY
         if key in seen
@@ -190,6 +204,7 @@ def build_models(
         "season": season,
         "champion": _BY_KEY[CHAMPION_KEY][0],
         "frozen": {"tag": frozen_tag, "code_commit": commit},
+        "provisional": latest_provisional,
         "models": models,
         "gameweeks": gameweeks,
         "season_to_date": season_to_date,
