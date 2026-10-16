@@ -47,9 +47,12 @@ graph LR
     E12 --> E11
     E6 --> E13["E13 · Runtime personalisation (IDs)"]
     E7 --> E13
+    E8 --> E14["E14 · Recommendation ranking + oracle"]
+    E4 --> E14
+    E6 --> E14
 ```
 
-E9–E13 are a second wave, not a continuation of the first sequence: they begin from the
+E9–E14 are a second wave, not a continuation of the first sequence: they begin from the
 [Model Improvement Plan](../05-model-improvement-plan.md) and the [DL-21](../00-decision-log.md#dl-21)
 finding, and E9 gates the three modelling epics behind it (§7).
 
@@ -71,6 +74,7 @@ finding, and E9 gates the three modelling epics behind it (§7).
 | [E11](E11-fixture-difficulty-and-market-signal.md) | Fixture difficulty + market signal | OBJ-1 | after E9 | 5–7 d |
 | [E12](E12-data-widening-for-priors.md) | Data widening for priors | OBJ-1 | feeds E10/E11 | 3–4 d |
 | [E13](E13-runtime-personalisation-ids.md) | Runtime personalisation (team/league IDs) | OBJ-5 | independent | 2–3 d |
+| [E14](E14-recommendation-ranking-and-hindsight-oracle.md) | Weekly recommendation ranking & hindsight oracle | OBJ-1, OBJ-3, OBJ-7 | In-season (from GW7) | 2–3 d |
 
 **Total build: 46–64 focused days**, against the [plan's original 29–44](../02-project-plan-and-blueprint.md#8-estimation-summary).
 The increase is honest, not scope creep: the original estimate assumed a clean sequential build with

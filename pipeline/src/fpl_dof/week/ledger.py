@@ -54,6 +54,8 @@ def record_advice(layout: DataLayout, week_payload: Mapping[str, Any]) -> Path |
         "recommendation": week_payload.get("recommendation"),
         "squad_state": week_payload.get("squad_state"),
     }
+    if "models" in week_payload:
+        entry["models"] = week_payload["models"]
     path = advice_path(layout, gameweek)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(entry, indent=2), encoding="utf-8")

@@ -32,7 +32,7 @@ describe("Models page", () => {
     installFetchStub({ bodies: { models_history_2526: historyFixture, xp_accuracy: accuracy } });
     renderApp("/models");
     const page = await screen.findByTestId("models-page");
-    for (const s of ["summary", "details", "accuracy", "history"]) expect(within(page).getByTestId(`models-jump-${s}`)).toBeTruthy();
+    for (const s of ["summary", "details", "accuracy", "hindsight", "history"]) expect(within(page).getByTestId(`models-jump-${s}`)).toBeTruthy();
     const rows = within(screen.getByTestId("models-summary")).getAllByRole("row").slice(1);
     expect(rows.map((r) => r.getAttribute("data-testid"))).toEqual([
       "models-summary-champion",

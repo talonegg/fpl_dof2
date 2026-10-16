@@ -33,7 +33,7 @@ IDS = {
 CAVEAT = (
     "Replay, not live: the frozen models (tag frozen-2026-10-13) were run after these gameweeks "
     "had been played, seeing only data from before each deadline. These picks were never recorded "
-    "before a deadline."
+    "before a deadline. GW1-6 A_odds replay uses closing odds proxy; descriptive only."
 )
 
 

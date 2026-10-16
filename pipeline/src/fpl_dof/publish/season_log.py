@@ -25,8 +25,18 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
+from fpl_dof.config.models import OptimiserConfig, TransferConfig
 from fpl_dof.frames import as_int
+from fpl_dof.rules.models import GameRules, Position
+from fpl_dof.squad.state import HeldPlayer, Provenance, SquadState
+from fpl_dof.week.diagnose import diagnose_oracle_gap
+from fpl_dof.week.oracle import solve_hindsight_optimal
 from fpl_dof.week.reconcile import reconcile
+from fpl_dof.week.score_advice import (
+    AdvisedLineup,
+    PlayerPerformance,
+    score_model_recommendations,
+)
 
 
 def build_log(
@@ -38,6 +48,11 @@ def build_log(
     chips: pd.DataFrame | None,
     advice: Mapping[int, Mapping[str, Any]],
     contract_version: int,
+    player_gameweek: pd.DataFrame | None = None,
+    player_pool: pd.DataFrame | None = None,
+    rules: GameRules | None = None,
+    transfer_config: TransferConfig | None = None,
+    optimiser_config: OptimiserConfig | None = None,
 ) -> dict[str, Any]:
     """The whole ``log.json`` payload. One row per gameweek the game has recorded picks for."""
     scored = _scores_by_gameweek(entry_gameweeks)
@@ -47,14 +62,32 @@ def build_log(
     for gameweek in sorted(int(g) for g in picks["gameweek"].unique()):
         for_gameweek = picks[picks["gameweek"] == gameweek].sort_values("slot")
         recorded = advice.get(gameweek)
+        played_gw = _played(for_gameweek)
+        prior_picks = (
+            picks[picks["gameweek"] == gameweek - 1]
+            if gameweek > 1 and not picks[picks["gameweek"] == gameweek - 1].empty
+            else for_gameweek
+        )
+        hindsight = _hindsight(
+            gameweek=gameweek,
+            recorded=recorded,
+            played=played_gw,
+            player_gameweek=player_gameweek,
+            player_pool=player_pool,
+            rules=rules,
+            transfer_config=transfer_config,
+            optimiser_config=optimiser_config,
+            prior_picks=prior_picks,
+        )
         rows.append(
             {
                 "gameweek": gameweek,
-                "played": _played(for_gameweek),
+                "played": played_gw,
                 "score": scored.get(gameweek),
                 "chip": chip_by_gameweek.get(gameweek),
                 "advised": _advised(recorded),
                 "reconciliation": _reconciliation(gameweek, entry_id, recorded, picks),
+                "hindsight": hindsight,
             }
         )
 
@@ -185,3 +218,196 @@ def _optional_int(value: object) -> int | None:
     if isinstance(value, np.integer | np.floating):
         return None if np.isnan(value) else int(value)
     return None
+
+
+def _hindsight(
+    gameweek: int,
+    recorded: Mapping[str, Any] | None,
+    played: dict[str, Any],
+    player_gameweek: pd.DataFrame | None,
+    player_pool: pd.DataFrame | None,
+    rules: GameRules | None,
+    transfer_config: TransferConfig | None,
+    optimiser_config: OptimiserConfig | None,
+    prior_picks: pd.DataFrame | None,
+) -> dict[str, Any] | None:
+    if rules is None or player_gameweek is None or player_gameweek.empty:
+        return None
+    gw_perf = player_gameweek[player_gameweek["gameweek"] == gameweek]
+    if gw_perf.empty:
+        return None
+
+    perfs: dict[int, PlayerPerformance] = {}
+    player_actuals: dict[int, int] = {}
+    for r in gw_perf.itertuples():
+        pid = as_int(r.player_id)
+        pts = as_int(getattr(r, "total_points", 0))
+        mins = as_int(getattr(r, "minutes", 0))
+        pos_str = str(getattr(r, "position", "MID"))
+        try:
+            pos = Position(pos_str)
+        except ValueError:
+            pos = Position.MID
+        perfs[pid] = PlayerPerformance(player_id=pid, position=pos, minutes=mins, points=pts)
+        player_actuals[pid] = pts
+
+    lineups: dict[str, AdvisedLineup] = {}
+    models_xp: dict[str, dict[int, float]] = {}
+    models_captains: dict[str, int] = {}
+
+    played_starting = tuple(played.get("starting", ()))
+    played_bench = tuple(played.get("bench_order", ()))
+    played_cap = played.get("captain") or (played_starting[0] if played_starting else 1)
+    played_vice = played.get("vice_captain") or played_cap
+    if played_starting:
+        lineups["played"] = AdvisedLineup(
+            starting=played_starting,
+            bench_order=played_bench[1:] if len(played_bench) > 1 else (),
+            bench_gkp=played_bench[0] if played_bench else None,
+            captain=played_cap,
+            vice_captain=played_vice,
+            transfers_made=0,
+            free_transfers=1,
+            expected_points=0.0,
+        )
+        models_captains["played"] = played_cap
+
+    if recorded is not None and isinstance(recorded.get("advised"), Mapping):
+        adv = recorded["advised"]
+        adv_starting = tuple(adv.get("starting") or ())
+        adv_bench = tuple(adv.get("bench_order") or ())
+        adv_cap = adv.get("captain") or (adv_starting[0] if adv_starting else 1)
+        adv_vice = adv.get("vice_captain") or adv_cap
+        adv_transfers = (
+            int(recorded.get("recommendation", {}).get("transfers") or 0)
+            if isinstance(recorded.get("recommendation"), Mapping)
+            else 0
+        )
+        adv_free = (
+            int(recorded.get("squad_state", {}).get("free_transfers") or 1)
+            if isinstance(recorded.get("squad_state"), Mapping)
+            else 1
+        )
+        adv_xp = float(adv.get("expected_points") or 0.0)
+        if adv_starting:
+            lineups["xp_v1"] = AdvisedLineup(
+                starting=adv_starting,
+                bench_order=adv_bench,
+                bench_gkp=adv.get("reserve_goalkeeper"),
+                captain=adv_cap,
+                vice_captain=adv_vice,
+                transfers_made=adv_transfers,
+                free_transfers=adv_free,
+                expected_points=adv_xp,
+            )
+            models_captains["xp_v1"] = adv_cap
+            models_xp["xp_v1"] = {adv_cap: adv_xp / 2.0}
+
+    if recorded is not None and isinstance(recorded.get("models"), Mapping):
+        for m_name, m_data in recorded["models"].items():
+            if not isinstance(m_data, Mapping):
+                continue
+            adv_val = m_data.get("advised")
+            m_adv: Mapping[str, Any] = adv_val if isinstance(adv_val, Mapping) else m_data
+            m_starting = tuple(m_adv.get("starting") or ())
+            m_bench = tuple(m_adv.get("bench_order") or ())
+            m_cap = m_adv.get("captain") or (m_starting[0] if m_starting else 1)
+            m_vice = m_adv.get("vice_captain") or m_cap
+            m_xp = float(m_adv.get("expected_points") or 0.0)
+            if m_starting:
+                lineups[m_name] = AdvisedLineup(
+                    starting=m_starting,
+                    bench_order=m_bench,
+                    bench_gkp=m_adv.get("reserve_goalkeeper"),
+                    captain=m_cap,
+                    vice_captain=m_vice,
+                    transfers_made=int(m_data.get("transfers", 0)),
+                    free_transfers=1,
+                    expected_points=m_xp,
+                )
+                models_captains[m_name] = m_cap
+                models_xp[m_name] = {m_cap: m_xp / 2.0}
+
+    rankings = score_model_recommendations(lineups, perfs, rules)
+
+    if player_pool is not None and not player_pool.empty:
+        pool_df = player_pool.copy()
+        if "now_cost" not in pool_df.columns and "price" in pool_df.columns:
+            pool_df["now_cost"] = pool_df["price"]
+    else:
+        pool_df = pd.DataFrame(
+            [
+                {
+                    "player_id": r.player_id,
+                    "web_name": getattr(r, "web_name", f"Player {r.player_id}"),
+                    "position": getattr(r, "position", "MID"),
+                    "team_id": getattr(r, "team_id", 1) or 1,
+                    "now_cost": float(getattr(r, "start_cost", 5.0) or 5.0),
+                }
+                for r in gw_perf.itertuples()
+            ]
+        )
+
+    pool_df["xp_next"] = pool_df["player_id"].map(player_actuals).fillna(0.0)
+    pool_df["xp_horizon"] = pool_df["xp_next"]
+    pool_df["start_probability"] = 1.0
+
+    held_players: list[HeldPlayer] = []
+    source_picks = (
+        prior_picks
+        if (prior_picks is not None and not prior_picks.empty)
+        else pd.DataFrame([{"player_id": pid} for pid in played.get("squad", ())])
+    )
+
+    for r in source_picks.itertuples():
+        pid = as_int(r.player_id)
+        pos = perfs[pid].position if pid in perfs else Position.MID
+        held_players.append(
+            HeldPlayer(
+                player_id=pid,
+                position=pos,
+                team_id=1,
+                current_price=5.0,
+                purchase_price=5.0,
+            )
+        )
+
+    if len(held_players) != 15:
+        return None
+
+    bank = 0.5
+    free_transfers = 1
+    if recorded is not None and isinstance(recorded.get("squad_state"), Mapping):
+        bank = float(recorded["squad_state"].get("bank") or 0.5)
+        free_transfers = int(recorded["squad_state"].get("free_transfers") or 1)
+
+    state = SquadState(
+        entry_id=None,
+        gameweek=gameweek,
+        players=tuple(held_players),
+        bank=bank,
+        free_transfers=free_transfers,
+        chips_used=(),
+        provenance=Provenance.RECONSTRUCTED,
+    )
+
+    try:
+        optimal_res = solve_hindsight_optimal(
+            gameweek=gameweek,
+            state=state,
+            pool=pool_df,
+            rules=rules,
+        )
+        diagnostics = diagnose_oracle_gap(
+            optimal=optimal_res.optimal_overall,
+            player_actuals=player_actuals,
+            models_xp=models_xp,
+            models_captains=models_captains,
+        )
+        return {
+            "rankings": [r.as_dict() for r in rankings],
+            "optimal": optimal_res.as_dict(),
+            "diagnostics": [d.as_dict() for d in diagnostics],
+        }
+    except Exception:
+        return None

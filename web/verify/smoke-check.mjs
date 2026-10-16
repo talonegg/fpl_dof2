@@ -75,10 +75,21 @@ function measure(message) {
   notes.push(`  ----  ${message}`);
 }
 
-console.log(`\nDeployed smoke test (E7-S7) against ${baseUrl}\n`);
+const UNLOCK_KEY = "fpl-dof:unlocked-hash";
+const UNLOCK_HASH =
+  process.env.VITE_FPL_PASSWORD_HASH ??
+  "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824";
 
 const browser = await chromium.launch();
 const context = await browser.newContext();
+await context.addInitScript(
+  ({ key, hash }) => {
+    try {
+      window.localStorage.setItem(key, hash);
+    } catch {}
+  },
+  { key: UNLOCK_KEY, hash: UNLOCK_HASH },
+);
 const page = await context.newPage();
 
 // Invariant 8: the browser reads published static artefacts and calls no external API. Worth
