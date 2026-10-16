@@ -1,7 +1,7 @@
 {
   "gameweek": 7,
-  "run_id": "20261016T072355Z-879ec123",
-  "recorded_at": "2026-10-16T07:24:31.288766Z",
+  "run_id": "20261016T222528Z-a6548b51",
+  "recorded_at": "2026-10-16T22:26:04.901194Z",
   "advised": {
     "gameweek": 7,
     "squad": [
@@ -35,9 +35,9 @@
       464
     ],
     "bench_order": [
-      368,
       175,
-      165
+      165,
+      368
     ],
     "reserve_goalkeeper": 109,
     "captain": 411,
@@ -46,12 +46,12 @@
     "expected_points": 40.66
   },
   "recommendation": {
-    "rationale": "2 free transfer(s) gain 5.08 expected points",
+    "rationale": "2 free transfer(s) gain 5.45 expected points",
     "is_roll": false,
     "transfers": 2,
     "hit_points": 0,
     "net_expected_points": 40.6604,
-    "gain_over_roll": 5.0817,
+    "gain_over_roll": 5.451,
     "bank_after": 0.0,
     "moves": [
       {
@@ -91,14 +91,14 @@
       {
         "transfers": 0,
         "hit_points": 0,
-        "net_expected_points": 35.5787,
+        "net_expected_points": 35.2094,
         "gain_over_roll": 0.0,
         "moves": []
       },
       {
         "transfers": 1,
         "hit_points": 0,
-        "net_expected_points": 38.7075,
+        "net_expected_points": 38.3382,
         "gain_over_roll": 3.1288,
         "moves": [
           "Livramento (\u00a34.9m) -> Van Hecke (\u00a34.9m)"
@@ -108,7 +108,7 @@
         "transfers": 2,
         "hit_points": 0,
         "net_expected_points": 40.6604,
-        "gain_over_roll": 5.0817,
+        "gain_over_roll": 5.451,
         "moves": [
           "Diop (\u00a34.0m) -> Van Hecke (\u00a34.9m)",
           "Livramento (\u00a34.9m) -> Egan (\u00a34.1m)"
