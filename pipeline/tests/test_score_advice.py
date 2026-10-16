@@ -64,8 +64,8 @@ def test_basic_scoring_no_autosubs(game_rules: GameRules) -> None:
 
 def test_gkp_autosub(game_rules: GameRules) -> None:
     perfs = {
-        1: _perf(1, Position.GKP, 0, 0),    # Starter 0 mins
-        12: _perf(12, Position.GKP, 90, 7), # Sub played
+        1: _perf(1, Position.GKP, 0, 0),  # Starter 0 mins
+        12: _perf(12, Position.GKP, 90, 7),  # Sub played
         2: _perf(2, Position.DEF, 90, 2),
         3: _perf(3, Position.DEF, 90, 2),
         4: _perf(4, Position.DEF, 90, 2),
@@ -101,7 +101,7 @@ def test_formation_preserving_outfield_autosub(game_rules: GameRules) -> None:
     # DEF 14 must sub in instead.
     perfs = {
         1: _perf(1, Position.GKP, 90, 2),
-        2: _perf(2, Position.DEF, 0, 0),    # 0 mins starter DEF
+        2: _perf(2, Position.DEF, 0, 0),  # 0 mins starter DEF
         3: _perf(3, Position.DEF, 90, 4),
         4: _perf(4, Position.DEF, 90, 4),
         5: _perf(5, Position.MID, 90, 3),
@@ -112,7 +112,7 @@ def test_formation_preserving_outfield_autosub(game_rules: GameRules) -> None:
         10: _perf(10, Position.FWD, 90, 5),
         11: _perf(11, Position.FWD, 90, 5),
         12: _perf(12, Position.GKP, 0, 0),
-        13: _perf(13, Position.MID, 90, 10), # 1st on bench, but cannot come on
+        13: _perf(13, Position.MID, 90, 10),  # 1st on bench, but cannot come on
         14: _perf(14, Position.DEF, 90, 6),  # 2nd on bench, can maintain 3 DEF formation
         15: _perf(15, Position.FWD, 90, 2),
     }
@@ -138,14 +138,14 @@ def test_captain_vice_fallback(game_rules: GameRules) -> None:
         3: _perf(3, Position.DEF, 90, 2),
         4: _perf(4, Position.DEF, 90, 2),
         5: _perf(5, Position.DEF, 90, 2),
-        6: _perf(6, Position.MID, 0, 0),    # Captain blanks
+        6: _perf(6, Position.MID, 0, 0),  # Captain blanks
         7: _perf(7, Position.MID, 90, 2),
         8: _perf(8, Position.MID, 90, 2),
         9: _perf(9, Position.MID, 90, 2),
-        10: _perf(10, Position.FWD, 90, 8), # Vice hauls
+        10: _perf(10, Position.FWD, 90, 8),  # Vice hauls
         11: _perf(11, Position.FWD, 90, 2),
         12: _perf(12, Position.GKP, 0, 0),
-        13: _perf(13, Position.MID, 90, 4), # Comes on for 6
+        13: _perf(13, Position.MID, 90, 4),  # Comes on for 6
         14: _perf(14, Position.DEF, 0, 0),
         15: _perf(15, Position.FWD, 0, 0),
     }

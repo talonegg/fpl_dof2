@@ -35,7 +35,7 @@ def test_diagnose_captaincy_trap() -> None:
     }
     models_captains = {
         "xp_v1": 6,  # Picked Fernandes
-        "c1": 13,    # Picked Haaland
+        "c1": 13,  # Picked Haaland
     }
 
     diags = diagnose_oracle_gap(
