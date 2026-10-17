@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "ok": true,
+  "command": "finalize",
+  "status": "pass",
+  "type": "architecture",
+  "quality": "showcase",
+  "specification": {
+    "path": "C:\\JHH\\source\\fpl_dof2\\.archify\\architecture-fpl-dof-20261017-174700\\candidate.json",
+    "sha256": "3c6a5d77437dc8f1979d68abeb5ac3fd3fa061382f33c22b74b1c8a87d077aaa",
+    "bytes": 11159
+  },
+  "artifact": {
+    "path": "C:\\JHH\\source\\fpl_dof2\\.archify\\architecture-fpl-dof-20261017-174700\\fpl-dof-architecture.html",
+    "sha256": "3dcd2c5a8db77972597bcea435cc0f9082a6a4e064285d86dc4a39c30d528197",
+    "bytes": 846855
+  },
+  "gates": {
+    "validate": "pass",
+    "deliver": "pass",
+    "check": "pass",
+    "browser-check": "pass"
+  },
+  "diagnostics": [],
+  "diagnosticSummary": {
+    "total": 0,
+    "shown": 0,
+    "truncated": false
+  },
+  "evidence": {
+    "receipt": "C:\\JHH\\source\\fpl_dof2\\.archify\\architecture-fpl-dof-20261017-174700\\fpl-dof-architecture.finalize.json",
+    "summaryReceipt": "C:\\JHH\\source\\fpl_dof2\\.archify\\architecture-fpl-dof-20261017-174700\\fpl-dof-architecture.finalize-summary.json",
+    "browserCheckReceipt": "C:\\JHH\\source\\fpl_dof2\\.archify\\architecture-fpl-dof-20261017-174700\\fpl-dof-architecture.browser-check.json"
+  },
+  "update": {
+    "status": "current",
+    "installedVersion": "3.1.0",
+    "availableVersion": "3.1.0",
+    "releaseNotes": null,
+    "checkedAt": "2026-10-17T06:48:29.026Z",
+    "source": "cache",
+    "noticeRequired": false,
+    "noticeText": null
+  },
+  "visualReview": "not-requested",
+  "durationMs": 2879
+}

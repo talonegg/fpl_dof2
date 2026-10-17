@@ -1,0 +1,454 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "FPL DOF System Architecture (2026-10-17)",
+    "output": "docs/architecture/archive/fpl-dof-architecture-20261017.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/talonegg/fpl_dof2.git",
+      "revision": "f372dd7159713672dfcc50c4338fc0d157bf2f88",
+      "provider": "github",
+      "link_mode": "web"
+    }
+  },
+  "components": [
+    {
+      "id": "gh_actions",
+      "type": "cloud",
+      "label": "GitHub Actions",
+      "sublabel": "cron scheduler :ci",
+      "tag": "Runner",
+      "pos": [40, 60],
+      "size": [140, 60],
+      "sources": [
+        {
+          "path": ".github/workflows/pipeline.yml",
+          "line": 1,
+          "end_line": 35,
+          "label": "Scheduled Pipeline Workflow"
+        }
+      ]
+    },
+    {
+      "id": "fpl_api",
+      "type": "external",
+      "label": "FPL Official API",
+      "sublabel": "bootstrap / fixtures",
+      "tag": "Primary",
+      "pos": [40, 200],
+      "size": [140, 60],
+      "sources": [
+        {
+          "path": "pipeline/src/fpl_dof/sources/fpl/adapter.py",
+          "line": 20,
+          "end_line": 60,
+          "label": "FPL Source Adapter"
+        }
+      ]
+    },
+    {
+      "id": "understat_source",
+      "type": "external",
+      "label": "Understat & FBref",
+      "sublabel": "xG / xA / metrics",
+      "tag": "Enrichment",
+      "pos": [40, 340],
+      "size": [140, 60],
+      "sources": [
+        {
+          "path": "pipeline/src/fpl_dof/sources/understat/adapter.py",
+          "line": 15,
+          "end_line": 50,
+          "label": "Understat Scraper"
+        }
+      ]
+    },
+    {
+      "id": "fetch_transport",
+      "type": "backend",
+      "label": "Fetch Transport",
+      "sublabel": "politeness / bronze",
+      "tag": "Rate-limited",
+      "pos": [290, 200],
+      "size": [140, 60],
+      "sources": [
+        {
+          "path": "pipeline/src/fpl_dof/sources/fetch.py",
+          "line": 1,
+          "end_line": 40,
+          "label": "Polite Transport & Bronze Cache"
+        }
+      ]
+    },
+    {
+      "id": "silver_store",
+      "type": "database",
+      "label": "Silver Parquet",
+      "sublabel": "conformed tables",
+      "tag": "Pandera validated",
+      "pos": [290, 340],
+      "size": [140, 60],
+      "sources": [
+        {
+          "path": "pipeline/src/fpl_dof/silver/store.py",
+          "line": 1,
+          "end_line": 40,
+          "label": "Parquet Silver Store"
+        }
+      ]
+    },
+    {
+      "id": "forecast_engine",
+      "type": "backend",
+      "label": "Forecast Engine",
+      "sublabel": "xp_v1 (fallback xp_v0)",
+      "tag": "Expected Points",
+      "pos": [540, 200],
+      "size": [140, 60],
+      "sources": [
+        {
+          "path": "pipeline/src/fpl_dof/stages/forecast.py",
+          "line": 1,
+          "end_line": 45,
+          "label": "Forecast xP Stage & Model Card"
+        }
+      ]
+    },
+    {
+      "id": "quality_gates",
+      "type": "security",
+      "label": "Quality Gates",
+      "sublabel": "blocking gate (DP-07)",
+      "tag": "Zero drift",
+      "pos": [540, 340],
+      "size": [140, 60],
+      "sources": [
+        {
+          "path": "pipeline/src/fpl_dof/stages/quality.py",
+          "line": 1,
+          "end_line": 40,
+          "label": "Data Quality Gates Stage"
+        }
+      ]
+    },
+    {
+      "id": "solver_milp",
+      "type": "backend",
+      "label": "MILP Solver",
+      "sublabel": "HighsPy / PuLP",
+      "tag": "Squad & Transfer",
+      "pos": [790, 200],
+      "size": [140, 60],
+      "sources": [
+        {
+          "path": "pipeline/src/fpl_dof/stages/optimise.py",
+          "line": 1,
+          "end_line": 40,
+          "label": "Optimization Solver Stage"
+        }
+      ]
+    },
+    {
+      "id": "week_decision",
+      "type": "backend",
+      "label": "Week Decision",
+      "sublabel": "deadline / advice",
+      "tag": "Ledger Audit",
+      "pos": [790, 340],
+      "size": [140, 60],
+      "sources": [
+        {
+          "path": "pipeline/src/fpl_dof/stages/week.py",
+          "line": 1,
+          "end_line": 40,
+          "label": "Gameweek Decision Stage"
+        }
+      ]
+    },
+    {
+      "id": "publisher",
+      "type": "backend",
+      "label": "Publisher",
+      "sublabel": "v1 JSON + TS types",
+      "tag": "Contract Gen",
+      "pos": [790, 480],
+      "size": [140, 60],
+      "sources": [
+        {
+          "path": "pipeline/src/fpl_dof/stages/publish.py",
+          "line": 1,
+          "end_line": 40,
+          "label": "Web Contract Publisher"
+        }
+      ]
+    },
+    {
+      "id": "data_provider",
+      "type": "frontend",
+      "label": "Data Provider",
+      "sublabel": "offline store / cache",
+      "tag": "TypeScript",
+      "pos": [1040, 340],
+      "size": [140, 60],
+      "sources": [
+        {
+          "path": "web/src/data/DataProvider.tsx",
+          "line": 1,
+          "end_line": 45,
+          "label": "React Data Context & Cache"
+        }
+      ]
+    },
+    {
+      "id": "static_gold",
+      "type": "cloud",
+      "label": "Static Contract",
+      "sublabel": "data/v1/*.json",
+      "tag": "GitHub Pages",
+      "pos": [1040, 480],
+      "size": [140, 60],
+      "sources": [
+        {
+          "path": "web/src/data/api.ts",
+          "line": 1,
+          "end_line": 35,
+          "label": "Web Contract Client API"
+        }
+      ]
+    },
+    {
+      "id": "password_gate",
+      "type": "security",
+      "label": "Password Gate",
+      "sublabel": "SHA-256 build hash",
+      "tag": "Deterrence",
+      "pos": [1290, 200],
+      "size": [140, 60],
+      "sources": [
+        {
+          "path": "web/src/gate/PasswordGate.tsx",
+          "line": 1,
+          "end_line": 45,
+          "label": "Client Password Gate"
+        }
+      ]
+    },
+    {
+      "id": "spa_routes",
+      "type": "frontend",
+      "label": "React SPA Views",
+      "sublabel": "Squad / Scout / Plan",
+      "tag": "Vite + PWA",
+      "pos": [1290, 340],
+      "size": [140, 60],
+      "sources": [
+        {
+          "path": "web/src/routes/DashboardRoute.tsx",
+          "line": 1,
+          "end_line": 30,
+          "label": "Decision Support Dashboard"
+        }
+      ]
+    },
+    {
+      "id": "user_browser",
+      "type": "external",
+      "label": "User Browser",
+      "sublabel": "Desktop / Mobile",
+      "tag": "Zero Server",
+      "pos": [1540, 200],
+      "size": [140, 60],
+      "sources": [
+        {
+          "path": "web/src/gate/PasswordGate.tsx",
+          "line": 20,
+          "end_line": 50,
+          "label": "Browser Password Entry"
+        }
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "Scheduled Python Pipeline (GitHub Actions)",
+      "wraps": [
+        "fetch_transport",
+        "silver_store",
+        "forecast_engine",
+        "quality_gates",
+        "solver_milp",
+        "week_decision",
+        "publisher"
+      ]
+    },
+    {
+      "kind": "region",
+      "label": "Static Web Platform (GitHub Pages & Client)",
+      "wraps": [
+        "data_provider",
+        "static_gold",
+        "password_gate",
+        "spa_routes"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "gh-to-fetch",
+      "from": "gh_actions",
+      "to": "fetch_transport",
+      "label": "triggers run",
+      "fromSide": "right",
+      "toSide": "top"
+    },
+    {
+      "id": "fpl-to-fetch",
+      "from": "fpl_api",
+      "to": "fetch_transport",
+      "label": "HTTPS json",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "understat-to-fetch",
+      "from": "understat_source",
+      "to": "fetch_transport",
+      "label": "scrapes xG",
+      "variant": "dashed",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "fetch-to-silver",
+      "from": "fetch_transport",
+      "to": "silver_store",
+      "label": "writes Parquet",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "silver-to-quality",
+      "from": "silver_store",
+      "to": "quality_gates",
+      "label": "validates tables",
+      "variant": "security",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "quality-to-forecast",
+      "from": "quality_gates",
+      "to": "forecast_engine",
+      "label": "gate passed",
+      "variant": "emphasis",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "forecast-to-solver",
+      "from": "forecast_engine",
+      "to": "solver_milp",
+      "label": "xP predictions",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "solver-to-week",
+      "from": "solver_milp",
+      "to": "week_decision",
+      "label": "squad solve",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "week-to-publisher",
+      "from": "week_decision",
+      "to": "publisher",
+      "label": "plan & ledger",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "publisher-to-static",
+      "from": "publisher",
+      "to": "static_gold",
+      "label": "deploys JSON",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "static-to-data",
+      "from": "static_gold",
+      "to": "data_provider",
+      "label": "reads v1 JSON",
+      "variant": "dashed",
+      "fromSide": "top",
+      "toSide": "bottom"
+    },
+    {
+      "id": "password-to-data",
+      "from": "password_gate",
+      "to": "data_provider",
+      "label": "unlocks app",
+      "variant": "security",
+      "fromSide": "left",
+      "toSide": "top"
+    },
+    {
+      "id": "data-to-spa",
+      "from": "data_provider",
+      "to": "spa_routes",
+      "label": "typed store",
+      "fromSide": "right",
+      "toSide": "left"
+    },
+    {
+      "id": "user-to-gate",
+      "from": "user_browser",
+      "to": "password_gate",
+      "label": "password input",
+      "fromSide": "left",
+      "toSide": "right"
+    },
+    {
+      "id": "spa-to-user",
+      "from": "spa_routes",
+      "to": "user_browser",
+      "label": "renders views",
+      "variant": "emphasis",
+      "fromSide": "right",
+      "toSide": "bottom"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "Zero-Cost Serverless Core",
+      "items": [
+        "GitHub Actions runs the Python pipeline on cron without persistent servers",
+        "GitHub Pages hosts pre-rendered v1 JSON contracts and React 18 SPA at zero cost"
+      ]
+    },
+    {
+      "dot": "emerald",
+      "title": "Data Ingestion & MILP Optimization",
+      "items": [
+        "Bronze HTTP snapshots with politeness rate-limiting and retry backoff",
+        "Silver Parquet storage validated on read/write with Pandera schemas",
+        "Multi-gameweek transfer and squad optimization solved via HighsPy"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "Quality Gates & Client Gate",
+      "items": [
+        "Invariant 7: Blocking quality gates halt the run before squad solve if data drifts",
+        "Client-side SHA-256 password deterrence gate avoids backend authentication overhead"
+      ]
+    }
+  ]
+}

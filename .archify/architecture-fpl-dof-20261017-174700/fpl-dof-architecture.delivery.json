@@ -1,0 +1,17 @@
+{
+  "schemaVersion": 1,
+  "receiptId": "bd3b803a-a6e2-41e4-868b-16e6ad2d8140",
+  "status": "current",
+  "command": "deliver",
+  "type": "architecture",
+  "input": "C:\\JHH\\source\\fpl_dof2\\.archify\\architecture-fpl-dof-20261017-174700\\candidate.json",
+  "output": "C:\\JHH\\source\\fpl_dof2\\.archify\\architecture-fpl-dof-20261017-174700\\fpl-dof-architecture.html",
+  "specification": {
+    "sha256": "3c6a5d77437dc8f1979d68abeb5ac3fd3fa061382f33c22b74b1c8a87d077aaa",
+    "bytes": 11159
+  },
+  "artifact": {
+    "sha256": "3dcd2c5a8db77972597bcea435cc0f9082a6a4e064285d86dc4a39c30d528197",
+    "bytes": 846855
+  }
+}
