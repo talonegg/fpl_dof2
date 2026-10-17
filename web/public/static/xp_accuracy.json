@@ -405,72 +405,77 @@
      "gameweek": 1,
      "phase": "replay",
      "mae": {
-      "engine": 1.1416,
-      "champion": 1.0613,
-      "challenger": 0.9575,
-      "a": 1.0758
+      "engine": 1.4524,
+      "champion": 1.4421,
+      "challenger": 1.4569,
+      "a": 1.4894,
+      "a_odds": 1.5954
      }
     },
     {
      "gameweek": 2,
      "phase": "replay",
      "mae": {
-      "engine": 1.1637,
-      "champion": 1.0974,
-      "challenger": 1.2938,
-      "a": 1.0804
+      "engine": 1.269,
+      "champion": 1.2475,
+      "challenger": 1.1327,
+      "a": 1.1029,
+      "a_odds": 1.187
      }
     },
     {
      "gameweek": 3,
      "phase": "replay",
      "mae": {
-      "engine": 1.1132,
-      "champion": 1.0471,
-      "challenger": 1.2633,
-      "a": 1.0569
+      "engine": 1.1329,
+      "champion": 1.1149,
+      "challenger": 1.0478,
+      "a": 1.0804,
+      "a_odds": 1.1095
      }
     },
     {
      "gameweek": 4,
      "phase": "replay",
      "mae": {
-      "engine": 1.1037,
-      "champion": 1.0474,
-      "challenger": 1.2985,
-      "a": 1.0986
+      "engine": 1.2604,
+      "champion": 1.2383,
+      "challenger": 1.1513,
+      "a": 1.119,
+      "a_odds": 1.2178
      }
     },
     {
      "gameweek": 5,
      "phase": "replay",
      "mae": {
-      "engine": 1.0401,
-      "champion": 0.9823,
-      "challenger": 1.1778,
-      "a": 1.082
+      "engine": 1.2383,
+      "champion": 1.2002,
+      "challenger": 1.0852,
+      "a": 1.049,
+      "a_odds": 1.1249
      }
     },
     {
      "gameweek": 6,
      "phase": "replay",
      "mae": {
-      "engine": 1.0112,
-      "champion": 0.9536,
-      "challenger": 1.1971,
-      "a": 1.1216
+      "engine": 1.1579,
+      "champion": 1.1335,
+      "challenger": 1.0039,
+      "a": 0.983,
+      "a_odds": 1.0548
      }
     }
    ],
    "pooled_mae": {
-    "engine": 1.0925,
-    "champion": 1.0292,
-    "challenger": 1.2063,
-    "a": 1.0867
+    "engine": 1.244,
+    "champion": 1.221,
+    "challenger": 1.134,
+    "a": 1.1231,
+    "a_odds": 1.1998
    },
-   "missing_models": {
-    "a_odds": "no saved predictions"
-   }
+   "missing_models": {}
   }
  ]
 }

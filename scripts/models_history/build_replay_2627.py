@@ -33,7 +33,8 @@ IDS = {
 CAVEAT = (
     "Replay, not live: the frozen models (tag frozen-2026-10-13) were run after these gameweeks "
     "had been played, seeing only data from before each deadline. These picks were never recorded "
-    "before a deadline. GW1-6 A_odds replay uses closing odds proxy; descriptive only."
+    "before a deadline. GW1-6 A_odds replay uses opening-odds proxy (football-data.co.uk opening "
+    "B365 1X2 and totals); descriptive only, outside the C1 vs C3 pre-registration."
 )
 
 
@@ -55,9 +56,7 @@ def build(rows: list[dict[str, str]]) -> dict[str, Any]:
         "caveat": CAVEAT,
         "frozen_tag": "frozen-2026-10-13 (79e080c)",
         "models": [m for m in IDS.values() if m in seen],
-        "missing_models": {
-            m: "not in the GW1-6 replay run" for m in IDS.values() if m not in seen
-        },
+        "missing_models": {m: "not in the GW1-6 replay run" for m in IDS.values() if m not in seen},
         "as_of_gameweek": max(gws) if gws else 0,
         "gameweeks": [{"gameweek": g, "models": gws[g]} for g in sorted(gws)],
     }
@@ -68,9 +67,7 @@ def main(argv: list[str]) -> int:
     out = Path(argv[2]) if len(argv) > 2 else OUT
     with src.open(encoding="utf-8") as f:
         doc = build(list(csv.DictReader(f)))
-    out.write_text(
-        json.dumps(doc, indent=1, ensure_ascii=False) + "\n", encoding="utf-8"
-    )
+    out.write_text(json.dumps(doc, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"wrote {out} (GW1-{doc['as_of_gameweek']}, {len(doc['models'])} models)")
     return 0
 

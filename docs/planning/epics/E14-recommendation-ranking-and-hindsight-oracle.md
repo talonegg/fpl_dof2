@@ -117,7 +117,7 @@ Backfill historical odds for the first 6 gameweeks of 2026/27 to allow full 5-mo
 * **Data Sourcing:** Conforming match opening/closing odds for GW1–6 as a historical proxy.
 * **Replay Execution:** Run the frozen `comp_ot` model over GW1–6 using historical odds, generating squad selections, captaincy, and net points.
 * **Artefact Update:** Populate `scripts/models_history/data/replay_2627.csv` and regenerate `web/public/static/models_history_2627_replay.json`.
-* **Firewall Rule:** Strictly quarantined from prospective confirmatory evaluations ([PREREG_C1_vs_C3.md](file:///c:/JHH/source/fpl_dof2/prospective/PREREG_C1_vs_C3.md)); labelled with clear provenance in the replay document (`"GW1-6 replay uses closing odds proxy; descriptive only"`).
+* **Firewall Rule:** Strictly quarantined from prospective confirmatory evaluations ([PREREG_C1_vs_C3.md](file:///c:/JHH/source/fpl_dof2/prospective/PREREG_C1_vs_C3.md)); labelled with clear provenance in the replay document (`"GW1-6 replay uses opening-odds proxy; descriptive only"`).
 
 **Acceptance:** `models_history_2627_replay.json` includes `a_odds` across GW1–6; Hindsight Oracle prior-week selector displays `A_odds` alongside all other models; prospective hypothesis test suite remains untouched.
 
