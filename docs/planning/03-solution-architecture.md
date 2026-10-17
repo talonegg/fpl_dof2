@@ -261,7 +261,7 @@ visibly stale on the health page, rather than serving something wrong (Invariant
 
 | Layer | Content | Format | Persisted between CI runs? |
 | --- | --- | --- | --- |
-| **Bronze** | Verbatim source responses with a `.meta.json` lineage sidecar (URL, time, SHA-256) | Gzipped JSON/HTML | Yes — rolling window on `data`, one permanent tarball per GW on `snapshots` |
+| **Bronze** | Verbatim source responses with a `.meta.json` lineage sidecar (URL, time, SHA-256) | Gzipped JSON/HTML | Partly — the rolling window on `data`; by design also one permanent tarball per GW on `snapshots` — **never written so far** (PIPE-14) |
 | **Silver** | Conformed canonical tables (`silver/tables.py`), validated on read and write | Parquet, by season | **No** — rebuilt from bronze each run. Accumulating tables (`price_history`, `player_gameweek`) therefore lose history on CI; PIPE-06 fixes this |
 | **Gold** | Forecasts, plans, decisions, model and backtest cards | Parquet + JSON + Markdown | **No**, except advice on `ledger`. The published contract survives as a 14-day artefact and on Pages |
 | **Web contract** | The narrow, versioned slice the browser may read | JSON, `/data/v1/` | Replaced per publish |
@@ -309,7 +309,7 @@ every clone. That is why R-13 is rated High and why the stores have different me
 | Store | Mechanism | Rationale |
 | --- | --- | --- |
 | **`data`** — rolling bronze | Orphan branch, rebuilt from the retained window (~30 days) and force-pushed by `pipeline/scripts/retention.py` | History is truncated, not accumulated; these snapshots debug the recent past |
-| **`snapshots`** — permanent bronze | Append-only; one tarball per gameweek | The NFR-06 evidence trail, small enough to keep forever |
+| **`snapshots`** — permanent bronze | Append-only; one tarball per gameweek. **Not yet written:** the archive step never learns the gameweek, so it has skipped every run and the branch does not exist (PIPE-14) | The NFR-06 evidence trail, small enough to keep forever |
 | **`ledger`** — advice and prospective records | Append-only; `advice/gwNN.json` written before each deadline, `prospective/gw*.tgz` frozen with it | What was advised, provably before the event (DL-69) |
 | **Published contract** | Actions artefact `web-data-contract` (14 days) → Pages | Serving surface, not an archive |
 

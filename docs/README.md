@@ -73,7 +73,7 @@ review in §12) and [conceptual design](planning/04-conceptual-design.md) (each 
 
 - **R1.0 — delivered.** Epics E0–E14 built the platform end to end; they are archived as records in
   [`planning/archive/R1.0/`](planning/archive/README.md).
-- **R1.1.0 — open: data pipeline uplift.** [Backlog PIPE-01 … PIPE-13](planning/epics/R1.1.0-data-pipeline-backlog.md),
+- **R1.1.0 — open: data pipeline uplift.** [Backlog PIPE-01 … PIPE-14](planning/epics/R1.1.0-data-pipeline-backlog.md),
   in draft. Its effect on the architecture: [architecture §13](planning/03-solution-architecture.md#13-r110--target-data-architecture).
 - **The season — live.** [E8 — ongoing in-season monitoring](planning/epics/E8-ongoing-in-season-monitoring.md)
   holds the season state and decision points, rewritten each gameweek.
@@ -89,7 +89,8 @@ criteria. The [release register](planning/epics/README.md) decides the order.
 - A chip calendar for set 1 before GW15; set 1 expires at the GW19 deadline.
 
 **R1.1.0 — data pipeline uplift ([backlog](planning/epics/R1.1.0-data-pipeline-backlog.md))**
-- Phase 1, hygiene: freeze prior seasons (PIPE-03); a football-data.co.uk adapter that also ends the
+- Phase 1, hygiene: first, write the permanent bronze archive, which has never run (PIPE-14);
+  freeze prior seasons (PIPE-03); a football-data.co.uk adapter that also ends the
   fetch outside `sources/` (PIPE-04); persist accumulating silver tables with one restore step
   (PIPE-06); conditional HTTP (PIPE-07); The Odds API off by default (PIPE-09).
 - Phase 2, temporal integrity: one clock and one current gameweek (PIPE-12), then season ×
