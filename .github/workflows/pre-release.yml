@@ -1,0 +1,72 @@
+# Pre-release gate (DL-80). A release (dev/Rx.y.z) or a hotfix (feature/*) is promoted into
+# `pre-release`; this smoke-tests the built site against the latest published contract before the
+# promotion into main. CI (ci.yml) runs alongside on the same pushes and pull requests, and both are
+# required checks on main.
+name: Pre-release
+
+on:
+  push:
+    branches: [pre-release]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: pre-release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    env:
+      # A throwaway hash (SHA-256 of "hello"): this build is never deployed, and smoke-check.mjs
+      # unlocks the password gate with the same value, so the real FPL_PASSWORD_HASH is not needed.
+      VITE_FPL_PASSWORD_HASH: 2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch the latest published contract
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          mkdir -p web/public/data/v1
+          # shortcut: mirrors deploy.yml's fallback loop; fold both into one step with 03 §12 O3.
+          for run_id in $(gh run list --workflow=pipeline.yml --status=success --limit=20 \
+              --json databaseId --jq '.[].databaseId'); do
+            if gh run download "$run_id" --name web-data-contract --dir web/public/data/v1; then
+              echo "contract from pipeline run $run_id"
+              exit 0
+            fi
+          done
+          echo "::error::no published contract found in the last 20 successful pipeline runs"
+          exit 1
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: npm ci
+        working-directory: web
+        run: npm ci
+
+      - name: build
+        working-directory: web
+        run: npm run build
+
+      - name: Install Chromium
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+
+      - name: Smoke-test the built site
+        working-directory: web
+        run: |
+          npx vite preview --host 127.0.0.1 --port 4173 --strictPort &
+          for _ in $(seq 30); do curl -sf http://127.0.0.1:4173/ >/dev/null && break; sleep 1; done
+          npm run verify:smoke -- http://127.0.0.1:4173
