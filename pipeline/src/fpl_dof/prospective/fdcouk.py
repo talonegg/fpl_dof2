@@ -21,6 +21,17 @@ HISTORY: dict[str, str] = {
     "backtest/fdcouk/E0_2526.csv": f"{BASE}/2526/E0.csv",
 }
 
+#: Season code -> E0.csv URL for every season the replay/backtest tooling reads, including the
+#: in-progress 2026/27 season (GW1-6 opening-odds replay, scripts/models_history/). Kept separate
+#: from ``HISTORY``: that map is hash-verified against the frozen bundle, and 2026/27 is still being
+#: published (the bytes change weekly), so it must never become a frozen A+odds input.
+SEASONS: dict[str, str] = {
+    "2324": f"{BASE}/2324/E0.csv",
+    "2425": f"{BASE}/2425/E0.csv",
+    "2526": f"{BASE}/2526/E0.csv",
+    "2627": f"{BASE}/2627/E0.csv",
+}
+
 Getter = Callable[[str], bytes]
 
 

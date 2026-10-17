@@ -4537,9 +4537,9 @@ Model `A_odds` requires bookmaker match odds for its Shin de-vig team layer. In 
    - Add `data/bronze/fdcouk` to `RECORD` so the raw odds files are packed into `prospective.tgz` and committed to the `ledger` branch.
    - Satisfies DP-11 (reproducibility) and provides uncorrupted historical ground truth for walk-forward retraining.
 2. **Quarantined GW1–6 Replay for A+odds:**
-   - Backfill historical pre-match / closing odds proxy for GW1–6 to run the frozen `comp_ot` model retrospectively.
+   - Backfill historical pre-match / opening-odds proxy for GW1–6 to run the frozen `comp_ot` model retrospectively.
    - Update `scripts/models_history/data/replay_2627.csv` and `models_history_2627_replay.json` so the web app and E14 Hindsight Oracle display all 5 models across every prior gameweek.
-   - **Strict Pre-Registration Firewall:** GW1–6 odds replay data is quarantined strictly to descriptive UI display. It is prohibited from entering `xp_scores_paired.csv` or confirmatory statistical hypothesis tests under `PREREG_C1_vs_C3.md`. Provenance is explicitly labelled (`"GW1-6 replay uses closing odds proxy; descriptive only"`).
+   - **Strict Pre-Registration Firewall:** GW1–6 odds replay data is quarantined strictly to descriptive UI display. It is prohibited from entering `xp_scores_paired.csv` or confirmatory statistical hypothesis tests under `PREREG_C1_vs_C3.md`. Provenance is explicitly labelled (`"GW1-6 replay uses opening-odds proxy; descriptive only"`).
 
 ### Consequences
 
