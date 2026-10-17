@@ -2,7 +2,7 @@
  "contract_version": 1,
  "season": "2026/27",
  "kind": "replay",
- "caveat": "Replay, not live: the frozen models (tag frozen-2026-10-13) were run after these gameweeks had been played, seeing only data from before each deadline. These picks were never recorded before a deadline. GW1-6 A_odds replay uses closing odds proxy; descriptive only.",
+ "caveat": "Replay, not live: the frozen models (tag frozen-2026-10-13) were run after these gameweeks had been played, seeing only data from before each deadline. These picks were never recorded before a deadline. GW1-6 A_odds replay uses opening-odds proxy (football-data.co.uk opening B365 1X2 and totals); descriptive only, outside the C1 vs C3 pre-registration.",
  "frozen_tag": "frozen-2026-10-13 (79e080c)",
  "models": [
   "champion",
@@ -38,9 +38,9 @@
      "captain": "Saka"
     },
     "a_odds": {
-     "points": 37.0,
+     "points": 49.0,
      "hit_points": 0.0,
-     "captain": "Saka"
+     "captain": "B.Fernandes"
     }
    }
   },
@@ -68,9 +68,9 @@
      "captain": "Saka"
     },
     "a_odds": {
-     "points": 66.0,
+     "points": 93.0,
      "hit_points": 0.0,
-     "captain": "Saka"
+     "captain": "B.Fernandes"
     }
    }
   },
@@ -98,9 +98,9 @@
      "captain": "Saka"
     },
     "a_odds": {
-     "points": 45.0,
+     "points": 49.0,
      "hit_points": 0.0,
-     "captain": "Saka"
+     "captain": "B.Fernandes"
     }
    }
   },
@@ -128,9 +128,9 @@
      "captain": "Saka"
     },
     "a_odds": {
-     "points": 49.0,
+     "points": 66.0,
      "hit_points": 0.0,
-     "captain": "Saka"
+     "captain": "B.Fernandes"
     }
    }
   },
@@ -158,9 +158,9 @@
      "captain": "Saka"
     },
     "a_odds": {
-     "points": 58.0,
+     "points": 41.0,
      "hit_points": 0.0,
-     "captain": "Saka"
+     "captain": "B.Fernandes"
     }
    }
   },
@@ -188,9 +188,9 @@
      "captain": "Saka"
     },
     "a_odds": {
-     "points": 45.0,
+     "points": 49.0,
      "hit_points": 0.0,
-     "captain": "Saka"
+     "captain": "B.Fernandes"
     }
    }
   }

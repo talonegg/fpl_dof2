@@ -32,7 +32,10 @@ def test_replay_totals_and_labels() -> None:
     assert doc["kind"] == "replay"
     assert doc["as_of_gameweek"] == 6
     totals = {m: sum(g["models"][m]["points"] for g in doc["gameweeks"]) for m in doc["models"]}
-    # RESULTS_2627_replay.md: C3 330, engine 318, C1 308, A 300, a_odds 300 (closing odds proxy).
-    assert totals == {"champion": 330, "challenger": 308, "engine": 318, "a": 300, "a_odds": 300}
+    # RESULTS_2627_replay.md: C3 330, engine 318, C1 308, A 300; a_odds 347 (opening-odds proxy,
+    # scripts/models_history/replay_2627_aodds.py).
+    assert totals == {"champion": 330, "challenger": 308, "engine": 318, "a": 300, "a_odds": 347}
     assert "a_odds" in doc["models"]
-    assert "closing odds proxy" in doc["caveat"]
+    assert "opening-odds proxy" in doc["caveat"]
+    assert "closing odds proxy" not in doc["caveat"]
+    assert "outside the C1 vs C3 pre-registration" in doc["caveat"]
