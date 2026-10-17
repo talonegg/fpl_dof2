@@ -1,0 +1,27 @@
+# Publish a GitHub Release when a release tag is pushed (DL-80). Tags are `Rx.y.z` (R1.0 predates
+# the scheme) and must point at a commit already on main; the deploy itself ran when the release's
+# pull request merged into main (deploy.yml).
+name: Release
+
+on:
+  push:
+    tags: ["R*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: The tag must be on main
+        run: git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+
+      - name: Create the GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "$GITHUB_REF_NAME" --verify-tag --generate-notes --title "$GITHUB_REF_NAME"
