@@ -241,7 +241,10 @@ jobs:
         working-directory: /workspace/fpl_prospective
         env:
           FPL_DOF_TEAM_ID: ${{ inputs.team_id || vars.FPL_DOF_TEAM_ID }}
-        run: /workspace/fpl_dof2/.venv/bin/python decide.py
+        run: |
+          # decide.py writes state/<model>.json but never creates state/ (run 38974140926).
+          mkdir -p /workspace/fpl_prospective/state /workspace/fpl_prospective/decisions
+          /workspace/fpl_dof2/.venv/bin/python decide.py
 
       # Provisional advice so every model shows on the Models page before its frozen decision.
       # Day-before refresh runs only (once per gameweek) to bound CI cost. Runs the frozen

@@ -129,7 +129,20 @@ def _last_finished(bootstrap: dict[str, Any]) -> int:
     return max(done) if done else 0
 
 
+#: Directories the frozen decide.py writes into but never creates. ``state/`` is absent from the
+#: bundle and from the ledger record until the first decision, so decide.py wrote GW7's decision
+#: and then crashed on ``state/engine.json`` (run 38974140926, 2026-10-17), losing every model's
+#: state. Create them before any decision can run.
+HARNESS_DIRS = ("decisions", "state")
+
+
+def ensure_harness_dirs() -> None:
+    for d in HARNESS_DIRS:
+        (ROOT / d).mkdir(parents=True, exist_ok=True)
+
+
 def plan() -> int:
+    ensure_harness_dirs()
     bs = _bootstrap()
     nxt = next((e for e in bs["events"] if e["is_next"]), None)
     decide, gw, reason, coverage = False, 0, "no next gameweek", [0, 0]
