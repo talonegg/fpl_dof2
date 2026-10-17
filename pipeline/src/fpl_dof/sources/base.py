@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import datetime as dt
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar
@@ -159,6 +159,37 @@ class SourceAdapter(ABC):
     contributes: ClassVar[tuple[str, ...]] = ()
     """Canonical field names this source can supply. The input to per-field precedence (NFR-15),
     and the reason losing a source removes known fields rather than unknown ones."""
+
+    # --- how the data health page describes this source (T-003) --------------------------------
+    # Declared here, next to the source, for the same reason as ``attribution``: the page and the
+    # publisher render these strings as data and never name a source themselves (Invariant 1).
+
+    health_kind: ClassVar[str] = "live"
+    """``live`` (fetched on a schedule, so it has a freshness age) or ``reference`` (fixed data,
+    shown with an as-of date instead of an age)."""
+
+    health_label: ClassVar[str] = ""
+    """Plain-English name on the data health page. Empty falls back to ``summary``."""
+
+    health_description: ClassVar[str] = ""
+    """One line on what the source is for, shown under its label."""
+
+    health_disabled_reason: ClassVar[str] = ""
+    """Why this source is switched off, in words, for when configuration leaves it disabled."""
+
+    health_note: ClassVar[str] = ""
+    """The "Why" line for a ``reference`` source: what kind of fixed data it is and where it is
+    used."""
+
+    @classmethod
+    def configuration_problem(cls, environ: Mapping[str, str] | None = None) -> str | None:
+        """What this source is missing before it can collect anything, or ``None``.
+
+        A source that needs a credential says so here, so "switched on but missing its key" can be
+        published as *not set up* rather than inferred as healthy from a run that made no request
+        at all. Never a secret: only whether one is present.
+        """
+        return None
 
     def __init__(self, fetcher: Fetcher, options: SourceOverride | None = None) -> None:
         self.fetcher = fetcher

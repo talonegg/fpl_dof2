@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { installFetchStub, renderApp, resetAppState } from "../test/render";
 import {
+  allStatesHealth,
   blockedHealth,
   health,
   healthyHealth,
+  mismatchHealth,
   ungatedHealth,
 } from "../components/health/testFixtures";
 
@@ -120,6 +122,67 @@ describe("HealthRoute", () => {
       renderApp("/health");
       const row = await screen.findByTestId("health-source-alpha-feed");
       expect(row.textContent).toContain("24 min ago");
+    });
+  });
+
+  describe("every source state (T-003)", () => {
+    it("groups live feeds and reference data under their own headings", async () => {
+      installFetchStub({ bodies: { health: allStatesHealth } });
+      renderApp("/health");
+      const live = await screen.findByTestId("health-sources-live");
+      const reference = screen.getByTestId("health-sources-reference");
+      expect(live.textContent).toContain("Live feeds");
+      expect(reference.textContent).toContain("Reference data");
+      expect(live.textContent).toContain("Alpha feed");
+      expect(reference.textContent).toContain("Eta set");
+    });
+
+    it("shows the declared label and purpose rather than the raw key", async () => {
+      installFetchStub({ bodies: { health: allStatesHealth } });
+      renderApp("/health");
+      const row = await screen.findByTestId("health-source-alpha-feed");
+      expect(row.textContent).toContain("Alpha feed");
+      expect(row.textContent).toContain("The feed everything else builds on.");
+    });
+
+    it("shows not set up and switched off with their reasons, and never as OK", async () => {
+      installFetchStub({ bodies: { health: allStatesHealth } });
+      renderApp("/health");
+      const keyless = await screen.findByTestId("health-source-delta-feed");
+      expect(keyless.textContent).toContain("Not set up");
+      expect(keyless.textContent).toContain("no key is set");
+      expect(keyless.textContent).not.toContain("OK");
+      const off = screen.getByTestId("health-source-epsilon-feed");
+      expect(off.textContent).toContain("Switched off");
+      expect(off.textContent).toContain("blocks automated access");
+    });
+
+    it("shows reference data with an as-of date and its file check, not an age", async () => {
+      installFetchStub({ bodies: { health: allStatesHealth } });
+      renderApp("/health");
+      const pinned = await screen.findByTestId("health-source-eta-set");
+      expect(pinned.textContent).toContain("Reference");
+      expect(pinned.textContent).toContain("Verified");
+      expect(pinned.textContent).toContain("2026");
+      expect(pinned.textContent).not.toContain("ago");
+    });
+
+    it("counts only live feeds that are on and set up in the tally", async () => {
+      installFetchStub({ bodies: { health: allStatesHealth } });
+      renderApp("/health");
+      await screen.findByTestId("health-panel");
+      expect(screen.getByText("1 of 2 OK")).toBeTruthy();
+    });
+
+    it("banners a stale feed and a file mismatch", async () => {
+      installFetchStub({ bodies: { health: mismatchHealth } });
+      renderApp("/health");
+      const banner = await screen.findByTestId("health-degraded-banner");
+      expect(banner.textContent).toContain("Omega feed");
+      expect(banner.textContent).toContain("Stale");
+      expect(banner.textContent).toContain("Eta set");
+      expect(banner.textContent).toContain("Mismatch");
+      expect(banner.textContent).not.toContain("Delta feed");
     });
   });
 

@@ -28,6 +28,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import os
+from collections.abc import Mapping
 from typing import Any, ClassVar
 
 import pandas as pd
@@ -89,6 +90,10 @@ class OddsApiAdapter(SourceAdapter):
     enabled_by_default: ClassVar[bool] = False
     essential: ClassVar[bool] = False
     attribution: ClassVar[str] = "Match odds via The Odds API"
+    health_label: ClassVar[str] = "Match odds (The Odds API)"
+    health_description: ClassVar[str] = (
+        "Bookmaker odds on match results and total goals, with the bookmaker's margin taken out."
+    )
     contributes: ClassVar[tuple[str, ...]] = (
         "expected_goals_home",
         "expected_goals_away",
@@ -116,6 +121,16 @@ class OddsApiAdapter(SourceAdapter):
     def api_key(environ: dict[str, str] | None = None) -> str | None:
         value = (environ if environ is not None else dict(os.environ)).get(API_KEY_ENV)
         return value.strip() or None if value else None
+
+    @classmethod
+    def configuration_problem(cls, environ: Mapping[str, str] | None = None) -> str | None:
+        """No key means no request is ever attempted, so the source is *not set up*, not healthy.
+
+        Only the key's presence is read; its value never leaves this method.
+        """
+        if cls.api_key(dict(environ) if environ is not None else None) is not None:
+            return None
+        return "It's switched on, but no API key is set, so it has never collected any odds."
 
     def credit_budget(self, environ: dict[str, str] | None = None) -> int:
         """Configuration first, then the environment, then the free tier's allowance.

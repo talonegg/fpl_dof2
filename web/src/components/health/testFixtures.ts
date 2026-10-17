@@ -197,3 +197,107 @@ export const blockedHealth: Health = {
 
 /** No gate report at all — which must never render as a pass (DP-13). */
 export const ungatedHealth: Health = { ...health, gates: null, metrics_history: null };
+
+/**
+ * Every source state the Sources section can show (T-003), with invented labels as above. The
+ * declared `label` and `description` are invented too: the page renders them as data.
+ */
+export const allStatesHealth: Health = {
+  ...healthyHealth,
+  sources: [
+    {
+      source: "alpha-feed",
+      kind: "live",
+      label: "Alpha feed",
+      description: "The feed everything else builds on.",
+      status: "ok",
+      detail: "Fetched by a scheduled ingest. This run used that saved data rather than fetching it again.",
+      observed_at: "2026-08-16T11:31:00Z",
+      age_seconds: 1440,
+      resources: {},
+      network_calls: null,
+      cache_hits: null,
+    },
+    {
+      source: "omega-feed",
+      kind: "live",
+      label: "Omega feed",
+      description: "Fetched before each deadline.",
+      status: "stale",
+      detail: "Its newest data is 60 h old, and the limit is 48 h.",
+      observed_at: "2026-08-14T00:00:00Z",
+      age_seconds: 216000,
+      resources: {},
+      network_calls: null,
+      cache_hits: null,
+    },
+    {
+      source: "delta-feed",
+      kind: "live",
+      label: "Delta feed",
+      description: "Needs a key.",
+      status: "not_configured",
+      detail: "It's switched on, but no key is set.",
+      observed_at: null,
+      age_seconds: null,
+      resources: {},
+      network_calls: null,
+      cache_hits: null,
+    },
+    {
+      source: "epsilon-feed",
+      kind: "live",
+      label: "Epsilon feed",
+      description: "Blocked upstream.",
+      status: "disabled",
+      detail: "The site blocks automated access.",
+      observed_at: null,
+      age_seconds: null,
+      resources: {},
+      network_calls: null,
+      cache_hits: null,
+    },
+    {
+      source: "eta-set",
+      kind: "reference",
+      label: "Eta set",
+      description: "Pinned past seasons.",
+      status: "ok",
+      detail: "Fixed seasons.",
+      observed_at: null,
+      age_seconds: null,
+      as_of: "2026-10-13",
+      check: "pass",
+      checked_at: "2026-08-16T02:06:00Z",
+      resources: {},
+      network_calls: null,
+      cache_hits: null,
+    },
+    {
+      source: "theta-set",
+      kind: "reference",
+      label: "Theta set",
+      description: "Saved once.",
+      status: "ok",
+      detail: "Saved once and never updated.",
+      observed_at: null,
+      age_seconds: null,
+      as_of: "2026-05-24",
+      check: null,
+      checked_at: null,
+      resources: {},
+      network_calls: null,
+      cache_hits: null,
+    },
+  ],
+};
+
+/** A pinned reference dataset whose files no longer match. */
+export const mismatchHealth: Health = {
+  ...allStatesHealth,
+  sources: allStatesHealth.sources.map((source) =>
+    source.source === "eta-set"
+      ? { ...source, status: "degraded", check: "fail", detail: "upstream file differs" }
+      : source,
+  ),
+};

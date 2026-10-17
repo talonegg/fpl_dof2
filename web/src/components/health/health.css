@@ -206,6 +206,40 @@
   color: var(--text-muted);
 }
 
+/* The source cell carries a plain-English name and a one-line purpose, so it wraps like prose. */
+.health-table th[scope="row"] {
+  white-space: normal;
+  min-width: 12rem;
+  max-width: 22rem;
+}
+
+.health-source-label {
+  display: block;
+  font-weight: 600;
+}
+
+.health-source-description {
+  display: block;
+  margin-top: var(--space-1);
+  color: var(--text-muted);
+  font-weight: 400;
+  font-size: var(--font-size-xs);
+}
+
+.health-source-group + .health-source-group {
+  margin-top: var(--space-4);
+}
+
+.health-source-group h4 {
+  margin: 0 0 var(--space-1);
+  font-size: var(--font-size-sm);
+}
+
+.health-check-time {
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+
 /* ---------- Pills and tones ---------- */
 
 .health-pill {

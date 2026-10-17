@@ -117,6 +117,13 @@ class FbrefAdapter(SourceAdapter):
     enabled_by_default: ClassVar[bool] = False
     essential: ClassVar[bool] = False
     attribution: ClassVar[str] = "Advanced statistics via FBref, from Opta data"
+    health_label: ClassVar[str] = "Advanced player stats (FBref)"
+    health_description: ClassVar[str] = (
+        "Counts of progressive play, chance creation, touches in the box and defensive actions."
+    )
+    health_disabled_reason: ClassVar[str] = (
+        "The site blocks automated access, so this source isn't used."
+    )
     contributes: ClassVar[tuple[str, ...]] = (
         "expected_goals",
         "non_penalty_expected_goals",
