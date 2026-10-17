@@ -17,7 +17,7 @@ extra signals are wired in.
 three sources touches anything outside `sources/`, config and tests, the abstraction has leaked and
 fixing that is part of the epic, not a follow-up.
 
-### 1a. How this data is meant to reach both decision models — the review of 2026-08-15 ([DL-33](../00-decision-log.md#dl-33))
+### 1a. How this data is meant to reach both decision models — the review of 2026-08-15 ([DL-33](../../../decisions/DL-33.md))
 
 A review asked whether these sources feed the **initial squad-construction model** and the **weekly
 recommendation model**. They do not, and the finding is worth stating here because it changes what
@@ -27,9 +27,9 @@ data reaches **both** models through a single seam — the forecast — or throu
 
 Today it reaches neither: the live forecast (`xp_v0`) has no `player_metric` input, and the model that
 does consume it (`xp_v1`) runs only in the backtest. Closing that is one wiring change, not two,
-recorded as [D-25](E0-steel-thread-gw1.md#6-technical-debt-register) and sequenced behind the two
-blockers that make it premature — [D-23](E0-steel-thread-gw1.md#6-technical-debt-register) (no data can
-be fetched) and [D-13](E0-steel-thread-gw1.md#6-technical-debt-register) (no evidence to promote on).
+recorded as [D-25](../../debt-register.md) and sequenced behind the two
+blockers that make it premature — [D-23](../../debt-register.md) (no data can
+be fetched) and [D-13](../../debt-register.md) (no evidence to promote on).
 The plan and its rejected alternative (porting the join into `xp_v0`) are in DL-33.
 
 ## 2. Stories
@@ -39,7 +39,7 @@ The moment a second source arrives, players must be matched across sources. A mi
 attributes one footballer's xG to another and **nothing visibly breaks** — the definition of an
 expensive invisible bug (R-10).
 
-Three tiers, per [Design §3.2](../04-conceptual-design.md#32-entity-resolution-fr-07-r-10):
+Three tiers, per [Design §3.2](../../04-conceptual-design.md#32-entity-resolution-fr-07-r-10):
 deterministic on normalised name plus club plus position; fuzzy token-set similarity with a high
 confidence threshold, accepted only when unambiguous within a club; then a committed, reviewed manual
 override file.
@@ -93,7 +93,7 @@ degrades the model without breaking the pipeline.
       The consumer D-22 named now exists: the feature store joins `player_metric` on `player_code`
       and feeds prior-season, position-relative ratios into the priors of M3 and M4, with the
       season-label knowability boundary property-tested at both ends
-      (`tests/test_prior_season_features.py`, [DL-31](../00-decision-log.md#dl-31)). **D-22 is
+      (`tests/test_prior_season_features.py`, [DL-31](../../../decisions/DL-31.md)). **D-22 is
       closed and this item still cannot be ticked, for a blunter reason: there is no data.**
       Enabling both scraped sources and running ingest for real returns nothing from either —
       Understat's `robots.txt` now disallows the entire site, and FBref answers every request,
@@ -102,7 +102,7 @@ degrades the model without breaking the pipeline.
       of the missing ones moves the model by ~0.001 Spearman, so there is no evidence the *design*
       is where the value was either. Opened as **D-23**; the odds half of D-20 remains an external
       blocker for want of an `ODDS_API_KEY`. A second gap surfaced in the 2026-08-15 review
-      ([DL-33](../00-decision-log.md#dl-33)): even with data, the *live* forecast (`xp_v0`) has no
+      ([DL-33](../../../decisions/DL-33.md)): even with data, the *live* forecast (`xp_v0`) has no
       `player_metric` input — the D-22 consumer runs only in the backtest's `xp_v1` — so nothing
       external would reach either decision model until that seam is wired. Tracked as **D-25**, behind
       D-23 and D-13

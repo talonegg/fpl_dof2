@@ -1,0 +1,4 @@
+# Leave the archives out of a plain search (DL-74).
+# Search them on purpose by naming the path: rg "D-25" docs/planning/archive
+planning/archive/
+architecture/archive/

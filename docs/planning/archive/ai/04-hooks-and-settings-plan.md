@@ -78,7 +78,7 @@ push is never clean.
 **Action:** if the next gameweek deadline is inside 45 minutes, warn loudly and require explicit
 confirmation.
 
-Encodes the "never last-minute" rule from [Design §9](../04-conceptual-design.md#9-orchestration) at
+Encodes the "never last-minute" rule from [Design §9](../../04-conceptual-design.md#9-orchestration) at
 the one moment it is most likely to be forgotten — when someone is rushing before a deadline, which
 is precisely when a bad publish is most damaging.
 

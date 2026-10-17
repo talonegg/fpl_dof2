@@ -2,11 +2,11 @@
 
 The monolith exists to put a number on one question DP-10 otherwise leaves to faith: *what is the
 component chain's explainability costing at the head of the ranking?* It is a benchmark and never
-a candidate — [DL-53](../../docs/planning/00-decision-log.md) — so these tests are not about whether
+a candidate — [DL-53](../../docs/decisions/DL-53.md) — so these tests are not about whether
 it is any good. They are about the three ways a shadow benchmark goes silently wrong:
 
 1. **It leaks.** A monolith fitted through its own training assembly is
-   [DL-28](../../docs/planning/00-decision-log.md)'s trap with a second set of hands: it would
+   [DL-28](../../docs/decisions/DL-28.md)'s trap with a second set of hands: it would
    report a gap that is entirely its own dishonesty, and the metrics would look *better*, not
    worse. Invariant 5, DP-13, and the reason the harness fits it through the same
    `training_rows`/`fold_rows` machinery the chain uses.
@@ -159,7 +159,7 @@ def test_what_happens_after_a_deadline_cannot_change_that_folds_monolith() -> No
     """**The look-ahead regression test.** The decisive property, through the real harness.
 
     A second training assembly is a second chance to leak, which is exactly what
-    [DL-28](../../docs/planning/00-decision-log.md) warns about for a different piece of code — so
+    [DL-28](../../docs/decisions/DL-28.md) warns about for a different piece of code — so
     the monolith is fitted by ``walk_forward`` on the same ``training_rows`` frame the chain gets.
     This asserts the consequence rather than the mechanism: gameweek 7's predictions are refitted
     against a history in which every later gameweek has been rewritten, and they must be

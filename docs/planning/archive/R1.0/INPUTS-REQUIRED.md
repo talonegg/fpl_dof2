@@ -50,7 +50,7 @@ created your 2026/27 team — which is itself the output of E0.
 
 ## 5. Hosting — **settled, nothing needed from you**
 
-OD-01 and OD-02 are both closed by [DL-12](../00-decision-log.md#dl-12--public-repository): **the
+OD-01 and OD-02 are both closed by [DL-12](../../../decisions/DL-12.md): **the
 repository is public, and the site is hosted on GitHub Pages.** No Cloudflare account to create, no
 minutes budget to approve, no decision waiting at ~GW6.
 
@@ -85,7 +85,7 @@ code, not the decisions, while costing the compute budget the decisions depend o
 | 5.3 | **A quick look at the repo before it goes public** | Nothing personal beyond a public FPL team ID should be committed — which NFR-11 already required, but it is worth one deliberate check rather than an assumption |
 
 Two cadence rules survive from the recount and are now in
-[Architecture §9](../03-solution-architecture.md#two-cadence-rules-that-are-easy-to-get-wrong), because
+[Architecture §9](../../03-solution-architecture.md#two-cadence-rules-that-are-easy-to-get-wrong), because
 they were always the right design: `element-summary` never runs on the fast path, and the pipeline
 does not re-solve after every fast ingest. An unbounded minutes budget is not a licence for a
 wasteful pipeline, and slowness on the deadline path costs more than money.
@@ -153,35 +153,7 @@ This warrants a decision-log entry; it changes FR-26 and the E7 scheduling desig
 
 ## 8. Environment variables
 
-Complete set across all epics. **None are needed for E0** beyond the optional ones.
-
-| Variable | Purpose | Needed by | Secret | Example |
-| --- | --- | --- | --- | --- |
-| `FPL_DOF_ENV` | Execution context: `local` or `ci` | E0 (optional) | No | `local` |
-| `FPL_DOF_DATA_DIR` | Override the data root | E0 (optional) | No | `C:\JHH\data\fpl_dof` |
-| `FPL_DOF_LOG_LEVEL` | Logging verbosity | E0 (optional) | No | `INFO` |
-| `FPL_DOF_USER_AGENT_CONTACT` | Honest client identification (NFR-10) | E0 | No | `https://github.com/talonegg/fpl_dof2` |
-| `FPL_DOF_TIMEZONE` | Local rendering zone | E1 | No | `Australia/Sydney` |
-| `FPL_DOF_TEAM_ID` | Your FPL entry ID | **E1** | No — public | `1234567` |
-| `FPL_DOF_LEAGUE_ID` | Mini-league for rival analysis (§6a). Optional — unset is the normal state | E6 | No | `987654` |
-| `ODDS_API_KEY` | Bookmaker odds provider | E5 / **E11-S5** | **Yes** | — |
-| `FPL_DOF_ODDS_CREDIT_BUDGET` | Monthly request cap, enforced in the adapter | E5 | No | `450` |
-
-**Handling:** non-secrets go in a committed `.env.example` and a gitignored `.env`. The one secret
-(`ODDS_API_KEY`) goes in `.env` locally and GitHub Actions secrets in CI — never in a settings file,
-never in the client bundle (NFR-13). The secret-scan hook in `.claude/hooks/` already guards commits.
-
-**Status 2026-09-17:** `FPL_DOF_TEAM_ID` is set as a repository variable and is passed to the
-*ingest* workflows as well as `pipeline.yml` — the entry is fetched at ingest, so a variable that
-reached only the pipeline left every run without an entry snapshot ([DL-69](../00-decision-log.md#dl-69)).
-
-**Team and league IDs in CI, and UI entry ([DL-44](../00-decision-log.md#dl-44), built by
-[E13](E13-runtime-personalisation-ids.md)).** `FPL_DOF_TEAM_ID` / `FPL_DOF_LEAGUE_ID` are non-secret
-identifiers. In CI they come from GitHub Actions repository **variables** (not secrets, not committed
-config); locally they stay in gitignored config. They are also enterable in the app's `/settings`
-view — stored in browser `localStorage` only, used to personalise already-published artefacts
-and to compose an owner-triggered `workflow_dispatch` link. **Nothing about the owner's identity is
-committed to the repository, ever** (Invariant 8, Invariant 10, NFR-11).
+Moved to [`docs/environment.md`](../../../environment.md) on 2026-10-17 (DL-74), where it is kept current.
 
 ---
 

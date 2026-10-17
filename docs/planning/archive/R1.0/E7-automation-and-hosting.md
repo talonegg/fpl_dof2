@@ -2,7 +2,7 @@
 
 **Objective:** OBJ-6, NFR-01, NFR-02, NFR-05, NFR-07 · **Target:** ~GW8 · **Estimate:** 3–5 days
 **Depends on:** E1 · **Repays debt:** D-08, D-10
-**Needs from you:** nothing. Hosting is settled — [DL-12](../00-decision-log.md#dl-12--public-repository)
+**Needs from you:** nothing. Hosting is settled — [DL-12](../../../decisions/DL-12.md)
 made the repository public, so GitHub Pages is free and OD-02 is closed
 
 ---
@@ -32,7 +32,7 @@ Two cadences, and the split between them matters more than it looks:
 
 **`element-summary` never goes on the fast path.** Putting it in a 4-hourly workflow re-fetches data
 that changes daily at most, at roughly six minutes a run. It was the single largest line in the
-minutes recount that led to [DL-12](../00-decision-log.md#dl-12--public-repository), and it remains
+minutes recount that led to [DL-12](../../../decisions/DL-12.md), and it remains
 wrong even now that minutes are unlimited — a slow pipeline is a liability on the deadline path
 whether or not anyone is billed for it.
 
@@ -66,7 +66,7 @@ nothing — the blob stays in history and in every clone, forever. A `data` bran
 commits a day of gzipped JSON grows monotonically no matter how carefully old files are removed.
 "Prune old snapshots" is a null operation against a Git backend unless history is rewritten, which is
 why R-13 is rated High. Per
-[Architecture §7.3](../03-solution-architecture.md#73-storage-volume-and-retention-mechanics):
+[Architecture §7.3](../../03-solution-architecture.md#73-storage-volume-and-retention-mechanics):
 
 - **`data`** — orphan branch, rebuilt from the retained ~30-day window and **force-pushed**, so
   history is truncated rather than accumulated
@@ -100,7 +100,7 @@ of a deadline.
 
 - [x] Data refreshes on schedule without intervention — `ingest-fast.yml` (hourly, guarded by
       `fpl-dof-schedule`) and `ingest-slow.yml` (daily). Not yet observed live; built and unit-tested
-      against the exact decision logic a real cron firing will call. See [DL-42](../00-decision-log.md#dl-42)
+      against the exact decision logic a real cron firing will call. See [DL-42](../../../decisions/DL-42.md)
 - [x] A current recommendation exists before every deadline — `pipeline.yml`'s deadline-relative
       trigger fires at T-3h and T-45m, enforced never to land inside R-09's 45-minute freeze by
       construction (a one-sided window, checked in `pipeline_decision`'s tests), plus nightly and
@@ -123,11 +123,11 @@ of a deadline.
 - [x] `data` branch size stable across a month of runs, not merely growing slowly — verified against
       a real local bare git remote: 60 simulated daily runs over a 30-day window held the branch at
       exactly one commit with zero parents throughout, and the retained file count stayed bounded at
-      the window size. See [DL-42](../00-decision-log.md#dl-42)
+      the window size. See [DL-42](../../../decisions/DL-42.md)
 - [x] **No secret has ever reached the repository** — every workflow uses only the
       automatically-provided `GITHUB_TOKEN`; no new secret, credential or API key was introduced
 - [x] D-08 and D-10 closed; the E0 code path runs unchanged in CI — see the debt register in
-      [E0 §6](E0-steel-thread-gw1.md#6-technical-debt-register) and [DL-42](../00-decision-log.md#dl-42)
+      [E0 §6](../../debt-register.md) and [DL-42](../../../decisions/DL-42.md)
 
 **Status as of 2026-08-16: code-complete and locally/simulated-verified; not yet live-verified.**
 Every checkbox above that depends on GitHub Actions actually firing, GitHub Pages actually being

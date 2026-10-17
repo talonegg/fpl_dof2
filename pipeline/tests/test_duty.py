@@ -10,11 +10,11 @@ file rather than by a feature — the same fatal error wearing different clothes
 in the metrics would show.
 
 **The term** (E10-S3) is a candidate, not a promotion (DP-08,
-[DL-47](../../docs/planning/00-decision-log.md)). So these tests pin the *mechanism*: the flag off
+[DL-47](../../docs/decisions/DL-47.md)). So these tests pin the *mechanism*: the flag off
 changes nothing at all, a player the table has never heard of is untouched rather than penalised,
 confidence scales rather than gates, and the term cannot re-add penalty return that a
 well-observed player's own fitted rate already carries. The claim that it *improves* the model is
-the backtest's to make and is recorded in [DL-50](../../docs/planning/00-decision-log.md), not
+the backtest's to make and is recorded in [DL-50](../../docs/decisions/DL-50.md), not
 asserted here.
 """
 

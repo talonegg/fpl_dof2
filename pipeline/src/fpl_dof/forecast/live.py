@@ -1,6 +1,6 @@
 """The published forecast: ``xp_v1`` assembled into the frame the rest of the pipeline reads.
 
-`DL-46 <../../../docs/planning/00-decision-log.md>`_ settled what E9-S1 delivers: ``xp_v1`` is the
+`DL-46 <../../../../docs/decisions/DL-46.md>`_ settled what E9-S1 delivers: ``xp_v1`` is the
 model the live pipeline publishes, because the defect D-25 records is that the shipped model was not
 the graded one — a delivery bug, not an unproven candidate needing a shadow window.
 

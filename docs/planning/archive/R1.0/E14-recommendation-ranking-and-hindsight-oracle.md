@@ -2,14 +2,14 @@
 
 **Objective:** OBJ-1, OBJ-3, OBJ-7 · **Target:** In-season (live from GW7) · **Estimate:** 2–3 days
 **Depends on:** E1 (weekly operating loop), E4 (decision engine), E6 (web application), E8 (in-season operations)
-**Implements:** FR-41, FR-42 · **Realises:** [DL-72](../00-decision-log.md#dl-72)
-**Status:** Proposed
+**Implements:** FR-41, FR-42 · **Realises:** [DL-72](../../../decisions/DL-72.md)
+**Status:** Built — every box ticked; landed in f372dd7 `feat(E14)`. Archived 2026-10-17 (DL-74)
 
 ---
 
 ## 0. Why this is its own epic
 
-[E8](E8-in-season-operations.md) established the weekly discipline: *"What did the model recommend, and what actually happened?"* [DL-69](../00-decision-log.md#dl-69) delivered the persistence for this by adding the advice ledger (`data/ledger/advice/gwNN.json`) and publishing `log.json` to show played vs advised reconciliation.
+[E8](../../epics/E8-ongoing-in-season-monitoring.md) established the weekly discipline: *"What did the model recommend, and what actually happened?"* [DL-69](../../../decisions/DL-69.md) delivered the persistence for this by adding the advice ledger (`data/ledger/advice/gwNN.json`) and publishing `log.json` to show played vs advised reconciliation.
 
 However, the current reconciliation only answers whether the human **followed** the primary engine's advice. It has two blindspots:
 
@@ -22,19 +22,19 @@ This epic builds the automated weekly measurement and review loop directly into 
 
 ## 0.1 Constraints that shape every story
 
-1. [**Invariant 5** — No look-ahead in features, models or backtests.](../../CLAUDE.md) Models must be graded strictly on what they predicted *before* the deadline. Pre-deadline advice and expected points are frozen in the ledger and are never recomputed with hindsight.
-2. [**Invariant 8** — The browser never calls an external API.](../../CLAUDE.md) All scoring, MILP hindsight solving, and diagnostics run in the Python pipeline. Precomputed static results are published into `log.json` for the client to render.
-3. [**Invariant 2** — Scoring rules, price and hit values live in configuration and rules as data.](../../CLAUDE.md) Transfer hit penalties (-4 pts), auto-sub formation bounds (minimum 3 DEF, 1 GKP), and captaincy rules are sourced from `GameRules`, never hardcoded.
-4. **Least new code (Ponytail principle):** The hindsight oracle reuses the existing transfer MILP ([recommend_transfers](file:///c:/JHH/source/fpl_dof2/pipeline/src/fpl_dof/optimise/transfer.py#L250)) with actual points as input; scoring advice reuses pure FPL scoring logic from the prospective harness.
-5. **Pre-Registration Firewall ([PREREG_C1_vs_C3.md](file:///c:/JHH/source/fpl_dof2/prospective/PREREG_C1_vs_C3.md)):** Retrospective replays for GW1–6 (including `A_odds` backfill) are strictly quarantined to the web UI / Hindsight section and must never enter the confirmatory statistical evaluation sample (GW7–GW38).
-6. **Raw Odds Persistence ([DP-11](file:///c:/JHH/source/fpl_dof2/docs/DESIGN-PRINCIPLES.md#dp-11--every-run-is-reproducible-from-its-recorded-inputs)):** Raw pre-deadline `fixtures.csv` odds feeds are permanently archived to `data/bronze/fdcouk/` on the `ledger` branch for every prospective gameweek.
+1. [**Invariant 5** — No look-ahead in features, models or backtests.](../../../../CLAUDE.md) Models must be graded strictly on what they predicted *before* the deadline. Pre-deadline advice and expected points are frozen in the ledger and are never recomputed with hindsight.
+2. [**Invariant 8** — The browser never calls an external API.](../../../../CLAUDE.md) All scoring, MILP hindsight solving, and diagnostics run in the Python pipeline. Precomputed static results are published into `log.json` for the client to render.
+3. [**Invariant 2** — Scoring rules, price and hit values live in configuration and rules as data.](../../../../CLAUDE.md) Transfer hit penalties (-4 pts), auto-sub formation bounds (minimum 3 DEF, 1 GKP), and captaincy rules are sourced from `GameRules`, never hardcoded.
+4. **Least new code (Ponytail principle):** The hindsight oracle reuses the existing transfer MILP ([recommend_transfers](../../../../pipeline/src/fpl_dof/optimise/transfer.py#L250)) with actual points as input; scoring advice reuses pure FPL scoring logic from the prospective harness.
+5. **Pre-Registration Firewall ([PREREG_C1_vs_C3.md](../../../../prospective/PREREG_C1_vs_C3.md)):** Retrospective replays for GW1–6 (including `A_odds` backfill) are strictly quarantined to the web UI / Hindsight section and must never enter the confirmatory statistical evaluation sample (GW7–GW38).
+6. **Raw Odds Persistence ([DP-11](../../../DESIGN-PRINCIPLES.md#dp-11--every-run-is-reproducible-from-its-recorded-inputs)):** Raw pre-deadline `fixtures.csv` odds feeds are permanently archived to `data/bronze/fdcouk/` on the `ledger` branch for every prospective gameweek.
 
 ---
 
 ## 1. Stories
 
 ### E14-S1 — Pre-deadline multi-model advice persistence · 0.5 day · FR-41
-Before each deadline, the `week` stage evaluates transfer and lineup recommendations across candidate models for the owner's current squad state and stores them in the advice ledger ([gwNN.json](file:///c:/JHH/source/fpl_dof2/data/ledger/advice/gw06.json)):
+Before each deadline, the `week` stage evaluates transfer and lineup recommendations across candidate models for the owner's current squad state and stores them in the advice ledger ([gwNN.json](../../../../data/ledger/advice/gw06.json)):
 * **Candidate models:**
   * `xp_v1`: Primary component chain (minutes mixture, team ratings, per-90 rates, bonus).
   * `c1`: Challenger shadow model (per-position boosted xG + minutes head).
@@ -66,7 +66,7 @@ A pure evaluation module (`pipeline/src/fpl_dof/week/score_advice.py`) scores ea
 
 ### E14-S3 — Hindsight oracle transfer and lineup solver · 0.5 day · FR-42
 Implement `solve_hindsight_optimal` in `pipeline/src/fpl_dof/week/oracle.py`:
-* Solves the exact MILP formulation in [recommend_transfers](file:///c:/JHH/source/fpl_dof2/pipeline/src/fpl_dof/optimise/transfer.py#L250) using the owner's pre-deadline `SquadState` (bank, free transfers, player selling values) and the finished gameweek's actual points.
+* Solves the exact MILP formulation in [recommend_transfers](../../../../pipeline/src/fpl_dof/optimise/transfer.py#L250) using the owner's pre-deadline `SquadState` (bank, free transfers, player selling values) and the finished gameweek's actual points.
 * Bypasses the start-probability floor (since appearances are known facts) while enforcing all FPL squad budget, club, and formation constraints.
 * Solves across transfer counts ($k \in \{0, 1, 2, ...\}$) to identify the optimal single transfer, optimal 2-transfer combination, and the overall unconstrained ceiling.
 
@@ -89,10 +89,10 @@ Compare the hindsight-optimal solution against each model's pre-deadline beliefs
 ---
 
 ### E14-S5 — Web contract publication and "Hindsight" sub-section on Models tab · 0.5–1 day · OBJ-5
-* **Contract:** Add optional `model_rankings` and `hindsight_optimal` objects to `$defs/log_gameweek` in [log.schema.json](file:///c:/JHH/source/fpl_dof2/contracts/v1/log.schema.json) (or as part of `models.schema.json`).
-* **Publisher:** [season_log.py](file:///c:/JHH/source/fpl_dof2/pipeline/src/fpl_dof/publish/season_log.py) writes the new sections into `data/web/v1/log.json` (or `models.json`).
+* **Contract:** Add optional `model_rankings` and `hindsight_optimal` objects to `$defs/log_gameweek` in [log.schema.json](../../../../contracts/v1/log.schema.json) (or as part of `models.schema.json`).
+* **Publisher:** [season_log.py](../../../../pipeline/src/fpl_dof/publish/season_log.py) writes the new sections into `data/web/v1/log.json` (or `models.json`).
 * **Web UI (Models Page — `/models`):**
-  * Add a dedicated **"Hindsight"** entry to `SECTIONS` in [ModelsPage.tsx](file:///c:/JHH/source/fpl_dof2/web/src/components/models/ModelsPage.tsx), anchoring at `#models-hindsight` and navigable via `#/models?section=hindsight`.
+  * Add a dedicated **"Hindsight"** entry to `SECTIONS` in [ModelsPage.tsx](../../../../web/src/components/models/ModelsPage.tsx), anchoring at `#models-hindsight` and navigable via `#/models?section=hindsight`.
   * **Prior Week Selector:** An interactive gameweek selector (dropdown or pill bar) allowing the user to select any completed prior gameweek of the current season (e.g., GW1 through GW6).
   * **Multi-Model Recommendation Leaderboard:** For the selected gameweek, ranks the realized score of each model's pre-deadline advice (Owner vs Engine `xp_v1` vs Challenger `C1` vs Model `A` vs `A_odds` vs `B0` baseline vs `Model-Free` trailing form) against actual match points, showing transfers made, captain choice, and net points.
   * **Optimal Hindsight Transfers & Team Selection (Oracle):** Displays the mathematically optimal legal transfers and starting lineup calculated by the hindsight MILP solver, showing the point ceiling achievable for the owner's squad within budget.
@@ -117,7 +117,7 @@ Backfill historical odds for the first 6 gameweeks of 2026/27 to allow full 5-mo
 * **Data Sourcing:** Conforming match opening/closing odds for GW1–6 as a historical proxy.
 * **Replay Execution:** Run the frozen `comp_ot` model over GW1–6 using historical odds, generating squad selections, captaincy, and net points.
 * **Artefact Update:** Populate `scripts/models_history/data/replay_2627.csv` and regenerate `web/public/static/models_history_2627_replay.json`.
-* **Firewall Rule:** Strictly quarantined from prospective confirmatory evaluations ([PREREG_C1_vs_C3.md](file:///c:/JHH/source/fpl_dof2/prospective/PREREG_C1_vs_C3.md)); labelled with clear provenance in the replay document (`"GW1-6 replay uses opening-odds proxy; descriptive only"`).
+* **Firewall Rule:** Strictly quarantined from prospective confirmatory evaluations ([PREREG_C1_vs_C3.md](../../../../prospective/PREREG_C1_vs_C3.md)); labelled with clear provenance in the replay document (`"GW1-6 replay uses opening-odds proxy; descriptive only"`).
 
 **Acceptance:** `models_history_2627_replay.json` includes `a_odds` across GW1–6; Hindsight Oracle prior-week selector displays `A_odds` alongside all other models; prospective hypothesis test suite remains untouched.
 

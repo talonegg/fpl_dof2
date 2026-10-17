@@ -5,9 +5,9 @@
 [Model Improvement Plan §3 D2, D4, D5](../05-model-improvement-plan.md) · **Resolves:** Q-13
 **Status:** Complete. S2 (the duty reference table) landed early to unblock
 [E10-S3](E10-discrimination-at-the-head.md). S1 investigated and resolved Q-13 negative — the BPS
-action-count breakdown was never publicly captured before 2025/26 ([DL-62](../00-decision-log.md#dl-62--e12-s1-q-13-resolved-negative--the-bps-action-count-breakdown-was-never-publicly-captured-for-seasons-before-202526)).
+action-count breakdown was never publicly captured before 2025/26 ([DL-62](../../../decisions/DL-62.md)).
 S3 is consequently blocked on its own precondition and stays dark, DL-31's null result standing
-([DL-63](../00-decision-log.md#dl-63--e12-s3-blocked-on-its-own-precondition-the-prior-season-probe-has-no-new-real-input-to-re-measure-against)).
+([DL-63](../../../decisions/DL-63.md)).
 
 ---
 
@@ -15,7 +15,7 @@ S3 is consequently blocked on its own precondition and stays dark, DL-31's null 
 
 The forecast is **signal-starved, not under-modelled.** The official feed's own `expected_goals` /
 `expected_assists` are the only advanced signals reaching the model; every scraped or purchased source
-is blocked ([D-23](E0-steel-thread-gw1.md#6-technical-debt-register): Understat `robots.txt` disallows
+is blocked ([D-23](../../debt-register.md): Understat `robots.txt` disallows
 scraping, FBref returns Cloudflare 403). This epic recovers most of the lost modelling intent **from
 sources already permitted** — no new scraping, no `robots.txt` fight.
 
@@ -39,7 +39,7 @@ has no such dependency and can be prepared at any time.
 ### E12-S1 — Reconstruct DefCon history from BPS action counts · 1.5 days · **resolves Q-13**
 Defensive Contribution is the best signal-to-noise component in the design (M4), yet it exists for
 **one season only** and is absent from ~half the current backtest window
-([DL-21 caveat](../00-decision-log.md#dl-21)). FPL recorded tackles/CBI in the **BPS breakdown** long
+([DL-21 caveat](../../../decisions/DL-21.md)). FPL recorded tackles/CBI in the **BPS breakdown** long
 before it scored DefCon — so the history can be reconstructed from data already in silver, with **no
 new source**.
 
@@ -51,7 +51,7 @@ new source**.
 **Acceptance:** DEF and DM Spearman improve with M4 present across the widened window rather than the
 one season it currently covers.
 
-**Outcome — 2026-08-22 · resolved negative.** [DL-62](../00-decision-log.md#dl-62--e12-s1-q-13-resolved-negative--the-bps-action-count-breakdown-was-never-publicly-captured-for-seasons-before-202526).
+**Outcome — 2026-08-22 · resolved negative.** [DL-62](../../../decisions/DL-62.md).
 Checked three independent ways — the official API's `history_past` (season totals only, no
 per-gameweek historical endpoint exists at all), the cached archive snapshot already in
 `data/bronze/`, and a fresh fetch of the same upstream files today — and all three agree: no
@@ -76,7 +76,7 @@ currently unmodelled (Design §M3).
 **Acceptance:** the file exists, is documented, has an owner-maintenance note, and is the single
 source the E10 duty term reads.
 
-**Outcome — 2026-08-21 · met.** [DL-50](../00-decision-log.md#dl-50).
+**Outcome — 2026-08-21 · met.** [DL-50](../../../decisions/DL-50.md).
 `pipeline/src/fpl_dof/config/defaults/duty.yaml` holds 40 spells of penalty duty behind
 `forecast.duty`, validated by `DutyConfig`, read only by `forecast/duty.py`, and consumed only by
 E10-S3's term. Every entry carries a `basis` naming the snapshot it was seeded from, a confidence
@@ -93,7 +93,7 @@ promoted clubs and new signings by construction.
 **Set pieces are recorded as a schema and deliberately left unseeded.** `direct_free_kicks` and
 `corners` validate and no entries exist: nothing in silver carries set-piece volume, so a
 corner-taker assist uplift would be an invented number (DP-09), and shipping it beside the penalty
-term would make one experiment measure two changes ([DL-49](../00-decision-log.md#dl-49)).
+term would make one experiment measure two changes ([DL-49](../../../decisions/DL-49.md)).
 
 **A finding for this epic rather than for E10:** the official `bootstrap-static` feed *already
 publishes* `penalties_order`, `direct_freekicks_order` and `corners_and_indirect_freekicks_order`
@@ -105,7 +105,7 @@ is free prose, and at the 2026/27 season start every one of the twenty rows read
 additional notes soon"*.
 
 ### E12-S3 — Re-measure the prior-season prior with real advanced history · 1 day · promotes `prior_season`
-`features.prior_season` is built but **dark**. The [DL-31](../00-decision-log.md#dl-31) probe moved
+`features.prior_season` is built but **dark**. The [DL-31](../../../decisions/DL-31.md) probe moved
 Spearman by ~0.001 — but it used official-feed *totals* as a stand-in, not xG/DefCon. S1 changes the
 input, so the probe is worth repeating with real advanced history.
 
@@ -117,7 +117,7 @@ input, so the probe is worth repeating with real advanced history.
 **Acceptance:** backtest, per DP-08 — the prior-season prior is promoted only on a measured
 improvement with real xG/DefCon inputs; otherwise it stays dark with the null result recorded.
 
-**Outcome — 2026-08-22 · blocked on its own precondition.** [DL-63](../00-decision-log.md#dl-63--e12-s3-blocked-on-its-own-precondition-the-prior-season-probe-has-no-new-real-input-to-re-measure-against).
+**Outcome — 2026-08-22 · blocked on its own precondition.** [DL-63](../../../decisions/DL-63.md).
 Both routes to "real advanced history" this story named are closed: S1 resolved negative (above),
 and D-23 still blocks both xG sources — nothing in this epic changed that, and E12 §0 rules out
 re-attempting it. `PriorSeasonConfig.statistics` names exactly the columns DL-31 already found
@@ -130,16 +130,16 @@ Spearman null result stands as the last real measurement.
 
 - [x] DefCon history reconstructed from the BPS breakdown under the 2026/27 regime — **Q-13
       resolved**: no, it cannot be — the breakdown was never publicly captured for these seasons.
-      [DL-62](../00-decision-log.md#dl-62--e12-s1-q-13-resolved-negative--the-bps-action-count-breakdown-was-never-publicly-captured-for-seasons-before-202526)
+      [DL-62](../../../decisions/DL-62.md)
 - [ ] M4 present across the widened backtest window, with DEF/DM Spearman improvement reported —
       **unreachable on this data**, not failed; see DL-62. M4 stays a one-season component.
 - [x] Penalty/set-piece duty reference table committed, documented, owner-maintained (**D4**) —
       `config/defaults/duty.yaml`, 40 penalty spells, every entry carrying its provenance and the
-      dates that keep a backtest honest. [DL-50](../00-decision-log.md#dl-50)
+      dates that keep a backtest honest. [DL-50](../../../decisions/DL-50.md)
 - [x] Prior-season prior re-measured with real inputs and either promoted on evidence or left dark
       with the null result recorded (DP-08) — **blocked on its own precondition, not re-run**; DL-31's
       null result stands as current because no new real input exists to measure against.
-      [DL-63](../00-decision-log.md#dl-63--e12-s3-blocked-on-its-own-precondition-the-prior-season-probe-has-no-new-real-input-to-re-measure-against)
+      [DL-63](../../../decisions/DL-63.md)
 - [x] No new scraping introduced; D-23's refusals remain respected
 
 ## 3. The honest question

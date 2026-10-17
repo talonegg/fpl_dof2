@@ -2,16 +2,16 @@
 
 **Objective:** OBJ-5 · **Target:** independent of the model programme · **Estimate:** 2–3 days
 **Depends on:** E6 (web surface), E7 (workflows) · **Implements:**
-[Model Improvement Plan §7](../05-model-improvement-plan.md) · **Realises:** [DL-44](../00-decision-log.md#dl-44)
+[Model Improvement Plan §7](../05-model-improvement-plan.md) · **Realises:** [DL-44](../../../decisions/DL-44.md)
 · **Bears on:** Q-16
-**Status:** Complete — all four stories landed ([DL-64](../00-decision-log.md#dl-64--e13-built-all-four-stories-landed-realising-dl-44-end-to-end)). Q-16 stays open by design.
+**Status:** Complete — all four stories landed ([DL-64](../../../decisions/DL-64.md)). Q-16 stays open by design.
 
 ---
 
 ## 0. Why this is its own epic
 
 The owner asked that the FPL team ID and mini-league ID be **enterable through the UI** and **never
-persisted in the repository**. [DL-44](../00-decision-log.md#dl-44) settled the design; this epic
+persisted in the repository**. [DL-44](../../../decisions/DL-44.md) settled the design; this epic
 builds it. It is separate from the model-improvement epics (E9–E12) because it shares none of their
 dependencies and gates none of their work — it can be built at any point after E6 and E7 exist, which
 they do.
@@ -22,10 +22,10 @@ proposed E6/E7 stories in one place and cross-references both.
 
 ## 0.1 The constraint that shapes every story
 
-[**Invariant 8** — the browser never calls an external API.](../../CLAUDE.md) The SPA reads published
+[**Invariant 8** — the browser never calls an external API.](../../../../CLAUDE.md) The SPA reads published
 static artefacts and nothing else; it cannot fetch the owner's picks or a league's standings itself,
 and the FPL API sends no permissive CORS headers even if it were allowed to. So "enter the ID and see
-your data" **cannot** mean "the browser fetches it", and [DL-03](../00-decision-log.md#dl-03) forbids
+your data" **cannot** mean "the browser fetches it", and [DL-03](../../../decisions/DL-03.md) forbids
 adding a backend that could. The two IDs are therefore treated as two genuinely different things that
 normally coincide for a single user: a **build-time input to CI**, and **local personalisation plus a
 dispatch convenience**.
@@ -53,7 +53,7 @@ A new Settings screen lets the owner type their team ID and league ID; the value
   owner's row in the league table, badges the owned squad, filters the scout to owned players.
 - It can only personalise what the pipeline already published. When the published league artefact was
   built for a **different** league than the one entered, the view says so plainly (DP-09/DP-15),
-  consistent with [DL-40](../00-decision-log.md#dl-40)'s treatment of the absent league — it does not
+  consistent with [DL-40](../../../decisions/DL-40.md)'s treatment of the absent league — it does not
   silently show the wrong data or a blank.
 
 **Acceptance:** entering an ID personalises the published views; a mismatch between the entered ID and
@@ -89,7 +89,7 @@ carries no personal identifier.
 - [x] Charter requirement recorded (FR-40); committed config carries no personal identifier
 - [x] **Q-16 left open** — no auto-dispatch shipped; the manual, owner-mediated path only
 
-See [DL-64](../00-decision-log.md#dl-64--e13-built-all-four-stories-landed-realising-dl-44-end-to-end)
+See [DL-64](../../../decisions/DL-64.md)
 for what shipped against each story, and where the acceptance criteria's "or copyable inputs"
 alternative was the one that actually applied.
 

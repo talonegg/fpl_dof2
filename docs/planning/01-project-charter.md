@@ -2,7 +2,7 @@
 
 **Project:** FPL DOF — a decision-support platform for Fantasy Premier League
 **Season in scope:** 2026/27 (21 August 2026 – 30 May 2027)
-**Document status:** Baselined 2026-08-09 · **Version 1.1**, amended 2026-08-09 per [DL-13](00-decision-log.md#dl-13--charter-amendments-following-the-2026-08-09-architecture-and-plan-audit)
+**Document status:** Baselined 2026-08-09 · **Version 1.1**, amended 2026-08-09 per [DL-13](../decisions/DL-13.md)
 **Owner / sole stakeholder:** Repository owner (also the FPL manager whose team it serves)
 
 ---
@@ -268,7 +268,7 @@ Requirements are numbered for traceability. `MoSCoW` column: **M**ust / **S**hou
 | CON-8 | Single part-time maintainer | Scope must be ruthlessly phased; automation over manual process |
 | CON-9 | Windows development host, no Docker installed | Tooling must work natively on Windows or via CI |
 | CON-10 | Pre-deadline squad state is not publicly exposed by the FPL API | Requires reconstruction plus a manual override (FR-25) |
-| CON-11 | **The maintainer is in Australia (AEST/AEDT); every FPL deadline is in UK time.** Friday-night and midweek deadlines fall around 03:30 local, standard Saturday ones around 20:00 local. The offset moves from +9 to +11 within a few weeks each October, as the UK leaves BST and Australia enters AEDT | Automation is a requirement, not a convenience — the owner is asleep for a large share of deadlines. All scheduling arithmetic is UTC. FR-26 shows both zones. See [DL-11](00-decision-log.md#dl-11--store-and-compute-in-utc-render-in-local-time-only-at-the-ui-edge) |
+| CON-11 | **The maintainer is in Australia (AEST/AEDT); every FPL deadline is in UK time.** Friday-night and midweek deadlines fall around 03:30 local, standard Saturday ones around 20:00 local. The offset moves from +9 to +11 within a few weeks each October, as the UK leaves BST and Australia enters AEDT | Automation is a requirement, not a convenience — the owner is asleep for a large share of deadlines. All scheduling arithmetic is UTC. FR-26 shows both zones. See [DL-11](../decisions/DL-11.md) |
 | CON-12 | **Effective ownership is not directly computable.** `selected_by_percent` is public; captaincy share is exposed by no FPL endpoint, and overall ownership is a poor proxy for the top-100k template the tier-1 target implies | FR-16 and FR-21 rest on an estimated or redefined EO. See OD-06 |
 
 ## 8. Assumptions
@@ -282,7 +282,7 @@ Requirements are numbered for traceability. `MoSCoW` column: **M**ust / **S**hou
 | ASM-5 | Historical per-gameweek data for prior seasons is obtainable for training and backtesting | Model starts from priors only; backtest scope narrows |
 | ASM-6 | The owner reviews recommendations and submits the team manually before each deadline | OBJ-1 is not achievable; the system produces advice nobody acts on |
 | ASM-7 | Free CI and static hosting tiers remain sufficient for this workload | Fall back to running the pipeline locally on a schedule |
-| ASM-8 | **The maintainer sustains 3–4 focused build days per week** from mid-August to ~GW30, on top of the ~0.5 day/week operating loop. This is what the epic target gameweeks assume, and it has no slack — the sequence to GW15 is ~60 focused days in 15 calendar weeks | The epic targets are wrong and must be re-baselined rather than quietly missed. The **chip calendar is the exposure that matters**, because GW19 expiry is irreversible — which is why a minimal chip-expiry tracker ships in E2, ahead of the real optimiser. See [plan §8](02-project-plan-and-blueprint.md#the-availability-assumption--asm-8) |
+| ASM-8 | **The maintainer sustains 3–4 focused build days per week** from mid-August to ~GW30, on top of the ~0.5 day/week operating loop. This is what the epic target gameweeks assume, and it has no slack — the sequence to GW15 is ~60 focused days in 15 calendar weeks | The epic targets are wrong and must be re-baselined rather than quietly missed. The **chip calendar is the exposure that matters**, because GW19 expiry is irreversible — which is why a minimal chip-expiry tracker ships in E2, ahead of the real optimiser. See [plan §8](archive/02-superseded-sections.md#the-availability-assumption--asm-8) |
 
 ---
 
@@ -332,7 +332,7 @@ that could kill the project:
 - **Cadence.** Weekly, aligned to the gameweek: review last week's recommendation against the actual
   outcome, check model drift, decide the coming week's build increment.
 - **Decisions.** Any architectural or product decision is recorded in
-  [00-decision-log.md](00-decision-log.md) before implementation. Superseding, never editing.
+  [../decisions/README.md](../decisions/README.md) before implementation. Superseding, never editing.
 - **Scope change.** Changes to §4 or §6 require a new decision-log entry stating what is being traded
   away. Adding scope without removing scope is the primary failure mode for a solo project.
 - **Baselines.** This charter is baselined at 2026-08-09. Material changes bump the version and note
@@ -357,7 +357,7 @@ An increment is done when all of the following hold.
 
 ### The one dated exception — E0
 
-**Item 3 does not apply to [epic E0](epics/E0-steel-thread-gw1.md), the steel thread to GW1.** E0 runs
+**Item 3 does not apply to [epic E0](archive/R1.0/E0-steel-thread-gw1.md), the steel thread to GW1.** E0 runs
 entirely locally and deliberately has no CI, because standing up workflows, hosting and secrets before
 21 August would put OD-03 and the hosting decision on the critical path of a fixed deadline for no
 gain in squad quality.
@@ -367,7 +367,7 @@ This exception is **narrow, dated and single-use**:
 - It covers E0 only, and expires when E0 does — 22 August 2026.
 - Items 1, 2 and 4–8 still apply to E0 in full. Item 8 is satisfied by E0-S7 unless that story is cut
   under the emergency-cut plan, in which case it is waived with the cut.
-- **[E7](epics/E7-automation-and-hosting.md) repays it**, tracked as debt item D-08. The first CI
+- **[E7](archive/R1.0/E7-automation-and-hosting.md) repays it**, tracked as debt item D-08. The first CI
   workflow must run the E0 code path unchanged; any E0 code that turns out not to run in CI is a
   defect against the debt register, not a new requirement.
 
@@ -382,7 +382,7 @@ bar stops being one. No further exceptions without a decision-log entry.
 | --- | --- |
 | Charter version | **1.1** |
 | Baselined | 2026-08-09 (v1.0) |
-| Amended | 2026-08-09 (v1.1) — see [DL-13](00-decision-log.md#dl-13--charter-amendments-following-the-2026-08-09-architecture-and-plan-audit) |
+| Amended | 2026-08-09 (v1.1) — see [DL-13](../decisions/DL-13.md) |
 | Approved by | Repository owner |
 | Next review | At GW1 outcome, or on any change to §4 |
 

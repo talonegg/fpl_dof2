@@ -2,7 +2,7 @@
 
 Two halves again, and again because they are independent claims.
 
-**The measurement.** [DL-21](../../docs/planning/00-decision-log.md) named top-20 precision as the
+**The measurement.** [DL-21](../../docs/decisions/DL-21.md) named top-20 precision as the
 metric E10 exists to move, and the harness reported 0.00 for it in every run it had ever produced.
 That was not the model: it was the metric, pooled across 72 gameweeks, where the twenty highest
 *observed* scores are twenty individual 20-point hauls and no calibrated expectation can reach
@@ -11,7 +11,7 @@ pin the fix: one gameweek is one ranking, gameweeks are averaged rather than poo
 gets a head as deep as that position goes into a squad, and the pooled form really is degenerate.
 
 **The model change.** ``discrimination.adaptive_shrinkage`` is a candidate, not a promotion (DP-08,
-[DL-47](../../docs/planning/00-decision-log.md)). So the tests here check the *mechanism*: the flag
+[DL-47](../../docs/decisions/DL-47.md)). So the tests here check the *mechanism*: the flag
 off changes nothing at all, thin evidence is shrunk exactly as hard as it was before, and the
 relaxation is monotone in evidence and bounded by ``strength``. The claim that it *improves* the
 model is the backtest's to make and is recorded in DL-49, not asserted here.

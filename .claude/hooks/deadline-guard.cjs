@@ -2,7 +2,7 @@
 // PreToolUse hook: warns loudly before publishing or deploying inside 45 minutes of a gameweek
 // deadline, and requires explicit confirmation to proceed.
 //
-// See docs/planning/ai/04-hooks-and-settings-plan.md (H4), E7-S7, and DL-41.
+// See docs/planning/archive/ai/04-hooks-and-settings-plan.md (H4), E7-S7, and DL-41.
 //
 // This encodes the "never last-minute" rule from Design §9 at the one moment it is most likely to
 // be forgotten — when someone is rushing before a deadline, which is precisely when a bad publish
@@ -160,7 +160,7 @@ function main() {
           `deadline you may not have time to review.\n\n` +
           `Read from ${deadline.origin}. Confirm only if you have decided deliberately to ` +
           `publish now — and check that the squad on the page is the one you intend to field.\n\n` +
-          `See docs/planning/ai/04-hooks-and-settings-plan.md (H4) and R-09.`,
+          `See docs/planning/archive/ai/04-hooks-and-settings-plan.md (H4) and R-09.`,
       },
     }),
   );

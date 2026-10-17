@@ -3,16 +3,16 @@
 **Objective:** OBJ-1, OBJ-7 · **Target:** after E9 · **Estimate:** 6–9 days
 **Depends on:** E9 (live `xp_v1`, fixture-aware backtest) · **Repays debt:** D-14
 **Implements:** [Model Improvement Plan §5 X2–X6, §3 D4](../05-model-improvement-plan.md)
-**Status:** All five stories landed — E10-S1 ([DL-48](../00-decision-log.md#dl-48)), E10-S2
-([DL-49](../00-decision-log.md#dl-49)), E10-S3 ([DL-50](../00-decision-log.md#dl-50)), E10-S4
-([DL-51](../00-decision-log.md#dl-51)) and E10-S5 ([DL-53](../00-decision-log.md#dl-53)). **Four
+**Status:** All five stories landed — E10-S1 ([DL-48](../../../decisions/DL-48.md)), E10-S2
+([DL-49](../../../decisions/DL-49.md)), E10-S3 ([DL-50](../../../decisions/DL-50.md)), E10-S4
+([DL-51](../../../decisions/DL-51.md)) and E10-S5 ([DL-53](../../../decisions/DL-53.md)). **Four
 candidates flagged off on the evidence and one benchmark permanently on.** No flag was promoted by
 any story, which is the honest outcome of an epic that measured five things and found none of them
 cleared its bar. S5 is the one that changes the plan: it measured the *ceiling* on this feature set
 at the head, and the ceiling ties B0 — so the binding constraint is the data (E12), not the
 formulation.
 **S4 opened D-26 — no backtest in this project had ever resolved a fixture. Closed by
-[DL-52](../00-decision-log.md#dl-52); coverage is now 1.0. Every level recorded below was measured
+[DL-52](../../../decisions/DL-52.md); coverage is now 1.0. Every level recorded below was measured
 under league-average opposition and is re-based by DL-52's conversion table** — the overall
 Spearman reads 0.251 rather than 0.231, GKP 0.101 rather than 0.044, and top-20 precision 0.122
 rather than 0.127. No conclusion changes: nothing here was promoted, and S1's arms were re-run to
@@ -22,13 +22,13 @@ confirm it
 
 ## 0. The finding this epic answers
 
-The [backtest](../00-decision-log.md#dl-21) said one thing above all others: **`xp_v1` is best at
+The [backtest](../../../decisions/DL-21.md) said one thing above all others: **`xp_v1` is best at
 avoiding error and worst at making distinctions — backwards for the tool.** It has the best MAE and
 the *worst* top-20 precision of anything measured. Nobody acts on the whole ranking — they act on its
 head, and at the head the model adds nothing over price.
 
 **Three corrections to this section, all found by doing the work**
-([DL-49](../00-decision-log.md#dl-49), [DL-52](../00-decision-log.md#dl-52)):
+([DL-49](../../../decisions/DL-49.md), [DL-52](../../../decisions/DL-52.md)):
 
 - The **0.00** this section originally quoted was a defect in the metric, not a fact about the model.
   Pooled across all 72 folds, top-20 precision is 0.00 for every model that could ever exist. Measured
@@ -39,7 +39,7 @@ head, and at the head the model adds nothing over price.
   (0.606) and a better head. The compression at the head is real and is what this epic is about, but
   the slope is not the instrument that measures it — **top-20 precision per position, against B0, is.**
 - **"Two positions are essentially unranked" was substantially a statement about a null column**
-  ([DL-52](../00-decision-log.md#dl-52)). The harness resolved no fixture at all, so every row was
+  ([DL-52](../../../decisions/DL-52.md)). The harness resolved no fixture at all, so every row was
   scored against league-average opposition. With the fixture join repaired and *no model change*,
   GKP Spearman reads **0.101** rather than 0.04 and DEF **0.220** rather than 0.16 — GKP already
   beats B0's 0.087. What survives is the head: top-20 precision **0.122 against B0's 0.166**, which
@@ -60,7 +60,7 @@ fixtures; this epic spends that fidelity.
 
 **This gate was not actually held, and four stories ran before anyone checked it.** E9-S2's fixture
 line was ticked because the code was written, not because a fixture had ever resolved
-([DL-51](../00-decision-log.md#dl-51), [DL-52](../00-decision-log.md#dl-52)). It holds now —
+([DL-51](../../../decisions/DL-51.md), [DL-52](../../../decisions/DL-52.md)). It holds now —
 coverage 1.0 — and the lesson is cheaper to record than to repeat: **a gate carried in from another
 epic is checked by running it, not by reading its checkbox.**
 
@@ -69,35 +69,35 @@ epic is checked by running it, not by reading its checkbox.**
 ### E10-S1 — Minutes calibration, then a better M1 · 2 days · FR-10 · **closes D-14**
 Minutes are the largest single source of forecast error and their calibration is currently
 *unmeasured* — `minutes_brier` is always null, which is why the [E3-S3 acceptance was never actually
-met](../00-decision-log.md#dl-22). **Measure first, then improve.**
+met](../../../decisions/DL-22.md). **Measure first, then improve.**
 
 - Report the Brier score for the `{0, 1–59, 60+}` distribution, per position and minutes band. This
   alone closes D-14 and satisfies the acceptance E3-S3 recorded but never met.
 - Then improve M1: rotation/congestion (fixture density), injury-return ramp, live chance-of-playing%,
-  and European-rotation handling ([Q-08](../04-conceptual-design.md#15-open-design-questions)).
+  and European-rotation handling ([Q-08](../../04-conceptual-design.md#15-open-design-questions)).
 
 **Acceptance:** Brier score reported and **beating the E0 status-flag haircut** — the bar E3-S3 set.
 
 **Outcome — 2026-08-20 · met, and the by-band split is the more valuable half.**
-[DL-48](../00-decision-log.md#dl-48). M1 beats the haircut in **every position** with the candidate
+[DL-48](../../../decisions/DL-48.md). M1 beats the haircut in **every position** with the candidate
 flag off (Brier 0.35877 vs 0.44476, skill +0.193, 54,045 observations over 72 folds), so **D-14 is
 closed by measurement alone** — no model change was needed for it, which is why *measure first* was
 the right order. `discrimination.minutes_v2` improves Brier (0.34822), Spearman (0.23070 → 0.24075),
 MAE and calibration slope (0.701 → 0.727) in every position, **and leaves top-20 precision at 0.00** —
-so it stays flagged off (DP-08, [DL-47](../00-decision-log.md#dl-47)).
+so it stays flagged off (DP-08, [DL-47](../../../decisions/DL-47.md)).
 
 The finding: M1 beats the haircut by being much better about **non-appearances** (0.190 vs 0.384) and
 is *worse* than E0's crude heuristic about players who actually played 60+ (0.421 vs 0.298) — and the
 candidate makes that half worse still, because every adjustment moves mass out of the 60+ state. **The
-head of the ranking is made of players who play 60+ minutes.** This is [DL-21](../00-decision-log.md#dl-21)'s
+head of the ranking is made of players who play 60+ minutes.** This is [DL-21](../../../decisions/DL-21.md)'s
 compression showing up inside the minutes component, and it hands S2 a falsifier it did not have.
 
 **European rotation is not implemented and was not faked:** nothing in silver carries a European
-fixture or competition label, so [Q-08](../04-conceptual-design.md#15-open-design-questions) stays
+fixture or competition label, so [Q-08](../../04-conceptual-design.md#15-open-design-questions) stays
 open and is now blocked on a data question (E12), not a modelling one. Fixture *density* — the
 observable shadow a midweek tie casts on the Premier League calendar — is implemented in its place.
 
-**Re-run on repaired fixtures ([DL-52](../00-decision-log.md#dl-52)); the conclusion holds.** The
+**Re-run on repaired fixtures ([DL-52](../../../decisions/DL-52.md)); the conclusion holds.** The
 levels above are re-based — off 0.25058, on 0.25946, top-20 0.12153 → 0.12361 against B0's 0.166 —
 but the shape is unchanged, and one assumption behind the re-run turned out to be wrong: **the
 congestion prior never read the broken fixture columns.** `matches_last{N}d` counts the player's own
@@ -122,7 +122,7 @@ signals overfitting — a regression in MAE past a stated bound is the overfitti
 success.
 
 **Outcome — 2026-08-21 · not met, and the metric fix is worth more than the model change.**
-[DL-49](../00-decision-log.md#dl-49). Top-20 precision was **pooled across all 72 folds**, where the
+[DL-49](../../../decisions/DL-49.md). Top-20 precision was **pooled across all 72 folds**, where the
 twenty highest observed scores are twenty separate 20-point hauls and no calibrated expectation can
 reach them — so it read 0.00 for `xp_v1`, for B0, and for every model that could ever be written.
 Fixed to per gameweek (a defect, so unflagged), it reads **`xp_v1` 0.127, B0 0.166, trailing-six
@@ -158,7 +158,7 @@ horizon scorer, reading the committed reference table built as **D4** in
 **Acceptance:** top-20 precision **among attackers** improves when duty is an explicit term.
 
 **Outcome — 2026-08-21 · not met, and the per-position split is again the finding.**
-[DL-50](../00-decision-log.md#dl-50). The committed table (E12-S2, **D4 closed**) holds 40 dated
+[DL-50](../../../decisions/DL-50.md). The committed table (E12-S2, **D4 closed**) holds 40 dated
 penalty spells, none written from recollection: the historical ones are FPL's own `penalties_order`
 as it stood at the **end of the previous season**, so each was knowable before the season it is
 applied to, and the 2026/27 ones are FPL's pre-season field, tiered `likely` for exactly that
@@ -178,7 +178,7 @@ takes his club's penalties, so the term only reshuffles a four-deep head. Among 
 separates, because most midfielders do not take penalties and the handful who do are exactly the
 ones running ahead of a prior built from midfielders who score rarely. **The information is in the
 contrast with the prior, not in the penalty** — which is the first real support
-[DL-49](../00-decision-log.md#dl-49)'s "correlation, not scale" redirection has had, since no
+[DL-49](../../../decisions/DL-49.md)'s "correlation, not scale" redirection has had, since no
 rescaling arm in S1 or S2 moved a per-position head by two standard errors, and an argument for S4
 rather than for anything aimed at forwards.
 
@@ -200,13 +200,13 @@ dominate.
 **Acceptance:** GKP Spearman moves off the floor.
 
 **Outcome — 2026-08-21 · not met, and for the third story running the measurement is the finding.**
-[DL-51](../00-decision-log.md#dl-51). **"Off the floor" was fixed in advance** as three conditions:
+[DL-51](../../../decisions/DL-51.md). **"Off the floor" was fixed in advance** as three conditions:
 Spearman ≥ 0.10, a paired gain clearing two standard errors, and no cost in GKP precision or a
 breach of DL-49's MAE tripwire.
 
 **Shot volume does not exist in this project** — nothing on `player_gameweek` counts shots — so M2's
 expected goals conceded stands in for it, named as a proxy rather than substituted silently, the
-same call [DL-48](../00-decision-log.md#dl-48) made about European rotation. The measurement that
+same call [DL-48](../../../decisions/DL-48.md) made about European rotation. The measurement that
 justifies the story: across the archive's regular keepers, saves per 90 have an sd of 0.64 on a mean
 of 3.1, while saves per expected goal conceded have an sd of 0.21 on a mean of 2.1 — **half the
 spread between keepers' save rates is the defence in front of them.**
@@ -237,7 +237,7 @@ level clears 0.10 but the flag-off arm was already there and the candidate adds 
 
 ### E10-S5 — Blended monolith as a shadow benchmark · 1 day · **shadow only** · Q-04/X6
 A GBM on the same features is an *upper bound* on achievable accuracy. If the component chain's
-explainability (a product requirement, [DP-10](../DESIGN-PRINCIPLES.md)) costs a large gap at the
+explainability (a product requirement, [DP-10](../../../DESIGN-PRINCIPLES.md)) costs a large gap at the
 head, that trade must be decided **explicitly**, not assumed away.
 
 - Runs as a shadow benchmark alongside B0 and the model-free benchmark. **Never promoted over the
@@ -247,7 +247,7 @@ head, that trade must be decided **explicitly**, not assumed away.
 so the explainability trade is a visible number rather than an article of faith.
 
 **Outcome — 2026-08-21 · met, and it reframes what the rest of this epic was for.**
-[DL-53](../00-decision-log.md#dl-53). The gap is reported in `backtest.json`, in the backtest card,
+[DL-53](../../../decisions/DL-53.md). The gap is reported in `backtest.json`, in the backtest card,
 in the stage metrics and — because DP-10 asks for *visible*, not *stored* — as a plain-language
 sentence on the **model card**, written once and reproduced verbatim by both consumers.
 
@@ -271,7 +271,7 @@ binding constraint is the **feature set**, not the formulation, and the next pla
 [E12](E12-data-widening-for-priors.md) rather than a sixth reformulation.
 
 **The chain stands, and not as a preference.** The monolith is worse on MAE (1.994 vs 1.931) and
-worse calibrated (0.555 vs 0.690) — [DL-21](../00-decision-log.md#dl-21)'s shape one level up. It
+worse calibrated (0.555 vs 0.690) — [DL-21](../../../decisions/DL-21.md)'s shape one level up. It
 also cannot carry a variance (Invariant 6) or a component decomposition (DP-09), and promoting it
 would leave DL-21's guardrail exactly where it is, because tying B0 is not beating it. Q-04 is
 answered on evidence rather than left open: **materially better at ranking, materially worse at
@@ -280,22 +280,22 @@ everything else.**
 ## 2. Definition of done
 
 - [x] **D-14 closed** — `minutes_brier` reported per position and per observed band, and beating the
-      status-flag haircut in every position (0.359 vs 0.445). [DL-48](../00-decision-log.md#dl-48)
+      status-flag haircut in every position (0.359 vs 0.445). [DL-48](../../../decisions/DL-48.md)
 - [ ] Shrinkage is evidence-adaptive; top-20 precision and calibration slope improve within the stated
       MAE-regression bound — **shrinkage is evidence-adaptive and graded, and the criterion is not
       met**: the precision gain at the turn point is inside the noise and the slope degrades by
-      construction. [DL-49](../00-decision-log.md#dl-49), which also argues the second half of this
+      construction. [DL-49](../../../decisions/DL-49.md), which also argues the second half of this
       criterion is the wrong test and should be replaced before S3 and S4 are graded
 - [ ] Penalty/set-piece duty is an explicit additive term consuming E12's committed reference table
       — **the term exists, consumes E12-S2's table and is graded, and the criterion is not met**:
       top-20 precision rises among midfielders (t = 1.76) and falls among forwards at every
       strength, and "among attackers" is what the acceptance says.
-      [DL-50](../00-decision-log.md#dl-50). Set-piece duty beyond penalties is a validated schema
+      [DL-50](../../../decisions/DL-50.md). Set-piece duty beyond penalties is a validated schema
       with no entries and no consumer, deliberately — nothing in silver carries set-piece volume
 - [ ] A goalkeeper-specific formulation exists and moves GKP off the Spearman floor — **both
       formulations exist and are graded, and the criterion is not met**: the separate one gains
       +0.009 at t = 1.83 and the lighter-touch one *loses* at t = −2.95.
-      [DL-51](../00-decision-log.md#dl-51), which also opens **D-26**: no backtest this project has
+      [DL-51](../../../decisions/DL-51.md), which also opens **D-26**: no backtest this project has
       run ever resolved a fixture, because the archive writes no `team_id`, and repairing it moves
       GKP Spearman further on its own (0.044 → 0.099) than any model change in this epic has
 - [x] The monolith shadow benchmark reports the head-of-ranking gap every run — in `backtest.json`,
@@ -303,13 +303,13 @@ everything else.**
       it and only two modules able to reach it. **The gap is +0.044 of top-20 precision at
       t = 3.87**, all of it in forwards and midfielders, and the monolith's 0.16597 ties B0's
       0.16597 exactly — so the ceiling on this feature set at the head *is* price.
-      [DL-53](../00-decision-log.md#dl-53)
+      [DL-53](../../../decisions/DL-53.md)
 - [x] **Every metric in this epic is reported per position.** A headline gain that is confined to
       forwards is recorded as such and does not count as clearing the bar — `spearman_by_position`,
       `top_n_precision_by_position` and `calibration_slope_by_position` (all in `backtest.json`, the
       backtest card and the model card) is what let S2's duty and GKP findings be stated by
       position rather than as one misleading average in the first place.
-- [ ] Each promoted change cleared the [E8 §5 bar](E8-in-season-operations.md#5-the-bar-for-changing-the-model-mid-season):
+- [ ] Each promoted change cleared the [E8 §5 bar](../../epics/E8-ongoing-in-season-monitoring.md#5-the-bar-for-changing-the-model-mid-season):
       held-out backtest improves, six shadow gameweeks do not degrade, explicable in advance
 
 ## 3. The honest question

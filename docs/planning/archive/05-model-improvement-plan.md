@@ -8,19 +8,19 @@ built and the numbers it produced, states where the forecast is weak and *why*, 
 prioritised, falsifiable set of changes for the two things the season is judged on: **pre-GW1 squad
 construction** and **post-GW1 weekly recommendations**. Every proposal here is an experiment with a
 promotion gate, routed through the discipline already written down in
-[E8 §5](epics/E8-in-season-operations.md#5-the-bar-for-changing-the-model-mid-season) and
-[DP-08 / DP-12](../DESIGN-PRINCIPLES.md). Nothing here is promoted by argument; it is promoted by a
+[E8 §5](../epics/E8-ongoing-in-season-monitoring.md#5-the-bar-for-changing-the-model-mid-season) and
+[DP-08 / DP-12](../../DESIGN-PRINCIPLES.md). Nothing here is promoted by argument; it is promoted by a
 backtest, or it is not promoted.
 
 It also records the design for a long-standing loose end the owner raised: **FPL team and league IDs
 must be enterable through the UI and never persisted in the repository** — §6, decided in
-[DL-44](00-decision-log.md#dl-44).
+[DL-44](../../decisions/DL-44.md).
 
 ---
 
 ## 1. What the results actually say
 
-The first walk-forward backtest ([DL-21](00-decision-log.md#dl-21), 72 deadlines / 54,045
+The first walk-forward backtest ([DL-21](../../decisions/DL-21.md), 72 deadlines / 54,045
 observations across 2024/25–2025/26) is the ground truth this plan is built on.
 
 | Model | MAE | Spearman | Top-20 precision | Calibration slope |
@@ -34,7 +34,7 @@ Four facts drive everything below, in order of leverage.
 
 **1. The model that is *graded* is not the model that is *shipped*.** The backtest grades `xp_v1`
 (the component chain). The pipeline publishes `xp_v0` (the cold-start model), which consumes none of
-the xG signal DL-34 measured and promoted. The gap between them is [D-25](epics/E0-steel-thread-gw1.md#6-technical-debt-register)
+the xG signal DL-34 measured and promoted. The gap between them is [D-25](../debt-register.md)
 — a fixture-aware horizon scorer `xp_v1` does not yet have. **Until D-25 closes, every improvement
 in this document is measured and never delivered.** This is the highest-leverage item in the plan and
 it is not a modelling change; it is one wiring seam.
@@ -75,7 +75,7 @@ Everything in §3–§5 is a specialisation of that sentence.
 
 The forecast is **signal-starved**, not under-modelled. The official feed's own `expected_goals` /
 `expected_assists` are the only advanced signals reaching the model; every scraped or purchased source
-is blocked ([D-23](epics/E0-steel-thread-gw1.md#6-technical-debt-register): Understat `robots.txt`
+is blocked ([D-23](../debt-register.md): Understat `robots.txt`
 disallows the site, FBref returns Cloudflare 403; no `ODDS_API_KEY`). Defensive Contribution — the
 best signal-to-noise component in the design — exists for one season only.
 
@@ -85,7 +85,7 @@ best signal-to-noise component in the design — exists for one season only.
 | **D2** | **Reconstruct DefCon history from BPS action counts (Q-13)** | Widens M4's training window from one season to several; M4 is absent from ~half the current window (DL-21 caveat) | FPL recorded tackles/CBI in the BPS breakdown long before scoring DefCon — no new source | Backtest: DEF and DM Spearman improves with M4 present across the window |
 | **D3** | **Odds adapter live (E5-S4)** | The single most accurate near-term fixture signal; unblocks the market view of M2 (§4.2) | `ODDS_API_KEY` as an Actions **secret** (free tier ~500 req/mo; credit budget already enforced in-adapter) | Backtest: near-horizon clean-sheet and goals calibration improves when the market view is blended |
 | **D4** | **Penalty and set-piece duty as a committed reference table** | Penalties are large, lumpy and highly identifiable points — a primary way the elite separate; currently unmodelled (Design §M3) | A small **committed config/reference file**, hand-maintained; not a data source, so no Invariant-1 or scraping question | Backtest: top-20 precision among attackers improves when duty is an explicit additive term |
-| **D5** | **Re-measure the prior-season prior with real advanced history** | `features.prior_season` is built but dark; the [DL-31](00-decision-log.md#dl-31) probe moved Spearman ~0.001 — but it used official-feed *totals* as a stand-in, not xG/DefCon. D2 changes the input | Depends on D2 (and ideally an unblocked xG source) | Backtest, per DP-08: promoted only if it earns its place with real inputs |
+| **D5** | **Re-measure the prior-season prior with real advanced history** | `features.prior_season` is built but dark; the [DL-31](../../decisions/DL-31.md) probe moved Spearman ~0.001 — but it used official-feed *totals* as a stand-in, not xG/DefCon. D2 changes the input | Depends on D2 (and ideally an unblocked xG source) | Backtest, per DP-08: promoted only if it earns its place with real inputs |
 
 **What is deliberately *not* pursued.** Re-attempting Understat/FBref scraping against an explicit
 `robots.txt`/Cloudflare refusal (NFR-10, D-23) — the refusals are respected, not worked around. The
@@ -106,7 +106,7 @@ and anchored on the ratio to the league mean — good — but it inherits M2's b
 
 Restated because it gates this whole section: **no change in §4 was measurable until D1 landed.**
 With league-average opposition, M2's attack/defence ratings never entered a scored prediction.
-**D1 is delivered by [E9-S2](epics/E9-forecast-delivery-and-backtest-fidelity.md)**: fold frames
+**D1 is delivered by [E9-S2](R1.0/E9-forecast-delivery-and-backtest-fidelity.md)**: fold frames
 carry the fixture each observation was played under (stamped `AT_DEADLINE`, built from the calendar
 rather than from who was picked), and the harness reports Spearman and calibration by
 fixture-difficulty band. §4's gates are now evaluable.
@@ -194,7 +194,7 @@ and **never persisted in the repository**. They are public identifiers (NFR-11),
 they are personal, and hard-coding them in `config/local.yaml` (as the local scaffold currently does)
 is both a persistence smell and a single-user assumption baked into the wrong layer.
 
-**The constraint that shapes every option.** [Invariant 8](../../CLAUDE.md) — *the browser never calls
+**The constraint that shapes every option.** [Invariant 8](../../../CLAUDE.md) — *the browser never calls
 an external API*. The SPA reads published static artefacts and nothing else; it cannot fetch the
 owner's picks or a league's standings itself, and the FPL API sends no permissive CORS headers even if
 it were allowed to. So "enter the ID in the UI and see your data" cannot mean "the browser fetches it".
@@ -262,9 +262,9 @@ pattern in this season's noise.
 
 | ID | Question | Bears on | Resolve by |
 | --- | --- | --- | --- |
-| ~~Q-14~~ | ~~Does evidence-adaptive shrinkage (X3) widen the head of the ranking without overfitting, and at what confidence threshold does the trade turn?~~ — **Answered on the backtest: the trade turns at a shrinkage strength of ≈0.4, and it does not widen the head.** The gain there is +0.0035 ± 0.0023 over 72 folds and the top 20 changes in 11 of them; the calibration slope degrades monotonically because shrinking less must lower it at fixed information content. See [DL-49](00-decision-log.md#dl-49) | X3 | Resolved |
+| ~~Q-14~~ | ~~Does evidence-adaptive shrinkage (X3) widen the head of the ranking without overfitting, and at what confidence threshold does the trade turn?~~ — **Answered on the backtest: the trade turns at a shrinkage strength of ≈0.4, and it does not widen the head.** The gain there is +0.0035 ± 0.0023 over 72 folds and the top 20 changes in 11 of them; the calibration slope degrades monotonically because shrinking less must lower it at fixed information content. See [DL-49](../../decisions/DL-49.md) | X3 | Resolved |
 | Q-15 | Is the goalkeeper position better served by a fully separate formulation (X5) or by the same chain with a saves-and-shots emphasis? | X5 | Backtest |
 | Q-16 | Should the mini-league / team ID entered in the browser ever be allowed to *seed* a `workflow_dispatch` automatically, or must every run stay owner-initiated? | §7 | Owner decision; security review |
 
 Q-13 (DefCon reconstruction) and Q-04 (blended monolith) are pulled forward from
-[Design §15](04-conceptual-design.md#15-open-design-questions) as D2 and X6 respectively.
+[Design §15](../04-conceptual-design.md#15-open-design-questions) as D2 and X6 respectively.

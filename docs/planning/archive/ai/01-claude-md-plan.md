@@ -39,7 +39,7 @@ Fantasy Premier League decision-support platform for the 2026/27 season. Schedul
 ingests data, forecasts expected points, solves a multi-gameweek MILP, and publishes static
 artefacts; a React SPA reads them. No server, no database, no runtime backend.
 
-Planning documents are in `docs/planning/`. Read `docs/planning/README.md` first when you need
+Planning documents are in `docs/planning/`. Read `docs/README.md` first when you need
 context beyond this file.
 
 ## Commands
@@ -88,7 +88,7 @@ These are not style preferences. Breaking one causes silent, expensive wrongness
 
 - Name the requirement IDs a change implements in the commit message — `FR-12`, `NFR-08`. The
   numbered requirements are in `docs/planning/01-project-charter.md` §6.
-- Record any significant decision in `docs/planning/00-decision-log.md` **before** implementing it.
+- Record any significant decision in `docs/decisions/README.md` **before** implementing it.
   Append a new entry; never edit an accepted one — supersede it.
 - Update the relevant `docs/planning/` document in the same change as the code, not afterwards.
 - British English in documentation, UI copy and comments. Currency is £.

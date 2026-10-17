@@ -16,7 +16,7 @@ low". Probing the live endpoints showed that before GW1 is scored there is *no* 
 state at all — `picks` 404s, `bank` and `value` are null, `transfers` is empty. So a declared squad
 is a first-class input rather than a degraded mode, and the service reports provenance
 (`from_picks` / `reconstructed` / `declared`) instead of hiding it. Recorded as
-[DL-20](../00-decision-log.md#dl-20).
+[DL-20](../../../decisions/DL-20.md).
 
 **Purchase prices are not public.** Only the authenticated `my-team` endpoint carries them, and this
 project will never authenticate (Invariant 4). They are reconstructed from the transfer log plus
@@ -135,13 +135,13 @@ The awkward one, because of the API gap documented in the `fpl-api` skill.
 ### E1-S5 — Post-deadline reconciliation
 **0.5 day · closes the loop that lineage only promises**
 
-[Design §12.4](../04-conceptual-design.md#124-lineage) sets the practical test for lineage: *"for any
+[Design §12.4](../../04-conceptual-design.md#124-lineage) sets the practical test for lineage: *"for any
 recommendation the system ever made, it must be possible to reconstruct exactly what it knew at the
 time and why it advised that."* That records what was **advised**. Nothing yet records what was
 actually **played** — and the two diverge, because the human overrules (correctly, per ASM-6), and
 occasionally because of a mis-click at 03:00 local.
 
-Without this, [E8](E8-in-season-operations.md)'s decision log grades the model against a memory of
+Without this, [E8](../../epics/E8-ongoing-in-season-monitoring.md)'s decision log grades the model against a memory of
 what you did, which is rationalisation rather than evidence.
 
 - After each deadline passes, fetch `entry/{team_id}/event/{gw}/picks/` — now public — and diff it

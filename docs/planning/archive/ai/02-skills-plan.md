@@ -3,7 +3,7 @@
 **Part of:** [AI Tooling Plan](README.md)
 
 Fourteen candidate skills, derived from the recurring procedures and reference bodies in the
-[conceptual design](../04-conceptual-design.md). Three are worth building now; the rest are specified
+[conceptual design](../../04-conceptual-design.md). Three are worth building now; the rest are specified
 here and built with the code they describe.
 
 ---
@@ -127,7 +127,7 @@ having a skill that lies. Both are worse than waiting.
 
 ### `add-data-source` — P1 · the flagship procedure
 
-Implements [Design §14.1](../04-conceptual-design.md#141-adding-a-data-source), and is how the
+Implements [Design §14.1](../../04-conceptual-design.md#141-adding-a-data-source), and is how the
 extensibility requirement (FR-04, DL-05) actually gets honoured rather than merely designed.
 
 ```yaml
@@ -145,7 +145,7 @@ not a step to take.** Bundles `templates/adapter.py` and `templates/contract_tes
 
 ### `pipeline-triage` — P1
 
-The runbook from [Design §11](../04-conceptual-design.md#11-documentation). Given a failed run or a
+The runbook from [Design §11](../../04-conceptual-design.md#11-documentation). Given a failed run or a
 blocked quality gate: read the manifest, locate the failing stage, check per-source status codes and
 freshness, decide between transient failure, upstream schema drift, and a genuine data problem. Ends
 with the decision of whether to publish, hold, or roll back — never "retry until green".
@@ -158,7 +158,7 @@ injects bad data and proves the gate blocks.
 
 ### `add-model-component` — P2
 
-[Design §14.2](../04-conceptual-design.md#142-adding-a-model-component). Implement behind the model
+[Design §14.2](../../04-conceptual-design.md#142-adding-a-model-component). Implement behind the model
 interface emitting mean and variance; register with the aggregator **and** the explanation
 decomposition; add backtest metrics; run in shadow mode; promote only on evidence. Includes the
 leakage checklist and a reminder about scoring-regime changes in historical training data.
@@ -180,14 +180,14 @@ If the model does not beat the naive benchmark, that is the finding.** Produces 
 
 ### `milp-patterns` — P3
 
-Reference for the formulation in [Design §6.2](../04-conceptual-design.md#62-milp-formulation):
+Reference for the formulation in [Design §6.2](../../04-conceptual-design.md#62-milp-formulation):
 the full variable and constraint set, linearisation recipes for the bilinear captain × triple-captain
 term and the free-transfer `min` accrual, Free Hit's parallel squad handling, candidate-pruning
 rationale, and solve-time management. Model-invoked, `paths:` scoped to `optimise/`.
 
 ### `add-optimiser-constraint` — P3
 
-[Design §14.3](../04-conceptual-design.md#143-adding-an-optimiser-constraint). Constraint builder,
+[Design §14.3](../../04-conceptual-design.md#143-adding-an-optimiser-constraint). Constraint builder,
 property test, config exposure. Standing instruction: express it linearly or say explicitly that it
 cannot be, and never weaken an existing FPL legality constraint to make a new one feasible.
 
@@ -200,7 +200,7 @@ payload budget, update the fixture data the web tests use.
 
 ### `new-app-view` — P4
 
-Frontend screen conventions from [Design §8](../04-conceptual-design.md#8-user-experience): assign
+Frontend screen conventions from [Design §8](../../04-conceptual-design.md#8-user-experience): assign
 the interaction tier, wire data loading, virtualise if the full player set is involved, render
 uncertainty, handle the degraded-source and stale-data states, accessibility pass, check both
 viewports and both themes.
@@ -222,14 +222,14 @@ team. The system never does.**
 
 ### `gameweek-review` — P6 · user-invoked only
 
-The weekly loop from [Plan §3, Phase 6](../02-project-plan-and-blueprint.md#phase-6--in-season-operations--continuous-to-30-may-2027):
+The weekly loop from [Plan §3, Phase 6](../02-superseded-sections.md#phase-6--in-season-operations--continuous-to-30-may-2027):
 post-gameweek review of recommendation versus outcome, drift check, data health check, then **one**
 improvement — the body should say "one, not three" explicitly, because scope creep across 38
 gameweeks is how solo projects die.
 
 ### `season-retro` — P6 · user-invoked only
 
-End-of-season assessment against [charter §5](../01-project-charter.md#5-success-criteria), including
+End-of-season assessment against [charter §5](../../01-project-charter.md#5-success-criteria), including
 the honest question of whether the model added edge over intuition, and whether 2027/28 is worth it.
 
 ---

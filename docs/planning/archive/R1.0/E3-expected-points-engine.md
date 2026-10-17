@@ -19,7 +19,7 @@ The harness was built first, as the epic instructed, and it immediately did the 
 | Mean — a constant | 1.985 | −0.040 | −0.010 | 0.00 | −3.60 |
 
 **It beats B0 and loses to the model-free benchmark.** Per §4 below, that is the finding, reported
-as such. Full reasoning and consequences in [DL-21](../00-decision-log.md#dl-21).
+as such. Full reasoning and consequences in [DL-21](../../../decisions/DL-21.md).
 
 **The two headline columns disagree, and the disagreement is the whole result.** The model has the
 best MAE of anything measured and the worst top-20 precision of anything measured. Those are
@@ -30,7 +30,7 @@ backwards for how the tool is used** — nobody acts on the whole ranking, they 
 **B0 was worth every minute.** Without it, a Spearman of 0.244 and an MAE of 1.94 would have looked
 like a working model. B0 scores 0.214 and 1.96. The gap is real and it is small, and only the
 comparison makes that visible — which is precisely the argument
-[DL-13](../00-decision-log.md#dl-13) made when it replaced the absolute thresholds.
+[DL-13](../../../decisions/DL-13.md) made when it replaced the absolute thresholds.
 
 **The leakage guard caught a leak in the harness itself.** The first version handed the predictor a
 frame that still carried the target column. A cheating predictor test caught it immediately; nothing
@@ -60,8 +60,8 @@ simple thing it replaced.
 Walk-forward replay with strict no-look-ahead, enforced by feature knowability stamps.
 
 - Train on everything knowable before each historical deadline; predict; compare to actual
-- Metrics against [charter §5 tier 2](../01-project-charter.md#tier-2--model-quality-obj-7), which
-  were made **baseline-relative** by [DL-13](../00-decision-log.md#dl-13--charter-amendments-following-the-2026-08-09-architecture-and-plan-audit):
+- Metrics against [charter §5 tier 2](../../01-project-charter.md#tier-2--model-quality-obj-7), which
+  were made **baseline-relative** by [DL-13](../../../decisions/DL-13.md):
   Spearman within position and price band, MAE **skill score**, top-20 precision, calibration slope,
   minutes Brier score, captaincy hit rate
 - Breakdowns by position, price tier and minutes band
@@ -123,7 +123,7 @@ match* — which needs the distribution across all 22 players, not just a mean.
 
 **Carries a known hazard:** the 2026/27 BPS revision means prior-season bonus data comes from a
 different scoring regime. See `.claude/skills/fpl-rules/references/changes-2026-27.md` and
-[Design Q-05](../04-conceptual-design.md#15-open-design-questions).
+[Design Q-05](../../04-conceptual-design.md#15-open-design-questions).
 
 ### E3-S7 — Aggregation with real variance · 1 day · FR-13 · repays D-09
 Combine components into expected points and a **modelled** variance, replacing E0's heuristic band.
@@ -137,10 +137,10 @@ Propagate component variance including the large binary contribution from the mi
       that caught a real leak in the harness
 - [x] **B0 baseline built, and every tier-2 metric reported relative to it**
 - [x] **Model does not beat the model-free benchmark, and the finding is stated plainly** — in the
-      backtest report, in the published model card, and in [DL-21](../00-decision-log.md#dl-21)
+      backtest report, in the published model card, and in [DL-21](../../../decisions/DL-21.md)
 - [x] Component models M1–M8 registered with the aggregator and the explanation decomposition
 - [ ] ~~E3-S3 calibration curves and Brier score reported~~ **Not actually met — found in the
-      post-E3 audit ([DL-22](../00-decision-log.md#dl-22)).** `minutes_brier` is always null; opened
+      post-E3 audit ([DL-22](../../../decisions/DL-22.md)).** `minutes_brier` is always null; opened
       as **D-14**
 - [x] Model card carries inputs, method, measured accuracy and known failure modes
 - [x] Per-component training windows honour the scoring-regime table in

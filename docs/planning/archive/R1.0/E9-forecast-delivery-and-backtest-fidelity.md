@@ -6,8 +6,8 @@
 **Status:** Delivered — E9-S1 and E9-S2 both landed, but S2's acceptance was **only actually met on
 2026-08-21**. Its code shipped in E9; the archive supplied no `team_id`, so the join resolved
 nothing and the harness ran on league-average opposition throughout
-([DL-51](../00-decision-log.md#dl-51), D-26). Fixed at the source in
-[DL-52](../00-decision-log.md#dl-52): fixture coverage is now 1.0 and the §1 gate is clear.
+([DL-51](../../../decisions/DL-51.md), D-26). Fixed at the source in
+[DL-52](../../../decisions/DL-52.md): fixture coverage is now 1.0 and the §1 gate is clear.
 **Every E10 number recorded before that date was measured under league-average opposition** and is
 re-based by it
 
@@ -15,14 +15,14 @@ re-based by it
 
 ## 0. Why this epic exists, and why it is first
 
-The [first backtest](../00-decision-log.md#dl-21) produced a finding the
+The [first backtest](../../../decisions/DL-21.md) produced a finding the
 [Model Improvement Plan](../05-model-improvement-plan.md) turns into a programme. Two of that plan's
 items are not modelling changes at all — they are the seams that make every *other* item real. Until
 both land, the programme measures things it cannot deliver and cannot test.
 
 1. **The model that is graded is not the model that is shipped.** The backtest grades `xp_v1` (the
    component chain); the pipeline publishes `xp_v0` (the cold-start model), which consumes none of the
-   xG signal [DL-34](../00-decision-log.md#dl-34) promoted. The gap is **D-25** — a fixture-aware
+   xG signal [DL-34](../../../decisions/DL-34.md) promoted. The gap is **D-25** — a fixture-aware
    horizon scorer `xp_v1` does not yet have. **Until D-25 closes, every improvement in the plan is
    measured and never delivered.**
 2. **The backtest is blind to fixtures.** The harness carries no fixture table, so M2 contributes
@@ -54,11 +54,11 @@ per-gameweek expected points and **modelled variance** (Invariant 6) the contrac
   model and the graded model are the same object rather than two implementations that drift.
 - ~~Ships **dark then promoted** (DP-08): published behind a flag, compared against `xp_v0` on the
   live path for the shadow window before it becomes the default the app reads.~~ **Superseded by
-  [DL-46](../00-decision-log.md#dl-46)**, which found this sentence in direct conflict with the one
+  [DL-46](../../../decisions/DL-46.md)**, which found this sentence in direct conflict with the one
   above it. Closing D-25 is the bug fix DP-08 names as its own exception — `xp_v1` was already
   selected and graded, and the defect was that a *less-capable* model shipped — so `xp_v1` becomes
   the default publish target directly, with no `enabled` flag and no shadow window (there is no live
-  season to shadow against before GW1). [DL-21](../00-decision-log.md#dl-21)'s guardrail, restated
+  season to shadow against before GW1). [DL-21](../../../decisions/DL-21.md)'s guardrail, restated
   on every model card, is what bounds the live blast radius instead.
 
 **Acceptance:** the app's ranking is produced by `xp_v1`; the parity test is green; the model card
@@ -83,11 +83,11 @@ depends on — it is not "better", it is "now measurable".
       cold-start fallback only
 - [x] Parity test proves the live horizon scorer reproduces the backtest's `xp_v1` single-GW numbers
       under league-average opposition
-- [x] **D-25 closed** in the debt register ([E0 §6](E0-steel-thread-gw1.md#6-technical-debt-register))
+- [x] **D-25 closed** in the debt register ([E0 §6](../../debt-register.md))
 - [x] The backtest carries fixtures in every fold frame, with knowability stamps, and reports
       fixture-conditioned breakdowns — **un-ticked on 2026-08-21 by
-      [DL-51](../00-decision-log.md#dl-51), and re-ticked the same day by
-      [DL-52](../00-decision-log.md#dl-52), which fixed the cause rather than the symptom.** The
+      [DL-51](../../../decisions/DL-51.md), and re-ticked the same day by
+      [DL-52](../../../decisions/DL-52.md), which fixed the cause rather than the symptom.** The
       plumbing was correct all along and the breakdown was written; the archive adapter supplied no
       `team_id`, so the join resolved **nothing** and every fold ran on league-average opposition,
       reported as an `unresolved` band and a 0.0% coverage warning that nobody read. With the club

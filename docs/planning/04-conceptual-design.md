@@ -431,7 +431,7 @@ graph LR
     AGG --> OUT["mean, variance,<br/>decomposition"]
 ```
 
-> **Implementation status (2026-08-15, [DL-33](00-decision-log.md#dl-33), [DL-34](00-decision-log.md#dl-34)).**
+> **Implementation status (2026-08-15, [DL-33](../decisions/DL-33.md), [DL-34](../decisions/DL-34.md)).**
 > This section describes the target model, and two parts of it are now real. **M3 consumes expected
 > goals**: the component model `xp_v1` observes and fits goal involvement through `expected_goals` /
 > `expected_assists` — carried by the official feed itself, so this needs no scraped source — and the
@@ -439,12 +439,12 @@ graph LR
 > promoted in the shipped config (DL-34). Still aspirational: M2's xG-based team ratings (built but
 > dark — unmeasurable in a league-average backtest) and the odds view of M2 (no `ODDS_API_KEY`); the
 > npxG and shot-level detail a scraped source would add remain blocked by
-> [D-23](epics/E0-steel-thread-gw1.md#6-technical-debt-register).
+> [D-23](debt-register.md).
 >
 > **One caveat that matters:** the model `run` *publishes* is still `xp_v0`, the cold-start model,
 > which uses none of this. The xG improvement lives in `xp_v1`, the model the backtest grades;
 > promoting it to the live path needs a fixture-aware horizon scorer it does not yet have
-> ([D-25](epics/E0-steel-thread-gw1.md#6-technical-debt-register)). Because both the squad MILP and the
+> ([D-25](debt-register.md)). Because both the squad MILP and the
 > weekly plan MILP read only `expected_points.parquet`, external signal reaches **both** decision
 > models through exactly one seam — the forecast — or through neither; it never enters the optimiser
 > directly (DP-02, Invariant 1).
@@ -676,7 +676,7 @@ the constraint is relaxable per club through the constraint-override mechanism (
 
 Chip timing interacts with transfers, so it cannot be decided by a separate heuristic in isolation.
 But it does **not** follow that chips must be MILP variables. Per
-[DL-15](00-decision-log.md#dl-15--chip-timing-by-scenario-enumeration-highs-as-the-solver-from-e4),
+[DL-15](../decisions/DL-15.md),
 the primary approach is **enumeration over chip scenarios**:
 
 1. Enumerate the plausible `(chip, gameweek)` assignments within the horizon. Over 5–8 gameweeks with
@@ -701,7 +701,7 @@ On top of either, a longer-horizon **chip calendar** projects likely windows acr
 fixture structure — anticipated double and blank gameweeks, congestion, and the GW19 expiry of set 1
 (FR-20). Rolling horizon plus long-range calendar is the right split: the optimiser decides *now*, the
 calendar stops *now* from ruining *later*. A minimal version of the calendar
-([E2-S7](epics/E2-data-platform.md)) deliberately ships long before the optimiser, because GW19
+([E2-S7](archive/R1.0/E2-data-platform.md)) deliberately ships long before the optimiser, because GW19
 expiry is irreversible and must not depend on E3 and E4 both landing on time.
 
 ### 6.4 Solving, and an honest limitation
@@ -930,7 +930,7 @@ quality; it does not assert it.
 | Document | Audience | Maintenance |
 | --- | --- | --- |
 | `docs/00` – `docs/04` (this set) | Owner, future self, AI agents | Updated when the design changes, not after |
-| `README.md` | Anyone landing on the repo | What it is, how to run it, current status |
+| `../README.md` | Anyone landing on the repo | What it is, how to run it, current status |
 | `CLAUDE.md` | AI coding agents | Conventions, commands, invariants, the dependency rule, what not to change |
 | Module docstrings | Whoever is reading the code | Purpose and contract of each package |
 | `contracts/` schemas | Both languages | Self-documenting, generated into both sides |
@@ -1064,11 +1064,11 @@ accident.
 | Q-03 | Bench weight `β` under normal rules — the true value depends on auto-substitution probability, which is measurable from history | E4 | Historical analysis |
 | Q-04 | Whether one blended expected-points model beats the component chain. The chain wins on explainability, which is a product requirement; if a monolith is materially more accurate, that trade needs an explicit decision | E3 | Backtest |
 | Q-05 | How to weight the 25/26 season in training given the BPS revision and the introduction of Defensive Contribution — earlier seasons come from a different scoring regime | E3 | Model design |
-| ~~Q-06~~ | ~~Whether DuckDB-WASM payload size is acceptable on mobile~~ — **provisionally resolved 2026-08-09 by scoping rather than choosing.** The scout table is ~700 rows and needs no query engine: plain JSON plus client-side filtering is smaller and faster. DuckDB-WASM is lazy-loaded, route-scoped, and used only for the multi-season history views where the data is genuinely large. **Confirmed by measurement at E6-S9** ([DL-38](00-decision-log.md#dl-38--q-06-confirmed-by-measurement-and-the-app-caches-its-shell-and-its-data-under-opposite-rules)): on an emulated Pixel 5 over throttled mobile 4G with a 4× CPU throttle, 587 players filter in 31 ms and sort in 77 ms against a 150 ms budget, and the whole initial payload is 155 KiB against 3 MB | E6 | **Resolved by measurement** |
+| ~~Q-06~~ | ~~Whether DuckDB-WASM payload size is acceptable on mobile~~ — **provisionally resolved 2026-08-09 by scoping rather than choosing.** The scout table is ~700 rows and needs no query engine: plain JSON plus client-side filtering is smaller and faster. DuckDB-WASM is lazy-loaded, route-scoped, and used only for the multi-season history views where the data is genuinely large. **Confirmed by measurement at E6-S9** ([DL-38](../decisions/DL-38.md)): on an emulated Pixel 5 over throttled mobile 4G with a 4× CPU throttle, 587 players filter in 31 ms and sort in 77 ms against a 150 ms budget, and the whole initial payload is 155 KiB against 3 MB | E6 | **Resolved by measurement** |
 | Q-07 | Price-change prediction — whether to model it, given FPL now publishes its own price-change predictor this season | E3 | Assess the official tool first |
-| Q-08 | How aggressively to model rotation for European competitors, where minutes uncertainty is highest and matters most. **Still open, and now blocked on data rather than on modelling** ([DL-48](00-decision-log.md#dl-48)): nothing in the silver model carries a European fixture or a competition label, and deriving one from a club list would be an invented fact. E10-S1 implements the observable shadow instead — fixture *density* counted from the Premier League calendar, which is what a midweek tie looks like from inside the data this project has | ~~E3~~ **E12**, if a source ever carries European fixtures | Backtest, once the data exists |
+| Q-08 | How aggressively to model rotation for European competitors, where minutes uncertainty is highest and matters most. **Still open, and now blocked on data rather than on modelling** ([DL-48](../decisions/DL-48.md)): nothing in the silver model carries a European fixture or a competition label, and deriving one from a club list would be an invented fact. E10-S1 implements the observable shadow instead — fixture *density* counted from the Premier League calendar, which is what a midweek tie looks like from inside the data this project has | ~~E3~~ **E12**, if a source ever carries European fixtures | Backtest, once the data exists |
 | Q-09 | Whether mini-league rival modelling should feed the risk objective, rather than only being displayed | E8 | In-season |
 | Q-10 | **Size of `ε`, the incumbency tie-break** (§6.2). Too small and solutions still churn; too large and the optimiser holds a squad past the point it should move. Should be expressed as a points threshold a transfer must clear, and measured | E4 | Backtest — measure churn rate against points forgone |
 | Q-11 | **How to weight the top-k simulation re-rank** (§6.4) against the MILP objective at each risk-dial position. At the safe end they agree; at the aggressive end they should not, and the question is how much | E4 | Backtest |
 | Q-12 | **Whether the same-club XI cap (C16) should be 2 or 3.** Two is the right default for correlation, but a premium defence in a good fixture run is a real strategy the cap forbids | E4 | Backtest, then expose as config |
-| ~~Q-13~~ | ~~Whether DefCon can be reconstructed for seasons before 2025/26~~ — **resolved 2026-08-22: no.** Three independent checks (official API, cached archive snapshot, fresh archive fetch) confirm the raw action counts behind the old BPS formula were never publicly captured for any season before 2025/26 — the old formula's output was only ever exposed as the already-summed `bps` integer. M4 stays a one-season component. See [DL-62](00-decision-log.md#dl-62--e12-s1-q-13-resolved-negative--the-bps-action-count-breakdown-was-never-publicly-captured-for-seasons-before-202526) | E12 | **Resolved by investigation** |
+| ~~Q-13~~ | ~~Whether DefCon can be reconstructed for seasons before 2025/26~~ — **resolved 2026-08-22: no.** Three independent checks (official API, cached archive snapshot, fresh archive fetch) confirm the raw action counts behind the old BPS formula were never publicly captured for any season before 2025/26 — the old formula's output was only ever exposed as the already-summed `bps` integer. M4 stays a one-season component. See [DL-62](../decisions/DL-62.md) | E12 | **Resolved by investigation** |

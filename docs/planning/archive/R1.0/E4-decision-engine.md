@@ -11,10 +11,10 @@ depends on this epic landing on time
 
 ## 0. Gate carried in from E3 — read before starting
 
-**[DL-21](../00-decision-log.md#dl-21--the-v1-forecast-beats-price-and-loses-to-recent-form-reported-not-tuned)
+**[DL-21](../../../decisions/DL-21.md)
 found the forecast loses to a model-free benchmark on top-20 precision (0.00 vs 0.05) — the exact
 part of the ranking this epic's decisions act on. That finding opened debt
-[D-13](E0-steel-thread-gw1.md#6-technical-debt-register), and its consequence is a hard constraint on
+[D-13](../../debt-register.md), and its consequence is a hard constraint on
 this epic, not a footnote:**
 
 > No −8 hit, chip, or wildcard may be justified by `xp_v1` alone until top-20 precision beats B0.
@@ -47,12 +47,12 @@ and they are structurally necessary to afford premiums), and anything user-locke
 
 ### E4-S2 — Multi-gameweek MILP · 2.5 days · FR-18 · repays D-03
 Extend to a rolling 5–8 gameweek horizon per
-[Design §6.2](../04-conceptual-design.md#62-milp-formulation): squad continuity across gameweeks,
+[Design §6.2](../../04-conceptual-design.md#62-milp-formulation): squad continuity across gameweeks,
 free-transfer accrual with the **five-transfer rollover cap**, hit arithmetic, discounted objective.
 
 Linearisation needed for the `min` in free-transfer accrual and the bilinear captain terms.
 
-**Solver: HiGHS, not CBC** ([DL-15](../00-decision-log.md#dl-15--chip-timing-by-scenario-enumeration-highs-as-the-solver-from-e4)).
+**Solver: HiGHS, not CBC** ([DL-15](../../../decisions/DL-15.md)).
 E0 validated CBC against the single-gameweek problem, which is a far easier one. This model is
 roughly 10–20k binaries with a weak relaxation, and R-07 is rated **High** accordingly. Budget time
 for tuning, not just building.
@@ -74,8 +74,8 @@ likely windows across the season. Supersedes — does not delete — the blunt
 [E2-S7 tracker](E2-data-platform.md#e2-s7--chip-expiry-tracker--05-day--obj-4).
 
 **Approach: enumeration over chip scenarios, not MILP decision variables**
-([DL-15](../00-decision-log.md#dl-15--chip-timing-by-scenario-enumeration-highs-as-the-solver-from-e4),
-[Design §6.3](../04-conceptual-design.md#63-chip-strategy--enumeration-not-decision-variables)).
+([DL-15](../../../decisions/DL-15.md),
+[Design §6.3](../../04-conceptual-design.md#63-chip-strategy--enumeration-not-decision-variables)).
 Enumerate the plausible `(chip, gameweek)` assignments in the horizon — a small set after pruning —
 solve the ordinary transfer MILP conditional on each, take the best and keep the runners-up.
 
@@ -98,7 +98,7 @@ captained_by%` is standard and correct, and **not computable from public FPL dat
 is exposed by no endpoint (CON-12). Worse, `selected_by_percent` is ownership across all ~11m
 managers, while the charter's target is top-100k, whose template differs materially.
 
-Three routes are set out in [Design §7.1](../04-conceptual-design.md#71-effective-ownership-is-not-directly-observable-con-12-od-06):
+Three routes are set out in [Design §7.1](../../04-conceptual-design.md#71-effective-ownership-is-not-directly-observable-con-12-od-06):
 estimate it, sample it post-deadline from large public leagues, or redefine EO without the captaincy
 term. Pick one, record it as OD-06's resolution, and **state in the UI which one is in use**. A risk
 dial driven by an estimated quantity presented as a measured one is worse than no risk dial.
@@ -119,7 +119,7 @@ DL-06. Two things narrow the gap without waiting for it — E4-S4a below, and co
 **C16 — cap the starting XI at 2 players per club.** One linear constraint per club, aimed squarely
 at the dominant correlation, no change to the objective. Not a substitute for modelling covariance;
 it is the part a linear model can actually express. Relaxable per club through E4-S5 overrides, and
-[Q-12](../04-conceptual-design.md#15-open-design-questions) asks whether 2 or 3 is the better default.
+[Q-12](../../04-conceptual-design.md#15-open-design-questions) asks whether 2 or 3 is the better default.
 
 ### E4-S4a — Simulation re-rank · 1 day · **most of the stochastic layer, none of the solver work**
 
@@ -153,7 +153,7 @@ price exposure, and the assumptions — "this assumes he starts, which the model
 ## 3. Definition of done
 
 Ticked against what is actually built and tested, not against what was attempted.
-[DL-22](../00-decision-log.md#dl-22--post-e3-audit-found-a-dod-item-ticked-without-its-acceptance-criterion-being-met)
+[DL-22](../../../decisions/DL-22.md)
 exists because a prior epic ticked an item whose acceptance criterion was not met, so each line below
 names the artefact or the test that makes it true — and the three that are **not** true say so.
 
@@ -171,11 +171,11 @@ names the artefact or the test that makes it true — and the three that are **n
       (`test_set_one_chips_are_gone_after_their_published_expiry`), and `week/alerts.py`'s tracker is
       untouched and still running
 - [x] **OD-06 resolved** — the EO source chosen, recorded, and named in the UI.
-      [DL-24](../00-decision-log.md#dl-24) chose *redefine*; `plan.json` carries
+      [DL-24](../../../decisions/DL-24.md) chose *redefine*; `plan.json` carries
       `ownership.source_statement`, and `PlanPanel.test.tsx` asserts the panel says "selected by" and
       never "effective ownership"
 - [x] Risk dial functional; ownership bet surfaced on every recommendation — `optimise/risk.py`,
-      defaulted by [DL-25](../00-decision-log.md#dl-25). Every plan carries `explanation.ownership_bet`
+      defaulted by [DL-25](../../../decisions/DL-25.md). Every plan carries `explanation.ownership_bet`
 - [x] Same-club XI cap in force and relaxable per club — C16 in `horizon.py`,
       `test_the_same_club_starting_cap_is_enforced_and_relaxable`. It also degrades with a stated
       reason when the *current* squad cannot field an XI under it, because "do nothing" must always
@@ -186,7 +186,7 @@ names the artefact or the test that makes it true — and the three that are **n
       through the walk-forward harness's own `fold_rows`/`training_rows`.
       It changed the chip recommendation at **8 of 8** of them; scored against what those players
       actually went on to score, 5 changes were better and 3 worse
-      ([DL-28](../00-decision-log.md#dl-28), `tests/test_chip_replay.py`, gated `--slow`). The
+      ([DL-28](../../../decisions/DL-28.md), `tests/test_chip_replay.py`, gated `--slow`). The
       criterion's second half — "the direction of the change is explicable" — is met on real data
       too: re-running three deadlines at each dial, the safe dial declined to move the chip where
       balanced moved it, and the aggressive dial chose a different week again. D-18 is closed.
@@ -208,11 +208,11 @@ names the artefact or the test that makes it true — and the three that are **n
       mandatory ones in `test_horizon.py`, over randomised inputs
 - [x] Solve time inside budget on HiGHS, with greedy fallback proven — a full local run solved all
       twenty chip scenarios over a five-gameweek horizon on a 159-player pool in **92.7s**, inside the
-      600s budget ([DL-26](../00-decision-log.md#dl-26)). The fallback is proven by
+      600s budget ([DL-26](../../../decisions/DL-26.md)). The fallback is proven by
       `test_the_greedy_fallback_produces_a_legal_plan_and_says_it_is_a_fallback`. Measured preseason
       and locally only, which **D-19** tracks — the number is met, not retired
 - [x] D-03 and D-04 closed — the single-gameweek objective and the absence of chip modelling are
-      both repaid; the register rows in [E0 §6](E0-steel-thread-gw1.md#6-technical-debt-register) are
+      both repaid; the register rows in [E0 §6](../../debt-register.md) are
       marked closed
 - [x] **D-13's caveat is visible wherever a hit, chip or wildcard is recommended** — not resolved by
       this epic, but not silently dropped either (see §0). `explain.D13_CAVEAT` is a field on the

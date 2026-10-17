@@ -14,10 +14,10 @@ All seven stories are built. Three findings changed the work.
 contract tests, including one that fails if the *old* path ever starts working again.
 
 **E2-S3's premise no longer held.** It assumed it would extend an archive ingested in E0-S3, which
-[DL-18](../00-decision-log.md#dl-18) had removed. Re-checking against the API produced a worse
+[DL-18](../../../decisions/DL-18.md) had removed. Re-checking against the API produced a worse
 answer than expected: **the official API publishes no per-gameweek data for any prior season at
 all.** E3 cannot start without it, so a second source adapter was admitted —
-[DL-19](../00-decision-log.md#dl-19).
+[DL-19](../../../decisions/DL-19.md).
 
 **The gates caught a real inconsistency in our own test fixture** on their first run: an eight-club
 recorded league whose fixture list still referenced twenty clubs. That is the sort of thing the
@@ -46,7 +46,7 @@ Remaining endpoints: `event/{gw}/live/` (per-gameweek actuals including BPS), `s
 out of scope.
 
 ### E2-S2 — Full quality gate framework · 1.5 days · FR-08
-Four assertion classes, per [Design §3.4](../04-conceptual-design.md#34-quality-gates-fr-08):
+Four assertion classes, per [Design §3.4](../../04-conceptual-design.md#34-quality-gates-fr-08):
 schema, range, referential integrity, and freshness-and-volume. Severity model — `error` blocks
 publication, `warn` publishes and surfaces, `info` records. Each gate names the requirement it protects.
 
@@ -63,7 +63,7 @@ Defensive Contribution arrived in 2025/26 and the BPS matrix was revised for 202
 | Component | Usable training seasons | Why |
 | --- | --- | --- |
 | Minutes, goals, assists, clean sheets, saves, cards | **All available seasons** | Regime-invariant. These are the same events they always were |
-| Defensive Contribution (M4) | **2025/26 only** — unless [Q-13](../04-conceptual-design.md#15-open-design-questions) succeeds | The component did not exist before. Q-13 asks whether the underlying action counts can be reconstructed from BPS records for earlier seasons, which would widen this from one season to several |
+| Defensive Contribution (M4) | **2025/26 only** — unless [Q-13](../../04-conceptual-design.md#15-open-design-questions) succeeds | The component did not exist before. Q-13 asks whether the underlying action counts can be reconstructed from BPS records for earlier seasons, which would widen this from one season to several |
 | Bonus (M8) | **None, directly** | *No* season used the 2026/27 BPS matrix. This is why M8 is modelled structurally — expected BPS computed from expected actions — rather than learned from historical bonus. Training M8 on past bonus would bake in a scoring regime that no longer exists |
 
 Backfilling three seasons is still worth doing: it is most of the model. It just is not three seasons
@@ -81,7 +81,7 @@ Daily price and ownership tracking, so price-change exposure and effective owner
 computable. Feeds E1 alerts and E4's risk objective.
 
 ### E2-S6 — Run manifest and lineage · 1 day · NFR-06/07
-Complete the manifest from [Design §12.2](../04-conceptual-design.md#122-run-manifest): per-source
+Complete the manifest from [Design §12.2](../../04-conceptual-design.md#122-run-manifest): per-source
 status, row counts and deltas, gate results, model versions, solver status, output checksums. Append
 metrics to a history table so drift becomes visible.
 
@@ -99,7 +99,7 @@ Not an optimiser. A **deliberately dumb insurance policy** against a dated, irre
 Chip set 1 expires at the **GW19 deadline, 13:30 GMT Sat 2 Jan 2027**, and unused chips are simply
 gone. The real chip planner is [E4-S3](E4-decision-engine.md#e4-s3--chip-modelling--2-days--fr-20--repays-d-04),
 which sits last in the epic sequence and depends on E3. If either slips — and
-[ASM-8](../01-project-charter.md#8-assumptions) has no slack — the thing that gets lost is four chips.
+[ASM-8](../../01-project-charter.md#8-assumptions) has no slack — the thing that gets lost is four chips.
 
 So the tracker ships here, months early, and costs half a day:
 

@@ -1,6 +1,6 @@
 # Implementation Plan — Epics
 
-**Companion to:** the [planning set](../README.md) · **Baselined:** 2026-08-09
+**Companion to:** the [planning set](../../../README.md) · **Baselined:** 2026-08-09
 **Master clock:** GW1 deadline — **Fri 21 Aug 2026 18:30 BST** = **Sat 22 Aug 03:30 AEST**
 
 ---
@@ -17,7 +17,7 @@ into scheduled, gated work — see §7.
 > in place to be thickened later.
 
 This is deliberately *not* the "fast lane" described in
-[Plan §7 Track B](../02-project-plan-and-blueprint.md#7-the-gw1-decision), which accepted throwaway
+[Plan §7 Track B](../02-superseded-sections.md#7-the-gw1-decision), which accepted throwaway
 shortcuts. The steel thread costs perhaps a day more and produces no throwaway code, because the
 expensive parts of the architecture — adapter isolation, medallion layers, config-driven rules,
 versioned contracts — are cheap to put in *first* and expensive to retrofit.
@@ -53,7 +53,7 @@ graph LR
 ```
 
 E9–E14 are a second wave, not a continuation of the first sequence: they begin from the
-[Model Improvement Plan](../05-model-improvement-plan.md) and the [DL-21](../00-decision-log.md#dl-21)
+[Model Improvement Plan](../05-model-improvement-plan.md) and the [DL-21](../../../decisions/DL-21.md)
 finding, and E9 gates the three modelling epics behind it (§7).
 
 ## 2. Epic register
@@ -68,7 +68,7 @@ finding, and E9 gates the three modelling epics behind it (§7).
 | [E5](E5-external-sources.md) | External data sources | OBJ-1 | GW12 | 4–6 d |
 | [E4](E4-decision-engine.md) | Decision engine | OBJ-3, OBJ-4 | GW15 (chips expire GW19) | 7–10 d |
 | [E6](E6-web-application.md) | Web application | OBJ-5 | GW16 | 7–10 d |
-| [E8](E8-in-season-operations.md) | In-season operations | OBJ-1 | Continuous | ~0.5 d/wk |
+| [E8](../../epics/E8-ongoing-in-season-monitoring.md) | In-season operations | OBJ-1 | Continuous | ~0.5 d/wk |
 | **[E9](E9-forecast-delivery-and-backtest-fidelity.md)** | **Forecast delivery + backtest fidelity** | OBJ-1, OBJ-7 | first of the programme | 2–3 d |
 | [E10](E10-discrimination-at-the-head.md) | Discrimination at the head | OBJ-1, OBJ-7 | after E9 | 6–9 d |
 | [E11](E11-fixture-difficulty-and-market-signal.md) | Fixture difficulty + market signal | OBJ-1 | after E9 | 5–7 d |
@@ -76,7 +76,7 @@ finding, and E9 gates the three modelling epics behind it (§7).
 | [E13](E13-runtime-personalisation-ids.md) | Runtime personalisation (team/league IDs) | OBJ-5 | independent | 2–3 d |
 | [E14](E14-recommendation-ranking-and-hindsight-oracle.md) | Weekly recommendation ranking & hindsight oracle | OBJ-1, OBJ-3, OBJ-7 | In-season (from GW7) | 2–3 d |
 
-**Total build: 46–64 focused days**, against the [plan's original 29–44](../02-project-plan-and-blueprint.md#8-estimation-summary).
+**Total build: 46–64 focused days**, against the [plan's original 29–44](../02-superseded-sections.md#8-estimation-summary).
 The increase is honest, not scope creep: the original estimate assumed a clean sequential build with
 no deadline pressure, and this plan adds the steel thread's end-to-end plumbing plus the weekly
 operating overhead of running a live season while still building.
@@ -86,23 +86,23 @@ operating overhead of running a live season while still building.
 ### What these targets assume — and it is demanding
 
 The dates only mean something against a rate, which until 2026-08-09 was never written down. It was
-originally set as **[ASM-8](../01-project-charter.md#8-assumptions): 3–4 focused build days per
+originally set as **[ASM-8](../../01-project-charter.md#8-assumptions): 3–4 focused build days per
 week**, on top of the ~0.5 day/week operating loop.
 
 Do the arithmetic against that assumption: the sequence to GW15 totals roughly **60 focused days
 across 15 calendar weeks**. That is four days a week, every week, with no allowance for illness,
 travel, a work crunch, or an E3 that needs a second attempt.
 
-**[DL-23](../00-decision-log.md#dl-23--build-pace-is-roughly-an-order-of-magnitude-faster-than-asm-8-assumed)
+**[DL-23](../../../decisions/DL-23.md)
 found this assumption was wrong in the favourable direction.** E0 through E3 — an estimated
 25–32.5 focused days of scoped work — landed across three calendar days (2026-08-09 to 08-11). The
 targets below are retained as **ceilings, not the binding constraint**: at this pace, build time is
 not what paces the remaining epics. What paces them now is the **season clock and evidence** — E3's
-model quality finding ([DL-21](../00-decision-log.md#dl-21--the-v1-forecast-beats-price-and-loses-to-recent-form-reported-not-tuned))
+model quality finding ([DL-21](../../../decisions/DL-21.md))
 can only be resolved by watching real gameweeks resolve, which does not compress with build speed.
 **No epic should be rushed to hit a stale date, and none should start before its dependencies'
 findings are addressed, regardless of how much calendar time is left** (see D-13 in
-[E0 §6](E0-steel-thread-gw1.md#6-technical-debt-register), and the gate now written into
+[E0 §6](../../debt-register.md), and the gate now written into
 [E4 §0](E4-decision-engine.md#0-gate-carried-in-from-e3--read-before-starting)).
 
 **If a human build pace ever becomes the operative constraint again** (this tooling changes, or the
@@ -141,7 +141,7 @@ forecast.
 
 The sequence above is the *starting* rank, not a commitment. It gets re-sorted deliberately.
 
-**The cadence below assumes weekly human review.** [DL-23](../00-decision-log.md#dl-23--build-pace-is-roughly-an-order-of-magnitude-faster-than-asm-8-assumed)
+**The cadence below assumes weekly human review.** [DL-23](../../../decisions/DL-23.md)
 found the actual build rate makes "weekly" the wrong unit — re-read this section **before starting
 each epic**, not on a calendar timer. The content (the question, the scoring formula, the triggers)
 is unchanged and still holds.
@@ -207,15 +207,15 @@ These are not renegotiated by the deadline pressure:
 4. **The human reviews before every submission** (ASM-6). Non-negotiable in E0 especially, where the
    model is unvalidated.
 5. **Every steel-thread shortcut is logged as debt** with a named epic that repays it. See
-   [E0 §6](E0-steel-thread-gw1.md#6-technical-debt-register).
+   [E0 §6](../../debt-register.md).
 6. **Exceptions to the definition of done are dated and written down.** E0 runs without CI, which
    charter §13.3 requires — covered by a
-   [single-use carve-out](../01-project-charter.md#the-one-dated-exception--e0) expiring 22 August,
+   [single-use carve-out](../../01-project-charter.md#the-one-dated-exception--e0) expiring 22 August,
    logged as debt D-10 and repaid by E7. No further exceptions without a decision-log entry.
 
 ### The one principle E0 knowingly breaks
 
-[Blueprint B7](../02-project-plan-and-blueprint.md#b7--validate-before-you-believe) — *validate before
+[Blueprint B7](../../02-project-plan-and-blueprint.md#b7--validate-before-you-believe) — *validate before
 you believe* — cannot be honoured before GW1. There is no time to backtest, and preseason has no
 current-season data to backtest against.
 
@@ -235,7 +235,7 @@ variables, credentials and the decisions still open. The headline: **the steel t
 nothing from you** — no API keys, no hosting accounts, no CI setup. It runs locally. The first real
 input is your FPL team ID, and that cannot exist until you have created your team.
 
-Hosting is no longer among the open questions: [DL-12](../00-decision-log.md#dl-12--public-repository)
+Hosting is no longer among the open questions: [DL-12](../../../decisions/DL-12.md)
 made the repository public, which closes both OD-01 and OD-02 and puts the site on GitHub Pages for
 free. The one thing it asks in return is vigilance — every push is world-readable, so NFR-13 stops
 being precautionary.
@@ -243,11 +243,11 @@ being precautionary.
 ## 7. The model-improvement programme (E9–E13)
 
 E0–E8 built the system and revealed, through the first backtest
-([DL-21](../00-decision-log.md#dl-21)), *where the forecast is weak and why*. The
+([DL-21](../../../decisions/DL-21.md)), *where the forecast is weak and why*. The
 [Model Improvement Plan](../05-model-improvement-plan.md) turned that finding into a prioritised set
 of falsifiable experiments; **E9–E13 are those experiments scheduled as epics** and recorded in
-[DL-45](../00-decision-log.md#dl-45). Nothing here promotes by argument — every modelling change
-clears the [E8 §5 bar](E8-in-season-operations.md#5-the-bar-for-changing-the-model-mid-season):
+[DL-45](../../../decisions/DL-45.md). Nothing here promotes by argument — every modelling change
+clears the [E8 §5 bar](../../epics/E8-ongoing-in-season-monitoring.md#5-the-bar-for-changing-the-model-mid-season):
 held-out backtest improves, six shadow gameweeks do not degrade, explicable in advance.
 
 ### Where the plan's items live
