@@ -18,6 +18,29 @@ Status line, `git mv` it and any epics it owns into `../archive/Rx.y.z/`, add th
 index, and run `python scripts/docs.py check` to find the links to re-point
 ([documentation rules](../../agents/documentation.md)).
 
+## Branching and releases
+
+[DL-80](../../decisions/DL-80.md). The step-by-step procedure, with commands, is the `release` skill
+(`.claude/skills/release/SKILL.md`).
+
+```
+feature/<description> ──PR──► dev/Rx.y.z ──PR──► pre-release ──PR──► main ──► tag Rx.y.z
+   (deleted on merge)          (the release)    (main + promotion;   (production; merge deploys;
+                                                  CI + site smoke)     tag publishes the Release)
+hotfix: feature/<fix> from main ──PR──► pre-release ──PR──► main ──► tag Rx.y.(z+1) ──► merge main into dev/Rx.y.z
+```
+
+| Branch | Role |
+| --- | --- |
+| `main` | Production: scheduled workflows run its code and every merge deploys. Pull requests from `pre-release` only; one annotated tag per release |
+| `pre-release` | `main` plus the promotion under test; brought level with `main` before each promotion. CI and `pre-release.yml`'s smoke test run on it |
+| `dev/Rx.y.z` | The open release (now `dev/R1.1.0`), cut from `main` when the release starts; deleted after its tag exists |
+| `feature/<description>` | One feature or fix, from the open `dev/Rx.y.z` (or from `main` for a hotfix); deleted on merge |
+
+`main` and `pre-release` accept changes only by pull request with passing checks. A release's number
+is chosen when its dev branch is cut: `y` for a planned release, `z` for a hotfix, `x` for a change of
+direction.
+
 ## Choosing what to build next
 
 Ask, before starting each piece of work:

@@ -126,4 +126,5 @@ by hand.
 | [DL-77](DL-77.md) | 2026-10-17 | Accepted | The password gate is casual privacy, not a security boundary |
 | [DL-78](DL-78.md) | 2026-10-17 | Accepted | One planning horizon: the forecast's horizon reads the decision horizon |
 | [DL-79](DL-79.md) | 2026-10-17 | Accepted | R1.1.0 keeps its order after GW4; four design fixes join it; PIPE-09 narrowed; OD-04 closed |
+| [DL-80](DL-80.md) | 2026-10-18 | Accepted | Branching and release model: feature → dev/Rx.y.z → pre-release → main, tagged per release |
 <!-- index:end -->

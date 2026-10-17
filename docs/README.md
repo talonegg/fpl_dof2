@@ -128,7 +128,7 @@ settled DL-11, DL-72 and OD-04 and recorded DL-76 to DL-79.
 | Shortcuts taken and what repays each (`D-nn`) | [Debt register](planning/debt-register.md) |
 | Structure, stack, hosting, data flow, the web contract, orchestration; the module-design review and R1.1.0 target architecture | [Solution architecture](planning/03-solution-architecture.md) |
 | Each component's design: sources, data layer, models, optimiser, UX, testing, extensibility; open questions (`Q-nn`) | [Conceptual design](planning/04-conceptual-design.md) |
-| Releases (`Rx.y.z`): what is being built now, and how to choose what next | [Release register](planning/epics/README.md) |
+| Releases (`Rx.y.z`): what is being built now, how to choose what next, and the branching and release model | [Release register](planning/epics/README.md); the procedure is the `release` skill |
 | R1.1.0, the open release: data pipeline uplift backlog | [`planning/epics/R1.1.0-data-pipeline-backlog.md`](planning/epics/R1.1.0-data-pipeline-backlog.md) |
 | Where the season stands (rewritten each gameweek), the weekly loop, and the bar for changing the model mid-season | [E8 — ongoing in-season monitoring](planning/epics/E8-ongoing-in-season-monitoring.md) |
 | Environment variables and secrets handling | [`environment.md`](environment.md) |
@@ -148,5 +148,6 @@ settled DL-11, DL-72 and OD-04 and recorded DL-76 to DL-79.
 | Change the forecast | [Design §5](planning/04-conceptual-design.md#5-analytical-models), the model card, [E8 §5](planning/epics/E8-ongoing-in-season-monitoring.md#5-the-bar-for-changing-the-model-mid-season) |
 | Change the optimiser | [Design §6](planning/04-conceptual-design.md#6-decision-engine) |
 | Pick up a to-do | Its home above; the release register for order |
+| Branch, open a pull request, promote, tag or hotfix | The `release` skill (`.claude/skills/release/`); policy in [DL-80](decisions/DL-80.md) |
 | Understand why something is the way it is | The `DL-nn` the code cites: `docs/decisions/DL-nn.md` |
 | Record a decision | [`decisions/README.md`](decisions/README.md#writing-an-entry) |

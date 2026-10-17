@@ -191,7 +191,7 @@ degrading the product.
 | Concern | Choice | Rationale |
 | --- | --- | --- |
 | Repository visibility | **Public** ([DL-12](../decisions/DL-12.md)) | Unlimited Actions minutes and free Pages. See below — this is architecturally significant |
-| Orchestration | GitHub Actions, eight workflows (§9) | Free, cron and dispatch built in, secret storage included |
+| Orchestration | GitHub Actions, ten workflows (§9) | Free, cron and dispatch built in, secret storage included |
 | Persistent state | Orphan `data` branch (rolling bronze), append-only `snapshots` and `ledger` branches; Actions artefacts for the contract hand-off and logs | Free, versioned, no external service (§7.3) |
 | Hosting | GitHub Pages | Free on a public repository |
 | Secrets | GitHub Actions encrypted secrets | Never in the repo, never in the client bundle (NFR-13); variables in [`environment.md`](../environment.md) |
@@ -334,18 +334,20 @@ does. The differences are credentials, schedule, and which state is restored fro
 
 ## 9. Orchestration
 
-Eight workflows. Cadence escalates as a deadline approaches, and every scheduled workflow is also
+Ten workflows. Cadence escalates as a deadline approaches, and every scheduled workflow is also
 manually dispatchable.
 
 | Workflow | Trigger | Does |
 | --- | --- | --- |
-| `ci.yml` | Push, pull request | Lint, type-check, unit, property and contract tests; `scripts/docs.py check` |
+| `ci.yml` | Push to `main`, `pre-release`, `dev/**`; every pull request | Lint, type-check, unit, property and contract tests; `scripts/docs.py check` |
 | `ingest-fast.yml` | Hourly; a guard (`fpl-dof-schedule --decide fast`) decides whether to fetch | `bootstrap-static` and `fixtures` — prices, status, ownership. Rebuilds `data` |
 | `ingest-slow.yml` | Daily, with a fallback slot; dispatch | Full ingest including per-player summaries; updates `data`; adds the gameweek's permanent tarball to `snapshots` |
 | `pipeline.yml` | Nightly with a fallback; a deadline guard several times an hour; after `Ingest (slow)`; dispatch | `guard` → `prospective` (frozen harness, appended to `ledger`) → `run` (`fpl-dof run --only transform…publish`, advice appended to `ledger`, contract uploaded) |
 | `day-before.yml` | Every 20 minutes in a nightly UTC window | On the day before a deadline, dispatches `ingest-slow`; Pipeline and Deploy follow by `workflow_run` |
 | `deploy.yml` | Push to `main`; after Pipeline completes | Builds the SPA, downloads the latest contract, deploys to Pages |
 | `backtest.yml` | Weekly; dispatch | Archive ingest under `config/ci-backtest.yaml` (DL-68), then the walk-forward regression |
+| `pre-release.yml` | Push to `pre-release`; pull requests into `main` | Builds the site against the latest published contract and runs `verify:smoke` — the promotion gate ([DL-80](../decisions/DL-80.md)) |
+| `release.yml` | Push of an `R*` tag | Checks the tag is on `main` and publishes the GitHub Release |
 | `alert-on-failure.yml` | Called by the others | Opens an issue on failure |
 
 ### Two cadence rules that are easy to get wrong
@@ -419,7 +421,7 @@ No paid tooling exists in a £0 budget, so observability is built from artefacts
 ```
 fpl_dof2/
 ├─ docs/                       # map: docs/README.md
-├─ .github/workflows/          # the eight workflows in §9
+├─ .github/workflows/          # the ten workflows in §9
 ├─ config/                     # committed CI configs (ci-backtest.yaml); local.yaml is gitignored
 ├─ contracts/
 │  ├─ v1/                      # JSON Schemas — the web contract's single definition

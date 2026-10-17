@@ -127,6 +127,9 @@ These are not style preferences. Breaking one causes silent, expensive wrongness
   (format in `docs/decisions/README.md`). Never edit an accepted entry — supersede it.
 - Update the fact's home (see `docs/README.md`) in the same change as the code, not afterwards:
   rewrite it to the new truth, do not append history. Then run `python scripts/docs.py check`.
+- Branch from the open `dev/Rx.y.z` onto `feature/<description>` and merge back by pull request;
+  never commit to `main` or `pre-release`. Promotion, tagging and hotfixes follow the `release`
+  skill (DL-80).
 - British English in documentation, UI copy and comments. Currency is £.
 - The definition of done is charter §13. It applies to every increment.
 
