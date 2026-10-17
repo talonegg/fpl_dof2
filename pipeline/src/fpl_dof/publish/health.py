@@ -12,8 +12,11 @@ that it *is* the manifest, rendered — so everything here is assembly, and anyt
 assemble is published as null rather than as a plausible-looking default (DP-15).
 
 **No source is named here.** Source labels are read out of the manifest's own metric keys, which
-``stages/ingest.py`` writes by asking the registry. They travel to the browser as opaque strings.
-Nothing in this module, and nothing in ``web/``, branches on one (Invariant 1, DP-01).
+``stages/ingest.py`` writes by asking the registry, and out of the source catalogue
+(``sources/catalogue.py``), which the publish stage hands in: every registered adapter plus the
+external sources the frozen harness reads, each with its own label, description and reason text.
+They travel to the browser as opaque strings. Nothing in this module, and nothing in ``web/``,
+branches on one (Invariant 1, DP-01).
 
 Pure: no I/O, no clock, no config loading. The stage reads the files and hands the contents in
 (DP-03), which is also what makes every state below testable without a filesystem.
@@ -23,9 +26,11 @@ from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 
 from fpl_dof.obs.manifest import RunManifest, StageRecord
+from fpl_dof.sources import LIVE, REFERENCE, SourceDescriptor
 
 #: The stage whose metrics carry per-source fetch counts.
 INGEST_STAGE = "ingest"
@@ -129,57 +134,284 @@ def _resources(manifest: RunManifest, label: str) -> dict[str, int]:
     return resources
 
 
+@dataclass(frozen=True)
+class RecordEvidence:
+    """What the prospective record says about the sources the frozen harness reads itself.
+
+    Built by the publish stage from the record it already receives for ``models.json``: the newest
+    decision and that decision's input status. Only the blocks a descriptor names are ever read
+    out of them, so nothing else in a decision file (the owner's squad, the picks) reaches here.
+    """
+
+    decision: Mapping[str, Any] | None = None
+    status: Mapping[str, Any] | None = None
+
+
+#: Live rows first; within them, rows the run depends on, then not set up, then switched off.
+_GROUP_ORDER = {
+    "ok": 0,
+    "stale": 0,
+    "degraded": 0,
+    "unknown": 0,
+    "not_configured": 1,
+    "disabled": 2,
+}
+
+NO_ACTIVITY = "this run recorded no activity for this source"
+
+
+def _parse_time(value: object) -> dt.datetime | None:
+    """A record timestamp (ISO, or pandas' ``2026-10-16 22:18:13+00:00``) as aware UTC."""
+    if not isinstance(value, str) or not value or value in {"NaT", "None"}:
+        return None
+    try:
+        moment = dt.datetime.fromisoformat(value.replace("Z", "+00:00").replace(" ", "T", 1))
+    except ValueError:
+        return None
+    return moment if moment.tzinfo else moment.replace(tzinfo=dt.UTC)
+
+
+def _age(generated_at: dt.datetime, moment: dt.datetime | None) -> float | None:
+    if moment is None:
+        return None
+    return round(max(0.0, (generated_at - moment).total_seconds()), 1)
+
+
+def _entry(
+    key: str,
+    status: str,
+    detail: str | None,
+    *,
+    generated_at: dt.datetime,
+    descriptor: SourceDescriptor | None = None,
+    stage: str | None = None,
+    moment: dt.datetime | None = None,
+    resources: Mapping[str, int] | None = None,
+    network_calls: int | None = None,
+    cache_hits: int | None = None,
+    check: str | None = None,
+    checked_at: dt.datetime | None = None,
+) -> dict[str, Any]:
+    reference = descriptor is not None and descriptor.kind == REFERENCE
+    return {
+        "source": key,
+        "kind": descriptor.kind if descriptor is not None else LIVE,
+        "label": descriptor.label if descriptor is not None else None,
+        "description": descriptor.description if descriptor is not None else None,
+        "status": status,
+        "detail": detail,
+        "degraded_at_stage": stage,
+        "observed_at": iso(moment),
+        # A reference dataset has no freshness age: it is fixed, and an age would read as a feed
+        # that has stopped updating. It carries an as-of date instead.
+        "age_seconds": None if reference else _age(generated_at, moment),
+        "as_of": descriptor.as_of if descriptor is not None else None,
+        "check": check,
+        "checked_at": iso(checked_at),
+        "resources": dict(resources or {}),
+        "network_calls": network_calls,
+        "cache_hits": cache_hits,
+    }
+
+
+def _status_check(
+    record: RecordEvidence | None, name: str | None
+) -> tuple[str | None, str | None, dt.datetime | None]:
+    """``(pass|fail|None, first problem, assessed_at)`` for one frozen-harness input check.
+
+    The status file records each check per model; a source is verified only if every model that
+    needs the check passed it, and the first recorded problem is its reason.
+    """
+    if name is None or record is None or not record.status:
+        return None, None, None
+    models = record.status.get("models") or {}
+    results = [
+        (model.get("inputs") or {})[name]
+        for model in models.values()
+        if isinstance(model, Mapping) and name in (model.get("inputs") or {})
+    ]
+    if not results:
+        return None, None, None
+    problems = [str(problem) for problem in results if problem]
+    assessed = _parse_time(record.status.get("assessed_at"))
+    return ("fail" if problems else "pass"), (problems[0] if problems else None), assessed
+
+
+def _record_entry(
+    descriptor: SourceDescriptor, record: RecordEvidence | None, generated_at: dt.datetime
+) -> dict[str, Any]:
+    """A live external source, read from the newest decision's block for it."""
+    decision = record.decision if record is not None else None
+    block = (decision or {}).get(descriptor.record_block or "") if decision else None
+    if not isinstance(block, Mapping):
+        return _entry(
+            descriptor.key,
+            "unknown",
+            "No decision record was published with this run, so when this source was last "
+            "fetched isn't known.",
+            generated_at=generated_at,
+            descriptor=descriptor,
+        )
+
+    gameweek = decision.get("gw") if decision else None
+    where = f"GW{gameweek} decision" if gameweek is not None else "Latest decision"
+    in_gw = _as_int(block.get("fixtures_in_gw")) or 0
+    priced = _as_int(block.get("fixtures_with_odds")) or 0
+    kept = _as_int(block.get("kept")) or 0
+    resources = {"fixtures_in_gameweek": in_gw, "fixtures_priced": priced, "fixtures_kept": kept}
+    moment = _parse_time(block.get("fetched_at"))
+    verdict, problem, _ = _status_check(record, descriptor.record_check)
+
+    if verdict == "fail":
+        status, detail = "degraded", f"{where}: {problem}."
+    elif in_gw == 0 or kept == 0:
+        status, detail = "degraded", f"{where}: no usable odds were fetched."
+    elif kept < in_gw:
+        status, detail = "degraded", f"{where}: odds for only {kept} of {in_gw} fixtures."
+    else:
+        status, detail = "ok", f"Fetched for the {where}: odds for all {in_gw} fixtures."
+    return _entry(
+        descriptor.key,
+        status,
+        detail,
+        generated_at=generated_at,
+        descriptor=descriptor,
+        moment=moment,
+        resources=resources,
+    )
+
+
+def _reference_entry(
+    descriptor: SourceDescriptor,
+    record: RecordEvidence | None,
+    degradation: tuple[str, str] | None,
+    generated_at: dt.datetime,
+) -> dict[str, Any]:
+    """Fixed data: an as-of date and, where the harness pins it, a file check.
+
+    ``status`` is ``ok`` unless something is known to be wrong with it (a failed file check, or a
+    stage that recorded it degraded). The page shows such a row as *Reference*, not as *OK*.
+    """
+    check, problem, checked_at = _status_check(record, descriptor.record_check)
+    status, detail, stage = "ok", descriptor.note, None
+    if check == "fail":
+        status, detail = "degraded", problem
+    elif degradation is not None:
+        status, stage, detail = "degraded", degradation[0], degradation[1]
+    return _entry(
+        descriptor.key,
+        status,
+        detail,
+        generated_at=generated_at,
+        descriptor=descriptor,
+        stage=stage,
+        check=check,
+        checked_at=checked_at,
+    )
+
+
 def build_sources(
     *,
     manifest: RunManifest,
     observed: Mapping[str, dt.datetime],
     generated_at: dt.datetime,
+    catalogue: Sequence[SourceDescriptor] = (),
+    record: RecordEvidence | None = None,
+    stale_after_seconds: float | None = None,
 ) -> list[dict[str, Any]]:
-    """Per-source status and freshness.
+    """Per-source status and freshness, for every catalogued source and anything else seen.
 
     Freshness is ``generated_at`` minus the source's newest snapshot time, computed here rather than
     in the browser. A published age is the age at publication; an age the browser computes keeps
     growing while a cached page sits open, which would make a stale artefact look like a stalled
     pipeline (DP-09).
 
-    A source can be ``ok`` and still be older than the run: a fetch served entirely from cache makes
-    no network call and captures no new snapshot. That is a legitimate fast run, so ``cache_hits``
-    and ``network_calls`` are both published and the two cases stay distinguishable.
+    Evidence, strongest first, and never "no news" read as good news:
+
+    * this run's own ingest recorded a degradation, or real activity (a request or a cache read);
+    * the source is switched off by configuration → ``disabled``, with its reason;
+    * it is missing a credential and has never been captured → ``not_configured``;
+    * a registered source with a snapshot no older than ``stale_after_seconds`` → ``ok``, said to
+      come from a scheduled ingest. A snapshot is only written after a successful fetch, so this is
+      evidence of a working feed even when the publishing run did not fetch (the published run has
+      no ingest stage; fetching is the ingest workflows' job). Older than that → ``stale``;
+    * a live external source → its newest decision-record block;
+    * otherwise ``unknown``.
+
+    A run that made zero requests and read nothing from cache has done nothing, so 0/0 is never
+    ``ok``. A label that is not in the catalogue keeps the original rule: ``ok`` only on this run's
+    own report, else ``unknown``.
     """
     ingest = _metrics(manifest, INGEST_STAGE)
+    described = {descriptor.key: descriptor for descriptor in catalogue}
+    keys = [descriptor.key for descriptor in catalogue]
+    keys += [label for label in source_labels(manifest, observed) if label not in described]
     entries: list[dict[str, Any]] = []
 
-    for label in source_labels(manifest, observed):
+    for label in keys:
+        descriptor = described.get(label)
         degradation = _degradation(manifest, label)
         network_calls = _as_int(ingest.get(f"{label}{NETWORK_CALLS_SUFFIX}"))
         cache_hits = _as_int(ingest.get(f"{label}{CACHE_HITS_SUFFIX}"))
-        reported = network_calls is not None or cache_hits is not None
-
-        if degradation is not None:
-            status, stage, detail = "degraded", degradation[0], degradation[1]
-        elif reported:
-            status, stage, detail = "ok", None, None
-        else:
-            status, stage, detail = "unknown", None, "this run recorded no activity for this source"
-
+        resources = _resources(manifest, label)
+        active = bool(network_calls or cache_hits or any(resources.values()))
         moment = observed.get(label)
+
+        if descriptor is not None and descriptor.kind == REFERENCE:
+            entries.append(_reference_entry(descriptor, record, degradation, generated_at))
+            continue
+        if descriptor is not None and not descriptor.enabled:
+            status, detail, stage = "disabled", descriptor.disabled_reason, None
+        elif degradation is not None:
+            status, stage, detail = "degraded", degradation[0], degradation[1]
+        elif active:
+            status, stage, detail = "ok", None, None
+        elif descriptor is not None and descriptor.not_configured and moment is None:
+            status, stage, detail = "not_configured", None, descriptor.not_configured
+        elif descriptor is not None and descriptor.registered and moment is not None:
+            age = _age(generated_at, moment) or 0.0
+            stage = None
+            if stale_after_seconds is not None and age > stale_after_seconds:
+                status = "stale"
+                detail = (
+                    f"Its newest data is {age / 3600:.0f} h old, and the limit is "
+                    f"{stale_after_seconds / 3600:.0f} h."
+                )
+            else:
+                status = "ok"
+                detail = (
+                    "Fetched by a scheduled ingest. This run used that saved data rather than "
+                    "fetching it again."
+                )
+        elif descriptor is not None and descriptor.record_block:
+            entries.append(_record_entry(descriptor, record, generated_at))
+            continue
+        else:
+            status, stage, detail = "unknown", None, NO_ACTIVITY
+
         entries.append(
-            {
-                "source": label,
-                "status": status,
-                "detail": detail,
-                "degraded_at_stage": stage,
-                "observed_at": iso(moment),
-                "age_seconds": (
-                    round(max(0.0, (generated_at - moment).total_seconds()), 1)
-                    if moment is not None
-                    else None
-                ),
-                "resources": _resources(manifest, label),
-                "network_calls": network_calls,
-                "cache_hits": cache_hits,
-            }
+            _entry(
+                label,
+                status,
+                detail,
+                generated_at=generated_at,
+                descriptor=descriptor,
+                stage=stage,
+                moment=moment,
+                resources=resources,
+                network_calls=network_calls,
+                cache_hits=cache_hits,
+            )
         )
+
+    order = {key: index for index, key in enumerate(keys)}
+    entries.sort(
+        key=lambda e: (
+            e["kind"] != LIVE,
+            _GROUP_ORDER.get(e["status"], 0) if e["kind"] == LIVE else 0,
+            order[e["source"]],
+        )
+    )
     return entries
 
 
@@ -330,13 +562,23 @@ def build_health(
     generated_at: dt.datetime,
     history_limit: int,
     contract_version: int,
+    catalogue: Sequence[SourceDescriptor] = (),
+    record: RecordEvidence | None = None,
+    stale_after_seconds: float | None = None,
 ) -> dict[str, Any]:
     """The whole ``health.json`` payload. Pure (DP-03)."""
     return {
         "contract_version": contract_version,
         "generated_at": iso(generated_at),
         "run": build_run(manifest),
-        "sources": build_sources(manifest=manifest, observed=observed, generated_at=generated_at),
+        "sources": build_sources(
+            manifest=manifest,
+            observed=observed,
+            generated_at=generated_at,
+            catalogue=catalogue,
+            record=record,
+            stale_after_seconds=stale_after_seconds,
+        ),
         "gates": build_gates(gate_report),
         "metrics_history": build_metrics_history(recent, limit=history_limit),
     }
@@ -344,6 +586,7 @@ def build_health(
 
 __all__ = [
     "MANIFEST_SERIES",
+    "RecordEvidence",
     "build_gates",
     "build_health",
     "build_metrics_history",

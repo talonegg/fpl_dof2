@@ -162,6 +162,16 @@ class ArchiveAdapter(SourceAdapter):
     # exactly what the module docstring above says should happen (DP-15).
     essential: ClassVar[bool] = False
     attribution: ClassVar[str] = "Historical gameweek data via the community FPL archive"
+    health_kind: ClassVar[str] = "reference"
+    health_label: ClassVar[str] = "Past seasons archive (community FPL archive)"
+    health_description: ClassVar[str] = (
+        "Gameweek-by-gameweek Fantasy data from earlier seasons. It's used on decision runs and in "
+        "backtests."
+    )
+    health_note: ClassVar[str] = (
+        "Fixed past seasons. It's used on decision runs and in weekly backtests, not in the main "
+        "forecast run."
+    )
     resources: ClassVar[tuple[Resource, ...]] = (
         Resource(
             name="merged_gameweeks",

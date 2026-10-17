@@ -93,6 +93,13 @@ class UnderstatAdapter(SourceAdapter):
     enabled_by_default: ClassVar[bool] = False
     essential: ClassVar[bool] = False
     attribution: ClassVar[str] = "Expected-goals data via Understat"
+    health_label: ClassVar[str] = "Expected goals (Understat)"
+    health_description: ClassVar[str] = (
+        "Expected goals and assists for each player and season, from a shot model."
+    )
+    health_disabled_reason: ClassVar[str] = (
+        "The site doesn't allow automated access, so this source isn't used."
+    )
     contributes: ClassVar[tuple[str, ...]] = (
         "expected_goals",
         "non_penalty_expected_goals",

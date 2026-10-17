@@ -25,6 +25,7 @@ import pytest
 from fpl_dof.obs.manifest import RunManifest, StageRecord, StageStatus
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
 from fpl_dof.publish.health import (
+    RecordEvidence,
     build_gates,
     build_health,
     build_metrics_history,
@@ -33,6 +34,7 @@ from fpl_dof.publish.health import (
     metrics_point,
     source_labels,
 )
+from fpl_dof.sources import SourceDescriptor
 
 # Deliberately not the names of any source this project actually has. A publisher that branched on
 # a real source would pass every test below while being a defect (DP-01).
@@ -173,8 +175,9 @@ def test_a_degraded_source_is_flagged_with_the_stage_and_the_reason() -> None:
 
 
 def test_a_source_the_run_said_nothing_about_is_unknown_rather_than_ok() -> None:
-    """No news is not good news. A source with snapshots on disk that this run never touched has
-    not been shown to be working, and showing it as working is how a silently stalled feed hides."""
+    """No news is not good news. A label no source describes, with snapshots on disk that this run
+    never touched, has not been shown to be working, and showing it as working is how a silently
+    stalled feed hides. (A *catalogued* source is judged on its snapshot age instead; see below.)"""
     observed = {SOURCE_A: NOW - dt.timedelta(hours=9)}
     sources = build_sources(manifest=_manifest(), observed=observed, generated_at=NOW)
     assert [entry["status"] for entry in sources] == ["unknown"]
@@ -226,6 +229,252 @@ def test_a_dotted_metric_that_is_not_a_source_is_not_mistaken_for_one() -> None:
         stages=[_stage("transform", metrics={"rows.player": 700, f"resolved.{SOURCE_A}": 12})]
     )
     assert source_labels(manifest, {}) == []
+
+
+# --- the catalogue: every source, with the right state (T-003) -------------------------------
+
+# Invented keys again: the catalogue is data, and the publisher must not care which source is which.
+LIVE_FEED = "gamma-feed"
+KEYLESS = "delta-feed"
+OFF = "epsilon-feed"
+RECORD_FEED = "zeta-feed"
+PINNED = "eta-set"
+FIXED = "theta-set"
+STALE_AFTER = 48 * 3600.0
+
+
+def _descriptor(key: str, **fields: Any) -> SourceDescriptor:
+    base: dict[str, Any] = {
+        "kind": "live",
+        "label": f"{key} label",
+        "description": f"what {key} is for",
+        "enabled": True,
+        "registered": True,
+    }
+    base.update(fields)
+    return SourceDescriptor(key=key, **base)
+
+
+CATALOGUE = (
+    _descriptor(OFF, enabled=False, disabled_reason="switched off on purpose"),
+    _descriptor(KEYLESS, not_configured="no key is set"),
+    _descriptor(LIVE_FEED),
+    _descriptor(RECORD_FEED, registered=False, record_block="odds", record_check="live_odds"),
+    _descriptor(
+        PINNED,
+        kind="reference",
+        registered=False,
+        note="fixed seasons",
+        as_of="2026-10-13",
+        record_check="odds_history",
+    ),
+    _descriptor(FIXED, kind="reference", registered=False, note="saved once", as_of="2026-05-24"),
+)
+
+
+def _decision(*, in_gw: int = 10, priced: int = 10, kept: int = 10) -> dict[str, Any]:
+    return {
+        "gw": 7,
+        "deadline": "2026-10-17 10:00:00+00:00",
+        "odds": {
+            "fixtures_in_gw": in_gw,
+            "fixtures_with_odds": priced,
+            "kept": kept,
+            "fetched_at": "2026-08-16 02:00:00.250000+00:00",
+        },
+        # Personal data the publisher must never carry across.
+        "team_id": 123456,
+        "real_squad_start": {"players": [1, 2, 3]},
+    }
+
+
+def _status(*, live_odds: str | None = None, odds_history: str | None = None) -> dict[str, Any]:
+    return {
+        "gw": 7,
+        "assessed_at": "2026-08-16T02:06:00+00:00",
+        "models": {
+            "m1": {"available": True, "inputs": {"squad": None}},
+            "m2": {
+                "available": live_odds is None and odds_history is None,
+                "inputs": {"live_odds": live_odds, "odds_history": odds_history},
+            },
+        },
+    }
+
+
+def _published_run() -> RunManifest:
+    """What the scheduled pipeline actually publishes from: no ingest stage at all."""
+    return _manifest(stages=[_stage("transform", metrics={"rows.player": 700})])
+
+
+def _catalogued(
+    *,
+    manifest: RunManifest | None = None,
+    observed: dict[str, dt.datetime] | None = None,
+    record: RecordEvidence | None = None,
+) -> dict[str, dict[str, Any]]:
+    entries = build_sources(
+        manifest=manifest or _published_run(),
+        observed=observed if observed is not None else {LIVE_FEED: NOW - dt.timedelta(hours=2)},
+        generated_at=NOW,
+        catalogue=CATALOGUE,
+        record=record,
+        stale_after_seconds=STALE_AFTER,
+    )
+    return {entry["source"]: entry for entry in entries}
+
+
+def test_a_feed_fetched_by_a_scheduled_ingest_is_ok_on_a_run_without_an_ingest_stage() -> None:
+    """The fpl-shows-'unknown' defect (T-001 F1). The published run never fetches; its freshest
+    snapshot, written only after a successful fetch, is the evidence, and it says so."""
+    entry = _catalogued()[LIVE_FEED]
+    assert entry["status"] == "ok"
+    assert entry["age_seconds"] == pytest.approx(7200)
+    assert "scheduled ingest" in entry["detail"]
+    assert entry["label"] == f"{LIVE_FEED} label"
+    assert entry["kind"] == "live"
+
+
+def test_a_feed_older_than_the_freshness_limit_is_stale_with_both_numbers() -> None:
+    entry = _catalogued(observed={LIVE_FEED: NOW - dt.timedelta(hours=60)})[LIVE_FEED]
+    assert entry["status"] == "stale"
+    assert "60 h" in entry["detail"] and "48 h" in entry["detail"]
+
+
+def test_a_catalogued_feed_with_no_snapshot_and_no_report_is_unknown() -> None:
+    assert _catalogued(observed={})[LIVE_FEED]["status"] == "unknown"
+
+
+def test_a_source_missing_its_key_is_not_set_up_rather_than_ok() -> None:
+    """The latent false OK (T-001 F2): zero requests and zero cache hits is not a working fetch."""
+    manifest = _manifest(
+        stages=[
+            _stage("ingest", metrics={f"{KEYLESS}.network_calls": 0, f"{KEYLESS}.cache_hits": 0})
+        ]
+    )
+    entry = _catalogued(manifest=manifest)[KEYLESS]
+    assert entry["status"] == "not_configured"
+    assert entry["detail"] == "no key is set"
+    # And without an ingest stage at all, the same.
+    assert _catalogued()[KEYLESS]["status"] == "not_configured"
+
+
+def test_zero_activity_is_never_ok_even_for_a_label_nobody_describes() -> None:
+    manifest = _manifest(
+        stages=[
+            _stage("ingest", metrics={f"{SOURCE_A}.network_calls": 0, f"{SOURCE_A}.cache_hits": 0})
+        ]
+    )
+    entry = build_sources(manifest=manifest, observed={}, generated_at=NOW)[0]
+    assert entry["status"] == "unknown"
+
+
+def test_a_keyless_source_that_has_been_captured_is_judged_on_its_snapshot() -> None:
+    """The key may live only in the ingest workflow's environment; captured data is the evidence."""
+    observed = {KEYLESS: NOW - dt.timedelta(hours=3)}
+    assert _catalogued(observed=observed)[KEYLESS]["status"] == "ok"
+
+
+def test_a_switched_off_source_is_disabled_with_its_reason_even_with_old_data_on_disk() -> None:
+    entry = _catalogued(observed={OFF: NOW - dt.timedelta(days=90)})[OFF]
+    assert entry["status"] == "disabled"
+    assert entry["detail"] == "switched off on purpose"
+
+
+def test_a_live_external_source_reads_its_last_fetch_from_the_decision_record() -> None:
+    record = RecordEvidence(decision=_decision(), status=_status())
+    entry = _catalogued(record=record)[RECORD_FEED]
+    assert entry["status"] == "ok"
+    assert entry["observed_at"] == "2026-08-16T02:00:00.250000Z"
+    assert entry["resources"] == {
+        "fixtures_in_gameweek": 10,
+        "fixtures_priced": 10,
+        "fixtures_kept": 10,
+    }
+    assert "GW7" in entry["detail"]
+    assert "123456" not in repr(entry)
+
+
+@pytest.mark.parametrize(
+    ("decision", "status", "fragment"),
+    [
+        (_decision(kept=8, priced=8), None, "8 of 10"),
+        (_decision(kept=0, priced=0), None, "no usable odds"),
+        (_decision(), _status(live_odds="fell back for too many teams"), "fell back"),
+    ],
+)
+def test_partial_or_rejected_live_odds_are_degraded_with_the_reason(
+    decision: dict[str, Any], status: dict[str, Any] | None, fragment: str
+) -> None:
+    entry = _catalogued(record=RecordEvidence(decision=decision, status=status))[RECORD_FEED]
+    assert entry["status"] == "degraded"
+    assert fragment in entry["detail"]
+
+
+def test_a_live_external_source_with_no_record_is_unknown_not_ok() -> None:
+    assert _catalogued(record=None)[RECORD_FEED]["status"] == "unknown"
+    assert _catalogued(record=RecordEvidence())[RECORD_FEED]["status"] == "unknown"
+
+
+def test_a_reference_dataset_has_an_as_of_date_and_no_age() -> None:
+    entry = _catalogued()[FIXED]
+    assert entry["kind"] == "reference"
+    assert entry["as_of"] == "2026-05-24"
+    assert entry["age_seconds"] is None
+    assert entry["check"] is None
+    assert entry["detail"] == "saved once"
+    assert entry["status"] == "ok"
+
+
+def test_a_pinned_reference_dataset_carries_its_file_check() -> None:
+    passed = _catalogued(record=RecordEvidence(decision=_decision(), status=_status()))[PINNED]
+    assert passed["check"] == "pass"
+    assert passed["checked_at"] == "2026-08-16T02:06:00Z"
+    assert passed["status"] == "ok"
+
+    failed = _catalogued(
+        record=RecordEvidence(decision=_decision(), status=_status(odds_history="hash differs"))
+    )[PINNED]
+    assert failed["check"] == "fail"
+    assert failed["status"] == "degraded"
+    assert failed["detail"] == "hash differs"
+
+    assert _catalogued()[PINNED]["check"] is None
+
+
+def test_rows_are_grouped_live_then_reference_with_neutral_rows_last_in_live() -> None:
+    record = RecordEvidence(decision=_decision(), status=_status())
+    entries = build_sources(
+        manifest=_published_run(),
+        observed={LIVE_FEED: NOW - dt.timedelta(hours=2), SOURCE_A: NOW},
+        generated_at=NOW,
+        catalogue=CATALOGUE,
+        record=record,
+        stale_after_seconds=STALE_AFTER,
+    )
+    assert [entry["source"] for entry in entries] == [
+        LIVE_FEED,
+        RECORD_FEED,
+        SOURCE_A,
+        KEYLESS,
+        OFF,
+        PINNED,
+        FIXED,
+    ]
+
+
+def test_a_full_catalogue_payload_matches_the_schema(contract: Contract) -> None:
+    record = RecordEvidence(decision=_decision(), status=_status(odds_history="hash differs"))
+    payload = _payload(
+        manifest=_published_run(),
+        catalogue=CATALOGUE,
+        record=record,
+        stale_after_seconds=STALE_AFTER,
+        observed={LIVE_FEED: NOW - dt.timedelta(hours=60)},
+    )
+    contract.validate("health", payload)
+    statuses = {entry["status"] for entry in payload["sources"]}
+    assert {"stale", "not_configured", "disabled", "degraded", "ok"} <= statuses
 
 
 # --- the run excerpt ------------------------------------------------------------------------

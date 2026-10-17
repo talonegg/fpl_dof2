@@ -1,12 +1,17 @@
-import type { Health, HealthMetricsPoint } from "../../contract/types";
+import type { Health, HealthMetricsPoint, HealthSource } from "../../contract/types";
 import { LineChart } from "../charts/LineChart";
 import { formatLocalDateTime } from "../../format";
 import {
+  checkReading,
+  countsTowardOk,
   formatAge,
+  formatAsOf,
   formatDuration,
   gateOutcome,
+  isReference,
   runOutcome,
   seriesOf,
+  sourceName,
   sourceStatus,
   troubledSources,
   type StatusReading,
@@ -46,7 +51,8 @@ export function HealthPanel({ health }: { health: Health }) {
   const troubled = troubledSources(health);
   const run = runOutcome(health);
   const gates = gateOutcome(health);
-  const okCount = health.sources.filter((source) => source.status === "ok").length;
+  const counted = health.sources.filter(countsTowardOk);
+  const okCount = counted.filter((source) => sourceStatus(source).label === "OK").length;
 
   return (
     <section className="health" data-testid="health-panel">
@@ -82,7 +88,8 @@ export function HealthPanel({ health }: { health: Health }) {
           <ul>
             {troubled.map((source) => (
               <li key={source.source} data-testid={`health-banner-${source.source}`}>
-                <strong>{source.source}</strong> — {sourceStatus(source).detail}
+                <strong>{sourceName(source)}</strong> ({sourceStatus(source).label}) —{" "}
+                {sourceStatus(source).detail}
               </li>
             ))}
           </ul>
@@ -95,12 +102,13 @@ export function HealthPanel({ health }: { health: Health }) {
         <Tile
           title="Sources"
           reading={{
-            label: `${okCount} of ${health.sources.length} OK`,
+            label: `${okCount} of ${counted.length} OK`,
             tone: troubled.length > 0 ? "warn" : "good",
             detail:
               health.sources.length === 0
                 ? "This run recorded no sources at all."
-                : "Counted from what this run recorded, not from a list of expected sources.",
+                : "Counted over live feeds that are switched on and set up. Reference data, and " +
+                  "sources that are switched off or not set up, are listed but not counted.",
           }}
         />
       </div>
@@ -126,6 +134,8 @@ function Tile({ title, reading }: { title: string; reading: StatusReading }) {
 }
 
 function Sources({ health }: { health: Health }) {
+  const live = health.sources.filter((source) => !isReference(source));
+  const reference = health.sources.filter(isReference);
   return (
     <section className="health-section" data-testid="health-sources">
       <h3>Sources</h3>
@@ -135,54 +145,141 @@ function Sources({ health }: { health: Health }) {
         </p>
       ) : (
         <>
-          {/* Outside the scroller on purpose. As a <caption> it inherited the table's width, which
-              is wider than a phone, so the sentence was clipped by the scroller rather than
-              wrapping — and this is the sentence that stops the freshness column being misread.
-              `aria-describedby` keeps it associated with the table for a screen reader. */}
-          <p className="health-caption" id="health-freshness-note">
-            Freshness is the age of each source&rsquo;s newest captured snapshot at the moment this
-            file was published, not at the moment you are reading it.
-          </p>
-          <div className="health-scroller">
-            <table className="health-table" aria-describedby="health-freshness-note">
-              <thead>
-                <tr>
-                  <th scope="col">Source</th>
-                  <th scope="col">Status</th>
-                  <th scope="col">Freshness</th>
-                  <th scope="col">Captured</th>
-                  <th scope="col">Requests</th>
-                  <th scope="col">Why</th>
-                </tr>
-              </thead>
-              <tbody>
-                {health.sources.map((source) => {
-                  const reading = sourceStatus(source);
-                  return (
-                    <tr key={source.source} data-testid={`health-source-${source.source}`}>
-                      <th scope="row">{source.source}</th>
-                      <td>
-                        <span className={`health-pill health-tone-${reading.tone}`}>
-                          {reading.label}
-                        </span>
-                      </td>
-                      <td>{formatAge(source.age_seconds)}</td>
-                      <td>
-                        {source.observed_at ? formatLocalDateTime(source.observed_at) : "never"}
-                      </td>
-                      <td>
-                        {source.network_calls ?? "—"} live / {source.cache_hits ?? "—"} cached
-                      </td>
-                      <td className="health-why">{reading.detail}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          {live.length > 0 ? <LiveSources sources={live} /> : null}
+          {reference.length > 0 ? <ReferenceSources sources={reference} /> : null}
         </>
       )}
     </section>
+  );
+}
+
+function SourceName({ source }: { source: HealthSource }) {
+  return (
+    <th scope="row">
+      <span className="health-source-label">{sourceName(source)}</span>
+      {source.description ? (
+        <span className="health-source-description">{source.description}</span>
+      ) : null}
+    </th>
+  );
+}
+
+function Pill({ reading }: { reading: StatusReading }) {
+  return <span className={`health-pill health-tone-${reading.tone}`}>{reading.label}</span>;
+}
+
+function requests(source: HealthSource): string {
+  if (
+    (source.network_calls === null || source.network_calls === undefined) &&
+    (source.cache_hits === null || source.cache_hits === undefined)
+  ) {
+    return "—";
+  }
+  return `${source.network_calls ?? "—"} live / ${source.cache_hits ?? "—"} cached`;
+}
+
+function LiveSources({ sources }: { sources: HealthSource[] }) {
+  return (
+    <div className="health-source-group" data-testid="health-sources-live">
+      <h4>Live feeds</h4>
+      {/* Outside the scroller on purpose. As a <caption> it inherited the table's width, which
+          is wider than a phone, so the sentence was clipped by the scroller rather than
+          wrapping — and this is the sentence that stops the freshness column being misread.
+          `aria-describedby` keeps it associated with the table for a screen reader. */}
+      <p className="health-caption" id="health-freshness-note">
+        Fetched on a schedule. Freshness is their age when this page was published, not at the
+        moment you are reading it.
+      </p>
+      <div className="health-scroller">
+        <table className="health-table" aria-describedby="health-freshness-note">
+          <thead>
+            <tr>
+              <th scope="col">Source</th>
+              <th scope="col">Status</th>
+              <th scope="col">Freshness</th>
+              <th scope="col">Captured</th>
+              <th scope="col">Requests</th>
+              <th scope="col">Why</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sources.map((source) => {
+              const reading = sourceStatus(source);
+              const neutral = reading.tone === "neutral";
+              return (
+                <tr key={source.source} data-testid={`health-source-${source.source}`}>
+                  <SourceName source={source} />
+                  <td>
+                    <Pill reading={reading} />
+                  </td>
+                  <td>{neutral && !source.observed_at ? "—" : formatAge(source.age_seconds)}</td>
+                  <td>
+                    {source.observed_at ? formatLocalDateTime(source.observed_at) : "never"}
+                  </td>
+                  <td>{requests(source)}</td>
+                  <td className="health-why">{reading.detail}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function ReferenceSources({ sources }: { sources: HealthSource[] }) {
+  return (
+    <div className="health-source-group" data-testid="health-sources-reference">
+      <h4>Reference data</h4>
+      <p className="health-caption" id="health-reference-note">
+        Fixed datasets. Shown with an as-of date instead of an age.
+      </p>
+      <div className="health-scroller">
+        <table className="health-table" aria-describedby="health-reference-note">
+          <thead>
+            <tr>
+              <th scope="col">Source</th>
+              <th scope="col">Status</th>
+              <th scope="col">As of</th>
+              <th scope="col">File check</th>
+              <th scope="col">Why</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sources.map((source) => {
+              const reading = sourceStatus(source);
+              const check = checkReading(source);
+              return (
+                <tr key={source.source} data-testid={`health-source-${source.source}`}>
+                  <SourceName source={source} />
+                  <td>
+                    <Pill reading={reading} />
+                  </td>
+                  <td>{formatAsOf(source.as_of)}</td>
+                  <td>
+                    {check ? (
+                      <span title={check.detail}>
+                        <Pill reading={check} />
+                        {source.checked_at ? (
+                          <span className="health-check-time">
+                            {" "}
+                            {formatLocalDateTime(source.checked_at)}
+                          </span>
+                        ) : null}
+                      </span>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td className="health-why">{reading.detail}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </div>
   );
 }
 

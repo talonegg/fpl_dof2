@@ -15,6 +15,7 @@ from fpl_dof.sources.base import (
     SourceAdapter,
 )
 from fpl_dof.sources.bronze import BronzeStore, Snapshot, SnapshotMeta
+from fpl_dof.sources.catalogue import LIVE, REFERENCE, SourceDescriptor, describe
 from fpl_dof.sources.enrich import canonicalise
 from fpl_dof.sources.errors import (
     OfflineWithoutSnapshotError,
@@ -28,6 +29,8 @@ from fpl_dof.sources.fetch import Fetched, Fetcher, RateLimiter
 from fpl_dof.sources.registry import build, known, register
 
 __all__ = [
+    "LIVE",
+    "REFERENCE",
     "BronzeStore",
     "Fetched",
     "Fetcher",
@@ -40,12 +43,14 @@ __all__ = [
     "SnapshotMeta",
     "SourceAdapter",
     "SourceContractError",
+    "SourceDescriptor",
     "SourceError",
     "SourceNotFoundError",
     "SourceRateLimitedError",
     "SourceUnavailableError",
     "build",
     "canonicalise",
+    "describe",
     "known",
     "register",
 ]

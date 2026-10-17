@@ -681,19 +681,31 @@ export interface HealthStage {
   error?: string | null;
 }
 
-/** One source's freshness and status. `source` is an opaque label from the data: render it, never test it. */
+/** One source's freshness and status. `source` is an opaque label from the data: render it, never test it. `label` and `description` are the plain-English text the source declares for itself, so the page can show them without knowing which source it is. */
 export interface HealthSource {
   source: string;
-  /** `degraded` means the run continued without this source's fields (NFR-15, DP-15). `unknown` means the source has data on disk but this run recorded nothing about it — which is not the same as healthy, and is not shown as healthy. */
-  status: "ok" | "degraded" | "unknown";
-  /** The derivation behind `degraded`: the exception class the stage caught, or the reason it recorded. A flag without its reason is an assertion (DP-09). */
+  /** `live`: fetched on a schedule, so it has a freshness age. `reference`: fixed data that doesn't update, shown with `as_of` (and `check`, where its files are pinned) instead of an age. Absent on artefacts published before T-003; read absent as `live`. */
+  kind?: "live" | "reference";
+  /** Plain-English name. Null for a label the run saw that no source describes; render `source` then. */
+  label?: string | null;
+  /** One line on what the source is for. */
+  description?: string | null;
+  /** `ok`: the latest fetch worked (this run's own, or a scheduled ingest's snapshot within the freshness limit). `stale`: it worked before, but its newest data is older than the limit. `degraded`: the fetch failed or was partial and the run continued without (some of) this source's fields (NFR-15, DP-15); for a reference source, its file check failed. `not_configured`: switched on but missing something it needs (an API key), so it collects nothing. `disabled`: switched off on purpose. `unknown`: this run recorded nothing about it — which is not the same as healthy, and is not shown as healthy. A `reference` source is `ok` unless something is known to be wrong with it; the page shows it as Reference rather than OK. */
+  status: "ok" | "stale" | "degraded" | "not_configured" | "disabled" | "unknown";
+  /** The reason behind the status, in words: the exception class a stage caught, the reason it recorded, or the source's own explanation for being switched off, not set up or fixed. A flag without its reason is an assertion (DP-09). */
   detail?: string | null;
   /** Which stage recorded the degradation. Fetching and conforming fail differently and are worth telling apart. */
   degraded_at_stage?: string | null;
   /** When this source's freshest snapshot was captured. Null when it has never been captured. */
   observed_at?: string | null;
-  /** `generated_at` minus `observed_at`. Published rather than left to the browser so the number cannot drift with the reader's clock or with how long a cached page has been open. */
+  /** `generated_at` minus `observed_at`. Published rather than left to the browser so the number cannot drift with the reader's clock or with how long a cached page has been open. Null for a reference source: fixed data has no freshness age. */
   age_seconds?: number | null;
+  /** The date a reference dataset is as of. Null for live sources. */
+  as_of?: string | null;
+  /** For a reference source whose files are pinned: whether the last check found them byte-identical to the pinned copies. Null when there is no such check, or it has not run. */
+  check?: "pass" | "fail" | null;
+  /** When `check` was made. */
+  checked_at?: string | null;
   /** Resource name to row or record count, exactly as the run recorded it. */
   resources?: Record<string, number>;
   network_calls?: number | null;
