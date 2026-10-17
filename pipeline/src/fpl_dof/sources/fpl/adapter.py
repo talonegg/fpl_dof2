@@ -118,6 +118,11 @@ class FplApiAdapter(SourceAdapter):
     name: ClassVar[str] = "fpl"
     version: ClassVar[str] = "1"
     summary: ClassVar[str] = "Official Fantasy Premier League public API"
+    health_label: ClassVar[str] = "Official FPL data"
+    health_description: ClassVar[str] = (
+        "Player, team and gameweek data from the official Fantasy Premier League game. It's the "
+        "core feed that everything else builds on."
+    )
     base_url: ClassVar[str] = "https://fantasy.premierleague.com/api"
     resources: ClassVar[tuple[Resource, ...]] = (
         Resource(

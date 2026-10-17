@@ -45,48 +45,159 @@ export function formatDuration(seconds: number | null | undefined): string {
   return `${Math.round(seconds / 60)} min`;
 }
 
+/** Live feeds have a freshness age; reference data has an as-of date. Absent reads as live. */
+export function isReference(source: HealthSource): boolean {
+  return source.kind === "reference";
+}
+
+/** The plain-English name the source declared, or its opaque label when it declared none. */
+export function sourceName(source: HealthSource): string {
+  return source.label ?? source.source;
+}
+
 /**
- * How one source should read.
+ * `not_configured` and `disabled` are deliberate, explained states rather than failures, so they
+ * are neutral: they neither count as OK nor raise the banner. Reference data is fixed and is not
+ * counted either, unless something is known to be wrong with it.
+ */
+const NEUTRAL_STATUSES: ReadonlySet<HealthSource["status"]> = new Set(["not_configured", "disabled"]);
+
+/** Whether a source belongs in the "N of M OK" tally: a live feed that is switched on and set up. */
+export function countsTowardOk(source: HealthSource): boolean {
+  return !isReference(source) && !NEUTRAL_STATUSES.has(source.status);
+}
+
+/** A date-only `YYYY-MM-DD` as "13 Oct 2026", without a timezone shift moving it a day. */
+export function formatAsOf(date: string | null | undefined): string {
+  if (!date) return "—";
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date);
+  if (!match) return date;
+  const [, year, month, day] = match;
+  const parsed = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
+  return parsed.toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** How a reference source's file check reads, or null when it has none. */
+export function checkReading(source: HealthSource): StatusReading | null {
+  if (source.check === "pass") {
+    return { label: "Verified", tone: "good", detail: "The files match their pinned copies." };
+  }
+  if (source.check === "fail") {
+    return {
+      label: "Mismatch",
+      tone: "bad",
+      detail:
+        "The files no longer match their pinned copies, so the data behind the odds model needs " +
+        "checking.",
+    };
+  }
+  return null;
+}
+
+/**
+ * How one source should read. Labels are Scribe's (T-004).
  *
  * `unknown` is deliberately a warning rather than a neutral note. A source the run recorded nothing
  * about has not been shown to be working, and rendering "no news" the same way as "good news" is
- * how a feed that quietly stopped being fetched goes unnoticed for a month.
+ * how a feed that quietly stopped being fetched goes unnoticed for a month. For the same reason a
+ * report of zero requests and zero cache reads is never OK: nothing was fetched, so nothing worked.
  */
 export function sourceStatus(source: HealthSource): StatusReading {
-  if (source.status === "degraded") {
+  if (isReference(source)) {
+    const check = checkReading(source);
+    if (check?.tone === "bad") {
+      return { ...check, detail: source.detail ? `${check.detail} ${source.detail}` : check.detail };
+    }
+    if (source.status === "degraded") return degraded(source);
     return {
-      label: "Degraded",
-      tone: "bad",
-      detail: source.detail
-        ? `The run continued without this source's fields. Reported by the ${
-            source.degraded_at_stage ?? "pipeline"
-          } stage as: ${source.detail}`
-        : "The run continued without this source's fields.",
-    };
-  }
-  if (source.status === "unknown") {
-    return {
-      label: "Not seen",
-      tone: "warn",
+      label: "Reference",
+      tone: "neutral",
       detail:
         source.detail ??
-        "This run recorded no activity for this source, which is not the same as it being healthy.",
+        "Fixed data that doesn't update, so it has no freshness age. It's shown with its as-of date.",
     };
   }
+  switch (source.status) {
+    case "degraded":
+      return degraded(source);
+    case "stale":
+      return {
+        label: "Stale",
+        tone: "warn",
+        detail:
+          source.detail ??
+          "It worked before, but its newest data is older than its schedule allows. Forecasts may " +
+            "be using out-of-date figures.",
+      };
+    case "not_configured":
+      return {
+        label: "Not set up",
+        tone: "neutral",
+        detail:
+          source.detail ??
+          "It's switched on but missing something it needs, such as an API key, so it collects " +
+            "nothing and adds nothing to the forecasts.",
+      };
+    case "disabled":
+      return {
+        label: "Switched off",
+        tone: "neutral",
+        detail:
+          source.detail ?? "It was turned off on purpose and isn't used in any forecast.",
+      };
+    case "unknown":
+      return notSeen(source);
+    case "ok":
+      break;
+  }
+  if (source.network_calls === 0 && source.cache_hits === 0) return notSeen(source);
   const served =
     source.network_calls === 0 && (source.cache_hits ?? 0) > 0
       ? " Served entirely from cache, so its snapshots are no newer than the run before."
       : "";
-  return { label: "OK", tone: "good", detail: `Fetched without error.${served}` };
+  return {
+    label: "OK",
+    tone: "good",
+    detail: `${source.detail ?? "The latest fetch worked."}${served}`,
+  };
 }
 
-/** Sources that are not healthy, degraded first. What the banner is built from. */
+function degraded(source: HealthSource): StatusReading {
+  const meaning = "The fetch failed. The run carried on without this source's data.";
+  let detail = meaning;
+  if (source.detail && source.degraded_at_stage) {
+    detail = `${meaning} Reported by the ${source.degraded_at_stage} stage as: ${source.detail}`;
+  } else if (source.detail) {
+    detail = source.detail;
+  }
+  return { label: "Degraded", tone: "bad", detail };
+}
+
+function notSeen(source: HealthSource): StatusReading {
+  return {
+    label: "Not seen",
+    tone: "warn",
+    detail:
+      source.detail ??
+      "This run recorded no activity for this source. That isn't the same as it working.",
+  };
+}
+
+const TROUBLE_ORDER: Record<string, number> = { degraded: 0, stale: 1, unknown: 2 };
+
+/** Sources that need a look (degraded, stale, not seen, or a failed file check), worst first. */
 export function troubledSources(health: Health): HealthSource[] {
   return health.sources
-    .filter((source) => source.status !== "ok")
+    .filter((source) => sourceStatus(source).tone === "bad" || sourceStatus(source).tone === "warn")
     .sort((a, b) => {
-      if (a.status !== b.status) return a.status === "degraded" ? -1 : 1;
-      return a.source.localeCompare(b.source);
+      const rank = (TROUBLE_ORDER[a.status] ?? 3) - (TROUBLE_ORDER[b.status] ?? 3);
+      if (rank !== 0) return rank;
+      return sourceName(a).localeCompare(sourceName(b));
     });
 }
 

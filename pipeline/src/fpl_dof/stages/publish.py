@@ -11,6 +11,8 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
+import re
 import shutil
 from pathlib import Path
 from typing import Any
@@ -26,7 +28,7 @@ from fpl_dof.paths import find_repo_root
 from fpl_dof.pipeline import Output, StageContext, StageResult
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
 from fpl_dof.publish.fixtures import build_fixtures
-from fpl_dof.publish.health import build_health
+from fpl_dof.publish.health import RecordEvidence, build_health
 from fpl_dof.publish.history import build_history
 from fpl_dof.publish.league import build_league
 from fpl_dof.publish.models_compare import build_models
@@ -423,6 +425,61 @@ def _health(ctx: StageContext, gold: Path) -> dict[str, Any] | None:
         generated_at=utcnow(),
         history_limit=limit,
         contract_version=CONTRACT_VERSION,
+        catalogue=_source_catalogue(ctx),
+        record=_record_evidence(ctx),
+        # The same limit the snapshot-freshness gate warns at, so the page and the gate agree on
+        # what "stale" means rather than holding two opinions (DL-41).
+        stale_after_seconds=ctx.config.quality.maximum_snapshot_age_hours * 3600,
+    )
+
+
+def _source_catalogue(ctx: StageContext) -> list[Any]:
+    """Every source the Sources section lists (registry plus external), or none on failure.
+
+    The environment is asked only whether a credential is present. A catalogue that cannot be
+    built costs the page its labels and its not-set-up rows, never the publish (DP-15).
+    """
+    from fpl_dof.sources import describe
+
+    try:
+        return list(describe(ctx.config.sources, os.environ))
+    except Exception as exc:
+        log.warning("publish.health_catalogue_unavailable", extra={"error": repr(exc)})
+        return []
+
+
+def _record_evidence(ctx: StageContext) -> RecordEvidence | None:
+    """The newest decision in the prospective record and its input status, or ``None``.
+
+    The same directory ``models.json`` is built from (``publish.models.source_dir``); nothing is
+    fetched for the page. Ordered by gameweek number, not by file name, so GW10 follows GW9.
+    Unreadable or absent → ``None``, which the page shows as not known rather than as fine.
+    """
+    source_dir = ctx.config.publish.models.source_dir
+    if not source_dir:
+        return None
+    root = Path(source_dir)
+
+    def _gameweek(path: Path) -> int:
+        digits = path.stem[2:]
+        return int(digits) if digits.isdigit() else -1
+
+    try:
+        decisions = sorted((root / "decisions").glob("GW*.json"), key=_gameweek)
+        if not decisions:
+            return None
+        newest = decisions[-1]
+        decision = json.loads(newest.read_text(encoding="utf-8"))
+        status_path = root / "status" / newest.name
+        status = (
+            json.loads(status_path.read_text(encoding="utf-8")) if status_path.exists() else None
+        )
+    except (OSError, ValueError) as exc:
+        log.warning("publish.health_record_unreadable", extra={"error": repr(exc)})
+        return None
+    return RecordEvidence(
+        decision=decision if isinstance(decision, dict) else None,
+        status=status if isinstance(status, dict) else None,
     )
 
 
@@ -453,10 +510,10 @@ def _source_observations(ctx: StageContext) -> dict[str, dt.datetime]:
     whatever the adapter called itself. This module never names one and never branches on one
     (Invariant 1) — it reads what is there and passes the strings through.
 
-    The newest file is found by modification time, which is cheap over a tree that holds a snapshot
-    per player per day; the capture time is then read from **that one sidecar**, because mtime is a
-    property of the file and `fetched_at` is a property of the fetch, and they part company the
-    moment a snapshot is copied between machines.
+    The newest file is found by the UTC capture stamp the store writes into every snapshot's file
+    name (``<key>__<YYYYmmddTHHMMSSZ>``), which is cheap over a tree that holds a snapshot per
+    player per day and, unlike modification time, survives the ``cp -r`` that restores bronze in
+    CI. The capture time is then read from **that one sidecar**'s ``fetched_at``.
     """
     from fpl_dof.sources import BronzeStore
 
@@ -469,11 +526,23 @@ def _source_observations(ctx: StageContext) -> dict[str, dt.datetime]:
         sidecars = list(directory.rglob("*.meta.json"))
         if not sidecars:
             continue
-        newest = max(sidecars, key=lambda p: p.stat().st_mtime)
+        newest = max(sidecars, key=_capture_stamp)
         moment = _fetched_at(newest)
         if moment is not None:
             observations[directory.name] = moment
     return observations
+
+
+_CAPTURE_STAMP = re.compile(r"__(\d{8}T\d{6}Z)")
+
+
+def _capture_stamp(sidecar: Path) -> tuple[str, str]:
+    """Sort key for "newest snapshot": the stamp after the last ``__`` in the name, then the path.
+
+    A name without a stamp sorts first, so it can only win when it is the only sidecar there is.
+    """
+    found = _CAPTURE_STAMP.findall(sidecar.name)
+    return (found[-1] if found else ""), str(sidecar)
 
 
 def _fetched_at(sidecar: Path) -> dt.datetime | None:
