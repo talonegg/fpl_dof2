@@ -2,8 +2,16 @@
 
 **Companion to:** [03-solution-architecture.md](03-solution-architecture.md)
 **Level:** Logical component design. What each component is, what it consumes and produces, and how
-it works. Implementation detail (function signatures, exact libraries in use) belongs in code.
-**Baselined:** 2026-08-09
+it works. Function signatures and exact values belong in code and configuration.
+**Baselined:** 2026-08-09 · **Revised:** 2026-10-17 — rewritten to the components as built at the end
+of R1.0
+
+Architecture-level facts — sources and stack, data flow, the web contract, workflows, storage — live
+in 03 and are linked, not repeated. Where 03's module-design review
+([03 §12](03-solution-architecture.md#12-module-design--review-of-2026-10-17)) found a defect in a
+component, that section names it in one line ("03 §12 P2"). The binding constraints are in
+[`DESIGN-PRINCIPLES.md`](../DESIGN-PRINCIPLES.md); DP-07, 08, 09, 10 and 12 are in
+[`guiding-principles.md`](../guiding-principles.md).
 
 ---
 
@@ -31,76 +39,46 @@ it works. Implementation detail (function signatures, exact libraries in use) be
 
 ```mermaid
 graph TB
-    subgraph L1["Source layer"]
-        A1["Adapter framework<br/>rate limit · retry · cache · snapshot"]
-        A2["FPL adapter"]
-        A3["Understat adapter"]
-        A4["FBref adapter"]
-        A5["Odds adapter"]
-        A6["Adapter registry"]
+    subgraph L1["sources/"]
+        A1["Fetcher · BronzeStore · registry"]
+        A2["fpl · fplarchive · oddsapi ·<br/>understat · fbref"]
     end
-
-    subgraph L2["Data layer"]
-        B1["Bronze store"]
-        B2["Conformance<br/>bronze to canonical"]
-        B3["Entity resolution"]
-        B4["Silver store"]
-        B5["Quality gates"]
-        B6["Feature store"]
+    subgraph L2["Data"]
+        B1["Conform · resolve · precedence"]
+        B2["Silver"]
+        B3["Quality gates"]
+        B4["Feature store"]
     end
-
-    subgraph L3["Model layer"]
-        C1["Rules engine<br/>pure FPL mechanics"]
-        C2["Availability and minutes"]
-        C3["Team strength and fixtures"]
-        C4["Player component models"]
-        C5["Expected points aggregator"]
-        C6["Ownership model"]
-        C7["Backtest harness"]
+    subgraph L3["forecast/, shadow/"]
+        C1["Rules"]
+        C2["xp_v1 chain M1–M8<br/>+ horizon scorer"]
+        C3["xp_v0 fallback"]
+        C4["Backtest · model card"]
+        C5["C1 challenger"]
     end
-
-    subgraph L4["Decision layer"]
-        D1["Candidate selection"]
-        D2["MILP builder"]
-        D3["Chip strategist"]
-        D4["Risk objective"]
-        D5["Solver + fallback"]
-        D6["Explanation generator"]
+    subgraph L4["optimise/, squad/, week/"]
+        D1["Squad state"]
+        D2["Squad · transfer MILPs"]
+        D3["Horizon plan, chips,<br/>re-rank, captain, risk"]
+        D4["Explain · alerts · ledger"]
     end
-
-    subgraph L5["Delivery layer"]
-        E1["Publisher<br/>web contract"]
-        E2["React SPA"]
-        E3["Client query engine<br/>DuckDB-WASM"]
-        E4["Client what-if solver"]
+    subgraph L5["Delivery"]
+        E1["Publisher"]
+        E2["SPA + T2 logic"]
     end
-
-    subgraph X["Cross-cutting"]
-        X1["Config"]
-        X2["Logging"]
-        X3["Manifest and lineage"]
-        X4["Metrics"]
-    end
-
-    A6 --> A2 & A3 & A4 & A5
-    A1 --> A2 & A3 & A4 & A5
-    A2 & A3 & A4 & A5 --> B1
-    B1 --> B2 --> B3 --> B4 --> B5
-    B4 --> B6
-    C1 --> C4 & C5 & C7
-    B6 --> C2 & C3 & C4 & C6
-    C2 & C3 & C4 --> C5
-    C5 --> C7
-    C5 & C6 --> D1 --> D2
-    D3 & D4 --> D2 --> D5 --> D6
-    C5 & D6 --> E1 --> E2
-    E2 --> E3 & E4
-    X1 & X2 & X3 & X4 -.-> L1 & L2 & L3 & L4 & L5
+    A1 --> A2 --> B1 --> B2 --> B3
+    B2 --> B4 --> C2 & C4
+    C3 -.-> C2
+    C1 --> C2 & D2 & D3 & E1
+    C2 --> D2 & D3
+    D1 --> D2 & D3 --> D4 --> E1
+    C5 --> E1 --> E2
 ```
 
-**Dependency rule, enforced by import linting in CI:** dependencies point downward and rightward only.
-The model layer may not import from the source layer. The decision layer may not import models — only
-their typed outputs. Nothing outside `sources/` may name a source.
+**Dependency rule:** sources → data → models → decisions → delivery. Only `sources/` may name a
+source, enforced by `tests/test_source_isolation.py`, a text scan of `src/` (no import linter, 03
+§5.4). The import graph as built, and its one wrong-way edge `optimise → forecast` (DP-02), are 03
+§12.1.
 
 ---
 
@@ -108,105 +86,71 @@ their typed outputs. Nothing outside `sources/` may name a source.
 
 ### 2.1 Source catalogue
 
-#### S1 — Official FPL API *(critical, no fallback)*
+Each source's adapter and state are tabled in
+[03 §2](03-solution-architecture.md#2-context-view-c4-level-1). This section says what each supplies.
 
-Public, unauthenticated JSON. Undocumented and unversioned (CON-5). The spine of the system: it alone
-provides prices, ownership, official status flags and the authoritative points ledger.
+#### S1 — Official FPL API *(essential)*
 
-| Endpoint | Provides | Cadence |
-| --- | --- | --- |
-| `bootstrap-static/` | All players with prices, ownership, form, status, chance-of-playing, totals; teams with strength ratings; positions; gameweek events; game settings | Every 4h; hourly near a deadline |
-| `fixtures/` | Full fixture list, kickoff times, FPL difficulty ratings, per-match stats once played | Every 4h |
-| `element-summary/{id}/` | Per-player gameweek history, prior-season history, upcoming fixtures | Daily; on demand for detail views |
-| `event/{gw}/live/` | Per-player stats and points for a gameweek, including BPS | Hourly during and just after a gameweek |
-| `entry/{team_id}/` · `/history/` · `/event/{gw}/picks/` · `/transfers/` | The owner's team: value, bank, chips used, past picks and transfers | Post-deadline and post-gameweek |
-| `leagues-classic/{id}/standings/` | Mini-league standings for rival analysis (FR-32) | Weekly |
-| `set-piece-notes/` | Penalty, free-kick and corner responsibilities | Weekly |
+Public, unauthenticated, undocumented (CON-5). The `fpl` adapter fetches `bootstrap-static/`,
+`fixtures/`, `element-summary/{id}/` (slow path only), `event/{gw}/live/`, `team/set-piece-notes/`,
+`leagues-classic/{id}/standings/`, and `entry/{id}/` with `history/`, `event/{gw}/picks/` and
+`transfers/`. It supplies prices, ownership, status flags, the points ledger, the rules (DL-17), chip
+windows — and **expected goals, assists and goals conceded per match**, so the model needs no scraped
+source (DL-34, DL-46). The pre-deadline picks gap is handled by squad state (§4.2, DL-20). If it
+fails, the run stops and the last publication stays live.
 
-**Known gap (CON-10, I-02):** `picks` for the *current* gameweek is only public after the deadline
-has passed. Before a deadline the current squad must be **reconstructed** — last finished gameweek's
-picks, plus the public transfers feed, plus price-change history for bank and value — with a manual
-paste-in override for when reconstruction is ambiguous.
+#### S2 — Understat *(adapter built, off, blocked)*
 
-**Handling:** honest user agent, conservative rate limit, ETag/conditional requests where supported,
-and every response snapshotted to bronze before anything reads it.
+xG, npxG, xA, shots, key passes into `player_advanced`. `robots.txt` disallows the site (D-23);
+nothing published consumes it (DL-33). Ingress removed by PIPE-09.
 
-#### S2 — Understat *(enhancing, degradable)*
+#### S3 — FBref *(adapter built, off, blocked)*
 
-Shot-level expected goals for the Premier League. Player-level xG, npxG, xA, shots and key passes;
-match-level shot data with situation and shot type. Data is embedded in page scripts rather than
-served as an API, so extraction is brittle by nature (R-06). Weekly cadence, cached hard, contract
-test against a recorded page.
+Defensive and progressive actions. Cloudflare 403 on every request (D-23); removed by PIPE-09.
+Defensive Contribution comes from the FPL feed instead (M4).
 
-**Why it matters:** underlying numbers are far more predictive of future returns than actual goals,
-especially in the first ten gameweeks when goal counts are pure noise.
+#### S4 — Bookmaker odds *(enabled, credit-capped, unused by the model)*
 
-#### S3 — FBref *(enhancing, degradable)*
+`oddsapi` is on by default (DL-59) and fetches nothing without `ODDS_API_KEY`; its free-tier credit
+budget is enforced in the adapter. No history (D-20), so not backtestable; the M2 market blend is
+unwired (DL-60). Stood down by PIPE-09. football-data.co.uk odds are read by the prospective harness
+**outside** `sources/` (DL-73, 03 §12 P5); a registered adapter is PIPE-04.
 
-Broad Opta-derived statistics: progressive passes and carries, shot- and goal-creating actions,
-touches in the penalty area, tackles, interceptions, blocks, clearances, recoveries, aerials.
+#### S5 — Historical archive *(build-time)*
 
-**Why it matters:** the only viable source for modelling **Defensive Contribution points**, which
-since 25/26 are a large and unusually predictable chunk of defender and midfielder scoring. Rate-based
-defensive volume is far more stable week to week than goal involvement — which makes it the highest
-signal-to-noise component in the whole expected-points model.
-
-**Handling:** strict crawl delay, `robots.txt` respected, aggressive caching, weekly cadence at most,
-personal non-commercial use, attributed in the UI (NFR-10). A wrapper library that already handles
-polite access is preferred over bespoke scraping.
-
-#### S4 — Bookmaker odds *(enhancing, degradable, credit-capped)*
-
-Match result and total-goals markets, converted into team-level goal expectations.
-
-**Why it matters:** betting markets aggregate more information than any model this project will
-build — injuries, lineups, motivation, weather. For *team-level* scoring over a 1–2 gameweek horizon
-they are the single strongest available signal. The model should defer to them and use its own
-ratings to fill the longer horizon where odds do not yet exist.
-
-**Handling:** free-tier credit budget tracked in the adapter and enforced as a hard cap (CON-7, R-08).
-Fetch on a fixed weekly schedule plus one pre-deadline refresh; cache everything; degrade cleanly to
-the xG-based team-strength model when credits are exhausted.
-
-#### S5 — Historical archive *(build-time, important)*
-
-Prior-season per-gameweek player data for model training and backtesting (FR-06, D-06). Sourced from
-the FPL API's own historical endpoints where available, supplemented by an established community
-archive of per-gameweek CSVs. Ingested once, snapshotted, then treated as static.
+`fplarchive` reads prior-season per-gameweek data from the community mirror, because the API has none
+(DL-19). Off by default; the CI backtest enables it (DL-68). Identity across seasons is FPL's stable
+`code` for players and clubs (DL-52).
 
 #### Future sources *(OD-04)*
 
-Injury and press-conference feeds, predicted lineups, player-level prop odds, weather. None are in
-scope now; all are anticipated by the adapter framework and require no design change to admit.
+Injury feeds, predicted lineups, player prop odds, European fixtures (Q-08). Each would be one adapter
+(§14.1). No injury or press-conference feed this season: the FPL API's availability fields are the
+source (OD-04, closed by [DL-79](../decisions/DL-79.md)).
 
 ### 2.2 Adapter framework
 
-The mechanism that makes DL-05 and FR-04 real. Every adapter implements one interface, and the base
-class supplies all cross-cutting behaviour so an adapter author writes only source-specific logic.
-
-**Interface contract:**
+Every adapter subclasses `SourceAdapter` (`sources/base.py`):
 
 | Member | Responsibility |
 | --- | --- |
-| `name`, `version` | Identity, recorded in lineage |
-| `cadence` | Declared refresh policy the scheduler reads |
-| `declares()` | Which canonical entities this source can populate, and at what granularity |
-| `fetch(context)` | Return raw payloads plus request metadata. **No parsing** |
-| `parse(raw)` | Raw → source-shaped records. **No conformance, no business logic** |
-| `to_canonical(records)` | Source-shaped → canonical model, emitting source-native IDs for the crosswalk |
-| `health()` | Self-check used by the quality gate and the data health page |
+| `name`, `version`, `attribution`, `health_*` | Identity in lineage; text on `/health` |
+| `resources` | Each endpoint with its cache TTL and whether it is on the fast path |
+| `enabled_by_default`, `essential` | Runs without configuration? Can the run recommend without it? |
+| `contributes` | Canonical fields it can supply, for precedence |
+| `configuration_problem()` | Reports a missing credential before fetching |
+| `ingest(request)` | Fetch to bronze. **No parsing** |
+| `conform(request)` | Bronze to silver tables (and, for `fpl`, the rules) |
 
-**Supplied by the base class**, never reimplemented per adapter: rate limiting, retry with
-exponential backoff and jitter, response caching, bronze snapshotting with checksums, honest user
-agent, `robots.txt` compliance, credit budgeting, structured logging, error taxonomy, and lineage
-emission.
+**Shared:** `Fetcher` (`sources/fetch.py`) — serial rate limit, retry with backoff and jitter,
+honest user agent, secret redaction, and caching by serving the latest snapshot inside its TTL;
+`BronzeStore`; `robots.py`. No conditional requests (PIPE-07). Credit budgeting lives in the one
+adapter that needs it.
 
-**Registry:** adapters self-register; configuration enables, disables and prioritises them. A
-disabled or failing source removes its contributed fields and nothing else (NFR-15).
-
-**Conflict resolution:** where two sources supply the same canonical field, configuration declares
-precedence per field — for example, minutes and prices always come from FPL, xG prefers Understat and
-falls back to FBref. Precedence is data, not code.
+**Registry:** `@register`; `sources.overrides.<name>.enabled` overrides the class default; an unknown
+name is rejected. A failing non-essential source removes its fields and nothing else (NFR-15).
+**Field precedence** is data (`sources/precedence.py`, overridable by `sources.field_precedence`);
+`player_metric` records which sources contributed.
 
 ---
 
@@ -214,584 +158,402 @@ falls back to FBref. Precedence is data, not code.
 
 ### 3.1 Canonical entity model
 
-```mermaid
-erDiagram
-    SEASON ||--o{ GAMEWEEK : contains
-    SEASON ||--o{ TEAM_SEASON : has
-    GAMEWEEK ||--o{ FIXTURE : schedules
-    TEAM ||--o{ TEAM_SEASON : "plays in"
-    TEAM_SEASON ||--o{ FIXTURE : "home or away"
-    PLAYER ||--o{ PLAYER_SOURCE_ID : "identified by"
-    PLAYER ||--o{ PLAYER_SEASON : "registered for"
-    PLAYER_SEASON ||--o{ PLAYER_GAMEWEEK : records
-    FIXTURE ||--o{ PLAYER_GAMEWEEK : "performance in"
-    FIXTURE ||--o{ FIXTURE_ODDS : "priced by"
-    FIXTURE ||--o{ TEAM_MATCH_EXPECTATION : "forecast for"
-    PLAYER_GAMEWEEK ||--o| PLAYER_ADVANCED : "enriched by"
-    PLAYER ||--o{ PLAYER_PRICE_HISTORY : "priced over time"
-    PLAYER ||--o{ OWNERSHIP : "owned by field"
-    PLAYER ||--o{ SET_PIECE_ROLE : "takes"
-    PLAYER ||--o{ XP_FORECAST : "forecast for"
-    MANAGER_ENTRY ||--o{ MANAGER_GAMEWEEK : "picks in"
-    RUN ||--o{ RECOMMENDATION : produces
-```
+`silver/tables.py`, one Pandera schema per table, validated on read and write:
 
-| Entity | Purpose | Notable fields |
-| --- | --- | --- |
-| `player` | Canonical identity across sources and seasons | canonical id, display name, normalised name key, date of birth where available |
-| `player_source_id` | The crosswalk | canonical id, source, source id, match method, confidence, verified flag |
-| `player_season` | Season registration | club, position, initial price, shirt number |
-| `player_gameweek` | The performance ledger | minutes, goals, assists, clean sheet, goals conceded, saves, penalties saved/missed, cards, own goals, defensive-action counts, BPS, bonus, total points, opponent, home/away |
-| `player_advanced` | Enrichment from S2/S3 | xG, npxG, xA, shots, shots on target, key passes, SCA/GCA, box touches, tackles, interceptions, blocks, clearances, recoveries |
-| `player_price_history` | Price and transfer flow | date, price, net transfers, ownership percentage |
-| `fixture` | Match | teams, kickoff, status, scores, FPL difficulty, gameweek |
-| `fixture_odds` | Market view | bookmaker, market, captured-at, prices, derived goal expectations |
-| `team_match_expectation` | Model view | expected goals for/against, clean-sheet probability, concession distribution |
-| `ownership` | The field's behaviour | selected-by percentage, captaincy percentage, effective ownership |
-| `set_piece_role` | Penalties, free kicks, corners | role, confidence, as-at date |
-| `manager_entry` / `manager_gameweek` | The owner's team over time | squad, captain, bank, value, free transfers, chips used, points, rank |
-| `xp_forecast` | Model output | expected points mean and variance, per-component decomposition, minutes probabilities, model version, run id |
-| `recommendation` | Decision output | squad, XI, captain, transfers, chip, objective value, explanation, run id |
+| Group | Tables |
+| --- | --- |
+| Game | `player`, `team`, `fixture`, `gameweek`, `chip`, `set_piece_note` |
+| Performance | `player_gameweek`, `player_season_history`, `price_history` (accumulates) |
+| The owner | `entry`, `entry_pick`, `entry_transfer`, `entry_chip`, `entry_gameweek` (DL-69) |
+| Mini-league | `league_standing`, `league_pick` |
+| Cross-source | `player_crosswalk`, `player_advanced`, `player_metric`, `team_match_expectation` |
 
-**Design notes.** Everything is keyed on the canonical player id, never a source id. `player_gameweek`
-is one row per player *per fixture*, not per gameweek, so double gameweeks and postponements are
-natural rather than special cases — a small decision that removes a whole class of bug. Every table
-carries `run_id` and `source_version` for lineage.
+Identity is FPL's stable player `code`; season-local ids never cross a season (DL-19, DL-52).
+`player_gameweek` is one row per player **per fixture**, so doubles and postponements are not special
+cases, and carries `kickoff_time` as its knowability boundary. Forecasts and decisions are gold, not
+silver. Silver has no `run_id` column; lineage is per snapshot and artefact (§12.4).
 
 ### 3.2 Entity resolution (FR-07, R-10)
 
-The highest-risk silent-failure mode in the system. A mismatched player quietly attributes one
-footballer's expected goals to another, and nothing visibly breaks.
-
-**Approach — deterministic first, fuzzy second, human third:**
-
-1. **Deterministic** — exact normalised name plus club plus position. Normalisation strips accents,
-   punctuation and common suffixes, and handles the "known as" problem where sources disagree between
-   full legal names and playing names.
-2. **Fuzzy** — token-set similarity on names, constrained by club and position, with a confidence
-   score. Only accepted above a high threshold *and* when unambiguous within the club.
-3. **Manual override** — a committed, reviewed `player_crosswalk_overrides.yaml`. The escape hatch,
-   and deliberately in version control so every manual decision is auditable.
-4. **Unresolved report** — everything else is listed on the data health page rather than silently
-   dropped.
-
-**Guardrails:** unmatched rate above a configured threshold fails the quality gate; a canonical id
-mapping to two ids from the same source fails immediately; new-season resolution is re-run from
-scratch because transfers invalidate club-based matching.
+A mismatched player silently attributes one footballer's numbers to another. `sources/resolve.py`
+resolves each external row to an FPL `code` in order: **override** (`sources/entity_overrides.yaml`,
+committed and reviewable); **deterministic** (normalised name and club, plus position, accepted only
+if unique); **fuzzy** (token-set similarity within the club, above a threshold and a margin over the
+runner-up, `sources.resolution`). The rest stay `unmatched`. Gates fail the run on a high unmatched
+rate, a non-unique mapping or a crosswalk for another season (§3.4); two rows from one source claiming
+one player raise an error. The mechanism is tested; no external source currently delivers data to
+resolve (D-07, D-23).
 
 ### 3.3 Layers and physical layout
 
-| Layer | Layout | Notes |
-| --- | --- | --- |
-| Bronze | `bronze/{source}/{endpoint}/{date}/{run_id}.json.gz` | Immutable, checksummed, with a sidecar of request metadata |
-| Silver | `silver/{entity}/season={s}/gw={g}/part.parquet` | Hive-partitioned, fully rebuildable from bronze |
-| Gold | `gold/{artefact}/season={s}/gw={g}/part.parquet` | Append-only. The record of what was advised and when |
-| Web contract | `web/v1/*.json` and `*.parquet` | Versioned, hashed, size-budgeted (architecture §7.2) |
+Under `paths.DataLayout`; what persists between CI runs is
+[03 §7](03-solution-architecture.md#7-data-architecture).
+
+| Layer | Layout |
+| --- | --- |
+| Bronze | `bronze/{source}/{resource}/{date}/{key}__{timestamp}.json.gz` + `.meta.json` (URL, status, time, SHA-256, `run_id`, source version) |
+| Silver | `silver/season={s}/{table}.parquet`, rebuilt from bronze each run |
+| Gold | `gold/season={s}/` — `expected_points.parquet`, `squad.json`, `plan.json`, `week.json`, `quality.json`, `model-card.md`, backtest outputs |
+| Ledger | `ledger/advice/gwNN.json`, append-only (DL-69) |
+| Runs | `runs/{run_id}/manifest.json` |
+| Web contract | `web/v1/*.json`, served at `/data/v1/` (03 §7.2) |
 
 ### 3.4 Quality gates (FR-08)
 
-Declarative schemas, executed as a blocking stage. Four classes of assertion:
+Declarative gates (`GATES` in `quality/rules.py`, run by `quality/gates.py`) in four classes:
+**schema** (no player without position or price); **range** (prices, ownership, FPL difficulty);
+**referential** (clubs exist for players and fixtures; history references players; the crosswalk is
+one-to-one, for this season, under the unmatched threshold); **freshness and volume** (player, club
+and fixture counts, player count against the previous run, snapshot age, a deadline still ahead).
 
-| Class | Examples |
-| --- | --- |
-| **Schema** | Column presence, dtype, nullability, categorical domains for positions and statuses |
-| **Range** | Minutes 0–120, prices 3.5–16.0, percentages 0–100, non-negative counts, points within plausible bounds |
-| **Referential** | Every `player_gameweek` resolves to a player and a fixture; every fixture resolves to two distinct teams; no orphan crosswalk entries |
-| **Freshness and volume** | Data no older than the configured threshold; row counts within a tolerance band of the previous run — a 40% drop in players means something upstream broke, not that 40% of footballers retired |
-
-**Severity model:** `error` blocks publication; `warn` publishes but surfaces on the data health page;
-`info` is recorded only. Every gate names the requirement it protects.
+`ERROR` blocks publication (Invariant 7); `WARN` publishes and shows on `/health`; `INFO` is unused.
+Every gate names the requirement it protects; thresholds are configuration. A temporal non-leakage
+gate is PIPE-10. One gate reads the wall clock itself (03 §12 P4).
 
 ### 3.5 Feature store
 
-Not a product, just a curated, cached, tested set of derived features shared by every model and by the
-backtester — which is the point, because it guarantees training and inference see identical
-definitions.
+`forecast/features.py` builds one frame for the live forecast, the backtest, the chip replay and the
+monolith, so training and inference share definitions: per-90s over 3/6/12 appearances for every
+scored statistic plus xG and xA; minutes; appearance and start rates; matches observed; rest;
+congestion and recent absence; price; venue and opponent; prior-season ratios (off, D-22).
 
-Feature families: rolling windows over 3/6/10 appearances; per-90 rates with minutes-weighted
-shrinkage; opponent-adjusted metrics; home/away splits; rest days and fixture congestion; role
-indicators from set-piece data and starting frequency; team-context features; price and ownership
-momentum; a positional-and-price prior tier for cold-start players.
-
-**Hard rule:** every feature is stamped with the gameweek at which it becomes knowable. The backtester
-enforces this, and it is the single defence against look-ahead leakage (R-04).
+**Hard rule:** every `FeatureSpec` declares its `Knowability`, rows are stamped `as_of` the deadline,
+and `assert_no_look_ahead` fails a fold that sees a later kickoff; season totals are admissible only
+in a later season (Invariant 5, R-04).
 
 ---
 
 ## 4. Application and domain services
 
-Between data and delivery sit stateless domain services — pure, exhaustively testable, and where
-almost all FPL-specific correctness lives.
-
 ### 4.1 Rules engine
 
-The authoritative implementation of FPL mechanics for 2026/27. Every parameter is configuration, not
-a literal, so a mid-season rule change is a config edit (ASM-4). Values are seeded from the API's
-own game settings where exposed, and otherwise from the published rules.
+`build_game_rules` seeds scoring, squad size and composition, formation bounds, budget, club limit
+and sell-on fee from the API's `game_config`, `game_settings` and `element_types`, and takes from
+`config/defaults/rules.yaml` only what FPL does not publish — the saves and goals-conceded divisors,
+Defensive Contribution thresholds, the bonus split, the 60-minute boundary, transfer rules — each with
+a reason (DL-17). `GameRules` records provenance and the snapshot checksum and is published as
+`rules.json`, so the browser uses the same numbers (DL-14). `scoring.points_for` returns a breakdown;
+`legality.validate_squad` returns every violation and runs after every solve; `selling_price` applies
+the sell-on fee. 100% coverage (NFR-08).
 
-**Scoring — 2026/27**
+Chip set 1 expires at the GW19 deadline as the API publishes it — 18:30 GMT on 1 January 2027, per
+the API on 17 October 2026. FPL can move deadlines, so the code reads the chip window, not a date.
 
-| Event | GK | DEF | MID | FWD |
-| --- | --- | --- | --- | --- |
-| Playing 1–59 minutes | 1 | 1 | 1 | 1 |
-| Playing 60+ minutes | 2 | 2 | 2 | 2 |
-| Goal scored | 6 | 6 | 5 | 4 |
-| Assist | 3 | 3 | 3 | 3 |
-| Clean sheet (60+ min) | 4 | 4 | 1 | 0 |
-| Every 3 saves | 1 | — | — | — |
-| Penalty save | 5 | — | — | — |
-| Penalty miss | −2 | −2 | −2 | −2 |
-| Every 2 goals conceded | −1 | −1 | — | — |
-| Yellow card | −1 | −1 | −1 | −1 |
-| Red card | −3 | −3 | −3 | −3 |
-| Own goal | −2 | −2 | −2 | −2 |
-| Defensive Contribution | — | 2 at 10+ CBIT | 2 at 12+ CBIRT | 2 at 12+ CBIRT |
-| Bonus | 3 / 2 / 1 to the top three BPS in each match | | | |
-
-CBIT = clearances, blocks, interceptions, tackles. CBIRT additionally counts ball recoveries.
-
-**Bonus Points System — revised for 2026/27**, to reduce overlap with Defensive Contribution:
-
-- The penalty for being tackled is removed, which benefits dribble-heavy attackers.
-- Clearances, blocks and interceptions now score 1 BPS per **3** actions, down from 1 per 2.
-- Goalkeeper saves are restructured: saves from outside the box no longer score; other saves score;
-  saving a big chance scores additionally.
-
-> The full BPS matrix is long and was materially revised this season. It is **parameterised in
-> configuration and verified against the official rules at implementation time**, not hardcoded from
-> this document. The conformance test in §10 is what proves the implementation correct.
-
-**Squad and selection rules**
-
-| Rule | Value |
-| --- | --- |
-| Squad size | 15 — exactly 2 GK, 5 DEF, 5 MID, 3 FWD |
-| Initial budget | £100.0m |
-| Players per club | Maximum 3 |
-| Starting XI | 11, with exactly 1 GK, 3–5 DEF, 2–5 MID, 1–3 FWD |
-| Captain / vice | Captain scores double; vice substitutes if the captain does not play |
-| Bench | Ordered 1–3 for outfield players; the substitute goalkeeper is automatic |
-
-**Transfers, price and chips**
-
-| Rule | Value |
-| --- | --- |
-| Free transfers | 1 per gameweek, accumulating to a maximum of **5** |
-| Extra transfers | −4 points each |
-| Price movement | ±£0.1 driven by net transfers; evaluated daily at midnight UK time |
-| Selling price | Purchase price plus 50% of any profit, rounded down to £0.1 — the sell-on fee |
-| Chips | Two sets of four: Wildcard, Free Hit, Triple Captain, Bench Boost. One chip per gameweek |
-| Chip set 1 expiry | **GW19 deadline, 13:30 GMT, 2 January 2027** — unused chips are lost |
-| AFCON allowance | None this season |
+The authoritative values are the API and the `fpl-rules` skill, not this page. Still asserted rather
+than read: the chip captain multiplier (D-16). The most-captained id never reaches the decision layer
+(D-15). The BPS matrix is not modelled; BPS is ingested as a value (§5, M8).
 
 ### 4.2 Squad state service
 
-Reconstructs and maintains the owner's true position: current 15, purchase prices and therefore
-selling values, bank, free transfers available, chips used and remaining. Handles the pre-deadline
-visibility gap (CON-10) by rebuilding from the last public picks plus the transfers feed, flagging
-its own confidence, and accepting a manual override when it cannot be certain. Free-transfer count is
-recomputed from transfer history rather than assumed, because it is easy to get wrong and expensive
-to get wrong.
+`squad.load_squad_state` reconstructs the fifteen, purchase and selling prices, bank, free transfers
+and chips used, with provenance `from_picks`, `reconstructed` (picks plus later transfers) or
+`declared`. A declared squad (`entry.declared_*`) is a first-class input, because preseason there is
+nothing to reconstruct (DL-20), and is validated on entry. Free transfers are recomputed from history;
+Wildcard and Free Hit do not consume them. An illegal reconstruction raises, and the week and decision
+stages skip with a reason. `squad/selection.py` picks the XI across legal formations under the start
+floor (§6.1) and orders the bench by P(plays) × μ (DL-66).
 
 ### 4.3 Fixture and schedule service
 
-Derives what the raw fixture list implies: gameweek fixture counts per team, double and blank
-gameweeks, congestion windows, rest days, and a **model-derived difficulty rating** that replaces
-FPL's static one with the actual forecast goal expectations (FR-30). Handles postponements and
-rescheduling, which reshape the entire chip strategy in the second half of the season.
+Not one service:
+
+- **Doubles and blanks** — fixture counts per club in `optimise/chips.py`, for chip pruning and the
+  calendar.
+- **Model-derived difficulty** — `publish/fixtures.py` turns M2's ratings into the fixture ticker
+  (FR-30, DL-37). Descriptive; the optimiser reads per-fixture forecasts.
+- **Congestion** — inside M1 only.
+- **Deadlines** — `week/cadence.py` gives each deadline in UK time and the owner's zone with a
+  decide-by time (DL-11); CI guards are 03 §9. `week/` mixes advice with scheduling (03 §12 P7).
+
+`week/` also owns alerts (availability, price pressure, chip expiry, squad-state warnings), the advice
+ledger (DL-69), advised-versus-played reconciliation, and E14's hindsight work (DL-72): each model's
+advice scored with auto-subs and vice fallback, an oracle that re-solves the single-gameweek transfer
+MILP on actual points, and oracle-gap diagnostics, published through `log.json`.
 
 ### 4.4 Explanation service
 
-Turns optimiser output into something a human will act on (B6, FR-23). For each recommendation:
-the expected-points decomposition by component, the marginal gain over doing nothing, the runner-up
-options and why they lost, the ownership bet implied, the price-change exposure, and the key
-assumptions — for example, "this assumes he starts, which the model puts at 71%."
+`optimise/explain.py` (FR-23): a headline (for chips, "Free Hit in GW18 beats Free Hit in GW17 by X,
+and no chip by Y"), the gain over holding, a per-gameweek decomposition with hits, runners-up with
+margins and simulated scores, the ownership bet (§7), price exposure, the assumptions in force, and
+the standing caveats — D-13 on any hit or chip, D-21 on chip timing. Per-player decomposition comes
+from the forecast (§5).
 
 ---
 
 ## 5. Analytical models
 
-The core intellectual work. Structured as a **chain of small, individually testable models**, not one
-monolithic regression, for three reasons: each component is validated against its own observable
-outcome; failures are diagnosable; and the decomposition is exactly what the explanation layer needs.
+A **chain of small, individually testable models**: each is validated against its own outcome,
+failures are diagnosable, and the decomposition is what the UI shows. The chain is `xp_v1`
+(`forecast/models.py`, scored by `xp_v1.py`, assembled live by `live.py`), and `run` publishes it
+(DL-46).
 
 ```mermaid
 graph LR
-    F["Features"] --> M1["M1 Availability<br/>and minutes"]
-    F --> M2["M2 Team strength<br/>and match model"]
-    ODDS["Odds"] --> M2
-    F --> M3["M3 Goal<br/>involvement"]
-    F --> M4["M4 Defensive<br/>contribution"]
-    F --> M6["M6 Saves"]
-    F --> M7["M7 Cards"]
-    M2 --> M3 & M5["M5 Clean sheet<br/>and concessions"] & M6
-    M1 --> AGG
-    M3 & M4 & M5 & M6 & M7 --> M8["M8 BPS<br/>and bonus"]
-    M3 & M4 & M5 & M6 & M7 & M8 --> AGG["Expected points<br/>aggregator"]
-    AGG --> OUT["mean, variance,<br/>decomposition"]
+    F["Features"] --> M1["M1 Minutes"] & M2["M2 Team strength"] & M3["M3 Goals, assists"] & M4["M4 DefCon"] & M6["M6 Saves"] & M7["M7 Cards"] & M8["M8 Bonus"]
+    M2 --> M5["M5 Clean sheet"]
+    M1 & M3 & M4 & M5 & M6 & M7 & M8 --> AGG["Aggregator"] --> H["Horizon scorer"] --> OUT["μ, σ, components"]
 ```
 
-> **Implementation status (2026-08-15, [DL-33](../decisions/DL-33.md), [DL-34](../decisions/DL-34.md)).**
-> This section describes the target model, and two parts of it are now real. **M3 consumes expected
-> goals**: the component model `xp_v1` observes and fits goal involvement through `expected_goals` /
-> `expected_assists` — carried by the official feed itself, so this needs no scraped source — and the
-> backtest measured it earning its place (Spearman 0.2255 → 0.2307, calibration 0.60 → 0.70), so it is
-> promoted in the shipped config (DL-34). Still aspirational: M2's xG-based team ratings (built but
-> dark — unmeasurable in a league-average backtest) and the odds view of M2 (no `ODDS_API_KEY`); the
-> npxG and shot-level detail a scraped source would add remain blocked by
-> [D-23](debt-register.md).
->
-> **One caveat that matters:** the model `run` *publishes* is still `xp_v0`, the cold-start model,
-> which uses none of this. The xG improvement lives in `xp_v1`, the model the backtest grades;
-> promoting it to the live path needs a fixture-aware horizon scorer it does not yet have
-> ([D-25](debt-register.md)). Because both the squad MILP and the
-> weekly plan MILP read only `expected_points.parquet`, external signal reaches **both** decision
-> models through exactly one seam — the forecast — or through neither; it never enters the optimiser
-> directly (DP-02, Invariant 1).
+| Model | Built as | Variants (flags in §13) |
+| --- | --- | --- |
+| M1 | Empirical band frequencies; status flag scales P(play) | `minutes_v2` on (DL-48) |
+| M2 | Attack × defence × home, time-decayed, on goals | Fitted home advantage (DL-55); xG ratings dark (DL-56); promoted-club widening inert (DL-57); market blend unwired (DL-60) |
+| M3 | Shrunk per-90 on xG and xA (DL-34) | Opponent adjustment (DL-58), penalty duty (DL-50) off; share-of-team-xG not built |
+| M4 | Per-90 count; P(threshold) by Poisson survival | — |
+| M5 | From M2's goals against | — |
+| M6 | Shrunk per-90 saves | Pressure-normalised keeper off (DL-51) |
+| M7 | Shrunk per-90 yellow cards | No referee or red-card model |
+| M8 | Expected BPS ranked against a population distribution | Not ranked within the match |
+
+The fit is assembled in four places, two in the decision layer (03 §12 P1); the published-model
+choice is implicit in the stage, and points arithmetic is duplicated across `rules/scoring.py`,
+`xp_v0` and `xp_v1` (03 §12 P6).
 
 ### M1 — Availability and minutes
 
-**Predicts:** a distribution over `{0, 1–59, 60+}` minutes, plus expected minutes.
-**Why it dominates:** a player who does not play scores nothing. Minutes uncertainty is the largest
-single source of expected-points error, and getting it roughly right matters more than getting
-anything else exactly right.
-**Inputs:** FPL status flag and chance-of-playing percentage, recent minutes pattern, start frequency,
-substitution patterns, rotation behaviour by manager, fixture congestion, price tier as a proxy for
-importance, and time since injury return.
-**Method:** ordinal or multinomial classification over the three bands, calibrated so the
-probabilities are usable directly rather than merely ranked correctly.
-**Validated on:** realised minutes bands, with calibration curves and Brier score.
+**Predicts:** P over `{0, 1–59, 60+}` minutes and expected minutes — the largest source of
+expected-points error. **Method:** band frequencies by position and appearance-rate band; the status
+flag, or `chance_of_playing_next_round` where published, scales P(play). `minutes_v2` adds congestion,
+an injury-return ramp and an availability split, each moving mass only out of 60+ (DL-48). No European
+rotation (Q-08). `start_probability` is **P(appears at all)** in every model (DL-66). **Validated
+on:** a multiclass Brier score over the whole population against a reconstructed status-flag haircut,
+per position and band (DL-48). It is under-confident about full starts — the band the head of the
+ranking is made of.
 
 ### M2 — Team strength and match model
 
-**Predicts:** expected goals scored and conceded for each team in each fixture.
-**Method:** a blend of two views —
-- **Market view:** bookmaker match and totals markets, de-vigged and converted into implied goal
-  expectations for each side. Highly accurate but only available for near-term fixtures.
-- **Model view:** a Poisson-style bivariate goals model with time-decayed attack and defence ratings
-  estimated from xG rather than goals, plus home advantage. Available for the full horizon.
-
-The blend weight is a function of horizon: near gameweeks defer to the market, distant gameweeks to
-the ratings. Promoted teams and heavily rebuilt squads get widened priors, which matters
-disproportionately in August.
-**Validated on:** realised goals and clean sheets; calibration of clean-sheet probability.
+Expected goals for and against each club per fixture: league mean × attack × opponent defence × home
+advantage, time-decayed, fitted on goals over the current season in the live path. Validated on the
+fixture-aware backtest (DL-52).
 
 ### M3 — Goal involvement
 
-**Predicts:** expected goals and expected assists per player per fixture.
-**Method:** allocate the team's expected goals (from M2) across its players using shares — npxG per 90,
-xA per 90, shot volume and quality, box touches, position and role — then apply penalty and set-piece
-duty explicitly, because penalties are a large, lumpy, highly identifiable source of points. Rates
-are shrunk toward positional and price-tier priors in inverse proportion to minutes played, which is
-what makes the model behave sensibly in the first six gameweeks instead of chasing noise.
-**Validated on:** realised goals and assists; rank correlation within position.
+A recent per-90 shrunk toward a position prior in proportion to minutes observed, reading **expected**
+goals and assists (DL-34).
 
 ### M4 — Defensive contribution
 
-**Predicts:** the probability of hitting the CBIT/CBIRT threshold, given the minutes distribution.
-**Method:** a count model of defensive actions per 90 — these rates are genuinely stable, being driven
-by role and team style rather than by luck — combined with an opponent-possession adjustment, then
-integrated over the minutes distribution to get the threshold probability.
-**Why it matters more than it looks:** since 25/26 this is a reliable 2 points for a large set of
-defenders and defensive midfielders. It has a far better signal-to-noise ratio than goal involvement,
-so it is where a model most easily beats intuition — most managers still price players as if this
-component did not exist.
+The per-90 of the feed's `defensive_contribution`, scaled by the minutes distribution and treated as a
+Poisson count; P(count ≥ the rules' threshold) gives the points. The raw counts exist from 2025/26
+only, so it rests on one prior season (D-11, Q-13).
 
 ### M5 — Clean sheets and concessions
 
-**Predicts:** clean-sheet probability and the distribution of goals conceded, from M2's expected
-goals against, conditioned on playing 60+ minutes.
+Clean sheet = exp(−goals against from M2), counted only in the 60+ band; goals-conceded points are
+linear in M2's goals against.
 
 ### M6 — Saves · M7 — Cards
 
-Goalkeeper saves derive from opponent shot volume and quality, converted to expected saves and thus
-save points. Cards derive from fouls and card rates per 90 with a referee adjustment where data
-allows. Both are small contributors, modelled simply, and included mainly because they are cheap and
-they sharpen goalkeeper and defender comparisons.
+Shrunk per-90s of saves and of yellow cards; small contributors.
 
 ### M8 — Bonus points
 
-**Predicts:** expected bonus points per player per fixture.
-**Method:** compute expected BPS from the expected actions produced by M3–M7 using the 2026/27 BPS
-matrix, then estimate the probability of finishing in the top three within that specific match — which
-requires the *distribution* of BPS across all 22 players in the fixture, not just the mean. Modelled
-as an ordered comparison across the match's player set.
-**Note:** the 26/27 BPS revision changes bonus expectations meaningfully, especially for goalkeepers,
-full-backs and dribblers. Prior-season bonus data must be treated as coming from a different
-scoring regime — a real and easily missed source of training-data bias.
+Expected BPS from a shrunk per-90, then P(first, second, third) against a population BPS mean and
+spread, binomial over the other players. Prior-season bonus comes from a different BPS regime (Q-05).
 
 ### Aggregator
 
-Combines components into expected points and variance:
-
-- **Mean:** `E[pts] = P(60+)·2 + P(1–59)·1 + Σ over components of E[points | minutes] integrated over the minutes distribution`.
-- **Variance:** propagated from component variances, including the large binary variance contributed
-  by the minutes distribution. Covariance *between players* is deliberately not modelled here — see the
-  honest limitation in §6.4.
-- **Output:** mean, variance, per-component decomposition, minutes probabilities, model version, run
-  id. The decomposition is not a debugging aid; it is what the UI shows the user.
+- **Mean:** appearance points plus each component, integrated over the three minutes bands.
+- **Variance:** a mixture over the bands, `Σ P(s)(Var_s + μ_s²) − μ²`, with goal, assist, duty and
+  clean-sheet terms. Defensive contribution, saves, bonus, cards and conceded add none — a known gap;
+  the minutes mixture dominates (DL-51). Covariance between players is not modelled (§6.4).
+- **Horizon:** `forecast/horizon.py` scores each horizon gameweek's real fixtures — a blank scores
+  zero, a double sums means and variances — into `xp_gw_<n>` and `xp_gw_<n>_sd`, plus a discounted
+  `xp_horizon`.
+- **Output:** `expected_points.parquet` — per-gameweek μ and σ, minutes probabilities,
+  `start_probability`, `component_*` for the next gameweek, a confidence tier, and the `model` per
+  row. Variance travels with every mean (Invariant 6).
 
 ### Cold start (FR-14)
 
-Preseason, and specifically GW1, has no current-season data. Priors, in descending weight:
-
-1. Prior-season per-90 rates for the same player, adjusted for a club move.
-2. **FPL's own initial price** — a genuine market signal, since FPL prices players on expected value
-   and role.
-3. **Early ownership** — crowd wisdom, weakly informative and noisy but not nothing.
-4. Positional and price-tier baselines for players with no top-flight history.
-5. Promoted-club scaling factors from historical promoted-team performance.
-6. Preseason friendly minutes where obtainable, as a weak signal of intended role.
-
-Uncertainty is set deliberately wide in GW1–4 and narrows as real data arrives, which is what stops
-the optimiser making confident early decisions it should not.
+`xp_v0` is the named fallback (DL-46): prior-season per-90s decayed by season, shrunk toward a
+position × price-tier prior, start rate × availability, FPL difficulty for fixtures, and a heuristic σ
+by confidence. It fires below `forecast.published.cold_start_minimum_gameweeks` completed gameweeks or
+when the chain cannot fit, and says so in the `model` column, the stage metrics and the model card. In
+`xp_v1` a player with no history takes the position priors. Ownership and promoted-club scaling are
+not priors.
 
 ### Backtesting (FR-37, B7)
 
-Walk-forward only. For each historical gameweek: train on everything knowable *before* the deadline,
-predict, compare to actual. No look-ahead, enforced by the feature store's knowability stamps.
+`forecast/backtest.py` walks forward: at each historical deadline it refits the chain and every
+baseline on rows strictly before it, strips every outcome column (DL-32), and predicts. `fpl-dof
+backtest` is not part of `run`; CI runs it weekly with the archive enabled (DL-68).
 
-**Reports:** accuracy metrics against charter §5 tier 2; calibration plots; error by position, price
-tier and minutes band; a **simulated season** running the full optimiser against benchmarks — the
-template team, the overall average, and a naive "highest-xP squad, one transfer per week" strategy.
+- **Metrics:** MAE and skill; Spearman and calibration slope by position, price band and fixture band;
+  top-20 precision and captaincy hit rate **per gameweek** (DL-49); minutes Brier (DL-48).
+- **Baselines:** B0 (price within position), a constant, trailing form, the status-flag haircut.
+  Skill is against them, never absolute (DP-12).
+- **Monolith:** a gradient-boosted regressor on the same declared features, inside `walk_forward`
+  only, never promotable, reporting the explainability gap (DL-53).
+- **Outputs:** `backtest.json`, `backtest-predictions.parquet`, `backtest-card.md`; and on every
+  forecast run `model-card.md` — published model, fallback, guardrail, last verdict, weaknesses.
+  **Read it before acting on a ranking** (DL-21): no −8 hit, chip or Wildcard on the chain alone
+  (D-13).
+- **Not in the package:** a simulated season of the full optimiser. The chip replay
+  (`optimise/replay.py`, DL-28) covers chip timing only; season replays of the frozen models are built
+  offline as `models_history`; the pre-registered comparison is
+  [`prospective/`](../../prospective/README.md).
 
-**The question the backtest exists to answer honestly is "does this beat doing something simple?"** If
-the answer is no, that is a finding to act on, not a bug to tune away.
+The question is **"does this beat doing something simple?"** So far it beats price on rank
+correlation and loses to trailing form at the head (DL-21, DL-53), which is why trailing form is
+published beside it (DL-70).
 
 ---
 
 ## 6. Decision engine
 
+Three solver models, all reading the forecast and nothing source-specific (DP-02, DL-33):
+
+| Model | Code | Runs | Solver |
+| --- | --- | --- | --- |
+| Squad MILP — best fifteen | `optimise/squad.py` | Preseason, or `optimiser.squad_solve: always`; otherwise `squad.json` is skipped with a reason (DL-67) | CBC |
+| Transfer MILP — this week | `optimise/transfer.py` | Every `week` run | CBC |
+| Horizon plan — transfers and chips | `optimise/horizon.py`, `plan.py`, `chips.py` | Every `decision` run | HiGHS (DL-26) |
+
+Each re-encodes legality, solver construction is repeated, and `optimiser.solver` is never read (03
+§12 P2).
+
 ### 6.1 Candidate selection
 
-Roughly 700 players over an 8-gameweek horizon is too large to solve comfortably inside a CI time
-budget (CON-4, R-07). The shortlist is built to be tractable *without* being biased:
+Only the horizon plan prunes (`optimise/candidates.py`); the other two see every player. The pool is
+the union of owned and locked players (always), the top N per position by `xp_horizon` and by
+`xp_horizon` per £, and **cheap enablers** — the best in each position's bottom price quantile,
+because a pure ranking drops them and they make premiums affordable. Bans and excluded clubs apply
+first, never to owned or locked players. `pruning_matches_full_pool` validates the rule; nothing runs
+it on a schedule (D-17).
 
-- All currently owned players — always, or the model cannot evaluate keeping them.
-- Top N per position by horizon expected points.
-- Top N per position by expected points per unit cost.
-- **All viable cheap enablers**, explicitly. A pure expected-points ranking would drop them, and they
-  are structurally necessary to afford premium players. Omitting them silently makes the whole
-  solution worse.
-- Anything the user has locked or is comparing.
-
-Target: roughly 200–250 players. The pruning rule is itself validated — periodically re-solve on the
-full set offline and confirm the pruned solution matches.
+**Start floor.** No player starts whose `start_probability` (P(appears), DL-66) is below
+`forecast.minimum_start_probability_for_xi`, unless locked; `week` relaxes it with a warning if no XI
+clears it.
 
 ### 6.2 MILP formulation
 
-**Indices:** players `p`, gameweeks `w ∈ 1..H` (H = 5–8), clubs `c`, positions `r`.
+The horizon model. **Indices:** players `p` in the pool, gameweeks `w ∈ 1..H`
+(`decision.horizon.gameweeks`, clipped to the season), clubs `c`. **Parameters:** `μ[p,w]`
+(`xp_gw_<w>`), `buy[p]`, `sell[p]` with the sell-on fee, `sbp[p]` (`selected_by_percent`), `γ`
+(`decision.horizon.discount`), `B₀`, `FT₀`. `σ` is carried, not used (§6.4). **Variables:** `own`,
+`start`, `cap`, `tin`, `tout` per player-week; integer `ft`, `hits`, `charged`, `remaining` per week
+with an `at_cap` binary; `bank`; a parallel `field` squad in a Free Hit week. **Chips are not
+variables** (§6.3).
 
-**Key parameters:** `μ[p,w]` expected points · `σ[p,w]` standard deviation · `buy[p]` current price ·
-`sell[p]` selling price including sell-on fee · `eo[p,w]` effective ownership · `γ` per-gameweek
-discount (≈0.85, reflecting forecast decay) · `B₀` opening bank · `FT₀` opening free transfers.
+| # | Constraint | Status |
+| --- | --- | --- |
+| C1–C5 | 15 by position; 11 within formation bounds; `start ≤ own`; club limit; one captain, `cap ≤ start` — all from the rules | Built |
+| C6 | Continuity `own[w] = own[w−1] + tin − tout` | Built |
+| C7 | Bank through selling and buying prices | Built |
+| C8 | `ft[w+1] = min(cap, remaining[w] + 1)`, linearised | Built |
+| C9 | `hits ≥ charged − ft`; a per-week transfer cap outside chip weeks | Built |
+| C10–C12 | Chip variables | **Not built** — enumeration (DL-15) |
+| C13 | Free Hit: a legal `field` fifteen with its own budget; the owned squad does not move | Built per scenario |
+| C14 | Triple Captain linearisation | Not needed: the multiplier is a scenario parameter (D-16) |
+| C15 | **Chips do not consume free transfers:** `charged = 0` under Wildcard and Free Hit | Built, property-tested |
+| C16 | Same-club XI cap (`decision.risk.same_club_starting_limit`) | Built; relaxable per club; raised with a warning when the held squad cannot otherwise field an XI |
 
-**Decision variables (binary unless noted):**
-
-| Variable | Meaning |
-| --- | --- |
-| `s[p,w]` | p is in the 15-man squad in gameweek w |
-| `e[p,w]` | p starts (`e ≤ s`) |
-| `k[p,w]` | p is captain (`k ≤ e`, one per gameweek) |
-| `tin[p,w]`, `tout[p,w]` | transferred in / out at gameweek w |
-| `ft[w]` (integer 0–5) | free transfers available |
-| `h[w]` (integer ≥ 0) | point hits taken |
-| `wc[w]`, `fh[w]`, `tc[w]`, `bb[w]` | chip played in gameweek w |
-| `z[p,w]` | linearisation of captain × triple-captain |
-
-**Constraints:**
-
-| # | Constraint |
-| --- | --- |
-| C1 | `Σ_p s[p,w] = 15`, with exactly 2 GK, 5 DEF, 5 MID, 3 FWD |
-| C2 | `Σ_p e[p,w] = 11`; exactly 1 GK; 3 ≤ DEF ≤ 5; 2 ≤ MID ≤ 5; 1 ≤ FWD ≤ 3 |
-| C3 | `e[p,w] ≤ s[p,w]` |
-| C4 | `Σ_{p ∈ club c} s[p,w] ≤ 3` for every club |
-| C5 | `Σ_p k[p,w] = 1`; `k[p,w] ≤ e[p,w]` |
-| C6 | Squad continuity: `s[p,w] = s[p,w−1] + tin[p,w] − tout[p,w]`; `tin + tout ≤ 1` |
-| C7 | Budget: `bank[w] = bank[w−1] + Σ_p sell[p]·tout[p,w] − Σ_p buy[p]·tin[p,w] ≥ 0` |
-| C8 | Free transfers: `ft[w] = min(5, ft[w−1] − used[w−1] + 1)`, linearised with auxiliary variables. **`used[w] ≜ Σ_p tin[p,w]`, forced to 0 when a Wildcard or Free Hit is active in `w` — see C15** |
-| C9 | Hits: `h[w] ≥ Σ_p tin[p,w] − ft[w]`, `h[w] ≥ 0` |
-| C10 | One chip per gameweek: `wc[w] + fh[w] + tc[w] + bb[w] ≤ 1` |
-| C11 | Each chip at most once per set; set 1 variables are zero after GW19 |
-| C12 | Wildcard: `h[w] = 0` when `wc[w] = 1` (unlimited free transfers, no hit) |
-| C13 | Free Hit: a parallel squad variable set applies for that gameweek only, and continuity in C6 bridges across it |
-| C14 | Triple captain: `z[p,w] ≤ k[p,w]`, `z[p,w] ≤ tc[w]`, `z[p,w] ≥ k[p,w] + tc[w] − 1` |
-| C15 | **Chips do not consume free transfers:** `used[w] ≤ M · (1 − wc[w] − fh[w])`. On a Wildcard or Free Hit gameweek the free-transfer balance carries forward untouched |
-| C16 | **Same-club concentration:** at most 2 players from any one club in the starting XI. See "the correlation problem" below |
-
-**C15 is the one to write a property test for first.** C12 zeroes the *hit* on a Wildcard, which is the
-obvious half of the rule. The half that is easy to miss is that a Wildcard or Free Hit also does not
-*spend* free transfers — the balance is preserved and keeps accruing. Without C15, the model believes
-a Wildcard costs it up to five banked transfers, and will systematically play chips too late or not at
-all. It is a single constraint, the failure is silent, and it distorts exactly the decision the epic
-exists to get right.
-
-**Objective:**
+C15 matters because missing it is silent: a model that thinks a Wildcard spends banked transfers plays
+chips late or never.
 
 ```
-maximise  Σ_w γ^(w−1) · [  Σ_p μ[p,w] · ( e[p,w] + k[p,w] + z[p,w] )        ← XI, captain, triple captain
-                         + β_w · Σ_p μ[p,w] · ( s[p,w] − e[p,w] )           ← bench, β_w = 1 under Bench Boost
-                         − 4 · h[w]                                          ← hits
-                         − λ · R[w]                                          ← risk term, see §7
-                         + ε · Σ_p incumbent[p] · s[p,w]  ]                  ← tie-break, see below
+maximise  Σ_w γ^(w−1) · [ Σ_p μ[p,w] · ( start + (m_w − 1)·cap )   ← m_w = 3 under Triple Captain
+                        + β_w · Σ_p μ[p,w] · ( own − start )        ← β_w = 1 under Bench Boost
+                        + hit_cost · hits[w]                        ← from the rules (negative)
+                        + ρ_dial · Σ_p sbp[p] · start[p,w] ]        ← risk term, §7
+          + ε · Σ_w Σ_p held[p] · own[p,w]                          ← tie-break, undiscounted
 ```
 
-`β_w` is the bench weight — small under normal rules, reflecting only auto-substitution probability,
-and exactly 1 in a Bench Boost gameweek. Bench *order* is not a MILP variable; it is decided
-afterwards by sorting bench players on `P(plays) × μ`, which is optimal in practice and removes a
-large block of binaries for no real loss.
+`β` is `decision.horizon.bench_weight`. Bench order is decided after the solve by P(plays) × μ
+(DL-66); the browser orders by `xp_next` (03 §12 W2).
+
+The squad MILP maximises `xp_horizon` over starters and a weighted bench plus a captain bonus on
+`xp_next`, under C1–C5 and the floor. The transfer MILP solves that single-gameweek problem on
+`xp_next` per transfer count up to `transfers.max_transfers`, subtracting hits afterwards; a move must
+gain more than `transfers.min_gain_over_hit`. `xp_horizon` uses the forecast's own horizon and
+discount (`forecast.horizon_*`), which differ from the plan's `H` and `γ` (Q-01, Q-02).
 
 #### The tie-break term, and why it is not cosmetic
 
-`ε` is tiny — small enough never to overturn a genuine expected-points difference — and `incumbent[p]`
-marks players already in the squad or in the previously published recommendation.
-
-The FPL squad problem is **densely degenerate**: many different 15s share an objective value identical
-to within floating-point noise. Which one a solver returns is an implementation detail, and it can
-change between runs on unchanged inputs. Two consequences, one technical and one much worse:
-
-- It makes NFR-06's original byte-for-byte claim unachievable, which is why the charter now claims
-  logical reproducibility instead.
-- **It churns the recommendation.** A user who refreshes three hours before a deadline and sees a
-  different squad for no stated reason stops trusting the tool, and is right to. Arbitrary-looking
-  advice erodes confidence faster than advice that is wrong for a reason.
-
-The tie-break fixes both, and it is also just correct behaviour: *do not transfer for +0.01 expected
-points.* A transfer should have to clear a margin, not merely tie. R-16 tracks this.
+The problem is densely degenerate: many fifteens tie to within floating-point noise, so a solver's
+choice can change between runs on unchanged inputs — breaking byte-for-byte reproducibility (the
+charter claims logical reproducibility, DL-13) and churning the advice. `ε`
+(`decision.horizon.incumbency_bonus`) rewards each held player, too little to overturn a real
+difference, and a plan must beat holding by `decision.horizon.transfer_margin` (Q-10, R-16).
 
 #### The correlation problem, and the cheap part of the fix
 
-§6.4 is honest that a MILP cannot represent portfolio variance, because variance is quadratic and
-players in the same match are strongly correlated — two defenders from one club share a single clean
-sheet. That remains true and the full fix is the deferred stochastic layer.
-
-**C16 is the part that is linear and therefore free.** Capping the starting XI at two players per club
-targets the dominant correlation directly, costs one constraint per club, and needs no change to the
-objective. It is not a substitute for modelling covariance; it is the 80% of the benefit that a linear
-model can actually express. Where a triple-up is genuinely wanted — a premium defence in a good run —
-the constraint is relaxable per club through the constraint-override mechanism (FR-22).
+Two defenders from one club share one clean sheet, and portfolio variance is quadratic, so the MILP
+cannot see it (§6.4). C16 is the linear part: two per club in the XI targets the dominant correlation,
+relaxable per club (`relax_club_cap_team_ids`, FR-22, Q-12).
 
 ### 6.3 Chip strategy — enumeration, not decision variables
 
-Chip timing interacts with transfers, so it cannot be decided by a separate heuristic in isolation.
-But it does **not** follow that chips must be MILP variables. Per
-[DL-15](../decisions/DL-15.md),
-the primary approach is **enumeration over chip scenarios**:
+Chip timing is decided by solving the horizon model once per scenario (DL-15):
 
-1. Enumerate the plausible `(chip, gameweek)` assignments within the horizon. Over 5–8 gameweeks with
-   four chips and an at-most-one-per-week rule, this is a small set, and most of it prunes
-   immediately — a Bench Boost in a single-fixture gameweek is not a candidate.
-2. Solve the transfer MILP **conditional on each scenario**, with the chip's effect applied as fixed
-   parameters rather than variables.
-3. Take the best, and keep the runners-up — they are exactly what the explanation layer needs.
+1. `available_chips` reads windows from the silver `chip` table and drops chips used and windows
+   closed — so set-1 expiry is enforced, not advised (§4.1).
+2. Scenarios are "no chip" plus one `(chip, gameweek)` per available pair in the horizon; Bench Boost
+   is pruned where the squad's clubs average too few fixtures; owner overrides force or forbid a chip
+   week; the list is capped (`decision.chips.max_scenarios`).
+3. A "hold" plan — no chip, no transfers — is the baseline.
+4. Every solved plan is ranked (§6.4) and published in `plan.json` with its alternatives
+   (`decision.chips.runners_up` is not read).
 
-Three reasons this beats the C10–C14 formulation in practice:
-
-| | |
-| --- | --- |
-| **Tractable** | Free Hit in particular no longer needs a parallel squad variable set inside one monolithic model. Each sub-problem is the ordinary transfer MILP |
-| **Parallel** | The scenarios are independent, which suits CI |
-| **Explainable** | "Free Hit in GW18 beats Free Hit in GW17 by 4.1 points, and beats not playing it by 9.3" is a sentence the owner can argue with. A chip binary flipping inside a solver is not |
-
-The full MILP formulation (C10–C14) is retained above as the documented stretch target. It is the
-correct formulation and may become tractable; enumeration is what ships.
-
-On top of either, a longer-horizon **chip calendar** projects likely windows across the season from
-fixture structure — anticipated double and blank gameweeks, congestion, and the GW19 expiry of set 1
-(FR-20). Rolling horizon plus long-range calendar is the right split: the optimiser decides *now*, the
-calendar stops *now* from ruining *later*. A minimal version of the calendar
-([E2-S7](archive/R1.0/E2-data-platform.md)) deliberately ships long before the optimiser, because GW19
-expiry is irreversible and must not depend on E3 and E4 both landing on time.
+Enumeration is tractable, independent per scenario, and explainable: "Free Hit in GW18 beats GW17 by
+4.1 points" is a sentence to argue with. A season **chip calendar** (`build_calendar`) projects
+windows from fixture structure alone — doubles flag Bench Boost and Triple Captain, blanks and doubles
+flag Wildcard and Free Hit — and reports each set's expiry.
 
 ### 6.4 Solving, and an honest limitation
 
-**Solver: HiGHS** (`highspy`, via PuLP) from E4 onward, under a wall-clock limit and warm-started from
-the previous run. Not CBC: the E0 de-risking exercise validated CBC against the *single-gameweek*
-problem — 15 from 200 candidates, optimal in seconds — which is a much easier problem than the
-multi-gameweek model with transfer, hit and chip structure. That is roughly 10–20k binaries with a
-weak LP relaxation, and CBC is unlikely to hold. Both solvers are reachable through PuLP, so this is
-configuration, not a rewrite. R-07 is rated High accordingly, and the greedy fallback is not optional:
-if the solver does not converge in time it produces a legal solution flagged as fallback-quality
-(architecture §10.3), because a worse recommendation beats no recommendation at a deadline.
+**Solvers.** HiGHS for the horizon model, refusing a silent fallback to CBC (DL-26), under a
+per-scenario limit and a total budget that drops unsolved scenarios with a warning (D-19, R-07); CBC
+for the other two. No warm start.
 
-**The honest limitation:** a MILP maximises *expected* points and cannot represent variance directly,
-because portfolio variance is quadratic and, worse, players in the same match are strongly correlated
-— two Arsenal defenders share one clean sheet. The `σ` term in §7 is a linear proxy, not a correct
-treatment of risk. C16's same-club cap covers the crudest part of the correlation. Doing it properly
-requires the stochastic layer deferred in DL-06, which is precisely why the model→optimiser contract
-carries variance from day one even though the current solver only approximates its use.
+**Fallbacks.** The squad MILP falls back to a greedy fill by xP per £ (preseason infeasibility is a
+hard failure with a diagnosed reason); the horizon model to holding the squad. Both are flagged
+`greedy_fallback`. The transfer MILP skips a count that does not solve. Every output passes
+`validate_squad`.
+
+**The honest limitation:** the MILP maximises *expected* points; `σ` reaches decisions only through
+the re-rank and correlation only through C16. The full treatment is the stochastic layer deferred in
+DL-06, which is why the forecast carries variance from day one.
 
 #### Simulation re-rank — most of the stochastic layer, for a fraction of the cost
 
-There is a cheap intermediate step between "linear proxy" and "full stochastic optimisation", and it
-needs no solver change at all:
+`optimise/simulate.py`, on by default, samples every solved plan many times with a fixed seed — each
+draw a factor shared by a club in a gameweek times the player's own, so a clean sheet is shared within
+a club but not with the opponent — and re-ranks on a percentile set by the dial. Bench Boost and
+Triple Captain are variance plays, which is where it matters. It is proven to move real chip decisions
+and to respond to the dial, not to time them well, and it pulls chips to the front of the horizon for
+an unidentified reason (DL-28, D-21); the plan carries that caveat.
 
-1. Extract the **top-k solutions** from the MILP (or the top scenario from each chip branch) — most
-   solvers can return a solution pool, and the enumeration approach produces one naturally.
-2. **Simulate** each one: sample player outcomes many times, with draws **correlated within a match**
-   so that a clean sheet is shared and a heavy defeat is shared.
-3. **Re-rank** on whatever the risk dial actually asks for — expected points at the safe end, upside
-   percentiles at the aggressive end.
+### 6.5 Captaincy
 
-This matters most exactly where the MILP is weakest. **Bench Boost and Triple Captain are variance
-plays**, and an expectation-maximiser will systematically mistime them: it cannot see that a Triple
-Captain on a 6.0-xP explosive forward and one on a 6.0-xP metronomic midfielder are entirely different
-bets. Roughly a day of work, no change to the solver, and it converts the risk dial from a heuristic
-penalty term into something with a defensible meaning.
+Under `optimiser.captain_rule: price_position` (the default), the weekly captain and vice are the two
+starters with the highest B0 score, fitted on this season's history at run time, because the
+backtest's B0 captain beats the chain's own pick; if B0 cannot be fitted the solver's captain stands.
+The horizon plan keeps the MILP's captain. B0 is fitted inside `optimise/captain.py` (03 §12 P1).
 
 ---
 
 ## 7. Risk and ownership model
 
-Per DL-07, the objective carries a risk term `R[w]` scaled by a user-facing dial.
-
-**Effective ownership** `EO[p] = selected_by% + captained_by%` — approximately the share of the field's
-points a player represents. What moves rank is not points scored but points scored *relative to the
-field*: `Δrank ∝ Σ_p (my_multiplier[p] − EO[p]) · points[p]`.
+The horizon objective carries a linear risk term (DL-07): `ownership_weight[dial] ×
+selected_by_percent × start`, per starter per gameweek, discounted with the week. The dial is
+`safe`, `balanced` or `aggressive`, default Balanced (DL-25), set in `decision.risk.dial`; the app
+displays it and cannot change it. Safe pulls toward the template, Aggressive rewards low ownership. No
+`σ` term. It is a heuristic, and the UI says so.
 
 ### 7.1 Effective ownership is not directly observable (CON-12, OD-06)
 
-That formula is correct and standard. **It is also not computable from public FPL data**, and the whole
-risk dial rests on it, so the gap is recorded here rather than discovered in E4.
+`EO = selected_by% + captained_by%`, and no endpoint publishes `captained_by%` — only one
+`most_captained` id per gameweek. Of three routes (estimate it, sample leagues after the deadline,
+redefine), **Redefine** was adopted: `EO = selected_by_percent` (DL-24). Every figure is labelled
+"selected by". The most-captained callout renders "not available" because the id never reaches the
+decision layer (D-15). Stated, not fixed: the dial cannot see captaincy concentration, and
+`selected_by_percent` is the whole field, not the top-100k cohort.
 
-| Term | Availability |
-| --- | --- |
-| `selected_by%` | ✅ Public — `selected_by_percent` in `bootstrap-static` |
-| `captained_by%` | ❌ **Not exposed by any FPL endpoint.** `bootstrap-static` events carry `most_captained` as a *single element id*, not a distribution |
-
-There is a second, quieter problem. `selected_by_percent` is ownership across the **entire** player
-base of roughly eleven million managers. The charter's tier-1 target is top-100k, and the top-100k
-template diverges materially from the overall one — the field you are actually competing with owns
-different players. Optimising rank against the wrong cohort's ownership is a systematically wrong risk
-model, not merely an imprecise one.
-
-**Three candidate routes, to be chosen at E4-S4 (OD-06):**
-
-| Route | Method | Trade-off |
-| --- | --- | --- |
-| **Estimate** *(likely default)* | Model captaincy share as a function of ownership, expected points and fixture, calibrated against the observed `most_captained` id as a weak check | Cheap, available pre-deadline, roughly right. Honest only if labelled as modelled rather than measured |
-| **Sample** | After each deadline, pull picks from a few large public classic leagues and compute empirical captaincy share and cohort ownership | Genuinely measured, and can be cohort-scoped by choosing leagues. But it is *post*-deadline, so it informs next week, not this one. Costs requests |
-| **Redefine** | Drop `captained_by%`; use ownership alone plus an explicit captain-risk callout for the single most-captained player | Loses precision, gains honesty. Never wrong about what it knows |
-
-Whichever is chosen, **the UI states which one is in use.** A risk dial driven by an estimated quantity
-presented as a measured one is worse than no risk dial, because it invites confidence the number
-cannot carry.
-
-| Dial position | Objective behaviour | When it is right |
-| --- | --- | --- |
-| **Safe** | Penalise deviation from the template. Owning the high-EO players caps downside — when a 60%-owned forward hauls, not owning him is a large rank loss | Protecting a good rank, or when confidence in the model is low |
-| **Balanced** | Small penalty. Broadly follows expected points, avoiding only the most extreme template gaps | Default |
-| **Aggressive** | Reward low ownership, favouring differentials with comparable expected points | Chasing rank from behind, or with genuine conviction in an edge |
-
-Implemented as a linear term over selected players — a signed function of `eo[p,w]` and, as a crude
-proxy for uncertainty, `σ[p,w]`. It is a heuristic, and the UI says so.
-
-**What the UI must always show**, regardless of dial position: for each recommendation, the ownership
-of every player involved, the EO delta versus the template, and a plain statement of the bet — for
-example, *"you are 18% underweight on the most-captained player this week; you gain if he blanks and
-lose roughly 4 points of rank-equivalent if he hauls."* Making the bet explicit is more valuable than
-any particular dial setting, because it is what lets the human apply judgement the model does not have.
+**What the UI shows** at every dial position: the ownership bet — the most underweight and overweight
+players, with a plain sentence about what happens if they haul or blank (FR-16). Mini-league rivals
+are displayed, not fed into the objective (Q-09).
 
 ---
 
@@ -799,276 +561,268 @@ any particular dial setting, because it is what lets the human apply judgement t
 
 ### 8.1 Principles
 
-1. **Deadline-first.** The home screen answers "what do I do before Friday?" in under five seconds.
-2. **Explain, don't assert.** Every number is traceable; every recommendation shows what it beat.
-3. **Uncertainty is visible.** Ranges and probabilities, never false precision. A forecast of 5.2
-   points that could be anything from 0 to 15 must not look like a measurement.
-4. **Mobile is a first-class surface,** not a shrunken desktop. Deadline decisions happen on a phone.
-5. **The user can always overrule.** Lock, ban, override, and see the consequence immediately.
-6. **Fast.** Precomputed and client-queried; no spinners on the critical path (NFR-04).
+1. **Deadline-first.** The home screen answers "what do I do before the deadline?".
+2. **Explain, don't assert.** Every recommendation shows what it beat.
+3. **Uncertainty is visible.** Ranges, not false precision; a missing σ reads "unquantified".
+4. **Mobile is first-class.** Deadline decisions happen on a phone.
+5. **The owner can always overrule.** Lock, ban, swap, and see the consequence.
+6. **Fast.** Precomputed, read once, no spinner on the deadline path (NFR-04).
 
 ### 8.2 Information architecture
 
-```mermaid
-graph TB
-    HOME["Dashboard<br/>what do I do before the deadline"]
-    SCOUT["Scout<br/>search, filter, rank"]
-    PLAYER["Player detail<br/>profile, trends, xP breakdown"]
-    COMPARE["Compare<br/>2-4 players side by side"]
-    SQUAD["Squad builder<br/>optimise, edit, validate"]
-    PLAN["Transfer planner<br/>multi-GW plan + chip calendar"]
-    FIX["Fixtures<br/>model-derived difficulty ticker"]
-    LEAGUE["Mini-league<br/>rival analysis"]
-    HEALTH["Data health<br/>freshness, gates, model accuracy"]
-    SET["Settings<br/>team ID, risk dial, constraints"]
-
-    HOME --> SQUAD & PLAN & SCOUT
-    SCOUT --> PLAYER --> COMPARE
-    SCOUT --> COMPARE
-    SQUAD --> PLAYER
-    PLAN --> FIX
-    HOME --> LEAGUE
-    HOME --> HEALTH
-    HOME --> SET
-```
+A hash router (DL-35) inside a theme provider, a client-side password gate (deterrence only — the data
+stays publicly fetchable) and one data context. A flat top bar of ten entries, Data health last; a
+global model selector chooses whose advice is shown. Player detail is reached from Scout and Squad.
 
 ### 8.3 Screens
 
-| Screen | Answers | Key content |
-| --- | --- | --- |
-| **Dashboard** | What do I do this week? | Deadline countdown; current squad with expected points; the recommended action with its marginal gain; price-change alerts on owned players; availability alerts; the "roll it" option always shown alongside |
-| **Scout** | Who should I be looking at? | Virtualised table over all players; filter by position, club, price, minutes, ownership, form, expected points, underlying stats and fixture run; saved filter presets; multi-select into Compare |
-| **Player detail** | Is this player actually good? | Expected-points decomposition by component; minutes probability; upcoming fixtures with model difficulty; trend charts; price and ownership history; set-piece role; injury status |
-| **Compare** | Which of these two? | Side-by-side statistics, expected points over the horizon, trend overlays, fixture runs, and a plain-language verdict on the difference |
-| **Squad builder** | What is the best legal squad? | Optimised 15 with formation view; manual editing with live legality and budget checking; lock and ban; "re-optimise around my locks" running client-side (T2); the resulting expected-points delta |
-| **Transfer planner** | What is the plan beyond this week? | Multi-gameweek transfer path; free-transfer trajectory; hit analysis; chip calendar with recommended windows; alternative branches |
-| **Fixtures** | Whose fixtures turn? | Team-by-gameweek difficulty grid using model expectations rather than static ratings; sortable by run quality over N weeks; double and blank gameweeks marked |
-| **Mini-league** | How do I stand against rivals? | Standings, squad overlap, differentials held by each side, captain divergence |
-| **Data health** | Can I trust today's numbers? | Per-source freshness and status; last run outcome; quality gate results; rolling model accuracy; degraded-source banners |
-| **Settings** | | Team ID, league ID, risk dial, planning horizon, default constraints, theme |
+| Route | Content |
+| --- | --- |
+| `/` Dashboard | Deadline countdown, alerts, this week's move with the roll option beside it, squad and bench, plan and ownership bet |
+| `/scout` | Every player, virtualised (DL-36): filter, sort, presets, xP with range, trailing form beside it (DL-70), decomposition, "owned" filter, select into Compare |
+| `/player/:id` | xP with range, decomposition, P(plays), fixture run, trends |
+| `/compare` | Up to four players: rows, overlaid trends, a verdict naming a leader only when forecasts separate |
+| `/squad` | The optimiser's squad, or the owner's in-season (DL-67); the builder — swap, start, bench, lock, ban, live legality, heuristic re-optimise; plan timeline and chip calendar |
+| `/fixtures` | Clubs × gameweeks shaded by model difficulty (DL-37) |
+| `/league` | Standings, overlap, differentials, captain divergence (DL-40) |
+| `/log` | Per finished gameweek: played, scored, advised, followed (DL-69) |
+| `/models` | The frozen models: summary, details, xP accuracy, hindsight (E14), history (`/history` redirects) |
+| `/settings` | Team and league IDs, kept in the browser (DL-44); a copyable link to dispatch a run |
+| `/health` | Last run, gates, every source's status and freshness, trends from recent manifests (DL-41) |
+
+Not built: risk dial, horizon or constraint settings in the UI (pipeline configuration only); a run
+queued from the browser (Q-16).
 
 ### 8.4 Visualisation inventory
 
-Specified here by *purpose*; the visual design system is defined in phase 4.
+Hand-written SVG in `web/src/components/charts/` (03 §5.2):
 
-| Visualisation | Question it answers |
+| Visualisation | Built as |
 | --- | --- |
-| Expected-points decomposition bar | Where do this player's points come from? |
-| Uncertainty range on every forecast | How confident is this? |
-| Points and underlying-stat trend lines | Is this player improving, or was it one good week? |
-| xG/xA versus actual returns | Is this player over- or under-performing their underlying numbers? |
-| Fixture difficulty grid | Whose schedule turns favourable, and when? |
-| Price and ownership history | Is this player about to rise, and is the field already on them? |
-| Ownership versus expected points scatter | Where are the differentials with genuine upside? |
-| Comparison overlays | How do these players actually differ? |
-| Model accuracy over time | Is the model still working? |
+| Uncertainty range | `IntervalChart`: the ±2σ band is the mark, the mean a tick |
+| Points, minutes, Defensive Contribution, price, ownership over time | Bar and line charts on player detail; overlaid on Compare |
+| Expected versus actual returns | Cumulative lines on player detail |
+| Fixture difficulty | An HTML grid, not a chart |
+| Model accuracy over time | xP error and cumulative points per model on `/models` |
+| Pipeline health | Solve time, rows, price dependence over recent runs |
+| xP decomposition | A list with a sum check, not a bar |
+| Ownership versus xP scatter | **Not built** |
 
-All charts must be legible without relying on colour alone, and readable in both light and dark
-themes (NFR-14).
+Legible without colour and in both themes (NFR-14), checked by `web/verify/`.
 
 ### 8.5 Interaction tiers
 
-Mapped to architecture §4: dashboard, scout tables, all charts, plans and calendars are **T1
-precomputed**. Filtering, sorting, aggregation, formation and captain changes, lock-and-re-pick, and
-single-transfer what-ifs are **T2 client-side**. Full multi-gameweek re-optimisation under bespoke
-constraints and wildcard drafting are **T3 job-triggered**, presented as "queue this and come back",
-never on the deadline path.
+Tiers are [03 §4](03-solution-architecture.md#4-the-static-hosting-constraint-and-how-interactivity-survives-it).
+Every screen is **T1**. **T2** is TypeScript parameterised from `rules.json`: `legality.ts` (pinned to
+Python by the corpus, DL-39), `lineup.ts`, `reoptimise.ts` (greedy build plus hill-climb around locks
+and bans, ignoring transfer costs and chips, labelled a heuristic, never returning an illegal squad)
+and `verdict.ts`. **T3** is a `workflow_dispatch` the owner starts on GitHub. No query engine or
+solver runs in the browser.
 
 ---
 
 ## 9. Orchestration
 
-Design principles for the five workflows defined in architecture §9:
-
-| Principle | Meaning |
-| --- | --- |
-| **Idempotent** | Re-running a stage for the same run id produces the same result and corrupts nothing |
-| **Resumable** | Stages are independently invocable; a failed publish does not force a re-ingest |
-| **Deadline-aware** | Cadence derives from the gameweek deadline in the data, not from a hardcoded cron assumption |
-| **Never last-minute** | Final automatic run at T−45m; manual dispatch always available (R-09) |
-| **Budget-aware** | Rate limits and API credit caps are enforced in the adapter, not by scheduling luck |
-| **Fail loud, publish safe** | Failures alert; failures never publish; the last good artefact set stays live |
-| **Traceable** | Every run has an id threading through logs, artefacts, manifest and published data |
-
-**Run lifecycle:** assign run id → resolve and record config → ingest declared sources → snapshot to
-bronze → conform to silver → run quality gates → *(gate decision point)* → compute features → run
-models → run optimiser → generate explanations → publish web contract → write manifest → append
-metrics → deploy.
-
-**Concurrency:** one pipeline run at a time per branch, with newer runs superseding queued ones — a
-stale run must never overwrite a fresher publication.
+Workflows, cadence, guards and the run lifecycle are [03 §9](03-solution-architecture.md#9-orchestration);
+failure handling is 03 §10.3.
 
 ---
 
 ## 10. Testing
 
-Weighted toward the parts where a bug is both likely and expensive, rather than toward uniform
-coverage.
+Weighted toward where a bug is likely and invisible (DP-13).
 
-| Level | Scope | Notes |
-| --- | --- | --- |
-| **Unit** | Scoring rules, price and selling-value arithmetic, free-transfer accounting, chip eligibility, constraint construction | These are pure functions and must be 100% covered (NFR-08). Off-by-one errors here silently corrupt every downstream number |
-| **Property-based** | Optimiser legality: for *any* generated input, the returned squad satisfies every FPL rule — size, positions, budget, club limit, formation, transfer accounting | The single highest-value test in the project. It is the difference between "it worked on the cases I thought of" and "it cannot produce an illegal squad" |
-| **Contract** | Each adapter against recorded real responses | Detects upstream schema drift (R-02, R-06) without hitting live sources in CI |
-| **Golden-file** | Optimiser and model outputs on frozen inputs | Makes unintended behaviour changes visible in diffs |
-| **Conformance** | **Recompute historical gameweek points from raw stats and reconcile against FPL's published totals** | The strongest single validation in the system: it proves the rules engine, the data layer and the entity resolution are all simultaneously correct, end to end, against ground truth |
-| **Quality gate** | Injected bad data must block publication | Tests the safety mechanism itself, which is otherwise never exercised until the day it matters |
-| **Fault injection** | Each non-FPL source made to fail | Proves graceful degradation (NFR-15) |
-| **Backtest regression** | Model metrics must not regress beyond a threshold | Prevents a "small improvement" quietly making the forecast worse |
-| **Component / integration** | React components; pipeline stage boundaries | Standard |
-| **End-to-end** | Smoke test against the deployed static site | Catches build, routing and deploy-configuration failures |
-| **Performance** | Bundle size, first contentful paint, table interaction latency | Enforced as budgets in CI (NFR-04) |
-| **Accessibility** | Automated audit on key views | NFR-14 |
+| Level | As built |
+| --- | --- |
+| **Unit** | Scoring, selling price, free transfers, chip eligibility, constraints; `fpl_dof.rules` at 100% in CI (NFR-08) |
+| **Property-based** | Hypothesis: no optimiser returns an illegal squad (`test_optimise.py`, `test_transfer.py`, `test_horizon.py`); legality, scoring, squad state, prior-season knowability |
+| **Contract** | Adapters against recordings with `respx`; the scraped sources' fixtures are hand-made (D-23) |
+| **Network drift** | `--network`, by hand; no workflow passes it |
+| **Cross-language** | `contracts/conformance/legality-corpus.json`, read by pytest and vitest (DL-39); the only corpus (03 §12 W2) |
+| **Contract schema** | Every artefact validated before it is written |
+| **Leakage** | No outcome column reaches a prediction; a rewritten future leaves a fold bit-identical |
+| **Quality gate** | Injected bad data blocks publication |
+| **Fault injection** | Each non-essential source fails; the run degrades (`test_source_degradation.py`) |
+| **Source isolation** | `test_source_isolation.py`, `src/` only (03 §12 P5) |
+| **Backtest** | Weekly in CI, reporting only; frozen model configs pinned |
+| **Slow** | `--slow`: the chip replay (DL-28) |
+| **Web** | Vitest and Testing Library |
+| **Browser and smoke** | `web/verify/`: layout, accessibility, PWA and offline, a performance budget (DL-30, DL-38); deployed smoke test. By hand, not in CI |
 
-**Not tested:** the accuracy of third-party data, or the future. The backtest measures forecast
-quality; it does not assert it.
+**Not built:** recomputing historical points from raw stats against FPL's totals — the end-to-end
+check the baseline called the strongest; golden-file tests; a backtest regression gate. Some tests
+reach past interfaces (03 §12 P9).
 
 ---
 
 ## 11. Documentation
 
-| Document | Audience | Maintenance |
-| --- | --- | --- |
-| `docs/00` – `docs/04` (this set) | Owner, future self, AI agents | Updated when the design changes, not after |
-| `../README.md` | Anyone landing on the repo | What it is, how to run it, current status |
-| `CLAUDE.md` | AI coding agents | Conventions, commands, invariants, the dependency rule, what not to change |
-| Module docstrings | Whoever is reading the code | Purpose and contract of each package |
-| `contracts/` schemas | Both languages | Self-documenting, generated into both sides |
-| Model cards | Owner | Per model: inputs, method, assumptions, measured accuracy, known failure modes |
-| Backtest reports | Owner | Generated per run, versioned |
-| Runbook | Operator | What to do when a run fails, a gate blocks, a scraper breaks, or a deadline is imminent and the data is stale |
-| Decision log | Everyone | Appended before implementing any significant decision |
-
-**Principle:** documentation lives with the code and is updated in the same change (charter §13).
-The requirement IDs in charter §6 exist so that a code change can name what it implements, keeping
-the trace intact without ceremony.
+Where each fact lives: [`docs/README.md`](../README.md). How documents are written and archived:
+[`docs/agents/documentation.md`](../agents/documentation.md).
 
 ---
 
 ## 12. Logging, metrics, metadata and lineage
 
-With no budget for observability tooling, observability is built from the artefacts the pipeline
-already produces — and surfaced through the product itself.
+Observability is built from artefacts and surfaced in the product (03 §10.2).
 
 ### 12.1 Structured logging
 
-JSON events, every one carrying `run_id`, stage, component, and duration. Levels used with intent:
-`ERROR` means a human must act; `WARN` means degraded but proceeding; `INFO` marks stage boundaries
-and decisions. Source responses log status, byte count and cache hit or miss — never full payloads,
-which is what bronze is for. Retained as CI artefacts.
+`obs/logging.py`: one JSON object per record, with `run_id` and `stage` from context. Source responses
+log status, size and cache hit, never payloads. Kept as CI artefacts.
 
 ### 12.2 Run manifest
 
-One JSON document per run — the single most useful operational artefact in the system:
-
-- Run id, git SHA, trigger, start and end times, outcome
-- Effective resolved configuration
-- Per source: enabled, endpoints called, status codes, bytes, cache hits, credits consumed, degraded flag
-- Per silver table: row count, delta versus previous run, freshness
-- Quality gate results with severity and the requirement each protects
-- Model versions, training window, and the feature set used
-- Solver status, objective value, solve time, whether the fallback was used
-- Output file paths with checksums
+`runs/{run_id}/manifest.json` (`obs/manifest.py`), flushed after every stage: run id, times, status,
+git SHA and dirty flag, config digest, and per stage its status, timing, metrics (source outcomes,
+gates, solver status) and artefacts with checksum, size and rows. Stages read the clock themselves
+rather than one recorded `as_of` (03 §12 P4).
 
 ### 12.3 Metrics history
 
-An append-only table capturing, per run: freshness by source, volumes, gate pass rates, model accuracy
-metrics, solve times, and publication size. This is what makes drift visible — a model degrading over
-six weeks is invisible in any single run and obvious in a trend.
+**Not built as a table.** `publish/health.py` derives the `/health` trends from recent manifests
+(`publish.health.history_runs`). Backtest metrics live in each backtest's outputs; live xP accuracy
+per model is the `xp_accuracy` artefact.
 
 ### 12.4 Lineage
 
-Every gold record traces to the silver rows and bronze snapshots that produced it, via run id and
-source version. The practical test: **for any recommendation the system ever made, it must be possible
-to reconstruct exactly what it knew at the time and why it advised that.** That is what makes a
-post-gameweek review honest, rather than a rationalisation.
+The test: **for any recommendation ever made, reconstruct what it knew and why.** What exists: bronze
+sidecars (URL, time, checksum, `run_id`, source version); the manifest (SHA, config digest, artefact
+checksums); `rules.json`'s source snapshot; `run_id` in gold artefacts and `model` per forecast row;
+advice frozen per gameweek on `ledger` before the deadline, with the prospective inputs (DL-69,
+DL-73); a permanent bronze tarball per gameweek (03 §7.3). There is no row-level link from gold to
+bronze: silver has no `run_id`, is rebuilt each run and loses accumulated history on CI (PIPE-06).
+Reconstruction is by replaying retained bronze under the recorded SHA and config.
 
 ### 12.5 Surfacing
 
-The data health page (FR-33) renders the manifest and metrics history directly. Alerting is a
-notification on workflow failure plus an automatically raised issue carrying the manifest excerpt
-(FR-38). The monitoring dashboard being part of the product is not a compromise — it is the only
-version of this that stays free *and* actually gets looked at.
+`/health` renders `health.json` — sources with status, freshness and reason, gates, manifest trends
+(FR-33, DL-41). A failed workflow opens an issue (FR-38). The model card sits beside the artefacts.
 
 ---
 
 ## 13. Configuration and feature flags
 
-Layered as described in architecture §10.1. Config domains:
+Layering, validation and the digest are [03 §10.1](03-solution-architecture.md#101-configuration).
+`Config` (`config/models.py`, 03 §12 P8), with defaults in `config/defaults/*.yaml` and the pydantic
+models:
 
-| Domain | Contents |
+| Domain | Sections |
 | --- | --- |
-| **Season and rules** | Scoring values, BPS matrix, squad rules, budget, chip definitions and expiry, transfer rules. Isolated so a rule change is a config edit (ASM-4) |
-| **Sources** | Enable/disable, cadence, rate limits, credit budgets, field-level precedence |
-| **Models** | Horizon, discount factor, shrinkage strength, blend weights, training windows |
-| **Optimiser** | Horizon, candidate pool size, bench weight, solve time limit, risk dial default |
-| **User** | Team id, league id, locks, bans, planning preferences |
-| **Quality** | Gate thresholds and severities |
+| Rules | `rules` — only what FPL does not publish (DL-17) |
+| Sources | `http`, `sources` (overrides, precedence, resolution, backfill), `retention` |
+| Models | `forecast` (priors, shrinkage, horizon, flags, published model, duty table), `backtest` |
+| Decision | `optimiser`, `transfers`, `decision` (horizon, chips, risk, simulation, candidates, overrides), `alerts` |
+| Owner | `entry` — IDs by environment variable (DL-44), declared squad |
+| Running | `quality`, `publish`, `schedule`, `runtime` |
 
-**Feature flags** let half-built work merge without shipping: a new source can be ingested and
-validated while excluded from models; a new model can run in shadow mode, publishing its predictions
-for comparison without influencing recommendations. Shadow mode is the safe way to change a model
-mid-season, and mid-season is when every model change will actually happen.
+Every tunable is named, defaulted and described where declared (DP-06). Two do nothing:
+`optimiser.solver` (03 §12 P2) and `forecast.discrimination.market_blend` (DL-60).
+
+**Feature flags** let new behaviour merge without shipping (DP-08). As shipped:
+
+| Flag | Shipped | Decision |
+| --- | --- | --- |
+| `forecast.expected_goals.enabled` | On | DL-34 |
+| `forecast.expected_goals.team_strength_from_xg` | Off; measured better, awaiting shadow gameweeks | DL-56 |
+| `forecast.discrimination.minutes_v2` | **On**, the champion's minutes model | Measured in DL-48; no entry records turning it on |
+| `forecast.discrimination.adaptive_shrinkage` | Off | DL-49 |
+| `forecast.discrimination.duty_term` | Off | DL-50 |
+| `forecast.discrimination.gkp_v2` | Off | DL-51 |
+| `forecast.discrimination.opponent_adjusted_rates` | Off | DL-58 |
+| `forecast.features.prior_season.enabled` | Off | DL-31, DL-63 |
+| `decision.simulation.enabled` | On | DL-28 |
+| `optimiser.captain_rule` | `price_position` | No entry (§6.5) |
+
+**Shadow mode** — publishing a candidate for comparison without letting it decide — is how a model
+changes mid-season; promotion needs the
+[E8 §5](epics/E8-ongoing-in-season-monitoring.md#5-the-bar-for-changing-the-model-mid-season) bar.
+Four mechanisms, none promoting automatically:
+
+- **Flagged variants** in the chain, each graded per flag in the backtest (DL-47).
+- **The challenger, C1** (`shadow/c1.py`): its own gradient-boosted P(plays) and points models feeding
+  the real transfer MILP, published as `week_challenger.json` beside the champion's
+  (`optimiser.shadow_c1`, `publish_challenger`). `run_shadow_safely` means it never stops the run. No
+  variance, no horizon, its own features outside the forecast seam (03 §12 P1).
+- **The monolith**, backtest only (DL-53).
+- **The prospective harness**: five models frozen before each deadline, scored after, compared on
+  `/models` ([`prospective/`](../../prospective/README.md)).
 
 ---
 
 ## 14. Extensibility
 
-The owner's explicit requirement (DL-05). This section is the acceptance test for the abstraction.
+The owner's requirement (DL-05). A step outside a recipe means its abstraction has leaked.
 
 ### 14.1 Adding a data source
 
-The whole procedure. If a step outside this list is ever needed, the abstraction has leaked and that
-is a defect, not a task.
+1. Create `sources/{name}/` with a `SourceAdapter` subclass under `@register`: `resources`,
+   `contributes`, `attribution`, health text, `enabled_by_default = False`, `essential = False`.
+2. Implement `ingest` through `Fetcher` and `BronzeStore` (and `robots.py` if scraping), and
+   `conform` into existing silver tables — usually `player_advanced` or `team_match_expectation` —
+   resolving players through `resolve.py`.
+3. Record real responses under `pipeline/tests/fixtures/`; add a `respx` contract test and a
+   degradation test.
+4. Add its name and host to `FORBIDDEN_PATTERNS` in `tests/test_source_isolation.py`, and its fields
+   to the precedence defaults where it competes.
+5. Enable it in `config/defaults/sources.yaml` if it should run by default; credentials by environment
+   variable only ([`environment.md`](../environment.md)).
+6. Run. Bronze, silver, gates, lineage and `/health` work already.
 
-1. Create `sources/{name}.py` implementing the adapter interface (§2.2).
-2. Declare which canonical entities and fields it populates, and its cadence.
-3. Record fixture responses and add a contract test.
-4. Add a config entry: enabled, rate limits, credentials reference, field precedence.
-5. Run the pipeline. Bronze, silver, quality gates, lineage and the data health page all work already.
-
-No changes to transformation, models, optimiser or UI. New *fields* naturally require model work to
-exploit — but ingesting, conforming, validating and observing them must be free.
+No change to models, optimiser or UI. A new table needs a schema in `silver/tables.py`; a new field
+needs model work to exploit. football-data.co.uk is the source read outside this recipe (PIPE-04).
 
 ### 14.2 Adding a model component
 
-1. Implement the component behind the model interface, emitting mean and variance.
-2. Register it with the aggregator and the explanation decomposition.
-3. Add backtest metrics for it.
-4. Run in shadow mode; promote when the backtest justifies it.
+1. Add it in `forecast/models.py` — usually a `RateModel` in `RATE_COMPONENTS` — with a mean and a
+   variance contribution.
+2. Score it in `xp_v1`, add its `component_*` column, and report its fitted state in `describe()` so
+   an inert component shows on the cards.
+3. Gate it behind a `forecast.discrimination` flag, off, so flags-off reproduces today exactly
+   (DL-47).
+4. Grade it in the backtest against the baselines, per position, flag on and off.
+5. Turn it on only past the E8 §5 bar, recording the decision.
+
+A new input must currently reach each of the four fit assemblies (03 §12 P1).
 
 ### 14.3 Adding an optimiser constraint
 
-1. Add a constraint builder in `optimise/`.
-2. Add a property test asserting it holds for any input.
-3. Expose it in config and, if user-facing, in Settings.
+1. Add it to each model it applies to — legality lives separately in the squad, transfer and horizon
+   models (03 §12 P2).
+2. Add a Hypothesis test that it holds for any input; keep `validate_squad` passing on every output.
+3. Expose its parameter in `DecisionConfig` or `OptimiserConfig`, named, defaulted and justified. The
+   UI has no constraint settings.
 
 ### 14.4 Structural safeguards
 
-- Import linting forbids source-specific imports outside `sources/`.
-- The web contract is versioned, so the UI and pipeline can evolve independently.
-- The model→optimiser contract carries variance, so a distributional model needs no solver rewrite.
-- Rules are configuration, so a scoring change is a config edit plus a conformance test.
+- `test_source_isolation.py` forbids naming a source outside `sources/` (`src/` only).
+- The web contract is versioned and validated on write (03 §7.2); the read side is unchecked (03 §12
+  W1).
+- The forecast→decision contract carries variance, so a distributional decision model needs no
+  forecast change.
+- Rules are read from the API and published, so a scoring change is a re-run (DL-17).
 
 ---
 
 ## 15. Open design questions
 
-To resolve during implementation. Recorded here so they are decided deliberately rather than by
-accident.
+Status: **Open**, **Answered** (with the entry), or **Superseded**.
 
-| ID | Question | Bears on | Resolve by |
-| --- | --- | --- | --- |
-| Q-01 | Optimal planning horizon — 5, 6 or 8 gameweeks. Longer sees further but forecasts decay; measure the trade-off in backtest rather than guess | E4 | Backtest |
-| Q-02 | Correct discount factor `γ`. Should be derived from measured forecast decay, not assumed | E3/E4 | Backtest |
-| Q-03 | Bench weight `β` under normal rules — the true value depends on auto-substitution probability, which is measurable from history | E4 | Historical analysis |
-| Q-04 | Whether one blended expected-points model beats the component chain. The chain wins on explainability, which is a product requirement; if a monolith is materially more accurate, that trade needs an explicit decision | E3 | Backtest |
-| Q-05 | How to weight the 25/26 season in training given the BPS revision and the introduction of Defensive Contribution — earlier seasons come from a different scoring regime | E3 | Model design |
-| ~~Q-06~~ | ~~Whether DuckDB-WASM payload size is acceptable on mobile~~ — **provisionally resolved 2026-08-09 by scoping rather than choosing.** The scout table is ~700 rows and needs no query engine: plain JSON plus client-side filtering is smaller and faster. DuckDB-WASM is lazy-loaded, route-scoped, and used only for the multi-season history views where the data is genuinely large. **Confirmed by measurement at E6-S9** ([DL-38](../decisions/DL-38.md)): on an emulated Pixel 5 over throttled mobile 4G with a 4× CPU throttle, 587 players filter in 31 ms and sort in 77 ms against a 150 ms budget, and the whole initial payload is 155 KiB against 3 MB | E6 | **Resolved by measurement** |
-| Q-07 | Price-change prediction — whether to model it, given FPL now publishes its own price-change predictor this season | E3 | Assess the official tool first |
-| Q-08 | How aggressively to model rotation for European competitors, where minutes uncertainty is highest and matters most. **Still open, and now blocked on data rather than on modelling** ([DL-48](../decisions/DL-48.md)): nothing in the silver model carries a European fixture or a competition label, and deriving one from a club list would be an invented fact. E10-S1 implements the observable shadow instead — fixture *density* counted from the Premier League calendar, which is what a midweek tie looks like from inside the data this project has | ~~E3~~ **E12**, if a source ever carries European fixtures | Backtest, once the data exists |
-| Q-09 | Whether mini-league rival modelling should feed the risk objective, rather than only being displayed | E8 | In-season |
-| Q-10 | **Size of `ε`, the incumbency tie-break** (§6.2). Too small and solutions still churn; too large and the optimiser holds a squad past the point it should move. Should be expressed as a points threshold a transfer must clear, and measured | E4 | Backtest — measure churn rate against points forgone |
-| Q-11 | **How to weight the top-k simulation re-rank** (§6.4) against the MILP objective at each risk-dial position. At the safe end they agree; at the aggressive end they should not, and the question is how much | E4 | Backtest |
-| Q-12 | **Whether the same-club XI cap (C16) should be 2 or 3.** Two is the right default for correlation, but a premium defence in a good fixture run is a real strategy the cap forbids | E4 | Backtest, then expose as config |
-| ~~Q-13~~ | ~~Whether DefCon can be reconstructed for seasons before 2025/26~~ — **resolved 2026-08-22: no.** Three independent checks (official API, cached archive snapshot, fresh archive fetch) confirm the raw action counts behind the old BPS formula were never publicly captured for any season before 2025/26 — the old formula's output was only ever exposed as the already-summed `bps` integer. M4 stays a one-season component. See [DL-62](../decisions/DL-62.md) | E12 | **Resolved by investigation** |
+| ID | Question | Status |
+| --- | --- | --- |
+| Q-01 | Planning horizon — 5, 6 or 8 gameweeks, measured against forecast decay | **Open.** Not measured; plan and forecast use different defaults (§6.2) |
+| Q-02 | Discount `γ` from measured forecast decay | **Open.** Configured, not measured; two discounts in use |
+| Q-03 | Bench weight `β` from historical auto-substitution rates | **Open.** Configured, not measured |
+| Q-04 | Whether one blended model beats the chain enough to outweigh explainability | **Answered** ([DL-53](../decisions/DL-53.md)): the monolith only reaches B0 at the head; the chain stays |
+| Q-05 | How to weight earlier seasons given the BPS revision and Defensive Contribution | **Open.** Training is unweighted; M8 rests on a superseded BPS regime |
+| Q-06 | Whether DuckDB-WASM is acceptable on mobile | **Superseded.** Not adopted; plain JSON meets the budget ([DL-38](../decisions/DL-38.md), 03 §5.4) |
+| Q-07 | Whether to model price changes, given FPL's own predictor | **Open.** Not modelled; a price-pressure alert only |
+| Q-08 | How aggressively to model rotation for European competitors | **Open, blocked on data** ([DL-48](../decisions/DL-48.md)); M1 models fixture density instead |
+| Q-09 | Whether mini-league rivals should feed the risk objective | **Open.** Displayed only |
+| Q-10 | Size of `ε`, the incumbency tie-break, measured against churn | **Open.** `ε` and a transfer margin configured, not measured |
+| Q-11 | How to weight the simulation re-rank against the MILP objective per dial | **Open.** The re-rank replaces the ranking with a percentile; timing quality is D-21 |
+| Q-12 | Same-club XI cap (C16): 2 or 3 | **Open.** 2, relaxable per club |
+| Q-13 | Whether Defensive Contribution can be reconstructed before 2025/26 | **Answered: no** ([DL-62](../decisions/DL-62.md)) |
+| Q-14 | Whether evidence-adaptive shrinkage widens the head | **Answered: no** ([DL-49](../decisions/DL-49.md)) |
+| Q-15 | Separate goalkeeper formulation or a re-weighted chain | **Answered** ([DL-51](../decisions/DL-51.md)): separate is better, stays off; re-weighting hurts |
+| Q-16 | Whether IDs entered in the browser may seed a run automatically | **Open** ([DL-64](../decisions/DL-64.md)): every run stays owner-initiated |

@@ -32,13 +32,12 @@ card, which the entry names. Then run `python scripts/docs.py index` and
 
 Deliberately deferred, with the point at which each must be resolved.
 
-| ID | Question | Must resolve by |
-| --- | --- | --- |
-| OD-04 | Whether to add injury/press-conference feeds as a fourth source | E8, in-season |
+None open.
 
 Closed: OD-01 and OD-02 by [DL-12](DL-12.md) (public repository, GitHub Pages), OD-03 by
 [DL-59](DL-59.md) (the Odds API free tier), OD-05 by [DL-25](DL-25.md) (risk dial defaults to
-Balanced), OD-06 by [DL-24](DL-24.md) (effective ownership without a captaincy term).
+Balanced), OD-06 by [DL-24](DL-24.md) (effective ownership without a captaincy term), OD-04 by
+[DL-79](DL-79.md) (no injury or press-conference feed; the FPL API's availability fields suffice).
 
 ## Index
 
@@ -58,7 +57,7 @@ by hand.
 | [DL-08](DL-08.md) | 2026-08-09 | Accepted | Single user, any team ID, public endpoints only |
 | [DL-09](DL-09.md) | 2026-08-09 | Accepted | Documentation lives as Markdown in the repository |
 | [DL-10](DL-10.md) | 2026-08-09 | Accepted | Build a steel thread to GW1 rather than deferring the build |
-| [DL-11](DL-11.md) | 2026-08-09 | Proposed | Store and compute in UTC; render in local time only at the UI edge |
+| [DL-11](DL-11.md) | 2026-08-09 | Accepted | Store and compute in UTC; render in local time only at the UI edge |
 | [DL-12](DL-12.md) | 2026-08-09 | Accepted | Public repository |
 | [DL-13](DL-13.md) | 2026-08-09 | Accepted | Charter amendments following the 2026-08-09 architecture and plan audit |
 | [DL-14](DL-14.md) | 2026-08-09 | Accepted | The web data contract carries the rules configuration |
@@ -119,8 +118,12 @@ by hand.
 | [DL-69](DL-69.md) | 2026-09-17 | Accepted | Advice is written to an append-only ledger, and a season log is published from it |
 | [DL-70](DL-70.md) | 2026-09-17 | Accepted | The model-free trailing-form ranking is published beside the forecast |
 | [DL-71](DL-71.md) | 2026-09-28 | Accepted | PuLP is capped below 4 until the optimisers are ported to its new API |
-| [DL-72](DL-72.md) | 2026-10-16 | Proposed | In-season multi-model advice ranking and hindsight transfer oracle (E14) |
+| [DL-72](DL-72.md) | 2026-10-16 | Accepted (2026-10-17, by the owner; delivered by E14) | In-season multi-model advice ranking and hindsight transfer oracle (E14) |
 | [DL-73](DL-73.md) | 2026-10-16 | Accepted | Weekly odds bronze archiving and quarantined GW1–6 replay for A+odds |
 | [DL-74](DL-74.md) | 2026-10-17 | Accepted | Documentation restructured: one file per decision, closed plans archived, one home per fact |
 | [DL-75](DL-75.md) | 2026-10-17 | Accepted | Design principles narrowed to the ten that keep the codebase sound; five moved to editable guidance |
+| [DL-76](DL-76.md) | 2026-10-17 | Accepted | C3: minutes_v2 promoted without a shadow window; captain by price and position until the model beats B0 |
+| [DL-77](DL-77.md) | 2026-10-17 | Accepted | The password gate is casual privacy, not a security boundary |
+| [DL-78](DL-78.md) | 2026-10-17 | Accepted | One planning horizon: the forecast's horizon reads the decision horizon |
+| [DL-79](DL-79.md) | 2026-10-17 | Accepted | R1.1.0 keeps its order after GW4; four design fixes join it; PIPE-09 narrowed; OD-04 closed |
 <!-- index:end -->

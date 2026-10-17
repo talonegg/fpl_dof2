@@ -9,7 +9,7 @@ release and epic records its outcome in its Status line and the decisions it too
 
 | Release | Plan | Status |
 | --- | --- | --- |
-| **R1.1.0** — data pipeline uplift | [Backlog PIPE-01 … PIPE-11](R1.1.0-data-pipeline-backlog.md) | Open; backlog in draft |
+| **R1.1.0** — data pipeline uplift | [Backlog PIPE-01 … PIPE-13](R1.1.0-data-pipeline-backlog.md) — scope and order set by [DL-79](../../decisions/DL-79.md) | Open; backlog in draft |
 | Ongoing, every season | [E8 — ongoing in-season monitoring](E8-ongoing-in-season-monitoring.md): the season state and decision points (rewritten each gameweek), the weekly loop, the bar for changing the model mid-season | Live, GW1 → 30 May 2027; updated weekly |
 
 **Planning a release.** Write `Rx.y.z-<slug>.md` here — its stories, acceptance boxes and Status

@@ -58,7 +58,7 @@ graph TB
     FPL --> PIPE
     ARC --> PIPE
     FDC -.->|"prospective harness only;<br/>adapter in R1.1.0"| PIPE
-    BLK -.->|"degraded; ingress stops<br/>in R1.1.0"| PIPE
+    BLK -.->|"off by default (scrapers);<br/>odds degrade without a key"| PIPE
     PIPE --> ART
     ART --> APP
     APP --> USER
@@ -73,8 +73,8 @@ design (DL-08, NFR-11). The official API now carries the expected-goals signals 
 | --- | --- | --- |
 | FPL API | `sources/fpl` | Essential. Failure stops the run; the last good publication stays live |
 | FPL archive | `sources/fplarchive` | Off by default; enabled for the backtest (`config/ci-backtest.yaml`, DL-68) |
-| Understat, FBref | `sources/understat`, `sources/fbref` | Blocked upstream (`robots.txt`, Cloudflare 403) — D-23. Still attempted daily until PIPE-09 |
-| The Odds API | `sources/oddsapi` | Free-tier credit cap, no history — D-20. Stood down by PIPE-09 |
+| Understat, FBref | `sources/understat`, `sources/fbref` | Blocked upstream (`robots.txt`, Cloudflare 403) — D-23. Off by default (`enabled_by_default = False`); no workflow enables them. PIPE-09 removes them |
+| The Odds API | `sources/oddsapi` | Enabled by default (`config/defaults/sources.yaml`); degrades cleanly without `ODDS_API_KEY`. Free-tier credit cap, no history — D-20; not used by the model (DL-59, DL-60). Stood down by PIPE-09 |
 | football-data.co.uk | none yet — `prospective/fdcouk.py`, `scripts/prospective_ci.py` | Read outside `sources/` (§12, P5); a registered adapter is PIPE-04 |
 
 ---
@@ -409,7 +409,7 @@ No paid tooling exists in a £0 budget, so observability is built from artefacts
 | --- | --- | --- |
 | FPL API | Public JSON, unauthenticated | Honest user agent, conservative rate limiting, cache aggressively |
 | FPL archive, football-data.co.uk | Public files | Cache permanently once a season is complete (PIPE-03, PIPE-04); attribute in the UI |
-| Understat, FBref | Scraped HTML | Both now refuse automated access; `robots.txt` is honoured, so ingress stops (PIPE-09) rather than working around it |
+| Understat, FBref | Scraped HTML | Both now refuse automated access; `robots.txt` is honoured, so they stay off rather than working around it |
 | The Odds API | Documented API | Stay inside the free-tier terms and credit cap |
 
 ---
@@ -557,7 +557,7 @@ architecture above, and where it depends on §12.
 
 | Concern | Today (§2–§9) | After R1.1.0 | Items |
 | --- | --- | --- | --- |
-| Source set | Five adapters, three of them blocked or capped but still attempted daily | FPL API, FPL archive and a registered **`fdcouk`** adapter; Understat, FBref and The Odds API **decommissioned** (no ingress; retained bronze still replayable) | PIPE-04, PIPE-09 |
+| Source set | Five adapters: the scrapers off by default and blocked; The Odds API on, capped and unused by the model | FPL API, FPL archive and a registered **`fdcouk`** adapter; Understat, FBref and The Odds API **decommissioned** (no ingress; retained bronze still replayable) | PIPE-04, PIPE-09 |
 | Prior seasons | Archive re-fetched on TTL expiry, from an external mirror | **Frozen bronze tier**: completed seasons never touch the network unless re-acquisition is forced | PIPE-03 |
 | Transport | Unconditional GET on TTL expiry | **Conditional requests** (`ETag`, `Last-Modified`; 304 is a zero-byte fetch recorded in lineage) | PIPE-07 |
 | Ingest safety | Structural drift found in transform, after the slow sweep | A **drift canary** on `bootstrap-static` and `fixtures` halts ingest before per-player fetches, with a key diff in the manifest | PIPE-08 |
@@ -586,17 +586,18 @@ graph LR
 ### 13.2 How R1.1.0 meets the design review
 
 The backlog was written before the review. Four places where building it on the current structure
-would deepen a §12 problem rather than remove it:
+would deepen a §12 problem rather than remove it — all four now in R1.1.0 ([DL-79](../decisions/DL-79.md)):
 
 | Backlog item | Depends on | Why |
 | --- | --- | --- |
-| PIPE-01, PIPE-10 | **P4** — one `as_of` per run, one `current_gameweek` | A gate that tests "observed before the GW *N* deadline" needs a single definition of *now* and of *N*; today there are three |
-| PIPE-02, PIPE-05 | **P1** — `fit_as_of` in `forecast/` | Unified gold is only worth having if live, backtest, replay and the challenger read it through one interface rather than four fitting paths |
+| PIPE-01, PIPE-10 | **P4** — one `as_of` per run, one `current_gameweek` — now PIPE-12 | A gate that tests "observed before the GW *N* deadline" needs a single definition of *now* and of *N*; today there are three |
+| PIPE-02, PIPE-05 | **P1** — `fit_as_of` in `forecast/` — now PIPE-13 | Unified gold is only worth having if live, backtest, replay and the challenger read it through one interface rather than four fitting paths |
 | PIPE-04 | **P5** | The `fdcouk` adapter is the fix for the source handled outside `sources/`; the prospective harness should read it through silver, and `scripts/prospective_ci.py` should stop fetching |
 | PIPE-06 | **O3, O4** | Persisting silver adds a sixth branch-restore; do it once, in one place |
 
 The other §12 findings (P2, P3, P6–P10, W1–W6, O1, O2) are independent of R1.1.0. Whether to fold any
-into it is a planning decision for the [release register](epics/README.md).
+into it is a planning decision for the [release register](epics/README.md). PIPE-09 is narrowed to
+turning The Odds API off by default; the scrapers are already off (DL-79).
 
 ---
 

@@ -1458,7 +1458,8 @@ class OptimiserConfig(_Section):
             "`price_position`: highest B0 (per-position price line) score, then second highest "
             "for vice — the walk-forward backtest's b0 captain, +2.20 captain pts/GW over the "
             "model's own pick across 2023/24-2025/26, which skews to GKP/DEF. `model`: the "
-            "solver's own xp-maximising captain (the previous behaviour)."
+            "solver's own xp-maximising captain (the previous behaviour). DL-76: returns to "
+            "`model` once the model card shows the model's top-20 precision above B0's."
         ),
     )
     shadow_c1: bool = Field(

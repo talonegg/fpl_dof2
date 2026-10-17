@@ -1,85 +1,84 @@
 # Project Plan and Blueprint — FPL DOF
 
-**Companion to:** [01-project-charter.md](01-project-charter.md) · **Baselined:** 2026-08-09
+**Companion to:** [01-project-charter.md](01-project-charter.md) · **Baselined:** 2026-08-09 ·
+**Revised:** 2026-10-17
 
-This document covers *how the thing gets built*: the blueprint that shapes the work, the season
-operating calendar, and the RAID log. Architecture and component design live in documents 03 and 04.
+How the work is run: the blueprint, the delivery strategy, the season calendar and the RAID log.
+Architecture is in [03](03-solution-architecture.md), component design in
+[04](04-conceptual-design.md).
 
-The live sections are §1 (blueprint B1–B7), §2 (delivery strategy), §5 (season calendar), §6 (the
-RAID log) and §9. The phase plan, milestones, GW1 decision and estimates (§3, §4, §7, §8) were
-superseded by the epics ([DL-10](../decisions/DL-10.md)) and are archived in
-[02-superseded-sections.md](archive/02-superseded-sections.md) (DL-74). The plan of record is
-[the epic register](epics/README.md); the technical debt register is [its own page](debt-register.md).
+> **Status at 2026-10-17, GW7 deadline day.** In season. R1.0 (epics E0–E14) is delivered and
+> archived; R1.1.0, the data pipeline uplift, is open; where the season stands is
+> [E8's season state](epics/E8-ongoing-in-season-monitoring.md). The plan of record is the
+> [release register](epics/README.md); shortcuts are in the [debt register](debt-register.md).
+> §3, §4, §7 and §8 were superseded by the epics (DL-10) and archived in
+> [02-superseded-sections.md](archive/02-superseded-sections.md) (DL-74).
 
 ---
 
 ## 1. The blueprint
 
-Seven principles. Every phase and every design choice downstream is answerable to them.
+Seven planning principles. Where one restates a design principle, the DP is the authority: binding
+in [`DESIGN-PRINCIPLES.md`](../DESIGN-PRINCIPLES.md), guidance in
+[`guiding-principles.md`](../guiding-principles.md).
 
 ### B1 — The season is the clock
 
-There is no sprint calendar. There are 38 deadlines, and the first is on **21 August 2026 at
-18:30 BST**. Work is planned backwards from deadlines, and anything that cannot be finished before a
-deadline is explicitly parked rather than half-built.
+There is no sprint calendar: there are 38 immovable deadlines (§5). Work is planned backwards from
+the next one; what cannot be finished before it is parked, not half-built. When a principle meets a
+deadline, scope is cut ([DL-10](../decisions/DL-10.md)).
 
 ### B2 — Every phase exits usable
 
-No phase ends with a half-connected system. Phase 1 ends with browsable data; phase 2 ends with a
-usable expected-points table; phase 3 ends with a squad you could actually enter. This is the primary
-defence against R-05 (stalling mid-build). A partially built system that still helps is a success; a
-fully designed system that never ships is not.
+DP-07: every release and epic is a sequence of vertical slices, each leaving a working system. The
+defence against R-05.
 
 ### B3 — Precompute everything, serve static
 
-The zero-cost constraint (DL-03) is not a limitation to work around, it is the design. Anything that
-*can* be computed on a schedule *is* computed on a schedule and published as a file. Only genuinely
-interactive exploration runs in the browser.
+Zero cost is the design ([DL-03](../decisions/DL-03.md)). Whatever can be computed on a schedule is,
+and is published as a file; the browser reads those files and calls nothing else (Invariant 8). Only
+genuinely interactive exploration runs in the browser (03 §4).
 
 ### B4 — Sources are plugins; the core knows nothing about them
 
-Per DL-05. Ingestion is the only layer that knows a source exists. Everything downstream consumes a
-conformed model. The test of this is mechanical: **adding a source must touch exactly one new adapter
-module and one config entry.** If it touches anything else, the abstraction has failed.
+DP-01, binding. Adding a source is one adapter module and one config entry
+([Design §14.1](04-conceptual-design.md#141-adding-a-data-source)); anything more means the
+abstraction has failed. The live breach is I-08.
 
 ### B5 — Predict, then optimise — never conflate the two
 
-The expected-points engine answers "what is this player worth?" The optimiser answers "given those
-values, what is the best legal set of decisions?" They are separate packages with a typed contract
-between them. This keeps both testable, and it is what allows a stochastic layer to be swapped in
-later without touching the solver (DL-06).
+DP-02, binding. The forecast says what a player is worth; the optimiser decides, across a typed
+contract that carries variance ([DL-06](../decisions/DL-06.md), Invariant 6). The one dependency
+running the wrong way is 03 §12 P1.
 
 ### B6 — Explainability is a feature, not documentation
 
-The system's job is to make the owner a better manager, not to replace them. Every number the UI
-shows must be traceable to its inputs, and every recommendation must show what it beat and by how
-much. A recommendation that cannot be explained will not be trusted, and will not be followed.
+DP-09, with DP-10 for the formulation choices it implies. A recommendation that cannot be explained
+will not be followed.
 
 ### B7 — Validate before you believe
 
-No model output is trusted until it has been backtested walk-forward against a held-out season and
-beaten a naive benchmark. Building the optimiser on an unvalidated forecast is the fastest route to
-confident, expensive, wrong decisions (R-04).
+No forecast is trusted until a walk-forward backtest shows it beats a dumb baseline (DP-12), and no
+change is promoted without evidence (DP-08, the
+[E8 §5 bar](epics/E8-ongoing-in-season-monitoring.md#5-the-bar-for-changing-the-model-mid-season)).
+The verdict is on the model card ([DL-21](../decisions/DL-21.md)); R-15a is what it forbids today.
 
 ---
 
 ## 2. Delivery strategy
 
-**Vertical slices, thin then thick.** Build the narrowest end-to-end path first — FPL API → conformed
-table → naive forecast → static JSON → a table on a page — then thicken each layer in turn. This
-surfaces integration problems in week one rather than week six.
+**Releases of vertical slices.** Work ships in releases `Rx.y.z`, each a set of slices that exit
+usable (B2). Planning and closing a release, choosing the next piece of work and when to stop
+building are in the [release register](epics/README.md#choosing-what-to-build-next).
 
-**Three workstreams run in parallel** where dependencies allow:
+| Release | State |
+| --- | --- |
+| **R1.0** — E0–E14 | Delivered: the steel thread to GW1 ([DL-10](../decisions/DL-10.md)), then the full system. [Archived](archive/README.md), except E8 |
+| **R1.1.0** — data pipeline uplift | Open; [backlog](epics/R1.1.0-data-pipeline-backlog.md) in draft. Its architecture, and the 03 §12 findings it depends on: [03 §13](03-solution-architecture.md#13-r110--target-data-architecture) |
+| **E8** — in-season monitoring | Live to GW38 beside whichever release is open; says when the season's evidence should change what is built |
 
-| Stream | Covers | Runs |
-| --- | --- | --- |
-| **WS-A — Data platform** | Adapters, conformed model, entity resolution, quality gates, history backfill | Phases 0–1, then continuous maintenance |
-| **WS-B — Intelligence** | Expected-points models, backtesting, optimiser, chip strategy, risk model | Phases 2–3, then continuous improvement |
-| **WS-C — Product** | Web app, scouting, planner, explainability, PWA, data health | Phases 1–4, then continuous |
-
-Cross-cutting concerns (orchestration, observability, testing, docs) are **not a stream and not a
-phase**. They are built into every increment via the definition of done (charter §13). A project of
-this size cannot afford an "add monitoring later" phase, because later never arrives.
+**Cross-cutting concerns are not a release.** Orchestration, observability, testing and
+documentation ship in every increment through the definition of done (charter §13).
 
 ---
 
@@ -99,19 +98,22 @@ this size cannot afford an "add monitoring later" phase, because later never arr
 
 ## 5. Season operating calendar
 
-| Date | Event | What the system must be doing |
-| --- | --- | --- |
-| 2026-08-09 | Today | Planning baselined; build decision pending |
-| **2026-08-21 18:30 BST** | **GW1 deadline** | OBJ-2. See §7 for whether this is reachable |
-| 2026-08-21 | Season starts | First live gameweek data; models get real signal |
-| GW2–GW4 | Early season | Highest price volatility and highest forecast uncertainty; treat model output sceptically |
-| GW4–GW8 | Settling | Minutes data becomes meaningful; priors give way to observed form |
-| GW10–GW12 | First checkpoint | First honest read on live model accuracy |
-| Autumn | Congestion | European and cup fixtures; rotation risk matters most |
-| **2027-01-02 13:30 GMT** | **GW19 deadline** | **Chip set 1 expires — all four must be used** |
-| Jan | Second chip set opens | Re-plan the chip calendar for the run-in |
-| Feb–Apr | Blanks and doubles | Fixture-schedule modelling matters most; Free Hit and Bench Boost timing |
-| 2027-05-30 | Final match round | Season outcome measured against charter §5 |
+The shape of 2026/27. The dated decision points and their outcomes are
+[E8's](epics/E8-ongoing-in-season-monitoring.md#decision-points). Deadline times come from the API
+and move with broadcast picks: read the live one from `week.json`.
+
+| When | Event | What it means | At 2026-10-17 |
+| --- | --- | --- | --- |
+| **2026-08-21 18:30 BST** | **GW1 deadline**; season starts | First live data | Passed |
+| GW2–GW4 | Early season | Highest price volatility and forecast uncertainty; treat output sceptically | Passed |
+| GW4–GW8 | Settling | Minutes data becomes meaningful; priors give way to observed form | **Now** |
+| 2026-10-25 | UK clocks go back | Deadlines move to UTC+0 while Australia is on UTC+11 ([DL-11](../decisions/DL-11.md), I-06) | Ahead |
+| GW10–GW12 | First checkpoint | First honest read on live accuracy | Ahead |
+| Autumn | Congestion | European and cup fixtures; rotation risk matters most | Under way |
+| **GW19 deadline** | **Chip set 1 expires** | Unused set-1 chips are lost. The API gave **18:30 GMT, Fri 1 Jan 2027** on 2026-10-17 (pre-season: 13:30 GMT, Sat 2 Jan) | Ahead |
+| GW20 | Chip set 2 opens | Re-plan chips for the run-in | Ahead |
+| Feb–Apr | Blanks and doubles | Fixture structure matters most; Free Hit and Bench Boost timing | Ahead |
+| 2027-05-30 | Final round, GW38 | Season measured against charter §5 | Ahead |
 
 ---
 
@@ -119,54 +121,62 @@ this size cannot afford an "add monitoring later" phase, because later never arr
 
 ### Risks
 
-| ID | Risk | Impact | Likelihood | Response | Owner |
-| --- | --- | --- | --- | --- | --- |
-| R-01 | GW1 passes before the system is usable | High | High | Choose a track in §7 consciously; re-baseline OBJ-2 if the full track is chosen | Owner |
-| R-02 | FPL API changes shape or blocks automated access | High | Medium | Adapter isolation; contract tests on recorded responses; snapshot everything; polite rate limits and honest client identification | Owner |
-| R-03 | Model adds no real edge over intuition | High | **Confirmed, partially** *(2026-08-11)* | Backtest before trusting (B7) — it ran, and found the edge is real on average (beats B0) but absent exactly where decisions are made (loses to a trailing-form heuristic at the head of the ranking). See **R-15a** and [DL-21](../decisions/DL-21.md). Scout UI retains standalone value regardless | Owner |
-| R-04 | Overfitting produces confident wrong forecasts | Medium | High | Walk-forward validation; held-out season; in-season calibration monitoring | Owner |
-| R-05 | Build stalls mid-season, leaving a half-built system | Medium | Medium | B2 — every phase exits usable | Owner |
-| R-06 | Scraped sources break on a layout change | Medium | High | Contract tests catch it; NFR-15 keeps the pipeline running; cached data covers the gap | Owner |
-| R-07 | Optimiser solve time exceeds the CI budget | Medium | **High** *(raised 2026-08-09)* | Candidate pruning; time limits; warm starts; greedy fallback. **Re-rated because the E0 de-risking exercise validated CBC on the *single-gameweek* problem only.** The E4 multi-gameweek model with transfers, hits and chips is ~10–20k binaries with a weak relaxation. Mitigated structurally by [DL-15](../decisions/DL-15.md): HiGHS instead of CBC, and chip timing by scenario enumeration instead of MILP variables | Owner |
-| R-08 | Odds free-tier credits exhausted mid-month | Low | Medium | Credit budgeting in the adapter; cache aggressively; degrade to xG-only team strength | Owner |
-| R-09 | Scheduled jobs fire late and miss a deadline | Medium | Medium | Never schedule close to a deadline; run at T−3h and T−45m; manual dispatch always available | Owner |
-| R-10 | Entity resolution silently mismatches players across sources | High | Medium | Curated override file; assertion that unmatched rate stays below a threshold; unmatched report in data health | Owner |
-| R-11 | Free tiers change terms or limits | Medium | Low | No lock-in: static output is portable; local execution is always a fallback | Owner |
-| R-12 | Motivation decays once the novelty fades | Medium | Medium | Weekly loop is deliberately small — one improvement per week; the system must be useful even if development stops | Owner |
-| R-13 | Published artefacts grow past free-tier limits | Medium *(raised)* | **High** *(raised 2026-08-09)* | **Re-rated because "pruning" was under-specified.** Deleting files from a Git branch tip does not shrink the pack — history retains every blob. Requires a concrete mechanism: an orphan `data` branch force-pushed with truncated history, plus a separate small append-only branch for the per-gameweek permanent snapshots. See [03-solution-architecture.md §7.3](03-solution-architecture.md#73-storage-volume-and-retention-mechanics) | Owner |
-| R-14 | **Cold-start coverage** — roughly a quarter to a third of the GW1 player pool (three promoted clubs plus overseas signings) has no Premier League history, so their expected points come entirely from positional and price-tier priors | Medium | **High** — it is a certainty, the only question is the size | Confidence tier published per player; deliberately wide uncertainty on prior-less players; the E0-S8 human gate weights these hardest; an early Wildcard corrects most of the damage once real minutes arrive | Owner |
-| R-15 | ~~**Expected points collapses onto price**~~ **Measured, 2026-08-11 — did not materialise as stated.** R² of xP on (price, position) = 0.483 ([model-card.md](../../data/gold/season=2026-27/model-card.md), verdict "informative") — the model adds real information beyond price. **A related but distinct failure materialised instead**, captured as **R-15a** below | Was High; the literal risk is now closed by measurement | — | Diagnostic ran as designed in E0-S5 and again in E3's backtest; the R-15 mechanism (price as a signal producing a flat objective) did not occur | Owner |
-| R-15a | **New, 2026-08-11 — the model under-discriminates at the head of the ranking specifically** — MAE is best-in-class (1.936, beats B0's 1.965) but top-20 precision is worst-in-class (0.00 vs B0's and the model-free benchmark's 0.05). Shrinking every thin estimate toward a position prior avoids being badly wrong on average and avoids distinguishing anyone at the top, which is backwards for how the tool is used (nobody acts on the whole ranking). See [DL-21](../decisions/DL-21.md) | High — the optimiser and captaincy calls act on exactly this part of the ranking | Confirmed, not hypothetical | Debt **D-13** ([E0 §6](debt-register.md)); E4 must not justify a hit, chip or wildcard on `xp_v1` alone until top-20 precision beats B0 (gate written into [E4 §0](archive/R1.0/E4-decision-engine.md#0-gate-carried-in-from-e3--read-before-starting)); next model work targets head discrimination, not MAE | Owner |
-| R-16 | **Solution churn between runs** — a degenerate MILP returns a different but equally optimal squad on each run, destroying trust faster than a wrong recommendation would | Medium | High without mitigation | Deterministic incumbency tie-break in the objective ([Design §6.2](04-conceptual-design.md#62-milp-formulation)); a transfer must clear a stated margin, not merely tie | Owner |
-| R-17 | **In-season overfitting** — monthly retraining on ~10 gameweeks of live data is a small, noisy sample, and "improving" the model mid-season is where a working system most easily gets worse | Medium | Medium | Shadow mode by default; a stated evidence bar for promotion ([E8 §5](epics/E8-ongoing-in-season-monitoring.md)); prefer shrinkage toward the preseason model over refitting | Owner |
+All owned by the owner.
+
+| ID | Risk | Impact | Likelihood | Response |
+| --- | --- | --- | --- | --- |
+| R-01 | GW1 passes before the system is usable | High | **Closed** | The steel thread shipped (DL-10), but GW1–GW4 were decided without the tool; the live loop was repaired by DL-66 to DL-69 |
+| R-02 | FPL API changes shape or blocks automated access | High | Medium | Adapter isolation; contract tests on recordings; immutable bronze; polite, identified access. A drift canary is PIPE-08 |
+| R-03 | Model adds no real edge over intuition | High | **Materialised, partly** | Beats price on average, not at the head (R-15a, model card). Trailing form is published beside it ([DL-70](../decisions/DL-70.md)); the scout UI stands alone |
+| R-04 | Overfitting produces confident wrong forecasts | Medium | High | Weekly walk-forward backtest in CI ([DL-68](../decisions/DL-68.md)); held-out seasons; shadow mode (R-17) |
+| R-05 | Build stalls mid-season, leaving a half-built system | Medium | Low | R1.0 closed working; every R1.1.0 item exits usable (B2) |
+| R-06 | Scraped sources break | Medium | **Materialised** | Understat and FBref refuse access (D-23, [DL-31](../decisions/DL-31.md)); degraded per NFR-15, and nothing shipped depends on them because the API carries xG ([DL-46](../decisions/DL-46.md)). Ingress stops at PIPE-09 |
+| R-07 | Optimiser solve time exceeds the CI budget | Medium | High | HiGHS, chips by enumeration ([DL-15](../decisions/DL-15.md), [DL-26](../decisions/DL-26.md)); pruning; greedy fallback; no from-scratch solve in season ([DL-67](../decisions/DL-67.md)). High until D-19 is re-checked after the first double gameweek |
+| R-08 | Odds free-tier credits exhausted | Low | **Materialised** | The Odds API's cap is restrictive and it has no history (D-20); runs degrade without it. Odds come from football-data.co.uk ([DL-73](../decisions/DL-73.md)); PIPE-04, PIPE-09 |
+| R-09 | Scheduled jobs fire late and miss a deadline | Medium | Low | Mitigated by the day-before run and the deadline guard; manual dispatch always available ([03 §9](03-solution-architecture.md#9-orchestration)) |
+| R-10 | Entity resolution silently mismatches across sources | High | Low | Three-tier resolution and an unmatched-rate gate (D-07). No external player source is reachable; the live exposure is club names for football-data.co.uk (I-08) |
+| R-11 | Free tiers change terms or limits | Medium | Low | Static output is portable; local execution is the fallback |
+| R-12 | Motivation decays once the novelty fades | Medium | Medium | One improvement a week ([E8 §2](epics/E8-ongoing-in-season-monitoring.md#2-the-weekly-loop)); useful even if development stops |
+| R-13 | Published artefacts grow past free-tier limits | Medium | Low | Mitigated: `data` is an orphan branch rebuilt and force-pushed; permanent stores are small and append-only ([03 §7.3](03-solution-architecture.md#73-storage-volume-and-retention-mechanics), [DL-42](../decisions/DL-42.md)). Window kept equal by hand (03 §12 O4) |
+| R-14 | **Cold start** — promoted clubs and new signings have no Premier League history, so priors set their expected points | Medium | **Materialised, receding** | Confidence tier per player; wide uncertainty; the `xp_v0` fallback below the cold-start threshold (D-25). Shrinks as minutes accrue |
+| R-15 | ~~Expected points collapses onto price~~ | — | **Closed** | The model card's price-dependence diagnostic shows information beyond price. What occurred instead is R-15a |
+| R-15a | **Weak discrimination at the head of the ranking** — better than B0 on average, not better than B0 or trailing form in each gameweek's top 20 ([DL-21](../decisions/DL-21.md); metric corrected by [DL-49](../decisions/DL-49.md), finding stood) | High — captaincy, hits and chips act there | **Materialised** | D-13. No hit, chip or wildcard on the forecast alone until top-20 precision beats B0, restated on every model card. Candidates sit in shadow (E8 season state) |
+| R-16 | **Solution churn** — a degenerate MILP returns a different, equally optimal answer each run | Medium | Low | Incumbency tie-break ([Design §6.2](04-conceptual-design.md#62-milp-formulation)); a transfer must clear a stated margin |
+| R-17 | **In-season overfitting** — retraining on few noisy gameweeks makes the model worse | Medium | Medium | Shadow mode; the E8 §5 bar (DP-08); shrinkage over refitting |
 
 ### Assumptions
 
-Tracked in charter §8 (ASM-1 … ASM-7). ASM-1 and ASM-6 are the load-bearing ones: no public API and
-no human acting on the advice both invalidate the project outright.
+Tracked in charter §8 (ASM-1 … ASM-8). ASM-1 and ASM-6 are load-bearing: no public API, or no human
+acting on the advice, ends the project. ASM-2 and ASM-3 failed and were absorbed (R-06, R-08).
 
 ### Issues
 
 | ID | Issue | Impact | Status |
 | --- | --- | --- | --- |
-| I-01 | Only 12 days to the GW1 deadline, and no code exists | OBJ-2 at risk | **Closed** — resolved by [DL-10](../decisions/DL-10.md). Building the steel thread; [E0](archive/R1.0/E0-steel-thread-gw1.md) carries the schedule |
-| I-02 | Pre-deadline squad state is not publicly exposed (CON-10) | FR-25 partially blocked | **Open** — designed for in [E1-S1](archive/R1.0/E1-weekly-operating-loop.md#e1-s1--squad-state-service) |
-| I-03 | Repo visibility undecided (OD-01) | Gated free CI minutes and Pages | **Closed** — [DL-12](../decisions/DL-12.md): public repository. Unlimited Actions minutes, free Pages, OD-02 closed with it |
-| I-04 | Odds provider and credit budget undecided (OD-03) | Blocks E5-S4 | **Closed** — the Odds API free tier, [DL-59](../decisions/DL-59.md) |
-| I-05 | **Effective ownership is not computable from public FPL data** (CON-12) | FR-16, FR-21 and the whole risk dial rest on it | **Closed** — effective ownership redefined without a captaincy term, [DL-24](../decisions/DL-24.md) |
-| I-06 | **DL-11 (UTC storage, dual-timezone display) is still `Proposed`** | Changes FR-26 and the E7 scheduling design; CON-11 already records the underlying constraint | **Open** — needs one confirmation from the owner. Costs nothing; blocking nothing yet; will block E1-S4 |
+| I-01 | 12 days to the GW1 deadline, and no code | OBJ-2 at risk | **Closed** — DL-10 |
+| I-02 | Pre-deadline squad state is not public (CON-10) | FR-25 partly blocked | **Closed, accepted** — declared preseason, reconstructed from public data in season ([DL-20](../decisions/DL-20.md), 03 §14) |
+| I-03 | Repo visibility undecided (OD-01) | Free CI and Pages | **Closed** — [DL-12](../decisions/DL-12.md) |
+| I-04 | Odds provider undecided (OD-03) | Blocked E5-S4 | **Closed** — [DL-59](../decisions/DL-59.md); in practice superseded (R-08) |
+| I-05 | Effective ownership not computable from public data (CON-12) | FR-16, FR-21, the risk dial | **Closed** — [DL-24](../decisions/DL-24.md) |
+| I-06 | DL-11 (UTC storage, dual-zone display) is still `Proposed` | The code follows it; the record does not | **Closed** — accepted 2026-10-17 |
+| I-07 | Clock and "next gameweek" incoherent (03 §12 P4) | After a deadline, forecast and advice may name different gameweeks; blocks PIPE-01, PIPE-10 | **Open** — planned as PIPE-12 ([DL-79](../decisions/DL-79.md)) |
+| I-08 | football-data.co.uk handled outside `sources/`, unseen by the isolation test (03 §12 P5) | Breaches Invariant 1 / DP-01 | **Open** — PIPE-04, widened by [DL-79](../decisions/DL-79.md) |
+| I-09 | The app does not check what it reads; `contract_version` never read (03 §12 W1) | A contract change renders wrong instead of degrading (DP-04, DP-15) | **Open** |
+| I-10 | TypeScript copies without a corpus have drifted, e.g. bench order (03 §12 W2) | App and pipeline disagree about one squad | **Open** |
+| I-11 | Deploy runs after every pipeline completion, even guard-only skips (03 §12 O1) | Redundant builds of an unchanged contract | **Open** |
 
 ### Dependencies
 
 | ID | Dependency | Type | Note |
 | --- | --- | --- | --- |
-| D-01 | Official FPL API | External, critical | No contract, no SLA, no versioning |
-| D-02 | Understat / FBref | External, degradable | Personal-use terms; polite access required |
-| D-03 | Odds provider free tier | External, degradable | Credit-capped |
-| D-04 | GitHub Actions | Platform, critical | Compute for the entire pipeline |
-| D-05 | Static host (Pages or Cloudflare Pages) | Platform, critical | Delivery surface |
-| D-06 | Historical gameweek data for backfill | External, important | Required for training and backtesting |
-| D-07 | Owner's availability | Internal, critical | The only labour resource |
+| D-01 | Official FPL API | External, critical | No contract, SLA or versioning. Failure stops the run; the last good publication stays live |
+| D-02 | Understat / FBref | External, lost | Both refuse access (D-23); `robots.txt` honoured; ingress stops at PIPE-09 |
+| D-03 | The Odds API free tier | External, degradable | Capped, no history (D-20); stood down by PIPE-09 |
+| D-04 | GitHub Actions and the state branches | Platform, critical | All compute, free for a public repo ([DL-12](../decisions/DL-12.md)); state on `data`, `snapshots`, `ledger` (03 §7.3) |
+| D-05 | GitHub Pages | Platform, critical | Delivery surface (DL-12) |
+| D-06 | FPL community archive (GitHub mirror) | External, important | Prior seasons for training and backtest ([DL-19](../decisions/DL-19.md)); frozen by PIPE-03 |
+| D-07 | Owner's availability | Internal, critical | The only labour, and the actuator at every deadline (ASM-6) |
+| D-08 | football-data.co.uk | External, degradable | Match odds for the prospective harness (DL-73); adapter is PIPE-04 |
 
 ---
 
@@ -186,10 +196,12 @@ no human acting on the advice both invalidate the project outright.
 
 ## 9. What "good" looks like at the end
 
-- A GitHub repository that, unattended, keeps a static site current with fresh data, forecasts and a
-  transfer recommendation for every one of the 38 deadlines.
-- A scout UI good enough that the owner reaches for it instead of the official site.
-- A backtest report that honestly states how much edge the model has, including if the answer is
-  "not much".
-- A decision log that explains why every significant choice was made.
+The season is judged by [charter §5](01-project-charter.md#5-success-criteria); E8 closes on its
+[definition of done](epics/E8-ongoing-in-season-monitoring.md#7-definition-of-done). Beyond those:
+
+- A repository that, unattended, keeps a static site current with fresh data, forecasts and a
+  recommendation before every deadline.
+- A scout UI the owner reaches for instead of the official site.
+- A model card and season log that say honestly how much edge the model has, even if "not much".
+- A decision log that explains every significant choice.
 - £0.00 spent.
