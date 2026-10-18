@@ -1,6 +1,6 @@
 """Unified match odds and market expectations in Gold (PIPE-05).
 
-Consolidates historical and live match odds (fdcouk and oddsapi) into a single
+Consolidates historical and live match odds into a single
 canonical dataset using a consistent Shin / Poisson de-vigging formulation.
 
 Guarantees:
@@ -21,8 +21,7 @@ from fpl_dof.frames import as_int
 from fpl_dof.gold.player_career import TEAM_ID_TO_CODE_2627, _season_from_path
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.silver.tables import Table
-from fpl_dof.sources.names import team_key
-from fpl_dof.sources.oddsapi.market import (
+from fpl_dof.sources import (
     MarketError,
     devig,
     fit_goal_expectations,

@@ -27,6 +27,12 @@ from fpl_dof.sources.errors import (
 )
 from fpl_dof.sources.fdcouk.adapter import fetch_history, latest_fixtures_csv
 from fpl_dof.sources.fetch import Fetched, Fetcher, RateLimiter
+from fpl_dof.sources.oddsapi.market import (
+    GoalExpectation,
+    MarketError,
+    devig,
+    fit_goal_expectations,
+)
 from fpl_dof.sources.registry import build, known, register
 from fpl_dof.sources.replay import extract_price_history_rows, gameweeks_from_bronze, replay_prices
 from fpl_dof.sources.resolve import CLUB_ALIASES, resolve_team
@@ -38,8 +44,10 @@ __all__ = [
     "BronzeStore",
     "Fetched",
     "Fetcher",
+    "GoalExpectation",
     "IngestReport",
     "IngestRequest",
+    "MarketError",
     "OfflineWithoutSnapshotError",
     "RateLimiter",
     "Resource",
@@ -55,8 +63,10 @@ __all__ = [
     "build",
     "canonicalise",
     "describe",
+    "devig",
     "extract_price_history_rows",
     "fetch_history",
+    "fit_goal_expectations",
     "gameweeks_from_bronze",
     "known",
     "latest_fixtures_csv",
@@ -64,3 +74,4 @@ __all__ = [
     "replay_prices",
     "resolve_team",
 ]
+
