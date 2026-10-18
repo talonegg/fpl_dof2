@@ -101,3 +101,11 @@ def test_a_run_in_a_temporary_directory_leaves_the_app_data_alone(tmp_path: Path
     assert after == before, (
         "a run against a temporary data root modified the application's published data"
     )
+
+
+def test_silver_replay_prices_cli(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    data_dir = tmp_path / "data"
+    assert main(["--data-dir", str(data_dir), "ingest"]) == EXIT_OK
+    assert main(["--data-dir", str(data_dir), "silver", "replay-prices"]) == EXIT_OK
+    out = capsys.readouterr().out
+    assert "replay-prices: processed" in out

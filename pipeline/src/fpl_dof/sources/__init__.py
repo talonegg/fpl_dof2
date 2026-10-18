@@ -28,6 +28,7 @@ from fpl_dof.sources.errors import (
 from fpl_dof.sources.fetch import Fetched, Fetcher, RateLimiter
 from fpl_dof.sources.fdcouk.adapter import fetch_history, latest_fixtures_csv
 from fpl_dof.sources.registry import build, known, register
+from fpl_dof.sources.replay import extract_price_history_rows, replay_prices
 from fpl_dof.sources.resolve import CLUB_ALIASES, resolve_team
 
 __all__ = [
@@ -54,9 +55,12 @@ __all__ = [
     "build",
     "canonicalise",
     "describe",
+    "extract_price_history_rows",
     "fetch_history",
     "known",
     "latest_fixtures_csv",
     "register",
+    "replay_prices",
     "resolve_team",
 ]
+

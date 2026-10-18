@@ -103,6 +103,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run only these stages, in registry order.",
     )
 
+    silver_parser = subparsers.add_parser("silver", help="Silver tier utilities")
+    silver_sub = silver_parser.add_subparsers(dest="silver_command", required=True)
+    replay_parser = silver_sub.add_parser(
+        "replay-prices",
+        help="Rebuild price_history.parquet from bronze snapshots.",
+    )
+    replay_parser.add_argument(
+        "--clean",
+        action="store_true",
+        help="Rebuild from scratch rather than merging with existing price history.",
+    )
+
     return parser
 
 
@@ -127,6 +139,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     configure_logging(config.runtime.log_level)
     layout = layout_for(config)
     layout.ensure()
+
+    if args.command == "silver" and args.silver_command == "replay-prices":
+        from fpl_dof.sources import replay_prices
+
+
+        result = replay_prices(
+            bronze_root=layout.bronze,
+            silver_root=layout.silver,
+            clean=args.clean,
+        )
+        print(
+            f"replay-prices: processed {result['snapshots_processed']} snapshots, "
+            f"{result['rows_written']} rows written"
+        )
+        return EXIT_OK
 
     try:
         names = args.only if args.command == "run" else [args.command]

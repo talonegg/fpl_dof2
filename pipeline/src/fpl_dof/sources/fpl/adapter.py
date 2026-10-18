@@ -45,6 +45,7 @@ import pandas as pd
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.obs.manifest import utcnow
 from fpl_dof.rules.models import ApiRules, ApiScoring, ApiSquad, Position
+from fpl_dof.sources.replay import extract_price_history_rows
 from fpl_dof.silver.tables import Table, columns_for
 from fpl_dof.sources.base import (
     Conformed,
@@ -684,22 +685,7 @@ class FplApiAdapter(SourceAdapter):
         The API publishes only the present. This row is the only record that will ever exist of
         what today looked like, which is why the store appends rather than overwrites.
         """
-        divisor = self._currency_divisor(bootstrap)
-        rows = [
-            {
-                "observed_at": now,
-                "player_id": int(element["id"]),
-                "player_code": int(element["code"]),
-                "price": float(element["now_cost"]) / divisor,
-                "selected_by_percent": float(element.get("selected_by_percent") or 0.0),
-                "transfers_in_event": int(element.get("transfers_in_event") or 0),
-                "transfers_out_event": int(element.get("transfers_out_event") or 0),
-                "cost_change_event": float(element.get("cost_change_event") or 0) / divisor,
-                "cost_change_start": float(element.get("cost_change_start") or 0) / divisor,
-            }
-            for element in bootstrap["elements"]
-            if not element.get("removed")
-        ]
+        rows = extract_price_history_rows(bootstrap, now)
         return pd.DataFrame(rows)
 
     def _entry(self, entry: dict[str, Any], bootstrap: dict[str, Any]) -> pd.DataFrame:

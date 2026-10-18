@@ -40,16 +40,9 @@ jobs:
       # a committed file selected here and nowhere else (DL-68). Without it every weekly run since
       # 2026-08-18 failed with "no history for seasons": the `data` branch carries bronze only,
       # and a transform over a bronze store with no archive snapshot has nothing to walk forward.
-      - name: Restore bronze from the `data` branch
-        run: |
-          set -eu
-          mkdir -p data/bronze
-          if git ls-remote --exit-code --heads origin data >/dev/null 2>&1; then
-            git fetch --depth=1 origin data:refs/remotes/origin/data
-            git worktree add /tmp/data-branch origin/data
-            if [ -d /tmp/data-branch/bronze ]; then cp -r /tmp/data-branch/bronze/. data/bronze/; fi
-            git worktree remove /tmp/data-branch --force
-          fi
+      - name: Restore data from the `data` branch
+        run: python pipeline/scripts/retention.py restore data
+
 
       - name: Fetch the archive backfill and conform it
         env:

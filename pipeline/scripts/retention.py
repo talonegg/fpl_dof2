@@ -29,6 +29,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from fpl_dof.config import load_config
 from fpl_dof.retention import plan_retention
 
 
@@ -77,12 +78,20 @@ def rebuild_rolling_branch(
     staging_dir: Path,
     remote: str,
     branch: str = "data",
-    window_days: int,
+    window_days: int | None = None,
     today: dt.date | None = None,
     dry_run: bool = False,
+    silver_dir: Path | None = None,
 ) -> dict[str, int]:
     """Rebuild `branch` from scratch as an orphan, containing only the retained window, and
     force-push it. Returns counts for reporting — the caller decides what to log."""
+    if window_days is None:
+        try:
+            cfg, _ = load_config()
+            window_days = cfg.retention.bronze_days
+        except Exception:
+            window_days = 30
+
     paths = _bronze_paths(bronze_dir)
     # A retention window applies to dated snapshots; sidecars share their snapshot's date
     # directory, so partitioning the full path list (snapshots and sidecars together) keeps a
@@ -100,7 +109,27 @@ def rebuild_rolling_branch(
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
 
-    counts = {"retained": len(retained), "pruned": len(plan.prune), "undated": len(plan.undated)}
+    # PIPE-06: Persist accumulating silver partitions (price_history.parquet)
+    if silver_dir is None:
+        candidate_silver = bronze_dir.parent / "silver"
+        if candidate_silver.is_dir():
+            silver_dir = candidate_silver
+
+    silver_count = 0
+    if silver_dir is not None and silver_dir.is_dir():
+        for p in sorted(silver_dir.glob("season=*/price_history.parquet")):
+            rel = p.relative_to(silver_dir)
+            dest = staging_dir / "silver" / rel
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(p, dest)
+            silver_count += 1
+
+    counts = {
+        "retained": len(retained),
+        "pruned": len(plan.prune),
+        "undated": len(plan.undated),
+        "silver": silver_count,
+    }
     if dry_run:
         return counts
 
@@ -122,6 +151,62 @@ def rebuild_rolling_branch(
     )
     _run_git(["push", "--force", remote, f"{branch}:{branch}"], cwd=staging_dir)
     return counts
+
+
+def restore_rolling_branch(
+    *,
+    data_dir: Path,
+    remote: str = "origin",
+    branch: str = "data",
+    cwd: Path | None = None,
+) -> bool:
+    """Restore bronze and silver tiers from the rolling data branch (DL-79 O3, O4)."""
+    work_cwd = cwd or Path.cwd()
+    target_data_dir = (work_cwd / data_dir) if not data_dir.is_absolute() else data_dir
+    target_data_dir.mkdir(parents=True, exist_ok=True)
+
+    try:
+        res = subprocess.run(
+            ["git", "ls-remote", "--exit-code", "--heads", remote, branch],
+            cwd=work_cwd,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if res.returncode != 0:
+            print(f"no {branch} branch on {remote} yet; starting from an empty store")
+            return False
+    except Exception as exc:
+        print(f"could not check {remote}/{branch}: {exc}; starting from an empty store")
+        return False
+
+    _run_git(["fetch", "--depth=1", remote, f"{branch}:refs/fpl-dof/data-staging"], cwd=work_cwd)
+    worktree_dir = target_data_dir.parent / f".worktree-{branch}"
+    if worktree_dir.exists():
+        _rmtree(worktree_dir)
+    try:
+        _run_git(["worktree", "add", str(worktree_dir), "refs/fpl-dof/data-staging"], cwd=work_cwd)
+
+        for tier in ["bronze", "silver"]:
+            tier_src = worktree_dir / tier
+            if tier_src.is_dir():
+                tier_dst = target_data_dir / tier
+                tier_dst.mkdir(parents=True, exist_ok=True)
+                for item in tier_src.rglob("*"):
+                    if item.is_file():
+                        rel = item.relative_to(tier_src)
+                        target = tier_dst / rel
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        shutil.copy2(item, target)
+        print(f"restored data from {remote}/{branch} into {target_data_dir}")
+        return True
+    finally:
+        try:
+            _run_git(["worktree", "remove", str(worktree_dir), "--force"], cwd=work_cwd)
+        except Exception:
+            if worktree_dir.exists():
+                _rmtree(worktree_dir)
+        _run_git(["worktree", "prune"], cwd=work_cwd)
 
 
 def append_permanent_snapshot(
@@ -203,7 +288,13 @@ def _build_parser() -> argparse.ArgumentParser:
     rolling.add_argument("bronze_dir", type=Path)
     rolling.add_argument("--remote", required=True)
     rolling.add_argument("--branch", default="data")
-    rolling.add_argument("--window-days", type=int, default=30)
+    rolling.add_argument(
+        "--window-days",
+        type=int,
+        default=None,
+        help="Retention window in days (default: read from config).",
+    )
+    rolling.add_argument("--silver-dir", type=Path, default=None)
     rolling.add_argument("--staging-dir", type=Path, default=Path(".retention-staging"))
     rolling.add_argument("--dry-run", action="store_true")
     rolling.add_argument(
@@ -213,6 +304,11 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Override 'today' for the retention window (testing only; production uses the "
         "real date).",
     )
+
+    restore = sub.add_parser("restore", help="Restore bronze and silver from the data branch")
+    restore.add_argument("data_dir", type=Path, nargs="?", default=Path("data"))
+    restore.add_argument("--remote", default="origin")
+    restore.add_argument("--branch", default="data")
 
     permanent = sub.add_parser("permanent", help="Append one snapshot to `snapshots`")
     permanent.add_argument("payload_path", type=Path)
@@ -229,6 +325,14 @@ def _build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
 
+    if args.command == "restore":
+        restore_rolling_branch(
+            data_dir=args.data_dir,
+            remote=args.remote,
+            branch=args.branch,
+        )
+        return 0
+
     if args.command == "rolling":
         counts = rebuild_rolling_branch(
             bronze_dir=args.bronze_dir,
@@ -238,10 +342,11 @@ def main(argv: list[str] | None = None) -> int:
             window_days=args.window_days,
             today=args.today,
             dry_run=args.dry_run,
+            silver_dir=args.silver_dir,
         )
         print(
             f"rolling: retained={counts['retained']} pruned={counts['pruned']} "
-            f"undated={counts['undated']}"
+            f"undated={counts['undated']} silver={counts.get('silver', 0)}"
         )
         return 0
 

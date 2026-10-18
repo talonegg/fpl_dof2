@@ -20,6 +20,7 @@ from fpl_dof.paths import DataLayout
 from fpl_dof.pipeline import StageContext
 from fpl_dof.rules.models import GameRules, Position
 from fpl_dof.silver.store import read_table, read_table_optional, table_path, write_table
+from fpl_dof.sources import replay_prices
 from fpl_dof.silver.tables import OPTIONAL_TABLES, SchemaViolationError, Table, validate
 from fpl_dof.sources.base import IngestRequest
 from fpl_dof.sources.bronze import BronzeStore
@@ -302,3 +303,23 @@ def test_rules_are_written_alongside_the_tables(
 def test_reading_rules_before_transform_is_an_error(config: Config, layout: DataLayout) -> None:
     with pytest.raises(transform.NoBronzeError, match="transform"):
         transform.read_rules(_ctx(config, layout), "2026/27")
+
+
+def test_replay_prices_reconstructs_price_history_deterministically(
+    populated_bronze: DataLayout,
+) -> None:
+    result = replay_prices(populated_bronze.bronze, populated_bronze.silver)
+    assert result["snapshots_processed"] >= 1
+    assert result["rows_written"] > 0
+
+    path1 = populated_bronze.silver / "season=2026-27" / "price_history.parquet"
+    assert path1.exists()
+    df1 = read_table(populated_bronze.silver, "2026/27", Table.PRICE_HISTORY)
+    assert not df1.empty
+    bytes1 = path1.read_bytes()
+
+    # Replay again with clean=True; byte comparison guarantees byte-level determinism (DP-11)
+    result2 = replay_prices(populated_bronze.bronze, populated_bronze.silver, clean=True)
+    assert result2 == result
+    bytes2 = path1.read_bytes()
+    assert bytes1 == bytes2
