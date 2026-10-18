@@ -199,6 +199,11 @@ def run_stages(
             except Exception as exc:
                 finished = utcnow()
                 log.exception("stage.failed")
+                failed_metrics: dict[str, float | int | str] = {}
+                if getattr(exc, "diff", None):
+                    import json
+
+                    failed_metrics["schema_drift"] = json.dumps(exc.diff)
                 writer.record(
                     StageRecord(
                         name=stage.name,
@@ -206,6 +211,7 @@ def run_stages(
                         started_at=started,
                         finished_at=finished,
                         duration_seconds=(finished - started).total_seconds(),
+                        metrics=failed_metrics,
                         error=f"{type(exc).__name__}: {exc}",
                     )
                 )

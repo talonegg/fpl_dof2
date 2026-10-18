@@ -7,6 +7,8 @@ or is the data genuinely absent?
 
 from __future__ import annotations
 
+from typing import Any
+
 
 class SourceError(RuntimeError):
     """Base for anything that went wrong reaching or reading a source."""
@@ -36,6 +38,29 @@ class SourceContractError(SourceError):
     This is the one that matters most: a silently changed upstream shape is how a pipeline starts
     producing confident nonsense.
     """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        source: str,
+        resource: str,
+        key: str | None = None,
+        expected: list[str] | tuple[str, ...] | set[str] | None = None,
+        received: list[str] | tuple[str, ...] | set[str] | None = None,
+        diff: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(message, source=source, resource=resource, key=key)
+        self.expected = sorted(expected) if expected is not None else None
+        self.received = sorted(received) if received is not None else None
+        self.diff = diff or {}
+        if (self.expected is not None or self.received is not None) and not self.diff:
+            exp_set = set(self.expected or [])
+            rec_set = set(self.received or [])
+            self.diff = {
+                "missing": sorted(exp_set - rec_set),
+                "extra": sorted(rec_set - exp_set),
+            }
 
 
 class OfflineWithoutSnapshotError(SourceError):

@@ -69,6 +69,14 @@ _WEEK = 7 * 24 * _HOUR
 #: Fields downstream code depends on. Their absence is a contract breach, not a missing value.
 REQUIRED_BOOTSTRAP_KEYS = ("elements", "teams", "element_types", "events", "game_settings")
 REQUIRED_ELEMENT_KEYS = ("id", "element_type", "team", "now_cost", "web_name", "status")
+REQUIRED_FIXTURE_KEYS = (
+    "id",
+    "team_h",
+    "team_a",
+    "team_h_difficulty",
+    "team_a_difficulty",
+    "finished",
+)
 REQUIRED_HISTORY_PAST_KEYS = (
     "season_name",
     "minutes",
@@ -228,11 +236,24 @@ class FplApiAdapter(SourceAdapter):
             )
         missing = [key for key in REQUIRED_BOOTSTRAP_KEYS if key not in data]
         if missing:
+            diff = {"missing": missing, "received": sorted(data.keys())}
+            log.error(
+                "ingest.schema_drift",
+                extra={
+                    "source": self.name,
+                    "resource": resource.name,
+                    "missing": missing,
+                    "received": sorted(data.keys()),
+                },
+            )
             raise SourceContractError(
-                f"bootstrap-static is missing required keys: {', '.join(missing)}",
+                f"bootstrap-static schema drift; missing required keys: {', '.join(missing)}",
                 source=self.name,
                 resource=resource.name,
                 key="all",
+                expected=list(REQUIRED_BOOTSTRAP_KEYS),
+                received=list(data.keys()),
+                diff=diff,
             )
         elements = data["elements"]
         if not isinstance(elements, list) or not elements:
@@ -244,11 +265,25 @@ class FplApiAdapter(SourceAdapter):
             )
         element_missing = [key for key in REQUIRED_ELEMENT_KEYS if key not in elements[0]]
         if element_missing:
+            diff = {"missing": element_missing, "received": sorted(elements[0].keys())}
+            log.error(
+                "ingest.schema_drift",
+                extra={
+                    "source": self.name,
+                    "resource": "elements",
+                    "missing": element_missing,
+                    "received": sorted(elements[0].keys()),
+                },
+            )
             raise SourceContractError(
-                f"element records are missing required keys: {', '.join(element_missing)}",
+                "element records schema drift; missing required keys: "
+                f"{', '.join(element_missing)}",
                 source=self.name,
                 resource=resource.name,
                 key="all",
+                expected=list(REQUIRED_ELEMENT_KEYS),
+                received=list(elements[0].keys()),
+                diff=diff,
             )
         return data
 
@@ -273,6 +308,28 @@ class FplApiAdapter(SourceAdapter):
                 resource=resource.name,
                 key="all",
             )
+        if data and isinstance(data[0], dict):
+            fixture_missing = [key for key in REQUIRED_FIXTURE_KEYS if key not in data[0]]
+            if fixture_missing:
+                diff = {"missing": fixture_missing, "received": sorted(data[0].keys())}
+                log.error(
+                    "ingest.schema_drift",
+                    extra={
+                        "source": self.name,
+                        "resource": resource.name,
+                        "missing": fixture_missing,
+                        "received": sorted(data[0].keys()),
+                    },
+                )
+                raise SourceContractError(
+                    f"fixtures schema drift; missing required keys: {', '.join(fixture_missing)}",
+                    source=self.name,
+                    resource=resource.name,
+                    key="all",
+                    expected=list(REQUIRED_FIXTURE_KEYS),
+                    received=list(data[0].keys()),
+                    diff=diff,
+                )
         return data
 
     def fetch_element_summary(self, element_id: int, request: IngestRequest) -> dict[str, Any]:
