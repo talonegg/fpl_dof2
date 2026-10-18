@@ -137,6 +137,7 @@ class Fetcher:
         )
         self.network_calls = 0
         self.cache_hits = 0
+        self.conditional_hits = 0
 
     def close(self) -> None:
         if self._owns_client:
@@ -207,9 +208,29 @@ class Fetcher:
             )
             return Fetched(payload=cached.read_bytes(), snapshot=cached, from_cache=True)
 
+        request_headers: dict[str, str] = {}
+        if cached is not None and not force_refresh:
+            if cached.meta.etag:
+                request_headers["If-None-Match"] = cached.meta.etag
+            if cached.meta.last_modified:
+                request_headers["If-Modified-Since"] = cached.meta.last_modified
+
         response = self._request_with_retries(
-            url, source=source, resource=resource, key=key, params=params
+            url, source=source, resource=resource, key=key, params=params, headers=request_headers
         )
+
+        if response.status_code == 304 and cached is not None:
+            self.conditional_hits += 1
+            log.debug("fetch.conditional_hit", extra={"url": url, "resource": resource, "key": key})
+            snapshot = self.bronze.touch(
+                cached,
+                now=moment,
+                run_id=self.run_id,
+                etag=response.headers.get("etag"),
+                last_modified=response.headers.get("last-modified"),
+            )
+            return Fetched(payload=cached.read_bytes(), snapshot=snapshot, from_cache=True)
+
         snapshot = self.bronze.write(
             response.content,
             source=source,
@@ -240,6 +261,7 @@ class Fetcher:
         resource: str,
         key: str,
         params: Mapping[str, str] | None,
+        headers: Mapping[str, str] | None = None,
     ) -> httpx.Response:
         retry = self.config.retry
         last_error: str = "no attempt was made"
@@ -248,7 +270,11 @@ class Fetcher:
             self._limiter.wait()
             self.network_calls += 1
             try:
-                response = self.client.get(url, params=dict(params) if params else None)
+                response = self.client.get(
+                    url,
+                    params=dict(params) if params else None,
+                    headers=dict(headers) if headers else None,
+                )
             except httpx.HTTPError as exc:
                 last_error = f"{type(exc).__name__}: {exc}"
             else:

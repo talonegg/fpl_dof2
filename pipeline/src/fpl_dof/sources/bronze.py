@@ -18,7 +18,9 @@ from __future__ import annotations
 import datetime as dt
 import gzip
 import hashlib
+import os
 import re
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -141,6 +143,49 @@ class BronzeStore:
         path.with_name(path.name + META_SUFFIX).write_text(
             meta.model_dump_json(indent=2), encoding="utf-8"
         )
+        return Snapshot(path=path, meta=meta)
+
+    def touch(
+        self,
+        snapshot: Snapshot,
+        *,
+        now: dt.datetime | None = None,
+        run_id: str | None = None,
+        etag: str | None = None,
+        last_modified: str | None = None,
+    ) -> Snapshot:
+        """Revalidate an existing snapshot without duplicating payload bytes (PIPE-07).
+
+        Used when upstream returns HTTP 304 Not Modified. If the verification happens on a
+        different UTC calendar day, hardlinks (or copies) the payload to today's date directory
+        so date-based retention and chronologically-sorted globbing recognise the snapshot at the tip.
+        """
+        moment = now or utcnow()
+        day_dir = snapshot.path.parent.parent / moment.strftime("%Y-%m-%d")
+        if day_dir != snapshot.path.parent:
+            day_dir.mkdir(parents=True, exist_ok=True)
+            stem = f"{safe_key(snapshot.meta.key)}__{moment.strftime(_TIMESTAMP_FORMAT)}"
+            idx = snapshot.path.name.find(".")
+            ext = snapshot.path.name[idx:] if idx != -1 else SNAPSHOT_SUFFIX
+            new_path = day_dir / f"{stem}{ext}"
+            try:
+                os.link(snapshot.path, new_path)
+            except OSError:
+                shutil.copy2(snapshot.path, new_path)
+            path = new_path
+        else:
+            path = snapshot.path
+
+        meta = snapshot.meta.model_copy(
+            update={
+                "fetched_at": moment,
+                "run_id": run_id or snapshot.meta.run_id,
+                "etag": etag or snapshot.meta.etag,
+                "last_modified": last_modified or snapshot.meta.last_modified,
+            }
+        )
+        meta_path = path.with_name(path.name + META_SUFFIX)
+        meta_path.write_text(meta.model_dump_json(indent=2), encoding="utf-8")
         return Snapshot(path=path, meta=meta)
 
     def latest(

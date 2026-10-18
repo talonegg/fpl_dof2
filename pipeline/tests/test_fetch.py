@@ -224,3 +224,56 @@ def test_backoff_grows_and_is_capped(tmp_path: Path) -> None:
     with _fetcher(tmp_path, config) as fetcher:
         delays = [fetcher._backoff_seconds(n) for n in range(1, 6)]
     assert delays == [1.0, 2.0, 4.0, 4.0, 4.0]
+
+
+@respx.mock
+def test_conditional_request_sends_etag_and_handles_304(tmp_path: Path) -> None:
+    respx.get(URL).mock(
+        return_value=httpx.Response(
+            200,
+            content=b"initial body",
+            headers={"ETag": '"v1-hash"', "Last-Modified": "Wed, 21 Oct 2026 07:28:00 GMT"},
+        )
+    )
+    with _fetcher(tmp_path) as fetcher:
+        first = fetcher.fetch(URL, cache_ttl_seconds=10, **FETCH_KWARGS)  # type: ignore[arg-type]
+        assert first.from_cache is False
+        assert first.payload == b"initial body"
+        assert first.snapshot.meta.etag == '"v1-hash"'
+
+        # Re-mock with 304 conditional handler
+        def conditional_handler(request: httpx.Request) -> httpx.Response:
+            assert request.headers.get("if-none-match") == '"v1-hash"'
+            assert request.headers.get("if-modified-since") == "Wed, 21 Oct 2026 07:28:00 GMT"
+            return httpx.Response(304, headers={"ETag": '"v1-hash"'})
+
+        respx.get(URL).mock(side_effect=conditional_handler)
+
+        # Expired TTL forces upstream check with conditional headers
+        second = fetcher.fetch(URL, cache_ttl_seconds=0, **FETCH_KWARGS)  # type: ignore[arg-type]
+        assert second.from_cache is True
+        assert second.payload == b"initial body"
+        assert fetcher.conditional_hits == 1
+        assert fetcher.network_calls == 2
+
+
+@respx.mock
+def test_force_refresh_bypasses_conditional_headers(tmp_path: Path) -> None:
+    respx.get(URL).mock(
+        return_value=httpx.Response(
+            200, content=b"initial", headers={"ETag": '"v1-hash"'}
+        )
+    )
+    with _fetcher(tmp_path) as fetcher:
+        fetcher.fetch(URL, cache_ttl_seconds=10, **FETCH_KWARGS)  # type: ignore[arg-type]
+
+        def unconditional_handler(request: httpx.Request) -> httpx.Response:
+            assert "if-none-match" not in request.headers
+            assert "if-modified-since" not in request.headers
+            return httpx.Response(200, content=b"refreshed")
+
+        respx.get(URL).mock(side_effect=unconditional_handler)
+        refreshed = fetcher.fetch(URL, force_refresh=True, **FETCH_KWARGS)  # type: ignore[arg-type]
+        assert refreshed.from_cache is False
+        assert refreshed.payload == b"refreshed"
+        assert fetcher.conditional_hits == 0

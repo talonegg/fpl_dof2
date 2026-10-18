@@ -96,3 +96,22 @@ def test_different_keys_do_not_collide(tmp_path: Path) -> None:
     assert first is not None and second is not None
     assert first.read_bytes() == b"one"
     assert second.read_bytes() == b"two"
+
+
+def test_touch_revalidates_snapshot_and_preserves_payload(tmp_path: Path) -> None:
+    store = BronzeStore(tmp_path)
+    t0 = dt.datetime(2026, 8, 10, 10, 0, tzinfo=dt.UTC)
+    snap = _write(store, b"immutable content", key="item", now=t0)
+    assert snap.meta.etag is None
+
+    t1 = dt.datetime(2026, 8, 11, 14, 0, tzinfo=dt.UTC)
+    touched = store.touch(snap, now=t1, etag='"etag-xyz"')
+    assert touched.read_bytes() == b"immutable content"
+    assert touched.meta.fetched_at == t1
+    assert touched.meta.etag == '"etag-xyz"'
+
+    latest = store.latest("demo", "things", "item")
+    assert latest is not None
+    assert latest.meta.fetched_at == t1
+    assert latest.meta.etag == '"etag-xyz"'
+    assert latest.read_bytes() == b"immutable content"
