@@ -21,7 +21,7 @@ import hashlib
 import os
 import re
 import shutil
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
@@ -78,6 +78,26 @@ class Snapshot:
 
     def age_seconds(self, now: dt.datetime | None = None) -> float:
         return ((now or utcnow()) - self.meta.fetched_at).total_seconds()
+
+
+@dataclass(frozen=True, slots=True)
+class IntegrityIssue:
+    path: Path
+    kind: str
+    detail: str
+
+
+@dataclass(slots=True)
+class VerifyReport:
+    total_snapshots: int = 0
+    passed: int = 0
+    failed: int = 0
+    issues: list[IntegrityIssue] = field(default_factory=list)
+    pruned: list[Path] = field(default_factory=list)
+
+    @property
+    def is_clean(self) -> bool:
+        return self.failed == 0 and len(self.issues) == 0
 
 
 class BronzeStore:
@@ -209,3 +229,109 @@ class BronzeStore:
                 meta=SnapshotMeta.model_validate_json(meta_path.read_text(encoding="utf-8")),
             )
         return None
+
+    def verify(self, *, prune_orphans: bool = False) -> VerifyReport:
+        """Inspect the Bronze store for corruption, torn writes, and orphaned files (PIPE-11)."""
+        report = VerifyReport()
+        if not self.root.is_dir():
+            return report
+
+        date_pattern = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+        for source_dir in sorted(p for p in self.root.iterdir() if p.is_dir()):
+            for resource_dir in sorted(p for p in source_dir.iterdir() if p.is_dir()):
+                for day_dir in sorted(p for p in resource_dir.iterdir() if p.is_dir()):
+                    if not date_pattern.match(day_dir.name):
+                        report.issues.append(
+                            IntegrityIssue(
+                                path=day_dir,
+                                kind="invalid_directory",
+                                detail=f"directory {day_dir.name} is not in YYYY-MM-DD format",
+                            )
+                        )
+                        report.failed += 1
+
+                    all_files = [f for f in day_dir.iterdir() if f.is_file()]
+                    meta_files = {f for f in all_files if f.name.endswith(META_SUFFIX)}
+                    payload_files = {f for f in all_files if not f.name.endswith(META_SUFFIX)}
+
+                    for payload in sorted(payload_files):
+                        meta_path = payload.with_name(payload.name + META_SUFFIX)
+                        if meta_path not in meta_files:
+                            report.issues.append(
+                                IntegrityIssue(
+                                    path=payload,
+                                    kind="missing_metadata",
+                                    detail="payload has no accompanying .meta.json sidecar",
+                                )
+                            )
+                            report.failed += 1
+                            if prune_orphans:
+                                payload.unlink(missing_ok=True)
+                                report.pruned.append(payload)
+
+                    for meta_file in sorted(meta_files):
+                        payload_path = meta_file.with_name(meta_file.name[: -len(META_SUFFIX)])
+                        if payload_path not in payload_files:
+                            report.issues.append(
+                                IntegrityIssue(
+                                    path=meta_file,
+                                    kind="missing_payload",
+                                    detail="metadata sidecar has no accompanying payload file",
+                                )
+                            )
+                            report.failed += 1
+                            if prune_orphans:
+                                meta_file.unlink(missing_ok=True)
+                                report.pruned.append(meta_file)
+
+                    for payload in sorted(payload_files):
+                        meta_path = payload.with_name(payload.name + META_SUFFIX)
+                        if meta_path not in meta_files:
+                            continue
+
+                        report.total_snapshots += 1
+                        try:
+                            meta = SnapshotMeta.model_validate_json(
+                                meta_path.read_text(encoding="utf-8")
+                            )
+                            with gzip.open(payload, "rb") as gz:
+                                uncompressed = gz.read()
+                            actual_sha = hashlib.sha256(uncompressed).hexdigest()
+                            if actual_sha != meta.sha256:
+                                raise ValueError(
+                                    f"checksum mismatch: expected {meta.sha256}, got {actual_sha}"
+                                )
+                            report.passed += 1
+                        except (gzip.BadGzipFile, EOFError, OSError) as exc:
+                            report.failed += 1
+                            report.issues.append(
+                                IntegrityIssue(
+                                    path=payload,
+                                    kind="corrupt_gzip",
+                                    detail=f"decompression failed: {exc}",
+                                )
+                            )
+                            if prune_orphans:
+                                payload.unlink(missing_ok=True)
+                                meta_path.unlink(missing_ok=True)
+                                report.pruned.extend([payload, meta_path])
+                        except Exception as exc:
+                            report.failed += 1
+                            kind = (
+                                "checksum_mismatch"
+                                if "checksum mismatch" in str(exc)
+                                else "corrupt_metadata"
+                            )
+                            report.issues.append(
+                                IntegrityIssue(
+                                    path=payload,
+                                    kind=kind,
+                                    detail=str(exc),
+                                )
+                            )
+                            if prune_orphans:
+                                payload.unlink(missing_ok=True)
+                                meta_path.unlink(missing_ok=True)
+                                report.pruned.extend([payload, meta_path])
+        return report

@@ -126,6 +126,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Rebuild from scratch rather than merging with existing price history.",
     )
 
+    bronze_parser = subparsers.add_parser("bronze", help="Bronze tier utilities")
+    bronze_sub = bronze_parser.add_subparsers(dest="bronze_command", required=True)
+    verify_parser = bronze_sub.add_parser(
+        "verify",
+        help="Verify integrity of bronze snapshots against corruption and torn writes.",
+    )
+    verify_parser.add_argument(
+        "--prune-orphans",
+        action="store_true",
+        help="Safely remove orphaned payloads and corrupted snapshots.",
+    )
+
     return parser
 
 
@@ -167,6 +179,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             f"{result['rows_written']} rows written"
         )
         return EXIT_OK
+
+    if args.command == "bronze" and args.bronze_command == "verify":
+        from fpl_dof.sources.bronze import BronzeStore
+
+        bronze = BronzeStore(layout.bronze)
+        report = bronze.verify(prune_orphans=args.prune_orphans)
+        print(
+            f"bronze verify: {report.total_snapshots} snapshots checked, "
+            f"{report.passed} passed, {report.failed} failed, {len(report.issues)} issue(s)"
+        )
+        for issue in report.issues:
+            print(f"  [{issue.kind}] {issue.path}: {issue.detail}")
+        if report.pruned:
+            print(f"pruned {len(report.pruned)} corrupted or orphaned file(s)")
+        success = report.is_clean or bool(args.prune_orphans and report.pruned)
+        return EXIT_OK if success else EXIT_STAGE_FAILED
 
     try:
         names = args.only if args.command == "run" else [args.command]
