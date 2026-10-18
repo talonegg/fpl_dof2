@@ -62,6 +62,11 @@ def build_parser() -> argparse.ArgumentParser:
             help="Ignore caches and re-fetch from source.",
         )
         sub.add_argument(
+            "--rebackfill",
+            action="store_true",
+            help="Re-fetch immutable historical seasons ignoring bronze snapshots.",
+        )
+        sub.add_argument(
             "--offline",
             action="store_true",
             help="Fail rather than make a network call. Uses existing bronze snapshots.",
@@ -133,6 +138,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     run_id = new_run_id()
     options = StageOptions(
         force_refresh=args.force_refresh,
+        rebackfill=args.rebackfill,
         offline=args.offline,
         player_limit=args.player_limit,
         fast_path_only=args.fast,

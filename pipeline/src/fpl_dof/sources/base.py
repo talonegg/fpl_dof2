@@ -38,6 +38,12 @@ class Resource:
     (Architecture §9). E0 has one cadence, but the declaration is made here now so the
     distinction exists before E7 needs it.
     """
+    immutable: bool = False
+    """Whether this resource represents finalized historical data that never changes.
+
+    Completed prior seasons (PIPE-03) are immutable: once cached in bronze, they are never
+    re-fetched regardless of age unless explicit rebackfill or force-refresh is requested.
+    """
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +53,7 @@ class IngestRequest:
 
     run_id: str
     force_refresh: bool = False
+    rebackfill: bool = False
     offline: bool = False
     player_limit: int | None = None
     fast_path_only: bool = False

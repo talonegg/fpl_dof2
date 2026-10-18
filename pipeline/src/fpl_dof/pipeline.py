@@ -36,6 +36,7 @@ class StageOptions:
     """Run-time switches that apply across stages."""
 
     force_refresh: bool = False
+    rebackfill: bool = False
     offline: bool = False
     player_limit: int | None = None
     fast_path_only: bool = False

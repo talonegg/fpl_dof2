@@ -180,18 +180,21 @@ class ArchiveAdapter(SourceAdapter):
             # re-fetching it could not produce a different answer.
             cache_ttl_seconds=_YEAR,
             fast_path=False,
+            immutable=True,
         ),
         Resource(
             name="players",
             summary="Season player list, carrying the stable cross-season code",
             cache_ttl_seconds=_YEAR,
             fast_path=False,
+            immutable=True,
         ),
         Resource(
             name="teams",
             summary="Season club list: the season-local id, the name, and the stable club code",
             cache_ttl_seconds=_YEAR,
             fast_path=False,
+            immutable=True,
         ),
     )
 
@@ -212,6 +215,8 @@ class ArchiveAdapter(SourceAdapter):
             offline=request.offline,
             now=request.now,
             suffix=CSV_SUFFIX,
+            immutable=resource.immutable,
+            rebackfill=getattr(request, "rebackfill", False),
         )
         try:
             text = fetched.payload.decode("utf-8-sig")

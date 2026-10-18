@@ -171,6 +171,8 @@ class Fetcher:
         now: dt.datetime | None = None,
         suffix: str = SNAPSHOT_SUFFIX,
         redact_params: tuple[str, ...] = (),
+        immutable: bool = False,
+        rebackfill: bool = False,
     ) -> Fetched:
         moment = now or utcnow()
         ttl = (
@@ -180,10 +182,15 @@ class Fetcher:
         )
         cached = self.bronze.latest(source, resource, key, suffix=suffix)
 
-        if cached is not None and not force_refresh and cached.age_seconds(moment) < ttl:
-            self.cache_hits += 1
-            log.debug("fetch.cache_hit", extra={"url": url, "resource": resource, "key": key})
-            return Fetched(payload=cached.read_bytes(), snapshot=cached, from_cache=True)
+        is_immutable = immutable or (getattr(cached.meta, "immutable", False) if cached is not None else False)
+        if cached is not None and not (force_refresh or rebackfill):
+            if is_immutable or cached.age_seconds(moment) < ttl:
+                self.cache_hits += 1
+                log.debug(
+                    "fetch.cache_hit",
+                    extra={"url": url, "resource": resource, "key": key, "immutable": is_immutable},
+                )
+                return Fetched(payload=cached.read_bytes(), snapshot=cached, from_cache=True)
 
         if offline:
             if cached is None:
@@ -219,6 +226,9 @@ class Fetcher:
             # the worst possible way to find out.
             now=moment,
             suffix=suffix,
+            immutable=immutable,
+            etag=response.headers.get("etag"),
+            last_modified=response.headers.get("last-modified"),
         )
         return Fetched(payload=response.content, snapshot=snapshot, from_cache=False)
 

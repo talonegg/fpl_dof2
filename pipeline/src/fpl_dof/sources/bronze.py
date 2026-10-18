@@ -58,6 +58,9 @@ class SnapshotMeta(BaseModel):
     bytes: int
     content_encoding: str | None = None
     run_id: str | None = None
+    immutable: bool = False
+    etag: str | None = None
+    last_modified: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +101,9 @@ class BronzeStore:
         content_encoding: str | None = None,
         now: dt.datetime | None = None,
         suffix: str = SNAPSHOT_SUFFIX,
+        immutable: bool = False,
+        etag: str | None = None,
+        last_modified: str | None = None,
     ) -> Snapshot:
         moment = now or utcnow()
         directory = self.resource_dir(source, resource) / moment.strftime("%Y-%m-%d")
@@ -128,6 +134,9 @@ class BronzeStore:
             bytes=len(payload),
             content_encoding=content_encoding,
             run_id=run_id,
+            immutable=immutable,
+            etag=etag,
+            last_modified=last_modified,
         )
         path.with_name(path.name + META_SUFFIX).write_text(
             meta.model_dump_json(indent=2), encoding="utf-8"

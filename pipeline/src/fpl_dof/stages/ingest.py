@@ -40,6 +40,7 @@ def run(ctx: StageContext) -> StageResult:
         request = IngestRequest(
             run_id=ctx.run_id,
             force_refresh=ctx.options.force_refresh,
+            rebackfill=ctx.options.rebackfill,
             offline=ctx.options.offline,
             player_limit=ctx.options.player_limit,
             fast_path_only=ctx.options.fast_path_only,
