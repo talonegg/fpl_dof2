@@ -1,0 +1,115 @@
+{
+  "gameweek": 8,
+  "run_id": "20261018T055128Z-2a156224",
+  "recorded_at": "2026-10-18T05:52:04.201607Z",
+  "advised": {
+    "gameweek": 8,
+    "squad": [
+      8,
+      31,
+      68,
+      109,
+      112,
+      115,
+      124,
+      165,
+      237,
+      277,
+      399,
+      411,
+      426,
+      464,
+      496
+    ],
+    "starting": [
+      496,
+      8,
+      112,
+      277,
+      115,
+      399,
+      411,
+      124,
+      426,
+      68,
+      237
+    ],
+    "bench_order": [
+      464,
+      31,
+      165
+    ],
+    "reserve_goalkeeper": 109,
+    "captain": 411,
+    "vice_captain": 426,
+    "formation": "1-4-5-1",
+    "expected_points": 39.782
+  },
+  "recommendation": {
+    "rationale": "1 free transfer(s) gain 1.21 expected points",
+    "is_roll": false,
+    "transfers": 1,
+    "hit_points": 0,
+    "net_expected_points": 39.7816,
+    "gain_over_roll": 1.2081,
+    "bank_after": 0.0,
+    "moves": [
+      {
+        "out": {
+          "player_id": 175,
+          "web_name": "van Ewijk",
+          "price": 3.9,
+          "xp_next": 1.836,
+          "form_points_per_match": 2.4
+        },
+        "in": {
+          "player_id": 112,
+          "web_name": "Van Hecke",
+          "price": 4.9,
+          "xp_next": 3.713,
+          "form_points_per_match": 4.5
+        }
+      }
+    ],
+    "options": [
+      {
+        "transfers": 0,
+        "hit_points": 0,
+        "net_expected_points": 38.5735,
+        "gain_over_roll": 0.0,
+        "moves": []
+      },
+      {
+        "transfers": 1,
+        "hit_points": 0,
+        "net_expected_points": 39.7816,
+        "gain_over_roll": 1.2081,
+        "moves": [
+          "van Ewijk (\u00a33.9m) -> Van Hecke (\u00a34.9m)"
+        ]
+      },
+      {
+        "transfers": 2,
+        "hit_points": -4,
+        "net_expected_points": 36.6679,
+        "gain_over_roll": -1.9056,
+        "moves": [
+          "Konsa (\u00a34.6m) -> Van Hecke (\u00a34.9m)",
+          "van Ewijk (\u00a33.9m) -> Thomas (\u00a34.0m)"
+        ]
+      }
+    ],
+    "warnings": []
+  },
+  "squad_state": {
+    "provenance": "reconstructed",
+    "entry_id": 4529900,
+    "as_of_gameweek": 6,
+    "bank": 1.0,
+    "sell_value": 99.7,
+    "budget": 100.7,
+    "free_transfers": 1,
+    "chips_used": [],
+    "warnings": []
+  }
+}
