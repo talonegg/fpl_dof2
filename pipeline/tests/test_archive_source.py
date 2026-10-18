@@ -97,7 +97,7 @@ def test_a_finished_season_is_cached_for_a_year(
 def test_immutable_historical_season_never_refetches_even_after_ttl_expires(
     recorded_archive: respx.MockRouter, adapter: ArchiveAdapter
 ) -> None:
-    """PIPE-03: An immutable resource never refetches after its TTL expires unless rebackfill is set."""
+    """PIPE-03: An immutable resource never refetches after TTL expires unless rebackfill."""
     import datetime as dt
 
     first = adapter.ingest(REQUEST)

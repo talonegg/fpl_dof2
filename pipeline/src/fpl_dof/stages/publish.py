@@ -23,7 +23,7 @@ from fpl_dof.forecast.form import form_by_player_id, trailing_form
 from fpl_dof.forecast.xp_v0 import MODEL_NAME as XP_V0_NAME
 from fpl_dof.frames import as_float, as_int
 from fpl_dof.obs.logging import get_logger
-from fpl_dof.obs.manifest import RunManifest, git_sha, read_manifest, utcnow
+from fpl_dof.obs.manifest import RunManifest, git_sha, read_manifest
 from fpl_dof.paths import find_repo_root
 from fpl_dof.pipeline import Output, StageContext, StageResult
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
@@ -42,6 +42,7 @@ from fpl_dof.stages.forecast import XP_FILENAME
 from fpl_dof.stages.optimise import SQUAD_FILENAME
 from fpl_dof.stages.transform import read_rules
 from fpl_dof.stages.week import CHALLENGER_FILENAME, WEEK_FILENAME
+from fpl_dof.week.cadence import current_gameweek
 from fpl_dof.week.ledger import read_all_advice
 
 log = get_logger(__name__)
@@ -238,7 +239,7 @@ def _meta(
     regression = regress_xp_on_price(forecast)
     return {
         "contract_version": CONTRACT_VERSION,
-        "generated_at": _iso(utcnow()),
+        "generated_at": _iso(ctx.as_of),
         "run_id": ctx.run_id,
         "git_sha": git_sha(find_repo_root()),
         "season": season,
@@ -286,7 +287,7 @@ def _form(
     player_gameweek = read_table_optional(ctx.layout.silver, season, Table.PLAYER_GAMEWEEK)
     if player_gameweek is not None and "season" in player_gameweek.columns:
         player_gameweek = player_gameweek[player_gameweek["season"] == season]
-    form = trailing_form(player_gameweek, as_of=pd.Timestamp(utcnow()))
+    form = trailing_form(player_gameweek, as_of=pd.Timestamp(ctx.as_of))
     return form_by_player_id(form, forecast)
 
 
@@ -378,9 +379,7 @@ def _fixtures(
     if not current.empty:
         model = model.fit(team_matches(current))
 
-    first = 1
-    if _has_next(gameweeks):
-        first = as_int(gameweeks[gameweeks["is_next"]]["gameweek"].iloc[0])
+    first = current_gameweek(gameweeks, ctx.as_of) if not gameweeks.empty else 1
     last_gameweek = as_int(gameweeks["gameweek"].max()) if not gameweeks.empty else first
     # The same window `plan.json` covers, so the ticker and the plan cannot disagree about how far
     # ahead "ahead" is — clipped at the end of the season rather than running off it.
@@ -422,7 +421,7 @@ def _health(ctx: StageContext, gold: Path) -> dict[str, Any] | None:
         gate_report=_gate_report(gold),
         observed=_source_observations(ctx),
         recent=_recent_manifests(ctx, limit=limit),
-        generated_at=utcnow(),
+        generated_at=ctx.as_of,
         history_limit=limit,
         contract_version=CONTRACT_VERSION,
         catalogue=_source_catalogue(ctx),

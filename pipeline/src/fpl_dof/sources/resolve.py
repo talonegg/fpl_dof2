@@ -25,9 +25,10 @@ one, because club-based matching is invalidated the moment somebody transfers.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import yaml
@@ -329,6 +330,7 @@ CLUB_ALIASES: dict[str, str] = {
 
 def resolve_team(name: str, teams: Iterable[Mapping[str, Any]]) -> int | None:
     """Match odds provider club name -> FPL team id: alias, exact, then unique prefix; else None."""
+
     def _norm(s: str) -> str:
         return "".join(ch for ch in str(s).lower() if ch.isalpha())
 

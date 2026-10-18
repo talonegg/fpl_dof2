@@ -10,6 +10,7 @@ table and means an incomplete stage cannot break ``--help``.
 
 from __future__ import annotations
 
+import datetime as dt
 import importlib
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -55,6 +56,7 @@ class StageContext:
     layout: DataLayout
     run_id: str
     options: StageOptions = field(default=StageOptions())
+    as_of: dt.datetime = field(default_factory=utcnow)
 
 
 @dataclass(frozen=True, slots=True)

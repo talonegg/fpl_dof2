@@ -146,6 +146,25 @@ def next_deadline(
 next_deadline_dataframe = next_deadline
 
 
+def current_gameweek(gameweeks: pd.DataFrame, as_of: dt.datetime | pd.Timestamp) -> int:
+    """The next gameweek whose deadline is ahead of as_of (PIPE-12, 03 §12 P4).
+
+    Between a deadline passing and that gameweek finishing, the next gameweek to be decided
+    is the upcoming deadline, not the in-flight one. If all deadlines have passed, returns
+    the final gameweek of the season.
+    """
+    if gameweeks.empty:
+        raise NoDeadlineError("the gameweek table is empty")
+
+    moment = pd.Timestamp(as_of)
+    moment = moment.tz_localize("UTC") if moment.tzinfo is None else moment.tz_convert("UTC")
+
+    upcoming = gameweeks[gameweeks["deadline_time"] > moment].sort_values("deadline_time")
+    if upcoming.empty:
+        return as_int(gameweeks["gameweek"].max())
+    return as_int(upcoming.iloc[0]["gameweek"])
+
+
 def _format_delta(delta: dt.timedelta) -> str:
     seconds = int(delta.total_seconds())
     if seconds <= 0:
@@ -338,6 +357,7 @@ __all__ = [
     "GateDecision",
     "NoDeadlineError",
     "active_or_succeeded",
+    "current_gameweek",
     "describe_deadline",
     "find_next_deadline_event",
     "gate",

@@ -8,6 +8,7 @@ sort of duplication that ends with two models being fed subtly different worlds.
 
 from __future__ import annotations
 
+import datetime as dt
 from dataclasses import dataclass
 
 import pandas as pd
@@ -35,6 +36,9 @@ class ForecastInputs:
 
     metrics: pd.DataFrame | None = None
     """The conformed advanced table, when a source supplies one. Feeds the prior-season prior."""
+
+    as_of: dt.datetime | None = None
+    """Single pipeline clock instant (PIPE-12). Governs next_gameweek determination."""
 
 
 __all__ = ["ForecastInputs"]

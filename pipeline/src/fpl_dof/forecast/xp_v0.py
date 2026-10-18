@@ -43,6 +43,7 @@ from fpl_dof.forecast.inputs import ForecastInputs
 from fpl_dof.frames import as_int, gameweek_column, gameweek_sd_column
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.rules.models import GameRules, Position
+from fpl_dof.week.cadence import current_gameweek
 
 log = get_logger(__name__)
 
@@ -242,7 +243,16 @@ def fixture_multipliers(
                     "difficulty": difficulty,
                 }
             )
-    return pd.DataFrame(rows)
+    columns = [
+        "team_id",
+        "gameweek",
+        "discount",
+        "attack",
+        "defence",
+        "opponent_id",
+        "difficulty",
+    ]
+    return pd.DataFrame(rows, columns=columns)
 
 
 def confidence_tier(minutes: pd.Series, config: ForecastConfig) -> pd.Series:
@@ -329,8 +339,11 @@ def build_forecast(
     frame["confidence"] = confidence_tier(frame["evidence_minutes"], config)
 
     # --- horizon ---
-    upcoming = inputs.gameweeks[~inputs.gameweeks["finished"]].sort_values("gameweek")
-    next_gw = as_int(upcoming.iloc[0]["gameweek"])
+    if getattr(inputs, "as_of", None) is not None:
+        next_gw = current_gameweek(inputs.gameweeks, inputs.as_of)  # type: ignore[arg-type]
+    else:
+        upcoming = inputs.gameweeks[~inputs.gameweeks["finished"]].sort_values("gameweek")
+        next_gw = as_int(upcoming.iloc[0]["gameweek"])
     horizon = [
         gw
         for gw in range(next_gw, next_gw + config.horizon_gameweeks)

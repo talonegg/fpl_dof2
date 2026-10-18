@@ -17,7 +17,7 @@ from __future__ import annotations
 import csv
 import datetime as dt
 import io
-from collections.abc import Iterable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 

@@ -17,7 +17,7 @@ pinned by ``tests/test_source_catalogue.py``:
 
 from __future__ import annotations
 
-from fpl_dof.sources.catalogue import LIVE, REFERENCE, SourceDescriptor
+from fpl_dof.sources.catalogue import REFERENCE, SourceDescriptor
 
 EXTERNAL_SOURCES: tuple[SourceDescriptor, ...] = (
     SourceDescriptor(

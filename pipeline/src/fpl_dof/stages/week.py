@@ -24,7 +24,6 @@ import pandas as pd
 from fpl_dof.forecast.form import form_by_player_id, trailing_form
 from fpl_dof.frames import as_float, as_int
 from fpl_dof.obs.logging import get_logger
-from fpl_dof.obs.manifest import utcnow
 from fpl_dof.optimise.captain import (
     apply_price_position_captain,
     price_position_scores,
@@ -73,7 +72,7 @@ def run(ctx: StageContext) -> StageResult:
 
     deadline = next_deadline(
         gameweeks,
-        now=utcnow(),
+        now=ctx.as_of,
         local_zone=ctx.config.runtime.timezone,
         decide_by_hours=ctx.config.alerts.decide_by_hours_before_deadline,
     )
@@ -137,7 +136,9 @@ def run(ctx: StageContext) -> StageResult:
     player_gameweek = read_table_optional(silver, season, Table.PLAYER_GAMEWEEK)
     if player_gameweek is not None and "season" in player_gameweek.columns:
         player_gameweek = player_gameweek[player_gameweek["season"] == season]
-    form = form_by_player_id(trailing_form(player_gameweek, as_of=pd.Timestamp(utcnow())), forecast)
+    form = form_by_player_id(
+        trailing_form(player_gameweek, as_of=pd.Timestamp(ctx.as_of)), forecast
+    )
 
     payload = _payload(
         ctx=ctx,
@@ -153,7 +154,7 @@ def run(ctx: StageContext) -> StageResult:
     )
     payload["model"] = CHAMPION_MODEL
     path = _write(gold, payload)
-    record_advice(ctx.layout, payload)
+    record_advice(ctx.layout, payload, as_of=ctx.as_of)
 
     # C1 shadow: logged beside the engine, never read back into the live recommendation, and
     # isolated so any failure of it is a warning in shadow_c1.json rather than a failed run.

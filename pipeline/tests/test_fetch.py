@@ -260,9 +260,7 @@ def test_conditional_request_sends_etag_and_handles_304(tmp_path: Path) -> None:
 @respx.mock
 def test_force_refresh_bypasses_conditional_headers(tmp_path: Path) -> None:
     respx.get(URL).mock(
-        return_value=httpx.Response(
-            200, content=b"initial", headers={"ETag": '"v1-hash"'}
-        )
+        return_value=httpx.Response(200, content=b"initial", headers={"ETag": '"v1-hash"'})
     )
     with _fetcher(tmp_path) as fetcher:
         fetcher.fetch(URL, cache_ttl_seconds=10, **FETCH_KWARGS)  # type: ignore[arg-type]

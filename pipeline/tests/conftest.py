@@ -91,7 +91,7 @@ TEST_ENTRY_ID = 9_999_999
 
 
 @pytest.fixture
-def recorded_fpl_api() -> Iterator[respx.MockRouter]:
+def recorded_fpl_api(monkeypatch: pytest.MonkeyPatch) -> Iterator[respx.MockRouter]:
     """Serve the recorded API responses for the whole of a test.
 
     Shared so that end-to-end tests exercise the real adapter and the real transform rather than a
@@ -101,6 +101,7 @@ def recorded_fpl_api() -> Iterator[respx.MockRouter]:
     unrouted request reaches the socket guard and fails as "unmocked network call", which hides
     what is actually being tested.
     """
+    monkeypatch.setenv("FPL_DOF_AS_OF", "2026-08-15T12:00:00+00:00")
     bootstrap = json.loads((FIXTURES / "bootstrap_static.json").read_text(encoding="utf-8"))
     fixtures = json.loads((FIXTURES / "fixtures.json").read_text(encoding="utf-8"))
     summaries = json.loads((FIXTURES / "element_summary.json").read_text(encoding="utf-8"))

@@ -62,6 +62,7 @@ def run(ctx: StageContext) -> StageResult:
         # nobody has played, and no advanced metrics unless a source that supplies them is enabled.
         player_gameweek=read_table_optional(silver, season, Table.PLAYER_GAMEWEEK),
         metrics=read_table_optional(silver, season, Table.PLAYER_METRIC),
+        as_of=ctx.as_of,
     )
 
     result = build(inputs, rules, ctx.config.forecast)
@@ -146,7 +147,7 @@ def _cold_start_reason(inputs: ForecastInputs, config: ForecastConfig) -> str | 
     """Why the component chain cannot be trusted yet, or ``None`` if it can."""
     minimum = config.published.cold_start_minimum_gameweeks
     try:
-        _, deadline, _ = live.next_deadline(inputs.gameweeks, config)
+        _, deadline, _ = live.next_deadline(inputs.gameweeks, config, as_of=inputs.as_of)
     except live.ColdStartError as exc:
         return str(exc)
     played = live.completed_gameweeks(inputs.player_gameweek, before=deadline)

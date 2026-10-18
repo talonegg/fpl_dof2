@@ -10,10 +10,10 @@ from fpl_dof.sources.fdcouk.adapter import (
 
 __all__ = [
     "BASE_URL",
-    "FdcoukAdapter",
     "HISTORY",
     "MMZ_BASE",
     "SEASONS",
+    "FdcoukAdapter",
     "fetch_history",
     "latest_fixtures_csv",
 ]

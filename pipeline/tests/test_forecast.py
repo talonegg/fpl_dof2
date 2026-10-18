@@ -708,3 +708,35 @@ def test_every_model_card_restates_the_dl21_guardrail(
     assert "No -8 hit, chip or wildcard is justified by `xp_v1` alone" in text
     assert "top-20 precision beats B0" in text
     assert "DL-21" in text
+
+
+def test_forecast_uses_as_of_to_determine_next_gameweek(
+    inputs: ForecastInputs, game_rules: GameRules
+) -> None:
+    """PIPE-12: After a deadline passes before finishing, xp_next describes upcoming GW."""
+    import datetime as dt
+
+    # Make GW1 deadline in the past, but GW1 finished=False
+    gw = inputs.gameweeks.copy()
+    gw.loc[gw["gameweek"] == 1, "finished"] = False
+    gw.loc[gw["gameweek"] == 1, "deadline_time"] = pd.Timestamp("2026-08-21T17:30:00Z").tz_convert(
+        "UTC"
+    )
+    gw.loc[gw["gameweek"] == 2, "finished"] = False
+    gw.loc[gw["gameweek"] == 2, "deadline_time"] = pd.Timestamp("2026-08-28T17:30:00Z").tz_convert(
+        "UTC"
+    )
+
+    as_of = dt.datetime(2026, 8, 22, 12, 0, 0, tzinfo=dt.UTC)
+    inputs_with_as_of = ForecastInputs(
+        players=inputs.players,
+        teams=inputs.teams,
+        fixtures=inputs.fixtures,
+        gameweeks=gw,
+        history=inputs.history,
+        as_of=as_of,
+    )
+    result = build_forecast(inputs_with_as_of, game_rules, CONFIG)
+    assert result["next_gameweek"].iloc[0] == 2
+    # xp_next should equal xp_gw_2
+    assert (result["xp_next"] == result["xp_gw_2"]).all()

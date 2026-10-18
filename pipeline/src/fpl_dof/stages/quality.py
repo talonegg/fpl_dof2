@@ -15,7 +15,6 @@ from __future__ import annotations
 import json
 
 from fpl_dof.obs.logging import get_logger
-from fpl_dof.obs.manifest import utcnow
 from fpl_dof.pipeline import Output, StageContext, StageResult
 from fpl_dof.quality.gates import GateReport, GateSeverity, QualityGateError, run_gates
 from fpl_dof.quality.rules import GATES
@@ -44,7 +43,7 @@ def run(ctx: StageContext) -> StageResult:
     teams = tables.get(Table.TEAM.value)
     context: dict[str, object] = {
         "quality": ctx.config.quality,
-        "now": utcnow(),
+        "now": ctx.as_of,
         "team_ids": frozenset(teams["team_id"]) if teams is not None else None,
         "player_ids": frozenset(players["player_id"]) if players is not None else None,
         "season": season,
@@ -117,7 +116,7 @@ def _newest_snapshot_age(ctx: StageContext) -> float | None:
     if not bronze.root.is_dir():
         return None
     ages = [
-        (utcnow().timestamp() - path.stat().st_mtime) for path in bronze.root.rglob("*.meta.json")
+        (ctx.as_of.timestamp() - path.stat().st_mtime) for path in bronze.root.rglob("*.meta.json")
     ]
     return min(ages) if ages else None
 

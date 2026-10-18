@@ -44,6 +44,7 @@ def run(ctx: StageContext) -> StageResult:
             offline=ctx.options.offline,
             player_limit=ctx.options.player_limit,
             fast_path_only=ctx.options.fast_path_only,
+            now=ctx.as_of,
             entry_id=ctx.config.entry.team_id,
             league_id=ctx.config.entry.league_id,
             league_rival_limit=ctx.config.entry.league_rival_limit,

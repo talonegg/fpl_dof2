@@ -13,7 +13,14 @@ from collections.abc import Sequence
 
 from fpl_dof import __version__
 from fpl_dof.config import ConfigError, layout_for, load_config
-from fpl_dof.obs import ManifestWriter, StageStatus, configure_logging, get_logger, new_run_id
+from fpl_dof.obs import (
+    ManifestWriter,
+    StageStatus,
+    configure_logging,
+    get_logger,
+    new_run_id,
+    utcnow,
+)
 from fpl_dof.obs.logging import run_context
 from fpl_dof.paths import find_repo_root
 from fpl_dof.pipeline import (
@@ -51,6 +58,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--data-dir",
         help="Override the data root for this invocation.",
+    )
+    parser.add_argument(
+        "--as-of",
+        help="Evaluate the pipeline as of an ISO timestamp (e.g. 2026-08-15T12:00:00Z).",
     )
 
     subparsers = parser.add_subparsers(dest="command", metavar="STAGE", required=True)
@@ -129,6 +140,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         environ["FPL_DOF_DATA_DIR"] = args.data_dir
     if args.log_level:
         environ["FPL_DOF_LOG_LEVEL"] = args.log_level
+    if args.as_of:
+        environ["FPL_DOF_AS_OF"] = args.as_of
+        os.environ["FPL_DOF_AS_OF"] = args.as_of
 
     try:
         config, digest = load_config(environ=environ)
@@ -142,7 +156,6 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "silver" and args.silver_command == "replay-prices":
         from fpl_dof.sources import replay_prices
-
 
         result = replay_prices(
             bronze_root=layout.bronze,
@@ -163,6 +176,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_BAD_USAGE
 
     run_id = new_run_id()
+    as_of = utcnow()
     options = StageOptions(
         force_refresh=args.force_refresh,
         rebackfill=args.rebackfill,
@@ -170,9 +184,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         player_limit=args.player_limit,
         fast_path_only=args.fast,
     )
-    ctx = StageContext(config=config, layout=layout, run_id=run_id, options=options)
+    ctx = StageContext(config=config, layout=layout, run_id=run_id, options=options, as_of=as_of)
     writer = ManifestWriter(
         run_id=run_id,
+        as_of=as_of,
         config_digest=digest,
         runs_dir=layout.runs,
         data_root=layout.root,

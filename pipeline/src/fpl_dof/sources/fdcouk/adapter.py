@@ -11,8 +11,7 @@ from __future__ import annotations
 import csv
 import datetime as dt
 import io
-from collections.abc import Callable, Iterable, Mapping
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -128,7 +127,8 @@ class FdcoukAdapter(SourceAdapter):
         "Bookmaker odds for upcoming fixtures, de-vigged into team goal expectations."
     )
     health_disabled_reason: ClassVar[str] = (
-        "Switched off by default; upcoming match odds are fetched on-demand during the pre-deadline window."
+        "Switched off by default; upcoming match odds are fetched on-demand "
+        "during the pre-deadline window."
     )
     contributes: ClassVar[tuple[str, ...]] = (
         "expected_goals_home",
@@ -168,9 +168,7 @@ class FdcoukAdapter(SourceAdapter):
         )
         return fetched.payload
 
-    def parse_fixtures_csv(
-        self, text: str, season: str, captured_at: pd.Timestamp
-    ) -> pd.DataFrame:
+    def parse_fixtures_csv(self, text: str, season: str, captured_at: pd.Timestamp) -> pd.DataFrame:
         """Parse raw fixtures.csv into conformed TeamMatchExpectation rows."""
         cleaned = text.lstrip("\ufeff").replace("ï»¿", "", 1)
         try:
@@ -289,7 +287,7 @@ def _number(value: object) -> float | None:
     try:
         val = float(str(value).strip())
         return val if val > 0 else None
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
 
 
@@ -309,9 +307,9 @@ def _parse_kickoff(date_str: str, time_str: str) -> pd.Timestamp:
 
 __all__ = [
     "BASE_URL",
-    "FdcoukAdapter",
     "HISTORY",
     "MMZ_BASE",
     "SEASONS",
+    "FdcoukAdapter",
     "fetch_history",
 ]

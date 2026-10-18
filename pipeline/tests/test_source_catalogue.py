@@ -23,10 +23,10 @@ import pytest
 from fpl_dof.config import load_config
 from fpl_dof.obs.manifest import RunManifest, StageRecord, StageStatus
 from fpl_dof.paths import find_repo_root
-from fpl_dof.sources.fdcouk.adapter import HISTORY
 from fpl_dof.publish.contract import Contract, find_contracts_root
 from fpl_dof.publish.health import build_sources
 from fpl_dof.sources import SourceDescriptor, describe, known
+from fpl_dof.sources.fdcouk.adapter import HISTORY
 from fpl_dof.sources.oddsapi.adapter import API_KEY_ENV, OddsApiAdapter
 from fpl_dof.stages import publish as publish_stage
 

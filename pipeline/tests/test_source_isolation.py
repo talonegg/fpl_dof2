@@ -58,11 +58,7 @@ def _modules_outside_sources() -> list[Path]:
         if SOURCES_PKG not in path.parents and path.resolve() not in EXEMPT
     ]
     if SCRIPTS_DIR.is_dir():
-        modules.extend(
-            path
-            for path in SCRIPTS_DIR.rglob("*.py")
-            if path.resolve() not in EXEMPT
-        )
+        modules.extend(path for path in SCRIPTS_DIR.rglob("*.py") if path.resolve() not in EXEMPT)
     return modules
 
 
@@ -75,9 +71,9 @@ def test_no_module_outside_sources_names_a_source(pattern: str) -> None:
     compiled = re.compile(pattern, re.IGNORECASE)
     offenders: list[str] = []
     for path in _modules_outside_sources():
-        if (
-            path.resolve() in SCRIPTS_FPL_API_EXEMPT
-            and pattern in (r"fantasy\.premierleague\.com", r"bootstrap-static")
+        if path.resolve() in SCRIPTS_FPL_API_EXEMPT and pattern in (
+            r"fantasy\.premierleague\.com",
+            r"bootstrap-static",
         ):
             continue
         rel = path.relative_to(PIPELINE_ROOT)

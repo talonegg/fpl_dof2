@@ -158,7 +158,7 @@ class BronzeStore:
 
         Used when upstream returns HTTP 304 Not Modified. If the verification happens on a
         different UTC calendar day, hardlinks (or copies) the payload to today's date directory
-        so date-based retention and chronologically-sorted globbing recognise the snapshot at the tip.
+        so date-based retention and globbing recognise the snapshot at the tip.
         """
         moment = now or utcnow()
         day_dir = snapshot.path.parent.parent / moment.strftime("%Y-%m-%d")

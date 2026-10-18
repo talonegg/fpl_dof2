@@ -23,6 +23,8 @@ about *publishing*: player identity, availability news, a confidence tier, and t
 
 from __future__ import annotations
 
+import datetime as dt
+
 import pandas as pd
 
 from fpl_dof.config.models import ForecastConfig
@@ -36,6 +38,7 @@ from fpl_dof.forecast.xp_v1 import MODEL_NAME, team_matches
 from fpl_dof.frames import as_int
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.rules.models import GameRules
+from fpl_dof.week.cadence import current_gameweek
 
 log = get_logger(__name__)
 
@@ -78,14 +81,23 @@ def completed_gameweeks(player_gameweek: pd.DataFrame | None, *, before: pd.Time
 
 
 def next_deadline(
-    gameweeks: pd.DataFrame, config: ForecastConfig
+    gameweeks: pd.DataFrame,
+    config: ForecastConfig,
+    as_of: dt.datetime | pd.Timestamp | None = None,
 ) -> tuple[int, pd.Timestamp, list[int]]:
     """The gameweek being decided, its deadline, and the horizon that follows it."""
-    upcoming = gameweeks[~gameweeks["finished"]].sort_values("gameweek")
-    if upcoming.empty:
-        raise ColdStartError("every gameweek is finished; there is nothing to forecast")
-    first = upcoming.iloc[0]
-    next_gameweek = as_int(first["gameweek"])
+    if as_of is not None:
+        next_gameweek = current_gameweek(gameweeks, as_of)
+        row = gameweeks[gameweeks["gameweek"] == next_gameweek]
+        if row.empty:
+            raise ColdStartError(f"gameweek {next_gameweek} not found in gameweeks table")
+        first = row.iloc[0]
+    else:
+        upcoming = gameweeks[~gameweeks["finished"]].sort_values("gameweek")
+        if upcoming.empty:
+            raise ColdStartError("every gameweek is finished; there is nothing to forecast")
+        first = upcoming.iloc[0]
+        next_gameweek = as_int(first["gameweek"])
     last = as_int(gameweeks["gameweek"].max())
     horizon = [
         gameweek
@@ -106,7 +118,7 @@ def build_forecast(
     decision and the publisher need no knowledge of which model produced it.
     """
     history = inputs.player_gameweek
-    next_gameweek, deadline, horizon = next_deadline(inputs.gameweeks, config)
+    next_gameweek, deadline, horizon = next_deadline(inputs.gameweeks, config, as_of=inputs.as_of)
     if history is None or history.empty:
         raise ColdStartError("no per-gameweek history: the component chain has nothing to fit")
 

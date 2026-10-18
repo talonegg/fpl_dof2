@@ -20,8 +20,8 @@ from fpl_dof.paths import DataLayout
 from fpl_dof.pipeline import StageContext
 from fpl_dof.rules.models import GameRules, Position
 from fpl_dof.silver.store import read_table, read_table_optional, table_path, write_table
-from fpl_dof.sources import replay_prices
 from fpl_dof.silver.tables import OPTIONAL_TABLES, SchemaViolationError, Table, validate
+from fpl_dof.sources import replay_prices
 from fpl_dof.sources.base import IngestRequest
 from fpl_dof.sources.bronze import BronzeStore
 from fpl_dof.sources.fetch import Fetcher

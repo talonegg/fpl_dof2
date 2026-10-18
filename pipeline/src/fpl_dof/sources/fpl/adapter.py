@@ -45,7 +45,6 @@ import pandas as pd
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.obs.manifest import utcnow
 from fpl_dof.rules.models import ApiRules, ApiScoring, ApiSquad, Position
-from fpl_dof.sources.replay import extract_price_history_rows
 from fpl_dof.silver.tables import Table, columns_for
 from fpl_dof.sources.base import (
     Conformed,
@@ -60,6 +59,7 @@ from fpl_dof.sources.errors import (
     SourceNotFoundError,
 )
 from fpl_dof.sources.registry import register
+from fpl_dof.sources.replay import extract_price_history_rows
 
 log = get_logger(__name__)
 
