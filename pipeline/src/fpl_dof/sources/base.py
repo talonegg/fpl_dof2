@@ -88,6 +88,9 @@ class IngestRequest:
     ignores this; a source whose URLs are season-shaped needs to be told, and guessing from the
     wall clock would quietly fetch the wrong year through every August."""
 
+    as_of_gameweek: int | None = None
+    """The gameweek whose deadline governs this run (PIPE-01, PIPE-12)."""
+
     def seasons_with_current(self) -> tuple[str, ...]:
         """Every season a season-shaped source should fetch: the backfill, then the current one.
 

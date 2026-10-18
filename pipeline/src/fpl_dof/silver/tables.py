@@ -508,6 +508,7 @@ class PlayerAdvancedSchema(_AdvancedMetrics):
     """
 
     season: Series[str]
+    as_of_gameweek: Series[int] = pa.Field(ge=1, le=38, nullable=True)
     source: Series[str]
     source_player_id: Series[str]
     player_id: Series[int] = pa.Field(ge=1, nullable=True)
@@ -521,6 +522,7 @@ class PlayerAdvancedSchema(_AdvancedMetrics):
         coerce = True
         unique = [  # noqa: RUF012 - pandera Config
             "season",
+            "as_of_gameweek",
             "source",
             "source_player_id",
             "scope",
@@ -536,6 +538,7 @@ class PlayerMetricSchema(_AdvancedMetrics):
     """
 
     season: Series[str]
+    as_of_gameweek: Series[int] = pa.Field(ge=1, le=38, nullable=True)
     player_id: Series[int] = pa.Field(ge=1, nullable=True)
     player_code: Series[int] = pa.Field(ge=1)
     scope: Series[str] = pa.Field(isin=METRIC_SCOPES)
@@ -545,7 +548,13 @@ class PlayerMetricSchema(_AdvancedMetrics):
     class Config:
         strict = True
         coerce = True
-        unique = ["season", "player_code", "scope", "gameweek"]  # noqa: RUF012 - pandera Config
+        unique = [  # noqa: RUF012 - pandera Config
+            "season",
+            "as_of_gameweek",
+            "player_code",
+            "scope",
+            "gameweek",
+        ]
 
 
 class TeamMatchExpectationSchema(pa.DataFrameModel):

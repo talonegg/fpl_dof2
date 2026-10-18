@@ -233,10 +233,25 @@ class UnderstatAdapter(SourceAdapter):
         ]
         return pd.DataFrame(rows, columns=list(REF_COLUMNS))
 
-    def _advanced(self, season: str, players: list[dict[str, Any]]) -> pd.DataFrame:
+    def _advanced(
+        self,
+        season: str,
+        players: list[dict[str, Any]],
+        request: IngestRequest | None = None,
+    ) -> pd.DataFrame:
+        as_of_gw = (
+            request.as_of_gameweek
+            if request and request.season == season
+            else (
+                38
+                if request and request.season != season
+                else getattr(request, "as_of_gameweek", None)
+            )
+        )
         rows = [
             {
                 "season": season,
+                "as_of_gameweek": as_of_gw,
                 "source": self.name,
                 "source_player_id": str(record["id"]),
                 "player_id": None,
@@ -278,7 +293,7 @@ class UnderstatAdapter(SourceAdapter):
                 warnings.append(f"no usable page for {season}: {exc}")
                 continue
             refs.append(self._refs(season, players))
-            advanced.append(self._advanced(season, players))
+            advanced.append(self._advanced(season, players, request))
 
         if not refs:
             return Conformed(tables={}, warnings=warnings)

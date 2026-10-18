@@ -33,6 +33,7 @@ def canonicalise(
     season: str,
     config: SourcesConfig,
     overrides: Mapping[str, Mapping[str, int]] | None = None,
+    as_of_gameweek: int | None = None,
 ) -> tuple[dict[str, pd.DataFrame], ResolutionReport]:
     """Resolve identities and apply field precedence, returning the tables that changed.
 
@@ -69,7 +70,15 @@ def canonicalise(
     resolved = produced.get(Table.PLAYER_CROSSWALK.value)
     advanced = tables.get(Table.PLAYER_ADVANCED.value)
     if advanced is not None and not advanced.empty and resolved is not None:
-        identified = _attach_identities(advanced, resolved)
+        adv = advanced.copy()
+        if "as_of_gameweek" not in adv.columns:
+            adv["as_of_gameweek"] = None
+        if as_of_gameweek is not None:
+            current_mask = (adv["season"] == season) & adv["as_of_gameweek"].isna()
+            adv.loc[current_mask, "as_of_gameweek"] = as_of_gameweek
+            past_mask = (adv["season"] != season) & adv["as_of_gameweek"].isna()
+            adv.loc[past_mask, "as_of_gameweek"] = 38
+        identified = _attach_identities(adv, resolved)
         produced[Table.PLAYER_ADVANCED.value] = identified
         metrics = _merge_metrics(identified, config)
         if not metrics.empty:
@@ -105,7 +114,7 @@ def _merge_metrics(advanced: pd.DataFrame, config: SourcesConfig) -> pd.DataFram
 
     merged = merge_by_precedence(
         known,
-        keys=["season", "player_code", "player_id", "scope", "gameweek"],
+        keys=["season", "as_of_gameweek", "player_code", "player_id", "scope", "gameweek"],
         fields=list(ADVANCED_METRICS),
         precedence=effective_precedence(config.field_precedence),
     )

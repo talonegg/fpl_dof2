@@ -310,11 +310,21 @@ class FbrefAdapter(SourceAdapter):
                     columns=list(REF_COLUMNS),
                 )
             )
+            as_of_gw = (
+                request.as_of_gameweek
+                if request and request.season == season
+                else (
+                    38
+                    if request and request.season != season
+                    else getattr(request, "as_of_gameweek", None)
+                )
+            )
             advanced.append(
                 pd.DataFrame(
                     [
                         {
                             "season": season,
+                            "as_of_gameweek": as_of_gw,
                             "source": self.name,
                             "source_player_id": player_id,
                             "player_id": None,

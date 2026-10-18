@@ -55,14 +55,23 @@ KEYS: dict[Table, list[str]] = {
     Table.LEAGUE_STANDING: ["league_id", "entry_id"],
     Table.LEAGUE_PICK: ["entry_id", "gameweek", "slot"],
     Table.PLAYER_CROSSWALK: ["season", "source", "source_player_id"],
-    Table.PLAYER_ADVANCED: ["season", "source", "source_player_id", "scope", "gameweek"],
-    Table.PLAYER_METRIC: ["season", "player_code", "scope", "gameweek"],
+    Table.PLAYER_ADVANCED: [
+        "season",
+        "as_of_gameweek",
+        "source",
+        "source_player_id",
+        "scope",
+        "gameweek",
+    ],
+    Table.PLAYER_METRIC: ["season", "as_of_gameweek", "player_code", "scope", "gameweek"],
     Table.TEAM_MATCH_EXPECTATION: ["season", "source", "captured_at", "home_team", "away_team"],
 }
 
 #: Tables that accumulate across runs instead of being rebuilt from the current snapshot.
 #: Rebuilding these would destroy the only record of every day that has already passed.
-APPENDED: frozenset[Table] = frozenset({Table.PRICE_HISTORY, Table.PLAYER_GAMEWEEK})
+APPENDED: frozenset[Table] = frozenset(
+    {Table.PRICE_HISTORY, Table.PLAYER_GAMEWEEK, Table.PLAYER_ADVANCED, Table.PLAYER_METRIC}
+)
 
 
 class NoBronzeError(RuntimeError):
@@ -151,7 +160,19 @@ def run(ctx: StageContext) -> StageResult:
     }
     # Identity resolution and field precedence, both of which need to see every source at once and
     # neither of which may be visible to this stage as anything but a function call (Invariant 1).
-    produced, resolution = canonicalise(merged_tables, season=season, config=ctx.config.sources)
+    gw_frame = merged_tables.get(Table.GAMEWEEK.value)
+    as_of_gw = None
+    if gw_frame is not None and not gw_frame.empty:
+        from fpl_dof.week.cadence import current_gameweek
+
+        as_of_gw = current_gameweek(gw_frame, ctx.as_of)
+
+    produced, resolution = canonicalise(
+        merged_tables,
+        season=season,
+        config=ctx.config.sources,
+        as_of_gameweek=as_of_gw,
+    )
     for name, frame in produced.items():
         collected[Table(name)] = [frame] if not frame.empty else []
     for warning in resolution.warnings:
