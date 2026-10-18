@@ -338,10 +338,9 @@ def test_plan_writes_the_decision_reason(
     monkeypatch.setattr(
         ci,
         "_get",
-        lambda url: (
-            _fixtures_csv(csv_rows) if url == ci.ODDS_URL else json.dumps(fixtures).encode()
-        ),
+        lambda url: json.dumps(fixtures).encode(),
     )
+    monkeypatch.setattr(ci, "latest_fixtures_csv", lambda data_dir=None: _fixtures_csv(csv_rows))
     out = tmp_path / "gh_output"
     monkeypatch.setenv("GITHUB_OUTPUT", str(out))
     ci.plan()

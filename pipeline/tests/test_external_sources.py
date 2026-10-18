@@ -344,20 +344,17 @@ def test_no_key_means_no_request_is_even_attempted(
     assert report.warnings
 
 
-def test_the_shipped_default_config_enables_the_odds_source(tmp_path: Path) -> None:
-    """E11-S5: live means enabled everywhere, not just where the secret happens to be set.
+def test_the_shipped_default_config_leaves_the_odds_source_off(tmp_path: Path) -> None:
+    """PIPE-09, DL-79: The Odds API is off by default, like the scrapers.
 
-    Enabling it only in CI would mean local and CI runs exercise a different source set, which is
-    the drift Invariant 1 exists to prevent. Safe because the adapter degrades cleanly with no key
-    (the two tests immediately above this one) — the shipped default relies on that, not on every
-    environment having credentials.
+    Odds come from football-data.co.uk (PIPE-04, PIPE-05).
     """
     from fpl_dof.config import load_config
 
     config, _ = load_config(environ={"FPL_DOF_DATA_DIR": str(tmp_path)}, local_override=None)
     override = config.sources.overrides.get("oddsapi")
-    assert override is not None
-    assert override.enabled is True
+    assert override is None or override.enabled is False
+    assert OddsApiAdapter.enabled_by_default is False
 
 
 def test_prices_become_team_goal_expectations(

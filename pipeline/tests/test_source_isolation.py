@@ -21,6 +21,8 @@ from fpl_dof.sources import known
 
 SRC = Path(fpl_dof.__file__).parent
 SOURCES_PKG = SRC / "sources"
+PIPELINE_ROOT = SRC.parents[1]
+SCRIPTS_DIR = PIPELINE_ROOT / "scripts"
 
 #: Names and strings that only ``sources/`` is allowed to contain.
 #: Source names are bounded by (?<![\w-]) / (?![\w-]) rather than \b, because \b would match
@@ -32,6 +34,8 @@ FORBIDDEN_PATTERNS: tuple[str, ...] = (
     r"(?<![\w-])understat(?![\w-])",
     r"(?<![\w-])fbref(?![\w-])",
     r"the-odds-api",
+    r"football-data\.co\.uk",
+    r"(?<![\w-])fdcouk(?![\w-])",
     r"\bfrom fpl_dof\.sources\.\w+ import",
     r"\bimport fpl_dof\.sources\.\w+",
 )
@@ -39,13 +43,27 @@ FORBIDDEN_PATTERNS: tuple[str, ...] = (
 #: This test file itself, and the package docstring, necessarily name sources.
 EXEMPT = {Path(__file__).resolve()}
 
+#: Scripts that make live standalone pre-flight or CI-harness calls to FPL bootstrap-static.
+SCRIPTS_FPL_API_EXEMPT = {
+    (SCRIPTS_DIR / "day_before_gate.py").resolve(),
+    (SCRIPTS_DIR / "prospective_ci.py").resolve(),
+    (SCRIPTS_DIR / "score_xp.py").resolve(),
+}
+
 
 def _modules_outside_sources() -> list[Path]:
-    return [
+    modules = [
         path
         for path in SRC.rglob("*.py")
         if SOURCES_PKG not in path.parents and path.resolve() not in EXEMPT
     ]
+    if SCRIPTS_DIR.is_dir():
+        modules.extend(
+            path
+            for path in SCRIPTS_DIR.rglob("*.py")
+            if path.resolve() not in EXEMPT
+        )
+    return modules
 
 
 def test_there_is_something_to_check() -> None:
@@ -55,12 +73,17 @@ def test_there_is_something_to_check() -> None:
 @pytest.mark.parametrize("pattern", FORBIDDEN_PATTERNS)
 def test_no_module_outside_sources_names_a_source(pattern: str) -> None:
     compiled = re.compile(pattern, re.IGNORECASE)
-    offenders = [
-        f"{path.relative_to(SRC)}:{number}"
-        for path in _modules_outside_sources()
-        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
-        if compiled.search(line)
-    ]
+    offenders: list[str] = []
+    for path in _modules_outside_sources():
+        if (
+            path.resolve() in SCRIPTS_FPL_API_EXEMPT
+            and pattern in (r"fantasy\.premierleague\.com", r"bootstrap-static")
+        ):
+            continue
+        rel = path.relative_to(PIPELINE_ROOT)
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if compiled.search(line):
+                offenders.append(f"{rel}:{number}")
     assert not offenders, (
         f"Invariant 1 breach — {pattern!r} appears outside sources/: {', '.join(offenders)}"
     )
@@ -74,7 +97,8 @@ def test_registered_source_names_do_not_appear_outside_sources() -> None:
         # is the package name, not a source reference.
         compiled = re.compile(rf"(?<![\w-]){re.escape(name)}(?![\w-])")
         for path in _modules_outside_sources():
+            rel = path.relative_to(PIPELINE_ROOT)
             for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
                 if compiled.search(line):
-                    offenders.append(f"{name} in {path.relative_to(SRC)}:{number}")
+                    offenders.append(f"{name} in {rel}:{number}")
     assert not offenders, f"Invariant 1 breach: {', '.join(offenders)}"

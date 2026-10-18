@@ -13,7 +13,7 @@ Thresholds (each one is a reason string the app shows verbatim):
 - FPL history: refreshed in this run, or at most 24 h before the decision; the current season must
   include every finished gameweek; each backfill season must have at least 20,000 rows;
 - xG/xA: at least 90 % of the last finished gameweek's appearances (minutes > 0) carry xG;
-- odds history: every frozen football-data.co.uk file byte-identical to the frozen copy;
+- odds history: every frozen match odds file byte-identical to the frozen copy;
 - live odds: fixtures.csv fetched, at least 70 % of the gameweek's fixtures priced and kept, and at
   most 30 % of A+odds' team rows falling back to the model.
 """

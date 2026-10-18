@@ -8,7 +8,7 @@ prospective record the publish job already receives, never from a fetch made for
 Labels and wording are Scribe's (projects/fpl-data-sources/labels.md, T-004). Facts behind them are
 pinned by ``tests/test_source_catalogue.py``:
 
-* the history seasons are exactly ``prospective.fdcouk.HISTORY`` (hash-pinned in the bundle
+* the history seasons are exactly ``sources.fdcouk.adapter.HISTORY`` (hash-pinned in the bundle
   manifest at the 2026-10-13 freeze); 2026/27 is deliberately not one of them;
 * the 2026/27 backfill is the dated copy ``scripts/models_history/data/fdcouk/E0_2627_20261017.csv``
   (also written once to the ledger at ``backfill/fdcouk/E0_2627_20261017.csv``);
@@ -20,19 +20,6 @@ from __future__ import annotations
 from fpl_dof.sources.catalogue import LIVE, REFERENCE, SourceDescriptor
 
 EXTERNAL_SOURCES: tuple[SourceDescriptor, ...] = (
-    SourceDescriptor(
-        key="fdcouk_fixtures",
-        kind=LIVE,
-        label="Upcoming match odds (football-data.co.uk)",
-        description=(
-            "Bookmaker odds for this gameweek's fixtures, fetched before the deadline. These are "
-            "the odds the odds-based model (A+odds) decides with."
-        ),
-        enabled=True,
-        registered=False,
-        record_block="odds",
-        record_check="live_odds",
-    ),
     SourceDescriptor(
         key="fdcouk_history",
         kind=REFERENCE,

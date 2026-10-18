@@ -26,9 +26,12 @@ from fpl_dof.sources.errors import (
     SourceUnavailableError,
 )
 from fpl_dof.sources.fetch import Fetched, Fetcher, RateLimiter
+from fpl_dof.sources.fdcouk.adapter import fetch_history, latest_fixtures_csv
 from fpl_dof.sources.registry import build, known, register
+from fpl_dof.sources.resolve import CLUB_ALIASES, resolve_team
 
 __all__ = [
+    "CLUB_ALIASES",
     "LIVE",
     "REFERENCE",
     "BronzeStore",
@@ -51,6 +54,9 @@ __all__ = [
     "build",
     "canonicalise",
     "describe",
+    "fetch_history",
     "known",
+    "latest_fixtures_csv",
     "register",
+    "resolve_team",
 ]

@@ -95,6 +95,9 @@ class OddsApiAdapter(SourceAdapter):
     health_description: ClassVar[str] = (
         "Bookmaker odds on match results and total goals, with the bookmaker's margin taken out."
     )
+    health_disabled_reason: ClassVar[str] = (
+        "Switched off by configuration; match odds come from football-data.co.uk."
+    )
     contributes: ClassVar[tuple[str, ...]] = (
         "expected_goals_home",
         "expected_goals_away",

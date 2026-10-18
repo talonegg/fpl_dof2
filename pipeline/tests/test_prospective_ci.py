@@ -24,7 +24,7 @@ from fpl_dof.prospective.bundle import (
     sha256_bytes,
     verify_bundle,
 )
-from fpl_dof.prospective.fdcouk import HISTORY, fetch_history
+from fpl_dof.sources.fdcouk.adapter import HISTORY, fetch_history
 
 REPO = Path(__file__).resolve().parents[2]
 BUNDLE = REPO / "prospective" / "bundle" / "frozen-2026-10-13.tar.gz"
@@ -313,8 +313,6 @@ def test_pack_is_deterministic_and_unpack_restores_only_the_record(
     (root / "status").mkdir()
     (root / "status" / "GW7.json").write_text('{"gw": 7, "models": {}}')
     (root / "scores.csv").write_text("gw,model\n")
-    (root / "data" / "bronze" / "fdcouk").mkdir(parents=True)
-    (root / "data" / "bronze" / "fdcouk" / "GW7_fixtures.csv").write_text("Div,Date,HomeTeam\n")
     (root / "raw").mkdir()
     (root / "raw" / "big.json").write_text("{}")
     monkeypatch.setattr(ci, "ROOT", root)
@@ -325,7 +323,6 @@ def test_pack_is_deterministic_and_unpack_restores_only_the_record(
     assert a.read_bytes() == b.read_bytes()
     with tarfile.open(a) as tar:
         assert sorted(tar.getnames()) == [
-            "data/bronze/fdcouk/GW7_fixtures.csv",
             "decisions/GW7.json",
             "scores.csv",
             "status/GW7.json",
@@ -335,7 +332,7 @@ def test_pack_is_deterministic_and_unpack_restores_only_the_record(
     monkeypatch.setattr(ci, "ROOT", fresh)
     ci.unpack(a)
     assert (fresh / "status" / "GW7.json").exists() and not (fresh / "raw").exists()
-    assert (fresh / "data" / "bronze" / "fdcouk" / "GW7_fixtures.csv").exists()
+    assert (fresh / "scores.csv").exists()
 
 
 def test_models_source_dir_can_be_set_from_the_environment() -> None:

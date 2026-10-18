@@ -23,11 +23,11 @@ import pytest
 from fpl_dof.config import load_config
 from fpl_dof.obs.manifest import RunManifest, StageRecord, StageStatus
 from fpl_dof.paths import find_repo_root
-from fpl_dof.prospective.fdcouk import HISTORY
+from fpl_dof.sources.fdcouk.adapter import HISTORY
 from fpl_dof.publish.contract import Contract, find_contracts_root
 from fpl_dof.publish.health import build_sources
 from fpl_dof.sources import SourceDescriptor, describe, known
-from fpl_dof.sources.oddsapi.adapter import API_KEY_ENV
+from fpl_dof.sources.oddsapi.adapter import API_KEY_ENV, OddsApiAdapter
 from fpl_dof.stages import publish as publish_stage
 
 _ROOT = find_repo_root()
@@ -42,7 +42,7 @@ SCRIBE_LABELS: dict[str, tuple[str, str]] = {
     "fplarchive": ("reference", "Past seasons archive (community FPL archive)"),
     "understat": ("live", "Expected goals (Understat)"),
     "fbref": ("live", "Advanced player stats (FBref)"),
-    "fdcouk_fixtures": ("live", "Upcoming match odds (football-data.co.uk)"),
+    "fdcouk": ("live", "Upcoming match odds (football-data.co.uk)"),
     "fdcouk_history": (
         "reference",
         "Past match odds, 2023/24–2025/26 (football-data.co.uk)",  # noqa: RUF001 - Scribe's label, verbatim
@@ -56,9 +56,8 @@ def _catalogue(
     environ: dict[str, str] | None = None, *, config_file: str | None = None
 ) -> dict[str, SourceDescriptor]:
     env = {"FPL_DOF_DATA_DIR": "/tmp/unused"}
-    if config_file:
-        env["FPL_DOF_CONFIG_FILE"] = str(REPO / config_file)
-    config, _ = load_config(environ=env, local_override=None)
+    override = Path(REPO / config_file) if config_file else Path(os.devnull)
+    config, _ = load_config(environ=env, local_override=override)
     return {d.key: d for d in describe(config.sources, environ or {})}
 
 
@@ -75,12 +74,18 @@ def test_every_registered_adapter_is_in_the_catalogue() -> None:
     assert set(known()) <= set(_catalogue())
 
 
-def test_the_odds_api_is_not_set_up_without_a_key_and_is_with_one() -> None:
-    assert _catalogue()["oddsapi"].enabled is True  # the shipped config switches it on
-    assert _catalogue()["oddsapi"].not_configured == (
+def test_the_odds_api_is_switched_off_by_default() -> None:
+    """PIPE-09, DL-79: The Odds API is off by default like the scrapers."""
+    odds = _catalogue()["oddsapi"]
+    assert odds.enabled is False
+    assert odds.disabled_reason == (
+        "Switched off by configuration; match odds come from football-data.co.uk."
+    )
+    # If switched on, it needs a key:
+    assert OddsApiAdapter.configuration_problem({}) == (
         "It's switched on, but no API key is set, so it has never collected any odds."
     )
-    assert _catalogue({API_KEY_ENV: "present"})["oddsapi"].not_configured is None
+    assert OddsApiAdapter.configuration_problem({API_KEY_ENV: "present"}) is None
 
 
 def test_the_key_value_never_reaches_the_descriptor() -> None:
@@ -248,8 +253,8 @@ def test_the_published_run_shows_every_source_in_its_real_state(
     states = {entry["source"]: (entry["kind"], entry["status"]) for entry in published}
     assert states == {
         "fpl": ("live", "ok"),
-        "fdcouk_fixtures": ("live", "ok"),
-        "oddsapi": ("live", "not_configured"),
+        "fdcouk": ("live", "disabled"),
+        "oddsapi": ("live", "disabled"),
         "understat": ("live", "disabled"),
         "fbref": ("live", "disabled"),
         "fplarchive": ("reference", "ok"),

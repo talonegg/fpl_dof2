@@ -1,7 +1,7 @@
 """When CI writes a prospective decision (pure; the I/O is in ``scripts/prospective_ci.py``).
 
 Rule (2026-10-14): decide at the first scheduled pipeline run within :data:`DECIDE_WINDOW` of the
-deadline whose football-data.co.uk ``fixtures.csv`` already carries odds rows (Div E0) for every
+deadline whose match odds ``fixtures.csv`` already carries odds rows (Div E0) for every
 fixture of that gameweek. If they never appear, decide anyway at the *last* scheduled run before
 the deadline — the T-45m deadline-relative run, which fires in ``[T-65m, T-45m]`` — so a decision
 is never skipped for want of odds (A+odds is then marked unavailable by the freshness check).
@@ -22,6 +22,10 @@ from dataclasses import dataclass
 from typing import Any
 
 from fpl_dof.config.models import ScheduleConfig
+from fpl_dof.sources import CLUB_ALIASES, resolve_team
+
+#: Mirrors the bundled harness's ``live_frame.ALIAS`` + ``EXTRA_ALIAS`` (parity is tested).
+ALIASES: dict[str, str] = CLUB_ALIASES
 
 DECIDE_WINDOW = dt.timedelta(hours=14)
 _S = ScheduleConfig()
@@ -29,33 +33,6 @@ _S = ScheduleConfig()
 LAST_RUN_LEAD = dt.timedelta(
     minutes=min(_S.pipeline_offsets_minutes) + _S.pipeline_window_tolerance_minutes
 )
-
-#: Mirrors the bundled harness's ``live_frame.ALIAS`` + ``EXTRA_ALIAS`` (parity is tested).
-ALIASES: dict[str, str] = {
-    "Man United": "Man Utd",
-    "Tottenham": "Spurs",
-    "Sheffield United": "Sheffield Utd",
-    "Nott'm Forest": "Nott'm Forest",
-    "Coventry": "Coventry City",
-    "Hull": "Hull City",
-    "Ipswich": "Ipswich Town",
-}
-
-
-def _norm(name: str) -> str:
-    return "".join(ch for ch in str(name).lower() if ch.isalpha())
-
-
-def resolve_team(name: str, teams: Iterable[Mapping[str, Any]]) -> int | None:
-    """football-data.co.uk name -> FPL team id: alias, exact, then unique prefix; else None."""
-    by_norm = {_norm(t["name"]): int(t["id"]) for t in teams}
-    target = _norm(ALIASES.get(name, name))
-    if target in by_norm:
-        return by_norm[target]
-    hits = [
-        i for n, i in by_norm.items() if target and (n.startswith(target) or target.startswith(n))
-    ]
-    return hits[0] if len(hits) == 1 else None
 
 
 def odds_coverage(

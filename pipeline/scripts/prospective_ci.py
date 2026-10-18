@@ -35,9 +35,9 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from fpl_dof.prospective.bundle import verify_bundle
-from fpl_dof.prospective.fdcouk import fetch_history
 from fpl_dof.prospective.freshness import assess, silver_stats
 from fpl_dof.prospective.timing import DECIDE_WINDOW, decide_timing, odds_coverage
+from fpl_dof.sources import fetch_history, latest_fixtures_csv
 
 ROOT = Path(os.environ.get("PROSPECTIVE_ROOT", "/workspace/fpl_prospective"))
 FROZEN = Path(os.environ.get("PROSPECTIVE_FROZEN", "/workspace/fpl_dof2_frozen"))
@@ -53,7 +53,6 @@ PREVIEW_TIMEOUT_S = int(os.environ.get("PROSPECTIVE_PREVIEW_TIMEOUT", "1500"))
 SEASON = "2026/27"
 API = "https://fantasy.premierleague.com/api/"
 UA = "fpl-dof-ci/1.0 (+https://github.com/talonegg/fpl_dof2; low-rate)"
-ODDS_URL = "https://www.football-data.co.uk/fixtures.csv"
 #: What survives between runs (on the `ledger` branch). raw/ and cache/ are rebuilt; the
 #: decision documents record the sha256 of every raw input they used.
 RECORD = (
@@ -67,8 +66,6 @@ RECORD = (
     "xp_scores_paired.csv",
     "xp_calibration.csv",
     "data/gold/xp",
-    # Raw pre-deadline odds snapshots for prospective gameweeks (GW7+)
-    "data/bronze/fdcouk",
 )
 
 
@@ -153,20 +150,12 @@ def plan() -> int:
         joined = total = 0
         if not already and dt.timedelta(0) < deadline - _now() <= DECIDE_WINDOW:
             fixtures = json.loads(_get(API + "fixtures/"))
-            try:
-                csv_bytes = _get(ODDS_URL)
-            except OSError as exc:
-                print(f"plan: fixtures.csv fetch failed ({exc}); treating odds as absent")
-                csv_bytes = b""
+            csv_bytes = latest_fixtures_csv(ROOT / "data")
             joined, total = odds_coverage(csv_bytes, gw, bs["teams"], fixtures)
         timing = decide_timing(
             now=_now(), deadline=deadline, already_decided=already, joined=joined, total=total
         )
         decide, reason, coverage = timing.decide, timing.reason, [joined, total]
-        if decide and csv_bytes:
-            bronze_odds = ROOT / "data" / "bronze" / "fdcouk" / f"GW{gw}_fixtures.csv"
-            bronze_odds.parent.mkdir(parents=True, exist_ok=True)
-            bronze_odds.write_bytes(csv_bytes)
     finished = {e["id"] for e in bs["events"] if e["finished"] and e["data_checked"]}
     decided = {int(p.stem[2:]) for p in (ROOT / "decisions").glob("GW*.json")}
     scores = ROOT / "scores.csv"
