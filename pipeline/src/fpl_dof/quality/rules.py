@@ -192,6 +192,127 @@ def _difficulty_is_on_the_published_scale(
     )
 
 
+def _temporal_monotonicity_and_containment(
+    frame: pd.DataFrame, context: Mapping[str, object]
+) -> CheckResult:
+    """Prove temporal containment and monotonicity across silver tables (Invariant 5).
+
+    1. Price history timestamps must be monotonic per player and not in the future.
+    2. Player metrics and per-gameweek observations must not contain timestamps after
+       the corresponding gameweek deadline.
+    """
+    tables = context.get("tables")
+    tbl_dict: Mapping[str, pd.DataFrame] = tables if isinstance(tables, Mapping) else {}
+
+    # Extract gameweek deadlines
+    deadlines: dict[int, pd.Timestamp] = {}
+    gw_table = tbl_dict.get(Table.GAMEWEEK.value, frame)
+    if (
+        isinstance(gw_table, pd.DataFrame)
+        and "gameweek" in gw_table.columns
+        and "deadline_time" in gw_table.columns
+    ):
+        for _, row in gw_table.iterrows():
+            gw = row["gameweek"]
+            dt_val = row["deadline_time"]
+            if pd.notna(gw) and pd.notna(dt_val):
+                deadlines[int(gw)] = pd.to_datetime(dt_val, utc=True)
+
+    # 1. Price history check
+    price_hist = tbl_dict.get(Table.PRICE_HISTORY.value)
+    if price_hist is None and "observed_at" in frame.columns and "player_id" in frame.columns:
+        price_hist = frame
+
+    now_val = context.get("now")
+    now_ts = pd.to_datetime(now_val, utc=True) if now_val is not None else None
+
+    if price_hist is not None and not price_hist.empty:
+        obs = pd.to_datetime(price_hist["observed_at"], utc=True)
+        if now_ts is not None:
+            future = price_hist[obs > now_ts]
+            if not future.empty:
+                bad = future.iloc[0]
+                pid = bad.get("player_id", bad.get("player_code", "unknown"))
+                ts_str = str(bad["observed_at"])
+                return (
+                    False,
+                    f"price_history contains future-dated observation at {ts_str} "
+                    f"(after {now_ts}) for player {pid}",
+                    {
+                        "violating_entity": f"player_id={pid}",
+                        "timestamp": ts_str,
+                        "deadline": str(now_ts),
+                    },
+                )
+
+        key = "player_id" if "player_id" in price_hist.columns else "player_code"
+        if key in price_hist.columns:
+            for pid, group in price_hist.groupby(key, sort=False):
+                diffs = pd.to_datetime(group["observed_at"], utc=True).diff()
+                non_pos = group[diffs <= pd.Timedelta(0)]
+                if not non_pos.empty:
+                    bad = non_pos.iloc[0]
+                    ts_str = str(bad["observed_at"])
+                    return (
+                        False,
+                        f"price_history is not strictly monotonic for {key}={pid} at {ts_str}",
+                        {
+                            "violating_entity": f"{key}={pid}",
+                            "timestamp": ts_str,
+                            "deadline": "strictly_increasing",
+                        },
+                    )
+
+    # 2. Player metric and gameweek containment checks
+    candidates: list[tuple[str, pd.DataFrame]] = []
+    for t_name in (
+        Table.PLAYER_METRIC.value,
+        Table.PLAYER_GAMEWEEK.value,
+        Table.PLAYER_ADVANCED.value,
+    ):
+        t_df = tbl_dict.get(t_name)
+        if t_df is not None and not t_df.empty:
+            candidates.append((t_name, t_df))
+    if ("as_of_gameweek" in frame.columns or "gameweek" in frame.columns) and frame is not gw_table:
+        candidates.append(("frame", frame))
+
+    ts_cols = ("observed_at", "timestamp", "observation_time", "event_time")
+    for t_name, df in candidates:
+        found_ts = [col for col in ts_cols if col in df.columns]
+        if not found_ts:
+            continue
+        ts_col = found_ts[0]
+        gw_col = "as_of_gameweek" if "as_of_gameweek" in df.columns else "gameweek"
+        for _, row in df.iterrows():
+            gw_raw = row.get(gw_col)
+            ts_raw = row.get(ts_col)
+            if pd.isna(gw_raw) or pd.isna(ts_raw):
+                continue
+            gw = int(gw_raw)
+            if gw in deadlines:
+                dl = deadlines[gw]
+                row_ts = pd.to_datetime(ts_raw, utc=True)
+                if row_ts > dl:
+                    entity_key = (
+                        "player_code"
+                        if "player_code" in row
+                        else ("player_id" if "player_id" in row else "row")
+                    )
+                    entity = f"{entity_key}={row.get(entity_key)}"
+                    return (
+                        False,
+                        f"{t_name} contains observation at {row_ts} "
+                        f"after GW{gw} deadline {dl} for {entity}",
+                        {
+                            "violating_entity": entity,
+                            "timestamp": str(row_ts),
+                            "deadline": str(dl),
+                        },
+                    )
+
+    return True, "timestamps respect gameweek deadlines and price history is monotonic", {}
+
+
 # --- referential -------------------------------------------------------------------------------
 
 
@@ -416,6 +537,15 @@ GATES: tuple[Gate, ...] = (
         requirement="FR-11",
         summary="Fixture difficulty is on the published 1-5 scale",
         check=_difficulty_is_on_the_published_scale,
+    ),
+    Gate(
+        name="temporal_monotonicity_and_containment",
+        gate_class=GateClass.RANGE,
+        severity=GateSeverity.ERROR,
+        table=Table.GAMEWEEK.value,
+        requirement="NFR-06",
+        summary="Timestamps strictly respect gameweek deadlines and price history is monotonic",
+        check=_temporal_monotonicity_and_containment,
     ),
     Gate(
         name="player_team_reference",

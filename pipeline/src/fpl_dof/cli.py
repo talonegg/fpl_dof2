@@ -181,7 +181,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_OK
 
     if args.command == "bronze" and args.bronze_command == "verify":
-        from fpl_dof.sources.bronze import BronzeStore
+        from fpl_dof.sources import BronzeStore
 
         bronze = BronzeStore(layout.bronze)
         report = bronze.verify(prune_orphans=args.prune_orphans)

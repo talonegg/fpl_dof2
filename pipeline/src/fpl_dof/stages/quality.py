@@ -50,6 +50,7 @@ def run(ctx: StageContext) -> StageResult:
         "backfill_seasons": tuple(ctx.config.sources.backfill_seasons),
         "snapshot_age_seconds": _newest_snapshot_age(ctx),
         "previous_row_counts": _previous_row_counts(ctx, season),
+        "tables": tables,
     }
 
     report = run_gates(GATES, tables, context)
