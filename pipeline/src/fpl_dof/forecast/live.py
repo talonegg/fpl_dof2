@@ -30,9 +30,6 @@ import pandas as pd
 from fpl_dof.config.models import ForecastConfig
 from fpl_dof.forecast.fit import (
     ColdStartError,
-    _features,
-    _identity,
-    _unseen_players,
     fit_as_of,
     training_set,
 )
@@ -113,92 +110,9 @@ def build_forecast(
     optimiser, the weekly decision and the publisher need no knowledge of which model produced it.
     """
     history = inputs.player_gameweek
-    next_gameweek, deadline, horizon = next_deadline(inputs.gameweeks, config, as_of=inputs.as_of)
+    _next_gameweek, deadline, horizon = next_deadline(inputs.gameweeks, config, as_of=inputs.as_of)
     fitted = fit_as_of(history, deadline, config, rules)
     return fitted.predict(horizon, inputs=inputs)
-
-
-def _identity(players: pd.DataFrame, config: ForecastConfig) -> pd.DataFrame:
-    """The published player record, indexed by ``player_code``, plus availability and confidence."""
-    frame = players.copy()
-    frame["player_code"] = frame["code"].map(as_int)
-
-    availability = pd.to_numeric(
-        frame["status"].map(config.status_multiplier), errors="coerce"
-    ).fillna(0.0)
-    # A stated chance of playing overrides the flag when FPL gives one. Coerced explicitly: an
-    # all-null column arrives as object dtype, and object arithmetic silently poisons everything
-    # downstream of it.
-    stated = pd.to_numeric(frame["chance_of_playing_next_round"], errors="coerce") / 100.0
-    frame["availability"] = stated.where(stated.notna(), availability).astype(float).clip(0.0, 1.0)
-
-    columns = [column for column in IDENTITY_COLUMNS if column in frame.columns]
-    identity = frame[["player_code", *columns, "availability"]].drop_duplicates("player_code")
-    return identity.set_index("player_code")
-
-
-def _features(
-    past: pd.DataFrame,
-    identity: pd.DataFrame,
-    *,
-    deadline: pd.Timestamp,
-    season: str,
-    inputs: ForecastInputs,
-    config: ForecastConfig,
-) -> pd.DataFrame:
-    """The feature store's view of every player, including those it has never seen."""
-    features = build_features(
-        past,
-        as_of=deadline,
-        config=config.features,
-        positions=past[["player_code", "position"]],
-        metrics=inputs.metrics,
-        season=season,
-    )
-    if features.empty:
-        raise ColdStartError(f"no feature row could be built at {deadline:%Y-%m-%d}")
-
-    minutes = past.groupby("player_code")["minutes"].sum()
-    features["evidence_minutes"] = features["player_code"].map(minutes).astype(float).fillna(0.0)
-    completed = _unseen_players(features, identity, deadline=deadline, config=config)
-    if not completed.empty:
-        features = pd.concat([features, completed], ignore_index=True)
-    features["confidence"] = confidence_tier(features["evidence_minutes"], config)
-    return features
-
-
-def _unseen_players(
-    features: pd.DataFrame,
-    identity: pd.DataFrame,
-    *,
-    deadline: pd.Timestamp,
-    config: ForecastConfig,
-) -> pd.DataFrame:
-    """Empty feature rows for players with no minutes yet, so each model returns its prior.
-
-    A new signing, a promoted club's squad, a player back from a long injury: none of them have a
-    rolling rate, and none of them is worth zero points. Absent rows would drop them from the
-    published frame entirely, which is how a player becomes silently unselectable.
-    """
-    seen = set(features["player_code"])
-    missing = [code for code in identity.index if as_int(code) not in seen]
-    if not missing:
-        return pd.DataFrame()
-    rows = [
-        {
-            "player_code": as_int(code),
-            "as_of": deadline,
-            "position": str(identity.loc[code, "position"]),
-            "matches_observed": 0,
-            "appearance_rate": 0.0,
-            "evidence_minutes": 0.0,
-            # Zero rather than null: "no minutes observed" is a measurement, and a null here would
-            # reach the rate models as a NaN and propagate through their shrinkage arithmetic.
-            **{f"minutes_mean_last{window}": 0.0 for window in config.features.rolling_windows},
-        }
-        for code in missing
-    ]
-    return pd.DataFrame(rows)
 
 
 __all__ = [

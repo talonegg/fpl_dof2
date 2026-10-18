@@ -22,7 +22,10 @@ from fpl_dof.squad.selection import Selection
 def price_position_scores(
     forecast: pd.DataFrame, history: pd.DataFrame | None = None
 ) -> dict[int, float] | None:
-    """B0 score per ``player_id`` in ``forecast``, read from ``captain_score``. ``None`` if absent."""
+    """B0 score per ``player_id`` in ``forecast``, read from ``captain_score``.
+
+    Returns ``None`` if absent.
+    """
     if forecast is None or forecast.empty or "captain_score" not in forecast.columns:
         return None
     scores = forecast["captain_score"]

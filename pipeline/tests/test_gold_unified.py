@@ -12,17 +12,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
-import pytest
 
 from fpl_dof.gold.match_odds import (
-    MATCH_ODDS_COLUMNS,
     build_team_match_odds,
     read_team_match_odds,
 )
 from fpl_dof.gold.player_career import (
-    CAREER_COLUMNS,
     DEFENSIVE_METRICS,
     build_player_career_history,
     read_player_career_history,
@@ -117,7 +113,7 @@ def _create_mock_silver(silver_dir: Path) -> None:
                 "price": 10.0,
                 "total_points": 8,
             },
-            # Another player who has player_id=10 in 2026/27! (Potential collision with Saka's 2024 id)
+            # Player with player_id=10 in 2026/27 (reused seasonal id, different code)
             {
                 "season": "2026/27",
                 "gameweek": 1,

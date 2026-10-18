@@ -12,14 +12,11 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
-import pytest
 
 from fpl_dof.config.models import ForecastConfig
 from fpl_dof.forecast.fit import FittedForecastModel, fit_as_of
 from fpl_dof.forecast.inputs import ForecastInputs
-from fpl_dof.forecast.xp_v1 import score_player
 from fpl_dof.optimise.captain import price_position_scores
 from fpl_dof.rules.models import GameRules
 
@@ -31,7 +28,9 @@ def test_optimise_imports_nothing_from_forecast() -> None:
     optimise_dir = SRC_ROOT / "optimise"
     assert optimise_dir.is_dir()
 
-    import_pattern = re.compile(r"^\s*(from\s+[\.\w]*forecast|import\s+[\.\w]*forecast)", re.MULTILINE)
+    import_pattern = re.compile(
+        r"^\s*(from\s+[\.\w]*forecast|import\s+[\.\w]*forecast)", re.MULTILINE
+    )
     violations: list[str] = []
 
     for py_file in optimise_dir.glob("**/*.py"):
@@ -117,13 +116,56 @@ def test_fit_as_of_and_predict_live_and_backtest(game_rules: GameRules) -> None:
     # 2. Live horizon prediction attaches captain_score
     players = pd.DataFrame(
         [
-            {"player_id": 101, "code": 101, "web_name": "P101", "position": "MID", "team_id": 1, "price": 8.0, "status": "a", "news": "", "selected_by_percent": 10.0, "chance_of_playing_next_round": None},
-            {"player_id": 102, "code": 102, "web_name": "P102", "position": "FWD", "team_id": 1, "price": 6.0, "status": "a", "news": "", "selected_by_percent": 5.0, "chance_of_playing_next_round": None},
+            {
+                "player_id": 101,
+                "code": 101,
+                "web_name": "P101",
+                "position": "MID",
+                "team_id": 1,
+                "price": 8.0,
+                "status": "a",
+                "news": "",
+                "selected_by_percent": 10.0,
+                "chance_of_playing_next_round": None,
+            },
+            {
+                "player_id": 102,
+                "code": 102,
+                "web_name": "P102",
+                "position": "FWD",
+                "team_id": 1,
+                "price": 6.0,
+                "status": "a",
+                "news": "",
+                "selected_by_percent": 5.0,
+                "chance_of_playing_next_round": None,
+            },
         ]
     )
-    teams = pd.DataFrame([{"team_id": 1, "short_name": "T1"}, {"team_id": 2, "short_name": "T2"}])
-    fixtures = pd.DataFrame([{"fixture_id": 10, "gameweek": 3, "home_team_id": 1, "away_team_id": 2, "finished": False, "kickoff_time": pd.Timestamp("2025-09-05T12:00:00Z")}])
-    gameweeks = pd.DataFrame([{"gameweek": 3, "deadline_time": pd.Timestamp("2025-09-05T10:00:00Z"), "finished": False}])
+    teams = pd.DataFrame(
+        [{"team_id": 1, "short_name": "T1"}, {"team_id": 2, "short_name": "T2"}]
+    )
+    fixtures = pd.DataFrame(
+        [
+            {
+                "fixture_id": 10,
+                "gameweek": 3,
+                "home_team_id": 1,
+                "away_team_id": 2,
+                "finished": False,
+                "kickoff_time": pd.Timestamp("2025-09-05T12:00:00Z"),
+            }
+        ]
+    )
+    gameweeks = pd.DataFrame(
+        [
+            {
+                "gameweek": 3,
+                "deadline_time": pd.Timestamp("2025-09-05T10:00:00Z"),
+                "finished": False,
+            }
+        ]
+    )
     inputs = ForecastInputs(
         players=players,
         teams=teams,
