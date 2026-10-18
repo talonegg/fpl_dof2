@@ -20,12 +20,15 @@ without pushing, for verification against a scratch local remote.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import datetime as dt
+import json
 import shutil
 import stat
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
@@ -245,6 +248,40 @@ def append_permanent_snapshot(
 
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(payload_path, destination)
+
+    # PIPE-14: Maintain index.json tracking all snapshots and noting lost gameweeks
+    index_path = checkout_dir / "index.json"
+    index_data: dict[str, Any] = {"snapshots": [], "lost_gameweeks": []}
+    if index_path.exists():
+        with contextlib.suppress(Exception):
+            index_data = json.loads(index_path.read_text(encoding="utf-8"))
+
+    recorded_entry = {
+        "source": source,
+        "gameweek": gameweek,
+        "path": destination_relative,
+        "recorded_at": dt.datetime.now(dt.UTC).isoformat(),
+    }
+    snapshots_list = [
+        s
+        for s in index_data.get("snapshots", [])
+        if not (s.get("source") == source and s.get("gameweek") == gameweek)
+    ]
+    snapshots_list.append(recorded_entry)
+    snapshots_list.sort(key=lambda x: (x.get("source", ""), x.get("gameweek", 0)))
+    index_data["snapshots"] = snapshots_list
+
+    source_gws = {s["gameweek"] for s in snapshots_list if s.get("source") == source}
+    min_gw = min(source_gws) if source_gws else 1
+    if min_gw > 1:
+        lost = sorted(set(range(1, min_gw)) - source_gws)
+        index_data["lost_gameweeks"] = lost
+        index_data["note"] = (
+            f"Gameweeks {lost[0]}-{lost[-1]} were lost before permanent snapshot archiving "
+            "was activated (PIPE-14)."
+        )
+
+    index_path.write_text(json.dumps(index_data, indent=2), encoding="utf-8")
 
     if dry_run:
         return True

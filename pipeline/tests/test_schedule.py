@@ -322,3 +322,37 @@ def test_the_guard_reads_a_naive_clock_as_utc(
     naive = json.loads(_run(capsys, "--data-dir", str(tmp_path), "--now", "2026-08-21T14:30:00"))
     aware = json.loads(_run(capsys, "--data-dir", str(tmp_path), "--now", "2026-08-21T14:30:00Z"))
     assert naive["hours_to_deadline"] == aware["hours_to_deadline"]
+
+
+def test_the_guard_reads_gameweek_from_bronze_when_silver_is_missing(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """PIPE-14: Ingest-only jobs have no silver table yet, but can read gameweek from bronze."""
+    from fpl_dof.sources.bronze import BronzeStore
+
+    store = BronzeStore(tmp_path / "bronze")
+    bootstrap = {
+        "events": [
+            {
+                "id": 5,
+                "name": "Gameweek 5",
+                "deadline_time": "2026-09-19T10:00:00Z",
+                "finished": False,
+                "is_next": True,
+            }
+        ]
+    }
+    bs_bytes = json.dumps(bootstrap).encode("utf-8")
+    store.write(
+        bs_bytes,
+        source="fpl",
+        source_version="1.0",
+        resource="bootstrap_static",
+        key="all",
+        url="https://dummy/api/bootstrap-static/",
+        http_status=200,
+    )
+
+    payload = json.loads(_run(capsys, "--data-dir", str(tmp_path), "--now", "2026-09-19T07:00:00Z"))
+    assert payload["gameweek"] == 5
+    assert payload["hours_to_deadline"] == pytest.approx(3.0)

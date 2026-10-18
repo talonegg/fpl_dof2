@@ -55,6 +55,39 @@ def season_from_bootstrap(bootstrap: dict[str, Any]) -> str | None:
     return f"{year}/{str(year + 1)[-2:]}"
 
 
+def gameweeks_from_bronze(bronze_root: Path) -> pd.DataFrame | None:
+    """Read the latest gameweek schedule from bronze bootstrap_static without touching silver.
+
+    PIPE-14: Enables determining the current gameweek directly from bronze snapshots
+    after ingest, before transform runs.
+    """
+    from fpl_dof.sources.bronze import BronzeStore
+
+    store = BronzeStore(bronze_root)
+    snapshot = store.latest("fpl", "bootstrap_static", "all")
+    if snapshot is None:
+        return None
+    try:
+        with gzip.open(snapshot.path, "rb") as handle:
+            bootstrap = json.loads(handle.read().decode("utf-8"))
+        events = bootstrap.get("events") or []
+        if not events:
+            return None
+        rows = [
+            {
+                "gameweek": int(e["id"]),
+                "name": str(e.get("name") or f"Gameweek {e['id']}"),
+                "deadline_time": pd.Timestamp(e["deadline_time"]).tz_convert("UTC"),
+                "finished": bool(e.get("finished", False)),
+                "is_next": bool(e.get("is_next", False)),
+            }
+            for e in events
+        ]
+        return pd.DataFrame(rows)
+    except Exception:
+        return None
+
+
 def replay_prices(
     bronze_root: Path,
     silver_root: Path,
@@ -68,9 +101,7 @@ def replay_prices(
         return {"snapshots_processed": 0, "rows_written": 0}
 
     candidates = sorted(
-        p
-        for p in bootstrap_dir.glob(f"*/*{SNAPSHOT_SUFFIX}")
-        if not p.name.endswith(META_SUFFIX)
+        p for p in bootstrap_dir.glob(f"*/*{SNAPSHOT_SUFFIX}") if not p.name.endswith(META_SUFFIX)
     )
 
     frames_by_season: dict[str, list[pd.DataFrame]] = defaultdict(list)

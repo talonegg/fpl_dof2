@@ -177,3 +177,66 @@ def test_restore_rolling_branch_missing_branch(tmp_path: Path) -> None:
     target = consumer / "data"
     ok = restore_rolling_branch(data_dir=target, remote=str(bare_repo), branch="data", cwd=consumer)
     assert ok is False
+
+
+def test_append_permanent_snapshot_maintains_index(tmp_path: Path) -> None:
+    import json
+    import subprocess
+    import sys
+
+    scripts_dir = Path(__file__).resolve().parents[1] / "scripts"
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+    from retention import append_permanent_snapshot
+
+    bare_repo = tmp_path / "remote.git"
+    subprocess.run(["git", "init", "--bare", str(bare_repo)], check=True, capture_output=True)
+
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    subprocess.run(["git", "init"], cwd=scratch, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "checkout", "-b", "snapshots"], cwd=scratch, check=True, capture_output=True
+    )
+    (scratch / "README.md").write_text("snapshots branch", encoding="utf-8")
+    subprocess.run(["git", "add", "-A"], cwd=scratch, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "-c", "user.name=CI", "-c", "user.email=ci@test", "commit", "-m", "init"],
+        cwd=scratch,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "push", str(bare_repo), "snapshots:snapshots"],
+        cwd=scratch,
+        check=True,
+        capture_output=True,
+    )
+
+    tarball = tmp_path / "bronze-gw5.tar.gz"
+    tarball.write_bytes(b"dummy tarball content")
+
+    ok = append_permanent_snapshot(
+        checkout_dir=tmp_path / "perm_checkout",
+        payload_path=tarball,
+        remote=str(bare_repo),
+        branch="snapshots",
+        source="bronze-full",
+        gameweek=5,
+    )
+    assert ok is True
+
+    # Clone snapshots and verify index.json
+    verify_dir = tmp_path / "verify"
+    subprocess.run(
+        ["git", "clone", "--branch", "snapshots", str(bare_repo), str(verify_dir)],
+        check=True,
+        capture_output=True,
+    )
+    index_file = verify_dir / "index.json"
+    assert index_file.exists()
+    index_data = json.loads(index_file.read_text(encoding="utf-8"))
+    assert len(index_data["snapshots"]) == 1
+    assert index_data["snapshots"][0]["gameweek"] == 5
+    assert index_data["lost_gameweeks"] == [1, 2, 3, 4]
+    assert "Gameweeks 1-4 were lost" in index_data["note"]

@@ -107,12 +107,12 @@ jobs:
           remote="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
           gameweek="$(fpl-dof-schedule | python -c "import json,sys; print(json.load(sys.stdin).get('gameweek') or 0)")"
           if [ "$gameweek" = "0" ]; then
-            echo "no current gameweek known yet; skipping the permanent archive for this run"
-          else
-            tar -czf /tmp/bronze-full.tar.gz -C data bronze
-            python pipeline/scripts/retention.py permanent /tmp/bronze-full.tar.gz \
-              --remote "$remote" --source bronze-full --gameweek "$gameweek"
+            echo "::error title=Archive failed::could not determine current gameweek from bronze bootstrap snapshot; snapshots branch archive cannot proceed"
+            exit 1
           fi
+          tar -czf /tmp/bronze-full.tar.gz -C data bronze
+          python pipeline/scripts/retention.py permanent /tmp/bronze-full.tar.gz \
+            --remote "$remote" --source bronze-full --gameweek "$gameweek"
 
   alert:
     needs: [guard, ingest]
