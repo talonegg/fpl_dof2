@@ -28,13 +28,16 @@ import datetime as dt
 import pandas as pd
 
 from fpl_dof.config.models import ForecastConfig
-from fpl_dof.forecast.backtest import deadlines_for, fold_rows, training_rows
-from fpl_dof.forecast.features import build_features
-from fpl_dof.forecast.horizon import fixture_index_from_fixtures, horizon_frame
+from fpl_dof.forecast.fit import (
+    ColdStartError,
+    _features,
+    _identity,
+    _unseen_players,
+    fit_as_of,
+    training_set,
+)
 from fpl_dof.forecast.inputs import ForecastInputs
-from fpl_dof.forecast.models import fit_components
-from fpl_dof.forecast.xp_v0 import confidence_tier
-from fpl_dof.forecast.xp_v1 import MODEL_NAME, team_matches
+from fpl_dof.forecast.xp_v1 import MODEL_NAME
 from fpl_dof.frames import as_int
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.rules.models import GameRules
@@ -55,14 +58,6 @@ IDENTITY_COLUMNS = (
     "selected_by_percent",
     "chance_of_playing_next_round",
 )
-
-
-class ColdStartError(RuntimeError):
-    """Too little current-season history for the component chain to be fitted.
-
-    Not a failure: the season genuinely has not happened yet. The caller falls back to ``xp_v0``
-    and says so — degrade, never break, and never silently (DP-15, DL-46).
-    """
 
 
 def completed_gameweeks(player_gameweek: pd.DataFrame | None, *, before: pd.Timestamp) -> int:
@@ -114,116 +109,13 @@ def build_forecast(
 
     Returns exactly the shape :func:`fpl_dof.forecast.xp_v0.build_forecast` returns — one row per
     player, per-gameweek expectations, a horizon total, a component decomposition, a standard
-    deviation on every mean (Invariant 6) and a confidence tier — so the optimiser, the weekly
-    decision and the publisher need no knowledge of which model produced it.
+    deviation on every mean (Invariant 6), a confidence tier, and a B0 captain score — so the
+    optimiser, the weekly decision and the publisher need no knowledge of which model produced it.
     """
     history = inputs.player_gameweek
     next_gameweek, deadline, horizon = next_deadline(inputs.gameweeks, config, as_of=inputs.as_of)
-    if history is None or history.empty:
-        raise ColdStartError("no per-gameweek history: the component chain has nothing to fit")
-
-    past = history[history["kickoff_time"] < deadline]
-    if past.empty:
-        raise ColdStartError(f"no gameweek has kicked off before {deadline:%Y-%m-%d}")
-
-    # **Team strength is fitted on this season only, and the restriction is deliberate.** Club ids
-    # come from two sources in two spaces: the live feed writes FPL's *season-local* team id, and
-    # the archive writes the stable club *code* (D-26), because a season-local id points at a
-    # different club every year. Both are correct within their own season and meaningless across
-    # the boundary, so pooling them would rate this season's clubs partly on numbers that belong to
-    # other clubs — the same silent, plausible-looking wrongness the fixture ticker already refuses
-    # (DL-37). This is also exactly what the live path did before D-26 was fixed, when every
-    # archive row's null club was dropped here: the filter preserves the shipped behaviour rather
-    # than changing it. Widening M2 to prior seasons is a model change and needs DP-08's evidence,
-    # not a side effect of a source repair.
-    #
-    # The rate models below are unaffected: they are keyed on the player's stable code, which does
-    # cross seasons, so they keep training on everything.
-    this_season = past[past["season"] == rules.season]
-    models = fit_components(
-        training_set(history, deadline, config),
-        team_matches(this_season, use_xg=config.expected_goals.team_strength_from_xg),
-        config,
-        rules,
-    )
-
-    identity = _identity(inputs.players, config)
-    features = _features(
-        past, identity, deadline=deadline, season=rules.season, inputs=inputs, config=config
-    )
-    # The tier describes the evidence the model actually had, so it is derived from the features
-    # and carried onto the player record rather than the other way round.
-    identity["confidence"] = (
-        features.set_index("player_code")["confidence"].reindex(identity.index).fillna("none")
-    )
-
-    frame = horizon_frame(
-        features,
-        identity=identity,
-        horizon=horizon,
-        fixtures=fixture_index_from_fixtures(inputs.fixtures, horizon),
-        models=models,
-        rules=rules,
-        config=config,
-        status_multipliers=dict(identity["availability"]),
-        discount=config.horizon_discount,
-    )
-    if frame.empty:
-        raise ColdStartError("no player could be scored from the component chain")
-
-    # `start_probability` is P(the player appears at all): the XI floor bars players the model does
-    # not expect to feature, and that is the only question it asks (DL-66). P(60+ minutes) is a
-    # different quantity — forwards in the top appearance band sit near 0.59 on it because they are
-    # the players most often withdrawn late — and it already does its work inside every
-    # minutes-scaled component of xP. Using it here as well barred every forward from the XI on
-    # 2026-09-16 and aborted the run. It stays published as `p_long_appearance`.
-    frame["start_probability"] = (1.0 - frame["p_no_appearance"].astype(float).clip(0.0, 1.0)).clip(
-        0.0, 1.0
-    )
-    frame["next_gameweek"] = next_gameweek
-    frame["horizon_gameweeks"] = len(horizon)
-
-    # Carried as frame metadata rather than a second return value, so every existing caller (the
-    # stage, the tests) keeps treating this as "a DataFrame" without a signature change — `.attrs`
-    # is exactly what pandas has for "about the frame, not a column of it". This is what lets M2's
-    # fitted state (E11-S2's home_advantage_source, E11-S4's promoted_teams, E11-S6's
-    # market_fixtures — none of it visible in `describe()` was reaching the model card before) be
-    # reported at all (DP-09): fitted here and nowhere else, discarded here before this change.
-    frame.attrs["component_description"] = models.describe()
-
-    log.info(
-        "forecast.built",
-        extra={
-            "model": MODEL_NAME,
-            "players": len(frame),
-            "next_gameweek": next_gameweek,
-            "horizon": len(horizon),
-            "mean_xp_next": round(float(frame["xp_next"].mean()), 3),
-        },
-    )
-    return frame
-
-
-def training_set(
-    history: pd.DataFrame, deadline: pd.Timestamp, config: ForecastConfig
-) -> pd.DataFrame:
-    """Every (player, gameweek) outcome knowable at the deadline, with its features.
-
-    Assembled through the walk-forward harness's own functions rather than by a second route. A
-    second assembly of the training set is a second chance to leak (Invariant 5), and it is also
-    the only way to be sure the live model is fitted on what the backtest graded.
-    """
-    cache: dict[pd.Timestamp, pd.DataFrame] = {}
-    for season, gameweek, moment in deadlines_for(history):
-        if moment >= deadline:
-            continue
-        cache[moment] = fold_rows(history, season, gameweek, moment, config)
-    training = training_rows(cache, before=deadline)
-    if training.empty:
-        raise ColdStartError(
-            "no completed gameweek has both features and outcomes before the deadline"
-        )
-    return training
+    fitted = fit_as_of(history, deadline, config, rules)
+    return fitted.predict(horizon, inputs=inputs)
 
 
 def _identity(players: pd.DataFrame, config: ForecastConfig) -> pd.DataFrame:

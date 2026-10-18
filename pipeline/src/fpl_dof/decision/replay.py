@@ -1,52 +1,7 @@
 """Replaying real historical deadlines through the decision engine. Repays D-18.
 
-E4-S4a's acceptance criterion is that the simulation re-rank changes at least one chip
-recommendation **in the backtest**. What E4 shipped instead was a constructed unit test in which
-three Bench Boost timings tie exactly on expected points and the dial's percentile separates them.
-That proves the mechanism is not inert. It says nothing about whether real chip decisions are ever
-close enough for a percentile to move one.
-
-This module answers that question with the real walk-forward machinery. For a bounded sample of
-historical deadlines it:
-
-1. refits the component models on matches that finished strictly before the deadline, through the
-   same :func:`~fpl_dof.forecast.backtest.fold_rows` and
-   :func:`~fpl_dof.forecast.backtest.training_rows` the walk-forward harness itself uses — a second
-   assembly of the training set is a second chance to leak (Invariant 5);
-2. forecasts every player for every gameweek of the horizon **against that gameweek's real
-   fixture**, so the horizon actually varies rather than repeating one number;
-3. solves the best legal squad at the deadline and treats it as the squad being planned from;
-4. runs :func:`~fpl_dof.optimise.plan.build_plan` twice — re-rank on, re-rank off — and records
-   what each recommended;
-5. scores both chip weeks against **what actually happened**, using the real points those exact
-   players went on to score.
-
-Four things about it are assumptions rather than history, and they are stated here rather than
-buried:
-
-* **The chip windows are widened to the whole replayed season.** The archive publishes no chip
-  windows for a past season, and imposing 2026/27's two-set structure on 2024/25 would be an
-  anachronism. The chip *names* still come from the game's own chip table, never from a literal
-  (Invariant 2); only the window is widened, and widening it can only give the enumerator more
-  timings to choose between, which is the conservative direction for this experiment.
-* **The squad is solved, not owned.** A replay has no manager. The best legal squad at the deadline
-  is the least arbitrary starting point, and both arms of the comparison start from the identical
-  squad, so the contrast is unaffected by the choice.
-* **The fixture calendar is read back from results.** A real calendar is published weeks ahead and
-  is genuinely knowable at the deadline, but the archive only records where each match *ended up*,
-  so a fixture postponed after the deadline appears here in the gameweek it was eventually played
-  rather than the one it was scheduled for. Both arms of the comparison see the identical calendar,
-  so it cannot favour either; it is noted because it is the one input here that a live run would
-  know more accurately than the replay does.
-* **Club identity is stated, and reconstructed only where it is not.** The archive adapter resolves
-  each row's club to FPL's stable code from the season's own club list (D-26); it used to carry
-  ``opponent_team_id`` and no ``team_id`` at all, and this replay filled the gap itself. The
-  reconstruction survives as a fallback — a fixture has exactly two clubs, so a player's club is
-  the one that is not his opponent — but it no longer overwrites a club the source has resolved.
-  Without a club there is no club cap, no fixture-varying forecast and no within-match correlation,
-  and the experiment would degenerate into the tied case the unit test already covers.
-
-The output is a finding, not an artefact. Nothing in the weekly pipeline reads it.
+Moved from :mod:`fpl_dof.optimise.replay` to decouple prediction from decision (DP-02, PIPE-13).
+Uses :func:`~fpl_dof.forecast.fit.fit_as_of` for consistent model fitting.
 """
 
 from __future__ import annotations
@@ -66,9 +21,8 @@ from fpl_dof.config.models import (
     OptimiserConfig,
 )
 from fpl_dof.forecast.backtest import deadlines_for, fold_rows, training_rows
-from fpl_dof.forecast.features import TARGET, build_features
-from fpl_dof.forecast.horizon import fixture_index_from_history, horizon_frame
-from fpl_dof.forecast.models import ComponentModels, fit_components
+from fpl_dof.forecast.features import TARGET
+from fpl_dof.forecast.fit import fit_as_of
 from fpl_dof.frames import as_float, as_int
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.optimise.plan import DecisionPlan, build_plan
@@ -99,8 +53,6 @@ class ReplayFold:
     with_label: str
     without_label: str
     actual_points_with: float | None
-    """What the re-ranked plan's chip week actually scored, from the real results."""
-
     actual_points_without: float | None
     seconds: float
 
@@ -110,11 +62,6 @@ class ReplayFold:
 
     @property
     def improved(self) -> bool | None:
-        """Did the change land on the better week? ``None`` when nothing changed or nothing scored.
-
-        Deliberately three-valued. Collapsing "did not change" and "changed for the worse" into one
-        boolean is how a null result gets reported as a negative one.
-        """
         if not self.changed:
             return None
         if self.actual_points_with is None or self.actual_points_without is None:
@@ -152,7 +99,6 @@ class ReplayResult:
         return tuple(fold for fold in self.folds if fold.changed)
 
     def verdict(self) -> str:
-        """The headline, written so a null result reads as a finding rather than a failure."""
         if not self.folds:
             return (
                 "No historical deadline could be replayed, so nothing was measured. That is a "
@@ -189,21 +135,7 @@ class ReplayResult:
 
 
 def attach_team_ids(history: pd.DataFrame) -> pd.DataFrame:
-    """Fill in any club the source did not resolve — and only those.
-
-    The archive adapter now states the club directly, resolved from the season's own club list to
-    FPL's stable code (D-26). This stays as the fallback for a row the source could not resolve,
-    and **only fills where ``team_id`` is null**: a reconstruction that overwrote a stated club
-    would silently rewrite it into the season-local id space, which is a different space from the
-    ``opponent_team_id`` beside it, and the fixture join would then pair every club with a
-    stranger. The source wins wherever it has an answer.
-
-    Where it does run: a fixture has exactly two clubs and every row names its *opponent*, so the
-    pair of distinct opponent ids in a fixture is the pair of clubs, and a row's club is whichever
-    of the two is not its own opponent. Fixtures that do not resolve to exactly two clubs are left
-    null rather than guessed at — a wrong club silently breaks the three-per-club limit and the
-    within-match correlation at once.
-    """
+    """Fill in any club the source did not resolve — and only those."""
     frame = history.copy()
     if "team_id" not in frame.columns:
         frame["team_id"] = pd.array([None] * len(frame), dtype="Int64")
@@ -275,8 +207,6 @@ def replay_chip_decisions(
     cache: dict[pd.Timestamp, pd.DataFrame] = {}
 
     for season, gameweek, deadline in schedule:
-        # Every deadline contributes to the cache; only the sampled ones are planned. Skipping the
-        # cache for unsampled deadlines would train the sampled ones on a fraction of the evidence.
         cache[deadline] = fold_rows(frame, season, gameweek, deadline, forecast_config)
         if deadline not in wanted:
             continue
@@ -321,9 +251,6 @@ def replay_chip_decisions(
     )
 
 
-# ---------------------------------------------------------------------- one deadline
-
-
 def _replay_one(
     history: pd.DataFrame,
     *,
@@ -339,27 +266,10 @@ def _replay_one(
     optimiser: OptimiserConfig,
 ) -> ReplayFold:
     started = time.monotonic()
-    past = history[(history["season"] == season) & (history["kickoff_time"] < deadline)]
     horizon = tuple(range(gameweek, gameweek + decision.horizon.gameweeks))
 
-    # Team strength is fitted on the raw per-gameweek rows rather than on ``training``: the
-    # walk-forward training frame carries features and outcomes but no fixture or club, which is
-    # why the harness's own report says opposition there is league-average. Reconstructed club ids
-    # (see ``attach_team_ids``) are what make a real fixture-varying horizon possible here. ``past``
-    # is already filtered to one season above, which is what keeps this safe regardless of source:
-    # the archive writes a stable club code and the live feed writes a season-local id (D-26), two
-    # different spaces that only agree not to collide *within* one season.
-    models = fit_components(training, _team_matches(past), forecast_config, rules)
-    players = _forecast_frame(
-        past,
-        history,
-        season=season,
-        deadline=deadline,
-        horizon=horizon,
-        models=models,
-        rules=rules,
-        forecast_config=forecast_config,
-    )
+    fitted = fit_as_of(history, deadline, forecast_config, rules, training=training)
+    players = fitted.predict(horizon, history=history, season=season)
     state = _squad_at(players, rules, optimiser, replay, gameweek=gameweek)
     calendar = _widened_chip_windows(chips, history, season)
     fixtures = _fixture_frame(history, season, horizon)
@@ -398,66 +308,6 @@ def _replay_one(
     )
 
 
-def _forecast_frame(
-    past: pd.DataFrame,
-    history: pd.DataFrame,
-    *,
-    season: str,
-    deadline: pd.Timestamp,
-    horizon: Sequence[int],
-    models: ComponentModels,
-    rules: GameRules,
-    forecast_config: ForecastConfig,
-) -> pd.DataFrame:
-    """The player frame E4 reads, forecast against each horizon gameweek's real fixture.
-
-    ``player_id`` is the archive's cross-season ``player_code``. The season-local element id is
-    reassigned every year and would attribute one player's plan to whoever inherited his number.
-
-    The scoring itself lives in :mod:`fpl_dof.forecast.horizon`, which the live pipeline also uses.
-    It was written here first, for this experiment; keeping a private copy once the live path needed
-    the same arithmetic would have been two implementations of one model drifting apart (D-25).
-    """
-    identity = (
-        past.sort_values("kickoff_time")
-        .groupby("player_code")
-        .last()[["web_name", "position", "team_id", "price"]]
-    )
-    # A replay has no manager, no news and no ownership, so these are stated once as the assumptions
-    # they are rather than smuggled in as data. Both arms of the comparison see them identically.
-    identity = identity.assign(
-        player_id=identity.index,
-        status="a",
-        chance_of_playing_next_round=None,
-        news="",
-        selected_by_percent=0.0,
-        start_probability=1.0,
-        start_floor=0.0,
-        confidence="medium",
-    )
-    features = build_features(
-        past,
-        as_of=deadline,
-        config=forecast_config.features,
-        positions=past[["player_code", "position"]],
-    )
-    if features.empty:
-        raise InfeasibleError(f"no features could be built at {deadline}")
-
-    frame = horizon_frame(
-        features,
-        identity=identity,
-        horizon=horizon,
-        fixtures=fixture_index_from_history(history, season, horizon),
-        models=models,
-        rules=rules,
-        config=forecast_config,
-    )
-    if frame.empty:
-        raise InfeasibleError(f"no player could be forecast at {deadline}")
-    return frame
-
-
 def _fixture_frame(history: pd.DataFrame, season: str, horizon: Sequence[int]) -> pd.DataFrame:
     """The fixture table the chip enumerator reads, so blanks and doubles are real ones."""
     window = history[(history["season"] == season) & (history["gameweek"].isin(list(horizon)))]
@@ -483,12 +333,7 @@ def _fixture_frame(history: pd.DataFrame, season: str, horizon: Sequence[int]) -
 
 
 def _widened_chip_windows(chips: pd.DataFrame, history: pd.DataFrame, season: str) -> pd.DataFrame:
-    """The game's own chip names, over the replayed season's whole gameweek range.
-
-    The names come from the chip table and never from a literal (Invariant 2). Only the window is
-    widened, and only because the archive publishes none for a past season — see the module
-    docstring.
-    """
+    """The game's own chip names, over the replayed season's whole gameweek range."""
     played = history[history["season"] == season]["gameweek"].dropna()
     first = as_int(played.min()) if not played.empty else 1
     last = as_int(played.max()) if not played.empty else 38
@@ -518,10 +363,7 @@ def _squad_at(
     *,
     gameweek: int,
 ) -> SquadState:
-    """The squad the replay plans from: the best legal one at this deadline.
-
-    Both arms of the comparison start from it, so the choice cannot favour either.
-    """
+    """The squad the replay plans from: the best legal one at this deadline."""
     squad, _report = optimise_squad(players, rules, optimiser)
     return SquadState(
         entry_id=None,
@@ -543,9 +385,6 @@ def _squad_at(
     )
 
 
-# ---------------------------------------------------------------------- scoring
-
-
 def _actual_points(history: pd.DataFrame, season: str) -> dict[tuple[int, int], float]:
     """(gameweek, player_code) -> the points that player actually scored. The ground truth."""
     window = history[history["season"] == season]
@@ -563,11 +402,7 @@ def _scored_chip_week(
     actuals: Mapping[tuple[int, int], float],
     decision: DecisionConfig,
 ) -> float | None:
-    """What the recommended chip week actually scored, with that week's real fielded squad.
-
-    ``None`` when the plan recommends no chip, which is a different answer from zero and must not
-    be averaged with one.
-    """
+    """What the recommended chip week actually scored, with that week's real fielded squad."""
     assignments = plan.chips_recommended
     if not assignments:
         return None
@@ -586,26 +421,6 @@ def _scored_chip_week(
         elif player_id in starting or chip == "bboost":
             total += points
     return round(total, 2)
-
-
-def _team_matches(training: pd.DataFrame) -> pd.DataFrame:
-    """Per-team, per-fixture goals, for the strength model. Mirrors the walk-forward harness."""
-    needed = {"team_id", "fixture_id", "goals_scored", "goals_conceded", "kickoff_time"}
-    if training.empty or not needed <= set(training.columns):
-        return pd.DataFrame(
-            columns=["team_id", "fixture_id", "goals_for", "goals_against", "kickoff_time"]
-        )
-    played = training[training["minutes"] > 0]
-    if played.empty:
-        return pd.DataFrame(
-            columns=["team_id", "fixture_id", "goals_for", "goals_against", "kickoff_time"]
-        )
-    grouped = played.groupby(["team_id", "fixture_id"], dropna=True).agg(
-        goals_for=("goals_scored", "sum"),
-        goals_against=("goals_conceded", "max"),
-        kickoff_time=("kickoff_time", "min"),
-    )
-    return grouped.reset_index()
 
 
 __all__ = [
