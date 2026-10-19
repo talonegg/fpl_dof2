@@ -32,14 +32,13 @@ card, which the entry names. Then run `python scripts/docs.py index` and
 
 Deliberately deferred, with the point at which each must be resolved.
 
-| ID | Question | Resolve by |
-| --- | --- | --- |
-| OD-07 | PIPE-01's retrospective ingress for a source added mid-season: build it, or descope it while Understat and FBref stay dormant (PIPE-09)? | Before REM-09 starts ([DL-81](DL-81.md)) |
+None open.
 
 Closed: OD-01 and OD-02 by [DL-12](DL-12.md) (public repository, GitHub Pages), OD-03 by
 [DL-59](DL-59.md) (the Odds API free tier), OD-05 by [DL-25](DL-25.md) (risk dial defaults to
 Balanced), OD-06 by [DL-24](DL-24.md) (effective ownership without a captaincy term), OD-04 by
-[DL-79](DL-79.md) (no injury or press-conference feed; the FPL API's availability fields suffice).
+[DL-79](DL-79.md) (no injury or press-conference feed; the FPL API's availability fields suffice), OD-07 by
+[DL-81](DL-81.md) (PIPE-01's retrospective ingress is built in R1.1.0).
 
 ## Index
 
