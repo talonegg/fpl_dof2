@@ -32,7 +32,9 @@ card, which the entry names. Then run `python scripts/docs.py index` and
 
 Deliberately deferred, with the point at which each must be resolved.
 
-None open.
+| ID | Question | Resolve by |
+| --- | --- | --- |
+| OD-07 | PIPE-01's retrospective ingress for a source added mid-season: build it, or descope it while Understat and FBref stay dormant (PIPE-09)? | Before REM-09 starts ([DL-81](DL-81.md)) |
 
 Closed: OD-01 and OD-02 by [DL-12](DL-12.md) (public repository, GitHub Pages), OD-03 by
 [DL-59](DL-59.md) (the Odds API free tier), OD-05 by [DL-25](DL-25.md) (risk dial defaults to
@@ -127,4 +129,5 @@ by hand.
 | [DL-78](DL-78.md) | 2026-10-17 | Accepted | One planning horizon: the forecast's horizon reads the decision horizon |
 | [DL-79](DL-79.md) | 2026-10-17 | Accepted | R1.1.0 keeps its order after GW4; four design fixes join it; PIPE-09 narrowed; OD-04 closed |
 | [DL-80](DL-80.md) | 2026-10-18 | Accepted | Branching and release model: feature → dev/Rx.y.z → pre-release → main, tagged per release |
+| [DL-81](DL-81.md) | 2026-10-19 | Accepted | R1.1.0 is reopened: remediation before promotion |
 <!-- index:end -->

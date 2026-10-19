@@ -74,7 +74,7 @@ building are in the [release register](epics/README.md#choosing-what-to-build-ne
 | Release | State |
 | --- | --- |
 | **R1.0** — E0–E14 | Delivered: the steel thread to GW1 ([DL-10](../decisions/DL-10.md)), then the full system. [Archived](archive/README.md), except E8 |
-| **R1.1.0** — data pipeline uplift | Open; [backlog](epics/R1.1.0-data-pipeline-backlog.md) in draft. Its architecture, and the 03 §12 findings it depends on: [03 §13](03-solution-architecture.md#13-r110--target-data-architecture) |
+| **R1.1.0** — data pipeline uplift | Open; built, and in [remediation](epics/R1.1.0-data-pipeline-backlog.md#4-remediation-plan) before promotion ([DL-81](../decisions/DL-81.md)). Its architecture, and the 03 §12 findings it depends on: [03 §13](03-solution-architecture.md#13-r110--target-data-architecture) |
 | **E8** — in-season monitoring | Live to GW38 beside whichever release is open; says when the season's evidence should change what is built |
 
 **Cross-cutting concerns are not a release.** Orchestration, observability, testing and
