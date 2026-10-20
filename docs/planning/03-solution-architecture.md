@@ -553,7 +553,7 @@ imports nothing from `forecast` (DP-02, PIPE-13).
 ## 13. R1.1.0 — target data architecture
 
 The open release, the data pipeline uplift, is planned in
-[`epics/R1.1.0-data-pipeline-backlog.md`](epics/R1.1.0-data-pipeline-backlog.md) (PIPE-01 … PIPE-14),
+[`archive/R1.1.0/R1.1.0-data-pipeline-backlog.md`](archive/R1.1.0/R1.1.0-data-pipeline-backlog.md) (PIPE-01 … PIPE-14),
 remediated ([DL-81](../decisions/DL-81.md)) and tagged R1.1.0. Its stories and acceptance
 criteria live there; this section records what it changes in the architecture above, and where it
 depends on §12.
