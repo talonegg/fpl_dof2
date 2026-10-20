@@ -140,7 +140,9 @@ def _deadlines_are_in_the_future(frame: pd.DataFrame, context: Mapping[str, obje
     """At least one gameweek is still ahead. A season that has entirely ended is a real state,
     but so is a gameweek table cached from last season, and they look identical."""
     now = context.get("now")
-    moment = pd.Timestamp(now if isinstance(now, dt.datetime) else dt.datetime.now(dt.UTC))
+    if not isinstance(now, dt.datetime):
+        return False, "no as-of time in the gate context", {}
+    moment = pd.Timestamp(now)
     ahead = int((frame["deadline_time"] > moment).sum())
     return (
         ahead > 0 or bool(frame["finished"].all()),

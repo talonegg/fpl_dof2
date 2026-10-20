@@ -109,3 +109,10 @@ def test_silver_replay_prices_cli(tmp_path: Path, capsys: pytest.CaptureFixture[
     assert main(["--data-dir", str(data_dir), "silver", "replay-prices"]) == EXIT_OK
     out = capsys.readouterr().out
     assert "replay-prices: processed" in out
+
+
+@pytest.mark.parametrize("stages", [["ingest"], ["run"], ["run", "--only", "ingest", "transform"]])
+def test_as_of_refuses_to_run_ingest(tmp_path: Path, stages: list[str]) -> None:
+    """REM-02: ingest fetches the present; filing it under a past date would corrupt bronze."""
+    code = main(["--data-dir", str(tmp_path / "data"), "--as-of", "2026-08-15T12:00:00Z", *stages])
+    assert code == EXIT_BAD_USAGE

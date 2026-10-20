@@ -737,7 +737,7 @@ class FplApiAdapter(SourceAdapter):
         )
 
     def _price_history(self, bootstrap: dict[str, Any], now: pd.Timestamp) -> pd.DataFrame:
-        """One observation of every player's price and ownership, stamped now.
+        """One observation of every player's price and ownership, stamped with its fetch time.
 
         The API publishes only the present. This row is the only record that will ever exist of
         what today looked like, which is why the store appends rather than overwrites.
@@ -991,7 +991,14 @@ class FplApiAdapter(SourceAdapter):
         warnings: list[str] = []
         bootstrap = self.fetch_bootstrap(request)
         fixtures = self.fetch_fixtures(request)
-        now = pd.Timestamp(request.now or utcnow()).tz_convert("UTC")
+        snapshot = self.fetcher.bronze.latest(
+            self.name, "bootstrap_static", "all", as_of=request.now
+        )
+        # The snapshot's own fetch time, never the run's: a re-run adds no rows, and the replay
+        # (sources/replay.py) reproduces exactly what live runs wrote (DP-11).
+        observed = pd.Timestamp(
+            snapshot.meta.fetched_at if snapshot else (request.now or utcnow())
+        ).tz_convert("UTC")
 
         tables: dict[str, pd.DataFrame] = {
             Table.PLAYER.value: self._players(bootstrap),
@@ -999,7 +1006,7 @@ class FplApiAdapter(SourceAdapter):
             Table.FIXTURE.value: self._fixtures(fixtures),
             Table.GAMEWEEK.value: self._gameweeks(bootstrap),
             Table.CHIP.value: self._chips(bootstrap),
-            Table.PRICE_HISTORY.value: self._price_history(bootstrap, now),
+            Table.PRICE_HISTORY.value: self._price_history(bootstrap, observed),
             Table.PLAYER_SEASON_HISTORY.value: self._season_history(bootstrap, request, warnings),
             Table.PLAYER_GAMEWEEK.value: self._player_gameweek(bootstrap, request, warnings),
         }
@@ -1017,7 +1024,6 @@ class FplApiAdapter(SourceAdapter):
         if request.league_id is not None:
             tables.update(self._conform_league(request.league_id, bootstrap, request, warnings))
 
-        snapshot = self.fetcher.bronze.latest(self.name, "bootstrap_static", "all")
         return Conformed(
             tables=tables,
             rules=self.extract_rules(bootstrap),

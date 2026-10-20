@@ -209,11 +209,19 @@ class BronzeStore:
         return Snapshot(path=path, meta=meta)
 
     def latest(
-        self, source: str, resource: str, key: str, *, suffix: str = SNAPSHOT_SUFFIX
+        self,
+        source: str,
+        resource: str,
+        key: str,
+        *,
+        suffix: str = SNAPSHOT_SUFFIX,
+        as_of: dt.datetime | None = None,
     ) -> Snapshot | None:
-        """The most recent snapshot for this key, or ``None``.
+        """The most recent snapshot for this key fetched no later than ``as_of``, or ``None``.
 
         Filenames embed a sortable UTC timestamp, so lexical maximum is chronological maximum.
+        ``as_of`` keeps a run evaluated in the past from reading what was fetched after it
+        (Invariant 5).
         """
         directory = self.resource_dir(source, resource)
         if not directory.is_dir():
@@ -224,10 +232,10 @@ class BronzeStore:
             meta_path = path.with_name(path.name + META_SUFFIX)
             if not meta_path.exists():
                 continue  # a torn write; skip it rather than trust it
-            return Snapshot(
-                path=path,
-                meta=SnapshotMeta.model_validate_json(meta_path.read_text(encoding="utf-8")),
-            )
+            meta = SnapshotMeta.model_validate_json(meta_path.read_text(encoding="utf-8"))
+            if as_of is not None and meta.fetched_at > as_of:
+                continue
+            return Snapshot(path=path, meta=meta)
         return None
 
     def verify(self, *, prune_orphans: bool = False) -> VerifyReport:
