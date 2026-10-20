@@ -43,11 +43,14 @@ def append_table(root: Path, season: str, table: Table, frame: pd.DataFrame) -> 
         return table_path(root, season, table)
     path = table_path(root, season, table)
     combined = frame
+    keys = getattr(SCHEMAS[table].Config, "unique", None)
     if path.exists():
         combined = pd.concat([read_table(root, season, table), frame], ignore_index=True)
-        keys = getattr(SCHEMAS[table].Config, "unique", None)
         if keys:
             combined = combined.drop_duplicates(subset=list(keys), keep="last")
+    if keys:
+        # Key order, so a row that arrives late cannot leave the file out of order.
+        combined = combined.sort_values(list(keys), kind="stable", ignore_index=True)
     return write_table(root, season, table, combined)
 
 
