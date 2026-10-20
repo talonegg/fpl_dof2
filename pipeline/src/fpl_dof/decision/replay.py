@@ -22,7 +22,7 @@ from fpl_dof.config.models import (
 )
 from fpl_dof.forecast.backtest import deadlines_for, fold_rows, training_rows
 from fpl_dof.forecast.features import TARGET
-from fpl_dof.forecast.fit import fit_as_of
+from fpl_dof.forecast.fit import ColdStartError, fit_as_of
 from fpl_dof.frames import as_float, as_int
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.optimise.plan import DecisionPlan, build_plan
@@ -229,7 +229,7 @@ def replay_chip_decisions(
                 decision=decision,
                 optimiser=optimiser,
             )
-        except InfeasibleError as exc:
+        except (InfeasibleError, ColdStartError) as exc:
             warnings.append(f"{season} GW{gameweek}: no plan could be built ({exc})")
             continue
         folds.append(fold)

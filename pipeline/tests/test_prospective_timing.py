@@ -27,8 +27,8 @@ from fpl_dof.prospective.timing import (
     LAST_RUN_LEAD,
     decide_timing,
     odds_coverage,
-    resolve_team,
 )
+from fpl_dof.sources import resolve_team
 
 REPO = Path(__file__).resolve().parents[2]
 BUNDLE = REPO / "prospective" / "bundle" / "frozen-2026-10-13.tar.gz"

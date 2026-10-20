@@ -74,4 +74,3 @@ __all__ = [
     "replay_prices",
     "resolve_team",
 ]
-
