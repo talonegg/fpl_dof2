@@ -567,7 +567,7 @@ architecture above, and where it depends on §12.
 | Silver persistence | Rebuilt each run; accumulating tables lose history on CI | Accumulating partitions (`price_history`) persisted on `data`; a deterministic replay rebuilds them from bronze | PIPE-06 |
 | Temporal grain | Scraped aggregates conformed as `scope="season"`, `gameweek=None` | Metrics keyed by `season` **and `as_of_gameweek`**; mid-season sources backfilled to deadline-aligned snapshots with provenance | PIPE-01 |
 | Look-ahead guard | Invariant 5 enforced by tests and the backtester | Plus a **blocking temporal non-leakage gate** on silver | PIPE-10 |
-| Gold | Per-run outputs only | Two **unified gold datasets**: `player_career_history` keyed on the permanent `player_code`, and `team_match_odds` with one de-vig formulation across seasons | PIPE-02, PIPE-05 |
+| Gold | Per-run outputs only | Two **unified gold datasets**, built by `transform`: `player_career_history` keyed on the permanent `player_code`, and `team_match_odds` with one de-vig formulation across seasons; clubs carry the permanent code from silver `team.code`, by each row's season. First read in R1.2 (DL-81) | PIPE-02, PIPE-05 |
 
 ```mermaid
 graph LR

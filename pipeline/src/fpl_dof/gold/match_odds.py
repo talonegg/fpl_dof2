@@ -18,7 +18,7 @@ from typing import Any
 import pandas as pd
 
 from fpl_dof.frames import as_float, as_int
-from fpl_dof.gold.player_career import TEAM_ID_TO_CODE_2627, _season_from_path
+from fpl_dof.gold.player_career import _season_from_path, club_codes
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.silver.tables import Table
 from fpl_dof.sources import (
@@ -111,6 +111,11 @@ def _resolve_team_code(val: Any) -> int | None:
     return TEAM_NAME_TO_CODE.get(cleaned)
 
 
+def _code(team_id: object, row_season: str, current: str, codes: dict[int, int]) -> int | None:
+    """A row's club code: mapped through ``codes`` in the current season, as stored otherwise."""
+    return codes.get(as_int(team_id)) if row_season == current else as_int(team_id)
+
+
 def build_team_match_odds(
     silver_dir: Path,
     gold_dir: Path | None = None,
@@ -134,13 +139,16 @@ def build_team_match_odds(
         if df.empty:
             continue
 
+        codes = club_codes(s_dir)
         fix_map: dict[tuple[int, int], tuple[int | None, int | None]] = {}
         fix_path = s_dir / f"{Table.FIXTURE.value}.parquet"
         if fix_path.exists():
             fix_df = pd.read_parquet(fix_path)
             for r in fix_df.itertuples():
-                fix_home = TEAM_ID_TO_CODE_2627.get(as_int(r.home_team_id), as_int(r.home_team_id))
-                fix_away = TEAM_ID_TO_CODE_2627.get(as_int(r.away_team_id), as_int(r.away_team_id))
+                fix_home = codes.get(as_int(r.home_team_id))
+                fix_away = codes.get(as_int(r.away_team_id))
+                if fix_home is None or fix_away is None:
+                    continue
                 fix_map[(fix_home, fix_away)] = (
                     as_int(r.fixture_id) if pd.notna(r.fixture_id) else None,
                     as_int(r.gameweek) if pd.notna(r.gameweek) else None,
@@ -148,12 +156,12 @@ def build_team_match_odds(
 
         for row in df.itertuples():
             h_code = (
-                TEAM_ID_TO_CODE_2627.get(as_int(row.home_team_id), as_int(row.home_team_id))
+                _code(row.home_team_id, getattr(row, "season", season), season, codes)
                 if pd.notna(getattr(row, "home_team_id", None))
                 else _resolve_team_code(getattr(row, "home_team", None))
             )
             a_code = (
-                TEAM_ID_TO_CODE_2627.get(as_int(row.away_team_id), as_int(row.away_team_id))
+                _code(row.away_team_id, getattr(row, "season", season), season, codes)
                 if pd.notna(getattr(row, "away_team_id", None))
                 else _resolve_team_code(getattr(row, "away_team", None))
             )
