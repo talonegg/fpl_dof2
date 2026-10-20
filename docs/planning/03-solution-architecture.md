@@ -75,7 +75,7 @@ design (DL-08, NFR-11). The official API now carries the expected-goals signals 
 | FPL archive | `sources/fplarchive` | Off by default; enabled for the backtest (`config/ci-backtest.yaml`, DL-68) |
 | Understat, FBref | `sources/understat`, `sources/fbref` | Blocked upstream (`robots.txt`, Cloudflare 403) — D-23. Off by default (`enabled_by_default = False`); no workflow enables them. PIPE-09 removes them |
 | The Odds API | `sources/oddsapi` | Enabled by default (`config/defaults/sources.yaml`); degrades cleanly without `ODDS_API_KEY`. Free-tier credit cap, no history — D-20; not used by the model (DL-59, DL-60). Stood down by PIPE-09 |
-| football-data.co.uk | none yet — `prospective/fdcouk.py`, `scripts/prospective_ci.py` | Read outside `sources/` (§12, P5); a registered adapter is PIPE-04 |
+| football-data.co.uk | `sources/fdcouk` | Off in the pipeline run. The prospective harness reads upcoming odds through it (`sources.LiveFeed`, REM-07); past seasons' match files are conformed into silver by permanent club code and fetched once each (PIPE-03, PIPE-04) |
 
 ---
 

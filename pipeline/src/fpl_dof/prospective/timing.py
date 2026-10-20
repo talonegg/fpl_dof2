@@ -14,12 +14,12 @@ when the deadline is before ~15:00 UTC. So at least two runs always fall inside 
 
 from __future__ import annotations
 
-import csv
 import datetime as dt
-import io
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
+
+import pandas as pd
 
 from fpl_dof.config.models import ScheduleConfig
 from fpl_dof.sources import CLUB_ALIASES, resolve_team
@@ -36,29 +36,24 @@ LAST_RUN_LEAD = dt.timedelta(
 
 
 def odds_coverage(
-    csv_bytes: bytes,
+    odds: pd.DataFrame,
     gw: int,
     teams: Sequence[Mapping[str, Any]],
     fixtures: Sequence[Mapping[str, Any]],
 ) -> tuple[int, int]:
-    """(gameweek fixtures with an E0 odds row in ``fixtures.csv``, gameweek fixtures)."""
+    """(gameweek fixtures with a priced odds row, gameweek fixtures).
+
+    ``odds`` is the conformed upcoming odds, ``home_team``/``away_team`` as the market names them.
+    """
     want = {(int(f["team_h"]), int(f["team_a"])) for f in fixtures if f.get("event") == gw}
-    try:
-        text = csv_bytes.decode("latin-1").lstrip("\ufeff").replace("ï»¿", "", 1)
-        rows = list(csv.DictReader(io.StringIO(text)))
-    except UnicodeDecodeError, csv.Error:
+    if odds.empty:
         return 0, len(want)
-    have = set()
-    for r in rows:
-        if r.get("Div") != "E0":
-            continue
-        pair = (
-            resolve_team(r.get("HomeTeam", ""), teams),
-            resolve_team(r.get("AwayTeam", ""), teams),
-        )
-        if pair in want:
-            have.add(pair)
-    return len(have), len(want)
+    pairs = zip(
+        (resolve_team(str(name), teams) for name in odds["home_team"]),
+        (resolve_team(str(name), teams) for name in odds["away_team"]),
+        strict=True,
+    )
+    return len({pair for pair in pairs if pair in want}), len(want)
 
 
 @dataclass(frozen=True)

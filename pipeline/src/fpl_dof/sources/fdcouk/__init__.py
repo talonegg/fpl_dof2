@@ -5,7 +5,6 @@ from fpl_dof.sources.fdcouk.adapter import (
     SEASONS,
     FdcoukAdapter,
     fetch_history,
-    latest_fixtures_csv,
 )
 
 __all__ = [
@@ -15,5 +14,4 @@ __all__ = [
     "SEASONS",
     "FdcoukAdapter",
     "fetch_history",
-    "latest_fixtures_csv",
 ]

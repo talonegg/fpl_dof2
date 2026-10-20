@@ -183,31 +183,68 @@ def _create_mock_silver(silver_dir: Path) -> None:
         ]
     )
     fix_26.to_parquet(s26 / f"{Table.FIXTURE.value}.parquet", index=False)
+    pd.DataFrame(
+        {
+            "gameweek": [1],
+            "name": ["Gameweek 1"],
+            "deadline_time": [pd.Timestamp("2026-08-14T17:30:00Z")],
+            "finished": [True],
+            "is_next": [False],
+        }
+    ).to_parquet(s26 / f"{Table.GAMEWEEK.value}.parquet", index=False)
 
-    # Silver expectation table for 2026/27
-    exp_26 = pd.DataFrame(
+    # Silver expectations as the adapters conform them (REM-06): this season's by local id and
+    # captured twice, once before the GW1 deadline and once after; 2024/25's by permanent code,
+    # captured at kickoff.
+    def expectation(**row: object) -> dict[str, object]:
+        return {
+            "source": "market",
+            "total_goals": 2.8,
+            "expected_goals_home": 1.85,
+            "expected_goals_away": 0.95,
+            "clean_sheet_probability_home": 0.386,
+            "clean_sheet_probability_away": 0.157,
+            "draw_probability": 0.231,
+            "away_win_probability": 0.187,
+            **row,
+        }
+
+    pd.DataFrame(
         [
-            {
-                "season": "2026/27",
-                "source": "fdcouk",
-                "captured_at": pd.Timestamp("2026-08-14T10:00:00Z"),
-                "kickoff_time": pd.Timestamp("2026-08-15T14:00:00Z"),
-                "home_team": "Arsenal",
-                "away_team": "Aston Villa",
-                "home_team_id": 1,
-                "away_team_id": 2,
-                "expected_goals_home": 1.85,
-                "expected_goals_away": 0.95,
-                "clean_sheet_probability_home": 0.386,
-                "clean_sheet_probability_away": 0.157,
-                "home_win_probability": 0.582,
-                "draw_probability": 0.231,
-                "away_win_probability": 0.187,
-                "total_goals": 2.80,
-            }
+            expectation(
+                season="2026/27",
+                captured_at=pd.Timestamp("2026-08-14T10:00:00Z"),
+                kickoff_time=pd.Timestamp("2026-08-15T14:00:00Z"),
+                home_team="Arsenal",
+                away_team="Aston Villa",
+                home_team_id=1,
+                away_team_id=2,
+                home_win_probability=0.582,
+            ),
+            expectation(
+                season="2026/27",
+                captured_at=pd.Timestamp("2026-08-15T09:00:00Z"),  # after the deadline
+                kickoff_time=pd.Timestamp("2026-08-15T14:00:00Z"),
+                home_team="Arsenal",
+                away_team="Aston Villa",
+                home_team_id=1,
+                away_team_id=2,
+                home_win_probability=0.640,
+            ),
+            expectation(
+                season="2024/25",
+                captured_at=pd.Timestamp("2024-08-17T14:00:00Z"),
+                kickoff_time=pd.Timestamp("2024-08-17T14:00:00Z"),
+                home_team="Arsenal",
+                away_team="Wolves",
+                home_team_id=3,
+                away_team_id=39,
+                home_win_probability=0.760,
+                expected_goals_home=2.4,
+                expected_goals_away=0.6,
+            ),
         ]
-    )
-    exp_26.to_parquet(s26 / f"{Table.TEAM_MATCH_EXPECTATION.value}.parquet", index=False)
+    ).to_parquet(s26 / f"{Table.TEAM_MATCH_EXPECTATION.value}.parquet", index=False)
 
 
 def test_player_career_history_unification(tmp_path: Path) -> None:
@@ -249,40 +286,26 @@ def test_player_career_history_unification(tmp_path: Path) -> None:
 
 
 def test_team_match_odds_unification(tmp_path: Path) -> None:
+    """REM-06: gold reads silver alone, keeps the capture time, and never a post-deadline price."""
     silver = tmp_path / "silver"
     gold = tmp_path / "gold"
     _create_mock_silver(silver)
 
-    # Also provide a sample historical E0 CSV
-    csv_file = tmp_path / "E0_2425.csv"
-    csv_content = (
-        "Div,Date,Time,HomeTeam,AwayTeam,FTHG,FTAG,FTR,B365H,B365D,B365A\n"
-        "E0,17/08/2024,15:00,Arsenal,Wolves,2,0,H,1.25,6.50,11.00\n"
-    )
-    csv_file.write_text(csv_content, encoding="utf-8")
+    odds = build_team_match_odds(silver, gold_dir=gold)
+    assert len(odds) == 2
 
-    odds = build_team_match_odds(
-        silver,
-        gold_dir=gold,
-        extra_historical_csvs=[csv_file],
-    )
-    assert len(odds) >= 2
-
-    # Check 2026/27 match
     row_26 = odds[odds["season"] == "2026/27"].iloc[0]
-    assert row_26["home_team_code"] == 3  # Arsenal
+    assert row_26["home_team_code"] == 3  # Arsenal, from 2026/27's local id 1
     assert row_26["away_team_code"] == 7  # Aston Villa
-    assert row_26["home_win_prob"] == 0.582
-    assert row_26["fixture_id"] == 101
+    assert row_26["home_win_prob"] == 0.582  # the pre-deadline capture, not the later one
+    assert row_26["captured_at"] == pd.Timestamp("2026-08-14T10:00:00Z")
+    assert row_26["fixture_id"] == 101 and row_26["gameweek"] == 1
 
-    # Check 2024/25 match from historical CSV
     row_24 = odds[odds["season"] == "2024/25"].iloc[0]
-    assert row_24["home_team_code"] == 3  # Arsenal
+    assert row_24["home_team_code"] == 3  # Arsenal's permanent code, not 2026/27's id 3
     assert row_24["away_team_code"] == 39  # Wolves
-    assert row_24["home_win_prob"] > 0.7  # De-vigged favourite
     assert row_24["expected_home_goals"] > row_24["expected_away_goals"]
 
-    # Test universal accessor
     queried = read_team_match_odds(gold, season="2026/27")
     assert len(queried) == 1
     assert queried.iloc[0]["home_team_code"] == 3

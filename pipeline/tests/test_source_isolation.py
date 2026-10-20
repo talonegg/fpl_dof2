@@ -43,13 +43,6 @@ FORBIDDEN_PATTERNS: tuple[str, ...] = (
 #: This test file itself, and the package docstring, necessarily name sources.
 EXEMPT = {Path(__file__).resolve()}
 
-#: Scripts that make live standalone pre-flight or CI-harness calls to FPL bootstrap-static.
-SCRIPTS_FPL_API_EXEMPT = {
-    (SCRIPTS_DIR / "day_before_gate.py").resolve(),
-    (SCRIPTS_DIR / "prospective_ci.py").resolve(),
-    (SCRIPTS_DIR / "score_xp.py").resolve(),
-}
-
 
 def _modules_outside_sources() -> list[Path]:
     modules = [
@@ -71,11 +64,6 @@ def test_no_module_outside_sources_names_a_source(pattern: str) -> None:
     compiled = re.compile(pattern, re.IGNORECASE)
     offenders: list[str] = []
     for path in _modules_outside_sources():
-        if path.resolve() in SCRIPTS_FPL_API_EXEMPT and pattern in (
-            r"fantasy\.premierleague\.com",
-            r"bootstrap-static",
-        ):
-            continue
         rel = path.relative_to(PIPELINE_ROOT)
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             if compiled.search(line):
@@ -98,3 +86,17 @@ def test_registered_source_names_do_not_appear_outside_sources() -> None:
                 if compiled.search(line):
                     offenders.append(f"{name} in {rel}:{number}")
     assert not offenders, f"Invariant 1 breach: {', '.join(offenders)}"
+
+
+def test_the_sources_root_exports_nothing_from_inside_an_adapter() -> None:
+    """REM-06: re-exporting an adapter's internals from the root would pass every text check above
+    while handing its file format or market maths to code outside ``sources/``."""
+    import fpl_dof.sources as sources
+
+    adapters = tuple(f"fpl_dof.sources.{name}" for name in known())
+    leaked = [
+        name
+        for name in sources.__all__
+        if getattr(getattr(sources, name), "__module__", "").startswith(adapters)
+    ]
+    assert not leaked, f"Invariant 1 breach: fpl_dof.sources re-exports adapter internals {leaked}"
