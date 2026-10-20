@@ -231,6 +231,7 @@ def resolve(
         name = str(record.source_name)
         club = team_key(str(record.source_team or ""))
         position = str(record.source_position) if pd.notna(record.source_position) else None
+        ingress = getattr(record, "ingress", None)
 
         matched: Candidate | None = None
         method = "unmatched"
@@ -280,6 +281,7 @@ def resolve(
                 "match_method": method,
                 "confidence": confidence,
                 "verified": method == "override",
+                "ingress": str(ingress) if pd.notna(ingress) else "live",
             }
         )
         report.counts.setdefault(source, {}).setdefault(method, 0)

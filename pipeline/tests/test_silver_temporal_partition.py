@@ -24,6 +24,7 @@ def test_player_advanced_and_metric_schemas_accept_valid_as_of_gameweek() -> Non
         {
             "season": "2026/27",
             "as_of_gameweek": 5,
+            "observed_at": pd.Timestamp("2026-08-01T00:00Z"),
             "source": "understat",
             "source_player_id": "123",
             "player_id": 1,
@@ -41,6 +42,7 @@ def test_player_advanced_and_metric_schemas_accept_valid_as_of_gameweek() -> Non
         {
             "season": "2026/27",
             "as_of_gameweek": 5,
+            "observed_at": pd.Timestamp("2026-08-01T00:00Z"),
             "player_id": 1,
             "player_code": 1001,
             "scope": "season",
@@ -59,6 +61,7 @@ def test_schema_rejects_out_of_range_as_of_gameweek() -> None:
         {
             "season": "2026/27",
             "as_of_gameweek": 39,
+            "observed_at": pd.Timestamp("2026-08-01T00:00Z"),
             "source": "understat",
             "source_player_id": "123",
             "player_id": 1,
@@ -187,6 +190,7 @@ def test_append_table_accumulates_across_as_of_gameweeks(tmp_path: Path) -> None
         {
             "season": "2026/27",
             "as_of_gameweek": 1,
+            "observed_at": pd.Timestamp("2026-08-01T00:00Z"),
             "player_id": 1,
             "player_code": 1001,
             "scope": "season",
@@ -207,6 +211,7 @@ def test_append_table_accumulates_across_as_of_gameweeks(tmp_path: Path) -> None
         {
             "season": "2026/27",
             "as_of_gameweek": 2,
+            "observed_at": pd.Timestamp("2026-08-01T00:00Z"),
             "player_id": 1,
             "player_code": 1001,
             "scope": "season",

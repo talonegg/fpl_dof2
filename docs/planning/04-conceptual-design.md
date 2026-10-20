@@ -207,8 +207,13 @@ one-to-one, for this season, under the unmatched threshold); **freshness and vol
 and fixture counts, player count against the previous run, snapshot age, a deadline still ahead).
 
 `ERROR` blocks publication (Invariant 7); `WARN` publishes and shows on `/health`; `INFO` is unused.
-Every gate names the requirement it protects; thresholds are configuration. A temporal non-leakage
-gate is PIPE-10. One gate reads the wall clock itself (03 §12 P4).
+Every gate names the requirement it protects; thresholds are configuration. Gates read the run's
+`as_of`, never the wall clock. The temporal gate (PIPE-10, DL-83) blocks three things:
+- a current-season metric row observed after its `as_of_gameweek` deadline;
+- a `player_gameweek` row that kicked off before its own gameweek's deadline;
+- price history that is future-dated or not strictly increasing.
+
+A source added mid-season is backdated by `sources/retrospective.py` and held to the same check.
 
 ### 3.5 Feature store
 

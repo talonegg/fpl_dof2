@@ -200,8 +200,8 @@ def _temporal_monotonicity_and_containment(
     """Prove temporal containment and monotonicity across silver tables (Invariant 5).
 
     1. Price history timestamps must be monotonic per player and not in the future.
-    2. Player metrics and per-gameweek observations must not contain timestamps after
-       the corresponding gameweek deadline.
+    2. This season's metric rows are observed no later than their ``as_of_gameweek`` deadline, and
+       its ``player_gameweek`` rows kick off after their own gameweek's deadline (DL-83).
     """
     tables = context.get("tables")
     tbl_dict: Mapping[str, pd.DataFrame] = tables if isinstance(tables, Mapping) else {}
@@ -269,54 +269,53 @@ def _temporal_monotonicity_and_containment(
                         },
                     )
 
-    # 2. Player metric and gameweek containment checks
-    candidates: list[tuple[str, pd.DataFrame]] = []
-    for t_name in (
-        Table.PLAYER_METRIC.value,
-        Table.PLAYER_GAMEWEEK.value,
-        Table.PLAYER_ADVANCED.value,
-    ):
-        t_df = tbl_dict.get(t_name)
-        if t_df is not None and not t_df.empty:
-            candidates.append((t_name, t_df))
-    if ("as_of_gameweek" in frame.columns or "gameweek" in frame.columns) and frame is not gw_table:
-        candidates.append(("frame", frame))
-
-    ts_cols = ("observed_at", "timestamp", "observation_time", "event_time")
-    for t_name, df in candidates:
-        found_ts = [col for col in ts_cols if col in df.columns]
-        if not found_ts:
+    # 2. Containment, on the columns the strict schemas hold (DL-83). Only this season's rows:
+    # its deadlines are the only ones silver knows.
+    season = context.get("season")
+    deadline = pd.Series(deadlines, dtype="datetime64[ns, UTC]")
+    for t_name in (Table.PLAYER_METRIC.value, Table.PLAYER_ADVANCED.value):
+        metric = tbl_dict.get(t_name)
+        if metric is None or metric.empty:
             continue
-        ts_col = found_ts[0]
-        gw_col = "as_of_gameweek" if "as_of_gameweek" in df.columns else "gameweek"
-        for _, row in df.iterrows():
-            gw_raw = row.get(gw_col)
-            ts_raw = row.get(ts_col)
-            if pd.isna(gw_raw) or pd.isna(ts_raw):
-                continue
-            gw = int(gw_raw)
-            if gw in deadlines:
-                dl = deadlines[gw]
-                row_ts = pd.to_datetime(ts_raw, utc=True)
-                if row_ts > dl:
-                    entity_key = (
-                        "player_code"
-                        if "player_code" in row
-                        else ("player_id" if "player_id" in row else "row")
-                    )
-                    entity = f"{entity_key}={row.get(entity_key)}"
-                    return (
-                        False,
-                        f"{t_name} contains observation at {row_ts} "
-                        f"after GW{gw} deadline {dl} for {entity}",
-                        {
-                            "violating_entity": entity,
-                            "timestamp": str(row_ts),
-                            "deadline": str(dl),
-                        },
-                    )
+        rows = metric[(metric["season"] == season) & metric["as_of_gameweek"].notna()]
+        due = rows["as_of_gameweek"].astype(int).map(deadline)
+        late = rows[pd.to_datetime(rows["observed_at"], utc=True) > due]
+        if not late.empty:
+            bad = late.iloc[0]
+            gw = int(bad["as_of_gameweek"])
+            return _leak(t_name, bad, "observed_at", f"after the GW{gw} deadline", deadline[gw])
+
+    played = tbl_dict.get(Table.PLAYER_GAMEWEEK.value)
+    if played is not None and not played.empty:
+        rows = played[(played["season"] == season) & played["kickoff_time"].notna()]
+        own = rows["gameweek"].astype(int).map(deadline)
+        early = rows[pd.to_datetime(rows["kickoff_time"], utc=True) <= own]
+        if not early.empty:
+            # Kicked off before its own deadline: the outcome was already a feature when it was
+            # being predicted.
+            bad = early.iloc[0]
+            gw = int(bad["gameweek"])
+            return _leak(
+                Table.PLAYER_GAMEWEEK.value,
+                bad,
+                "kickoff_time",
+                f"before the GW{gw} deadline",
+                deadline[gw],
+            )
 
     return True, "timestamps respect gameweek deadlines and price history is monotonic", {}
+
+
+def _leak(
+    table: str, row: pd.Series, column: str, when: str, deadline: pd.Timestamp
+) -> CheckResult:
+    key = "player_code" if pd.notna(row.get("player_code")) else "source_player_id"
+    entity = f"{key}={row.get(key)}"
+    return (
+        False,
+        f"{table} has {column} {row[column]} {when} {deadline} for {entity}",
+        {"violating_entity": entity, "timestamp": str(row[column]), "deadline": str(deadline)},
+    )
 
 
 # --- referential -------------------------------------------------------------------------------
