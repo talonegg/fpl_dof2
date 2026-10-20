@@ -2,7 +2,7 @@
 
 Chip timing interacts with transfers, so it cannot be decided by a heuristic sitting to one side of
 the optimiser. It does **not** follow that chips have to be MILP variables. Per
-[DL-15](../../../../docs/planning/00-decision-log.md) and Design §6.3, the primary approach is
+[DL-15](../../../../docs/decisions/DL-15.md) and Design §6.3, the primary approach is
 enumeration: list the plausible ``(chip, gameweek)`` assignments in the horizon, solve the ordinary
 transfer MILP conditional on each, take the best and keep the runners-up.
 

@@ -373,3 +373,38 @@ def test_this_seasons_own_evidence_still_outweighs_last_seasons_as_it_arrives() 
     late = model.predict("MID", 0.1, 3000.0, prior_ratio=2.0, prior_ratio_minutes=2700.0)
 
     assert abs(late - 0.1) < abs(early - 0.1)
+
+
+@settings(max_examples=30, deadline=None)
+@given(gameweek=st.integers(min_value=1, max_value=28))
+def test_gw_n_features_replayed_ten_gameweeks_later_are_the_same_vectors(gameweek: int) -> None:
+    """PIPE-01, REM-09: what silver holds later never changes what GW N's deadline could see.
+
+    "Then" is silver mid-gameweek N: GW N's first match played, its metrics captured for GW N.
+    "Later" is silver ten gameweeks on, with every match and metric capture since.
+    """
+    history = history_frame()
+    current = history[history["season"] == CURRENT]
+    kickoff = current.loc[current["gameweek"] == gameweek, "kickoff_time"].min()
+    deadline = kickoff - pd.Timedelta(minutes=90)
+    then = history[history["kickoff_time"] <= kickoff]
+    later = history[history["kickoff_time"] <= kickoff + pd.Timedelta(days=70)]
+
+    def captured(through: int) -> pd.DataFrame:
+        return pd.concat(
+            [metrics_frame()]
+            + [
+                metrics_frame(season=CURRENT, minutes=100.0 * gw).assign(as_of_gameweek=gw)
+                for gw in range(1, through + 1)
+            ],
+            ignore_index=True,
+        )
+
+    def features(silver: pd.DataFrame, metrics: pd.DataFrame) -> pd.DataFrame:
+        return build_features(
+            silver, as_of=deadline, config=enabled_config(), metrics=metrics, season=CURRENT
+        )
+
+    pd.testing.assert_frame_equal(
+        features(then, captured(gameweek)), features(later, captured(gameweek + 10))
+    )

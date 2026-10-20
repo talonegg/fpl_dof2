@@ -66,3 +66,17 @@ def test_manifest_is_written_incrementally_and_reread(tmp_path: Path) -> None:
     assert reloaded.stage("ingest") is not None
     assert reloaded.stage("absent") is None
     assert reloaded.finished_at is not None
+    assert reloaded.as_of is not None
+
+
+def test_manifest_writer_records_explicit_as_of(tmp_path: Path) -> None:
+    fixed_as_of = dt.datetime(2026, 9, 15, 12, 0, 0, tzinfo=dt.UTC)
+    writer = ManifestWriter(
+        run_id="20260915T120000Z-a1b2c3d4",
+        config_digest="0" * 64,
+        runs_dir=tmp_path / "runs",
+        data_root=tmp_path,
+        as_of=fixed_as_of,
+    )
+    reloaded = read_manifest(writer.path)
+    assert reloaded.as_of == fixed_as_of

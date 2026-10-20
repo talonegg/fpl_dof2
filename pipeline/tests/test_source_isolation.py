@@ -21,6 +21,8 @@ from fpl_dof.sources import known
 
 SRC = Path(fpl_dof.__file__).parent
 SOURCES_PKG = SRC / "sources"
+PIPELINE_ROOT = SRC.parents[1]
+SCRIPTS_DIR = PIPELINE_ROOT / "scripts"
 
 #: Names and strings that only ``sources/`` is allowed to contain.
 #: Source names are bounded by (?<![\w-]) / (?![\w-]) rather than \b, because \b would match
@@ -32,6 +34,8 @@ FORBIDDEN_PATTERNS: tuple[str, ...] = (
     r"(?<![\w-])understat(?![\w-])",
     r"(?<![\w-])fbref(?![\w-])",
     r"the-odds-api",
+    r"football-data\.co\.uk",
+    r"(?<![\w-])fdcouk(?![\w-])",
     r"\bfrom fpl_dof\.sources\.\w+ import",
     r"\bimport fpl_dof\.sources\.\w+",
 )
@@ -41,11 +45,14 @@ EXEMPT = {Path(__file__).resolve()}
 
 
 def _modules_outside_sources() -> list[Path]:
-    return [
+    modules = [
         path
         for path in SRC.rglob("*.py")
         if SOURCES_PKG not in path.parents and path.resolve() not in EXEMPT
     ]
+    if SCRIPTS_DIR.is_dir():
+        modules.extend(path for path in SCRIPTS_DIR.rglob("*.py") if path.resolve() not in EXEMPT)
+    return modules
 
 
 def test_there_is_something_to_check() -> None:
@@ -55,12 +62,12 @@ def test_there_is_something_to_check() -> None:
 @pytest.mark.parametrize("pattern", FORBIDDEN_PATTERNS)
 def test_no_module_outside_sources_names_a_source(pattern: str) -> None:
     compiled = re.compile(pattern, re.IGNORECASE)
-    offenders = [
-        f"{path.relative_to(SRC)}:{number}"
-        for path in _modules_outside_sources()
-        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
-        if compiled.search(line)
-    ]
+    offenders: list[str] = []
+    for path in _modules_outside_sources():
+        rel = path.relative_to(PIPELINE_ROOT)
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            if compiled.search(line):
+                offenders.append(f"{rel}:{number}")
     assert not offenders, (
         f"Invariant 1 breach — {pattern!r} appears outside sources/: {', '.join(offenders)}"
     )
@@ -74,7 +81,39 @@ def test_registered_source_names_do_not_appear_outside_sources() -> None:
         # is the package name, not a source reference.
         compiled = re.compile(rf"(?<![\w-]){re.escape(name)}(?![\w-])")
         for path in _modules_outside_sources():
+            rel = path.relative_to(PIPELINE_ROOT)
             for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
                 if compiled.search(line):
-                    offenders.append(f"{name} in {path.relative_to(SRC)}:{number}")
+                    offenders.append(f"{name} in {rel}:{number}")
     assert not offenders, f"Invariant 1 breach: {', '.join(offenders)}"
+
+
+def test_the_sources_root_exports_nothing_from_inside_an_adapter() -> None:
+    """REM-06: re-exporting an adapter's internals from the root would pass every text check above
+    while handing its file format or market maths to code outside ``sources/``."""
+    import fpl_dof.sources as sources
+
+    adapters = tuple(f"fpl_dof.sources.{name}" for name in known())
+    leaked = [
+        name
+        for name in sources.__all__
+        if getattr(getattr(sources, name), "__module__", "").startswith(adapters)
+    ]
+    assert not leaked, f"Invariant 1 breach: fpl_dof.sources re-exports adapter internals {leaked}"
+
+
+def test_no_stage_or_core_module_reads_the_wall_clock() -> None:
+    """PIPE-12 / REM-08: the run's one clock is ``ctx.as_of``. Only the effectful edge reads the
+    real time: the CLIs, the stage runner's own timings, logging and the manifest, and the source
+    layer stamping when it fetched something."""
+    edge = (SRC / "obs", SOURCES_PKG)
+    allowed = {SRC / "cli.py", SRC / "schedule_cli.py", SRC / "pipeline.py"}
+    clock = re.compile(r"\butcnow\(|\bdatetime\.now\(|\bdate\.today\(|\btime\.time\(\)")
+    offenders = [
+        f"{path.relative_to(PIPELINE_ROOT)}:{number}"
+        for path in SRC.rglob("*.py")
+        if path not in allowed and not any(root in path.parents for root in edge)
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+        if clock.search(line) and not line.lstrip().startswith(("#", "def "))
+    ]
+    assert not offenders, f"wall clock read outside the edge: {', '.join(offenders)}"

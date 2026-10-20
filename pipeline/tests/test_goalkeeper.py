@@ -1,6 +1,6 @@
 """E10-S4 — a goalkeeper-specific formulation for saves.
 
-GKP Spearman is 0.04 ([DL-21](../../docs/planning/00-decision-log.md)) — a whole position
+GKP Spearman is 0.04 ([DL-21](../../docs/decisions/DL-21.md)) — a whole position
 essentially unranked. Everything a goalkeeper scores for already runs through M2 except **saves**,
 which came from the generic shrunk per-90 used for every outfield rate stat and is therefore blind
 to the thing that actually produces a save: a shot, and shots faced are the defence in front of him.
@@ -8,10 +8,10 @@ to the thing that actually produces a save: a shot, and shots faced are the defe
 **Nothing in silver counts shots**, so expected goals conceded stands in for them. That
 substitution is the story's most contestable choice and it is named rather than hidden (DP-09,
 DP-10); the tests below pin its *arithmetic*, and the argument for it lives in
-[DL-51](../../docs/planning/00-decision-log.md).
+[DL-51](../../docs/decisions/DL-51.md).
 
 ``discrimination.gkp_v2`` is a candidate, not a promotion (DP-08,
-[DL-47](../../docs/planning/00-decision-log.md)). So these tests check the mechanism: the flag off
+[DL-47](../../docs/decisions/DL-47.md)). So these tests check the mechanism: the flag off
 changes nothing at all, an average keeper in an average fixture gets back exactly the number the old
 chain gave him, the defence a keeper has played behind is divided out of his own level, and only
 goalkeepers are touched. The claim that it *improves* the model is the backtest's to make and is

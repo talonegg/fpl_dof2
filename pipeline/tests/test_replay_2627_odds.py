@@ -10,7 +10,7 @@ from types import ModuleType
 import pandas as pd
 import pytest
 
-from fpl_dof.prospective.fdcouk import HISTORY, SEASONS
+from fpl_dof.sources.fdcouk.adapter import HISTORY, SEASONS
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "scripts" / "models_history" / "odds_2627.py"

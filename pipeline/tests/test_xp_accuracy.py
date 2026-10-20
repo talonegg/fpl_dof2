@@ -114,15 +114,19 @@ def _record(root: Path, gw: int, tamper: bool = False) -> None:
     (root / "decisions" / f"GW{gw}.json").write_text(json.dumps(doc))
 
 
-def _api(url: str) -> Any:
-    if url.endswith("bootstrap-static/"):
+class _Feed:
+    """The live reads ``score_xp.run`` makes, served from fixed data."""
+
+    def state(self) -> dict[str, Any]:
         return {
             "events": [
                 {"id": 7, "finished": True, "data_checked": True},
                 {"id": 8, "finished": True, "data_checked": True},
             ]
         }
-    return {"elements": [{"id": 1, "stats": {"total_points": 2, "minutes": 90}}]}
+
+    def gameweek_live(self, gameweek: int) -> dict[str, Any]:
+        return {"elements": [{"id": 1, "stats": {"total_points": 2, "minutes": 90}}]}
 
 
 def test_score_xp_scores_once_and_refuses_a_tampered_file(tmp_path: Path) -> None:
@@ -130,7 +134,7 @@ def test_score_xp_scores_once_and_refuses_a_tampered_file(tmp_path: Path) -> Non
     _record(tmp_path, 7)
     _record(tmp_path, 8, tamper=True)
     now = dt.datetime(2026, 10, 20, tzinfo=dt.UTC)
-    assert mod.run(tmp_path, _api, now) == 0
+    assert mod.run(tmp_path, _Feed(), now) == 0
     s = pd.read_csv(tmp_path / "xp_scores.csv")
     assert list(s.columns) == list(SCORE_FIELDS)
     assert set(s["gw"]) == {7}  # GW8 avail hash mismatch -> not scored
@@ -139,7 +143,7 @@ def test_score_xp_scores_once_and_refuses_a_tampered_file(tmp_path: Path) -> Non
     assert (tmp_path / "xp_scores_paired.csv").exists() and (
         tmp_path / "xp_calibration.csv"
     ).exists()
-    assert mod.run(tmp_path, _api, now) == 0
+    assert mod.run(tmp_path, _Feed(), now) == 0
     assert len(pd.read_csv(tmp_path / "xp_scores.csv")) == len(s)  # idempotent
 
 

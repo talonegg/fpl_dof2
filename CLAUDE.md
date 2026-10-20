@@ -4,16 +4,18 @@ Fantasy Premier League decision-support platform for the 2026/27 season. Schedul
 ingests data, forecasts expected points, solves a multi-gameweek MILP, and publishes static
 artefacts; a React SPA reads them. No server, no database, no runtime backend.
 
-Planning documents are in `docs/planning/`. Read `docs/planning/README.md` first when you need
-context beyond this file. AI tooling design is in `docs/planning/ai/README.md`.
-
-**The build plan of record is `docs/planning/epics/`** — a steel thread to the GW1 deadline, then
-eight incremental epics. `docs/planning/02-project-plan-and-blueprint.md` still contains an older
-phase plan (P0–P6); its §3, §4 and §8 are superseded and marked as such. Do not plan work from them.
+**`docs/README.md` maps where every fact lives** — read it when you need context beyond this file.
+Work ships in releases `Rx.y.z`: R1.0 was epics E0–E14; R1.1.0, the data pipeline uplift, is open.
+The plan of record is the release register, `docs/planning/epics/README.md`. A decision cited as
+`DL-nn` is the file `docs/decisions/DL-nn.md`: open it directly rather than searching.
+`docs/planning/archive/` holds closed epics and superseded plans as records; plain searches skip it
+(`docs/.rgignore`), so name the path to search it. Rules for writing documents:
+`docs/agents/documentation.md`.
 
 ## Design principles — binding
 
-**`docs/DESIGN-PRINCIPLES.md` holds fifteen binding design principles (DP-01…DP-15).** Read them
+**`docs/DESIGN-PRINCIPLES.md` holds ten binding design principles** (DP-01…06, 11, 13, 14, 15;
+DP-07, 08, 09, 10 and 12 are editable guidance in `docs/guiding-principles.md`). Read them
 before designing a module, adding a data source, adding or changing a model, changing the optimiser
 formulation, altering a contract, or deciding how something is tested. The invariants below are the
 short always-loaded subset; that document is the full reasoned set and is authoritative.
@@ -29,7 +31,6 @@ short always-loaded subset; that document is the full reasoned set and is author
 
 ## Commands
 
-<!-- TODO Phase 0: fill in once the toolchain exists. -->
 Python lives in `.venv` at the repo root, created with `uv`. `uv` is installed as a module, so it is
 `python -m uv`, not `uv`.
 
@@ -41,6 +42,9 @@ Python lives in `.venv` at the repo root, created with `uv`. `uv` is installed a
 | This week's decision only | `.venv\Scripts\fpl-dof week` |
 | Walk-forward backtest — **not** part of `run` | `.venv\Scripts\fpl-dof backtest`. Needs the archive source enabled and `sources.backfill_seasons` set in `config/local.yaml`; CI uses the committed `config/ci-backtest.yaml` via `FPL_DOF_CONFIG_FILE` (DL-68) |
 | Re-run ignoring caches | `.venv\Scripts\fpl-dof run --force-refresh` |
+| Check bronze for corrupt or torn snapshots | `.venv\Scripts\fpl-dof bronze verify`; `--quarantine` moves bad files to `data/quarantine/` (CI runs it before transform) |
+| Rebuild silver after a schema change (transform names it when needed) | `.venv\Scripts\fpl-dof silver rebuild` — the old silver is moved to `data/quarantine/`, not deleted |
+| Rebuild price history from retained bronze | `.venv\Scripts\fpl-dof silver replay-prices`; `--clean` starts from nothing rather than merging (PIPE-06) |
 | Python tests | `cd pipeline && ..\.venv\Scripts\python -m pytest -q` |
 | Live-API drift tests | `cd pipeline && ..\.venv\Scripts\python -m pytest -q --network` |
 | Slow tests — the historical chip replay (D-18/DL-28), ~16 min | `cd pipeline && ..\.venv\Scripts\python -m pytest -q --slow tests/test_chip_replay.py`. Needs the archive backfill in silver; writes its finding to `data/gold/chip-replay.json` |
@@ -52,6 +56,7 @@ Python lives in `.venv` at the repo root, created with `uv`. `uv` is installed a
 | Browser verification (layout, accessibility, PWA/offline, performance) | Serve a build, then `cd web && npm run verify:browser -- http://127.0.0.1:4173` — see `web/verify/README.md`. Needs a **built** site: the service worker is not generated in dev |
 | Deployed smoke test (E7-S7) — app shell, key routes, contract files | `cd web && npm run verify:smoke -- <deployed-url>` — see `web/verify/README.md` §"Phase 5". Pass the deployed **path**, not the bare origin; exits non-zero on failure so a workflow can gate on it |
 | Regenerate the PWA icons after a palette change | `cd web && node scripts/make-icons.mjs` — reads the colours from `src/tokens.css` |
+| Docs check — decision index, links, `DL-nn` citations (CI runs it) | `python scripts/docs.py check`; after adding a decision, `python scripts/docs.py index` first |
 
 Reading the current squad without the web app: `data/gold/season=2026-27/squad.json` (preseason
 only — in-season the from-scratch solve is skipped, DL-67), this week's decision at `week.json`, the
@@ -81,7 +86,9 @@ ranking (DL-21).
 - `contracts/` — the single definition of the boundary between the two. `v1/` is the published
   artefacts' JSON Schema; `conformance/` holds the fixture corpora for behaviour implemented in both
   languages, written once and read by both pytest and vitest — never copied (DL-39).
-- `docs/planning/` — charter, plan, architecture, conceptual design, AI tooling plan.
+- `docs/` — the map is `docs/README.md`. `decisions/` one file per decision; `planning/` charter,
+  plan, architecture, conceptual design, debt register and the live epics; `planning/archive/`
+  closed releases (`R1.0/`) and superseded plans.
 - `data/` — local working data. Gitignored. Never commit it.
 
 ## Invariants
@@ -90,7 +97,7 @@ These are not style preferences. Breaking one causes silent, expensive wrongness
 
 1. **Only `pipeline/src/fpl_dof/sources/` may know a data source exists.** No module outside it may
    import, name or branch on a specific source. Everything downstream consumes the conformed silver
-   model. Enforced by import-lint in CI (from Phase 1 onward).
+   model. Enforced by `pipeline/tests/test_source_isolation.py` in CI.
 2. **Never hardcode FPL scoring, price or squad values.** They live in config, seeded from the API's
    game settings where exposed. A literal `4` for a forward goal is a bug even when the number is
    right. See the `fpl-rules` skill for authoritative values.
@@ -119,9 +126,13 @@ These are not style preferences. Breaking one causes silent, expensive wrongness
 
 - Name the requirement IDs a change implements in the commit message — `FR-12`, `NFR-08`. The
   numbered requirements are in `docs/planning/01-project-charter.md` §6.
-- Record any significant decision in `docs/planning/00-decision-log.md` **before** implementing it.
-  Append a new entry; never edit an accepted one — supersede it.
-- Update the relevant `docs/planning/` document in the same change as the code, not afterwards.
+- Record any significant decision as a new `docs/decisions/DL-nn.md` **before** implementing it
+  (format in `docs/decisions/README.md`). Never edit an accepted entry — supersede it.
+- Update the fact's home (see `docs/README.md`) in the same change as the code, not afterwards:
+  rewrite it to the new truth, do not append history. Then run `python scripts/docs.py check`.
+- Branch from the open `dev/Rx.y.z` onto `feature/<description>` and, once the local checks pass,
+  merge it into the dev branch directly and push (no pull request, DL-82); never commit to `main` or
+  `pre-release`. Promotion, tagging and hotfixes follow the `release` skill (DL-80).
 - British English in documentation, UI copy and comments. Currency is £.
 - The definition of done is charter §13. It applies to every increment.
 

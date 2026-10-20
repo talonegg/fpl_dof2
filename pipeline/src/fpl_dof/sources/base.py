@@ -21,7 +21,7 @@ import pandas as pd
 
 from fpl_dof.config.models import SourceOverride
 from fpl_dof.rules.models import ApiRules
-from fpl_dof.sources.fetch import Fetcher
+from fpl_dof.sources.fetch import Fetched, Fetcher
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +38,12 @@ class Resource:
     (Architecture §9). E0 has one cadence, but the declaration is made here now so the
     distinction exists before E7 needs it.
     """
+    immutable: bool = False
+    """Whether this resource represents finalized historical data that never changes.
+
+    Completed prior seasons (PIPE-03) are immutable: once cached in bronze, they are never
+    re-fetched regardless of age unless explicit rebackfill or force-refresh is requested.
+    """
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +53,7 @@ class IngestRequest:
 
     run_id: str
     force_refresh: bool = False
+    rebackfill: bool = False
     offline: bool = False
     player_limit: int | None = None
     fast_path_only: bool = False
@@ -80,6 +87,9 @@ class IngestRequest:
     """The season being run, as ``2026/27``. A source that derives its own from the data it fetches
     ignores this; a source whose URLs are season-shaped needs to be told, and guessing from the
     wall clock would quietly fetch the wrong year through every August."""
+
+    as_of_gameweek: int | None = None
+    """The gameweek whose deadline governs this run (PIPE-01, PIPE-12)."""
 
     def seasons_with_current(self) -> tuple[str, ...]:
         """Every season a season-shaped source should fetch: the backfill, then the current one.
@@ -194,6 +204,13 @@ class SourceAdapter(ABC):
     def __init__(self, fetcher: Fetcher, options: SourceOverride | None = None) -> None:
         self.fetcher = fetcher
         self.options = options or SourceOverride()
+        self.observed: dict[str, dt.datetime] = {}
+        """The latest snapshot time read per key: what stamps ``observed_at`` (DL-83)."""
+
+    def note_observed(self, key: str, fetched: Fetched) -> None:
+        """Remember when the bytes just read were captured, keeping the latest per key."""
+        moment = fetched.snapshot.meta.fetched_at
+        self.observed[key] = max(self.observed.get(key, moment), moment)
 
     def url_for(self, path: str) -> str:
         return f"{self.base_url.rstrip('/')}/{path.lstrip('/')}"

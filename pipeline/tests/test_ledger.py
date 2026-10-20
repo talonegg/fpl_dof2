@@ -8,6 +8,7 @@ invisible — a season log that looked complete and flattered the tool (DP-13).
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 from pathlib import Path
 
@@ -20,6 +21,9 @@ from fpl_dof.rules.models import GameRules
 from fpl_dof.week.ledger import advice_path, read_advice, read_all_advice, record_advice
 
 SQUAD = list(range(1, 16))
+
+
+AS_OF = dt.datetime(2026, 8, 21, 12, 0, tzinfo=dt.UTC)
 
 
 def _week_payload(gameweek: int, captain: int = 1) -> dict[str, object]:
@@ -92,7 +96,7 @@ def _scores(*gameweeks: int) -> pd.DataFrame:
 
 def test_advice_is_recorded_under_its_gameweek(tmp_path: Path) -> None:
     layout = DataLayout(root=tmp_path)
-    path = record_advice(layout, _week_payload(5))
+    path = record_advice(layout, _week_payload(5), as_of=AS_OF)
     assert path == advice_path(layout, 5)
     assert path is not None and path.name == "gw05.json"
     recorded = read_advice(layout, 5)
@@ -104,15 +108,15 @@ def test_advice_is_recorded_under_its_gameweek(tmp_path: Path) -> None:
 
 def test_a_skipped_week_records_nothing(tmp_path: Path) -> None:
     layout = DataLayout(root=tmp_path)
-    assert record_advice(layout, {"run_id": "r", "skipped": True}) is None
+    assert record_advice(layout, {"run_id": "r", "skipped": True}, as_of=AS_OF) is None
     assert read_all_advice(layout) == {}
 
 
 def test_rerunning_inside_a_gameweek_replaces_that_gameweek_only(tmp_path: Path) -> None:
     layout = DataLayout(root=tmp_path)
-    record_advice(layout, _week_payload(5, captain=1))
-    record_advice(layout, _week_payload(6, captain=3))
-    record_advice(layout, _week_payload(6, captain=4))
+    record_advice(layout, _week_payload(5, captain=1), as_of=AS_OF)
+    record_advice(layout, _week_payload(6, captain=3), as_of=AS_OF)
+    record_advice(layout, _week_payload(6, captain=4), as_of=AS_OF)
     entries = read_all_advice(layout)
     assert sorted(entries) == [5, 6]
     assert entries[5]["advised"]["captain"] == 1
@@ -169,8 +173,8 @@ def test_gameweeks_decided_without_the_tool_say_so() -> None:
 
 def test_recorded_advice_is_reconciled_against_what_was_played(tmp_path: Path) -> None:
     layout = DataLayout(root=tmp_path)
-    record_advice(layout, _week_payload(5, captain=1))
-    record_advice(layout, _week_payload(6, captain=1))
+    record_advice(layout, _week_payload(5, captain=1), as_of=AS_OF)
+    record_advice(layout, _week_payload(6, captain=1), as_of=AS_OF)
     log = build_log(
         entry_id=7,
         season="2026/27",
@@ -210,7 +214,7 @@ def test_a_gameweek_the_game_has_not_scored_yet_has_a_null_score() -> None:
 
 def test_the_log_validates_against_its_contract(tmp_path: Path) -> None:
     layout = DataLayout(root=tmp_path)
-    record_advice(layout, _week_payload(2))
+    record_advice(layout, _week_payload(2), as_of=AS_OF)
     log = build_log(
         entry_id=7,
         season="2026/27",
@@ -241,7 +245,7 @@ def test_hindsight_is_populated_and_validates_against_contract(
             "transfers": 0,
         }
     }
-    record_advice(layout, payload)
+    record_advice(layout, payload, as_of=AS_OF)
 
     positions = ["GKP"] * 2 + ["DEF"] * 5 + ["MID"] * 5 + ["FWD"] * 3 + ["MID"]  # 16 players
     pool_rows = []

@@ -11,8 +11,9 @@ from __future__ import annotations
 from pathlib import Path
 
 import pandas as pd
+import pyarrow.parquet as pq
 
-from fpl_dof.silver.tables import SCHEMAS, Table, validate
+from fpl_dof.silver.tables import SCHEMAS, Table, columns_for, validate
 
 
 def table_path(root: Path, season: str, table: Table) -> Path:
@@ -32,6 +33,10 @@ def write_table(root: Path, season: str, table: Table, frame: pd.DataFrame) -> P
     return path
 
 
+class StaleSilverError(RuntimeError):
+    """An accumulated table on disk was written by an older schema (REM-10)."""
+
+
 def append_table(root: Path, season: str, table: Table, frame: pd.DataFrame) -> Path:
     """Append rows, keeping the last occurrence of each unique key.
 
@@ -43,11 +48,20 @@ def append_table(root: Path, season: str, table: Table, frame: pd.DataFrame) -> 
         return table_path(root, season, table)
     path = table_path(root, season, table)
     combined = frame
+    keys = getattr(SCHEMAS[table].Config, "unique", None)
     if path.exists():
+        missing = sorted(set(columns_for(table)) - set(pq.read_schema(path).names))
+        if missing:
+            raise StaleSilverError(
+                f"silver table {table.value!r} at {path} predates its schema (no {missing}); "
+                "rebuild silver from bronze with `fpl-dof silver rebuild`"
+            )
         combined = pd.concat([read_table(root, season, table), frame], ignore_index=True)
-        keys = getattr(SCHEMAS[table].Config, "unique", None)
         if keys:
             combined = combined.drop_duplicates(subset=list(keys), keep="last")
+    if keys:
+        # Key order, so a row that arrives late cannot leave the file out of order.
+        combined = combined.sort_values(list(keys), kind="stable", ignore_index=True)
     return write_table(root, season, table, combined)
 
 

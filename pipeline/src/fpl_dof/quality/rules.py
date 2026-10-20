@@ -140,7 +140,9 @@ def _deadlines_are_in_the_future(frame: pd.DataFrame, context: Mapping[str, obje
     """At least one gameweek is still ahead. A season that has entirely ended is a real state,
     but so is a gameweek table cached from last season, and they look identical."""
     now = context.get("now")
-    moment = pd.Timestamp(now if isinstance(now, dt.datetime) else dt.datetime.now(dt.UTC))
+    if not isinstance(now, dt.datetime):
+        return False, "no as-of time in the gate context", {}
+    moment = pd.Timestamp(now)
     ahead = int((frame["deadline_time"] > moment).sum())
     return (
         ahead > 0 or bool(frame["finished"].all()),
@@ -189,6 +191,130 @@ def _difficulty_is_on_the_published_scale(
         low >= 1 and high <= 5,
         f"fixture difficulty spans {low}-{high}, expected 1-5",
         {"min": low, "max": high},
+    )
+
+
+def _temporal_monotonicity_and_containment(
+    frame: pd.DataFrame, context: Mapping[str, object]
+) -> CheckResult:
+    """Prove temporal containment and monotonicity across silver tables (Invariant 5).
+
+    1. Price history timestamps must be monotonic per player and not in the future.
+    2. This season's metric rows are observed no later than their ``as_of_gameweek`` deadline, and
+       its ``player_gameweek`` rows kick off after their own gameweek's deadline (DL-83).
+    """
+    tables = context.get("tables")
+    tbl_dict: Mapping[str, pd.DataFrame] = tables if isinstance(tables, Mapping) else {}
+
+    # Extract gameweek deadlines
+    deadlines: dict[int, pd.Timestamp] = {}
+    gw_table = tbl_dict.get(Table.GAMEWEEK.value, frame)
+    if (
+        isinstance(gw_table, pd.DataFrame)
+        and "gameweek" in gw_table.columns
+        and "deadline_time" in gw_table.columns
+    ):
+        known = gw_table.dropna(subset=["gameweek", "deadline_time"])
+        deadlines = dict(
+            zip(
+                known["gameweek"].astype(int),
+                pd.to_datetime(known["deadline_time"], utc=True),
+                strict=True,
+            )
+        )
+
+    # 1. Price history check
+    price_hist = tbl_dict.get(Table.PRICE_HISTORY.value)
+    if price_hist is None and "observed_at" in frame.columns and "player_id" in frame.columns:
+        price_hist = frame
+
+    now_val = context.get("now")
+    now_ts = pd.to_datetime(now_val, utc=True) if isinstance(now_val, str | dt.datetime) else None
+
+    if price_hist is not None and not price_hist.empty:
+        obs = pd.to_datetime(price_hist["observed_at"], utc=True)
+        if now_ts is not None:
+            future = price_hist[obs > now_ts]
+            if not future.empty:
+                bad = future.iloc[0]
+                pid = bad.get("player_id", bad.get("player_code", "unknown"))
+                ts_str = str(bad["observed_at"])
+                return (
+                    False,
+                    f"price_history contains future-dated observation at {ts_str} "
+                    f"(after {now_ts}) for player {pid}",
+                    {
+                        "violating_entity": f"player_id={pid}",
+                        "timestamp": ts_str,
+                        "deadline": str(now_ts),
+                    },
+                )
+
+        key = "player_id" if "player_id" in price_hist.columns else "player_code"
+        if key in price_hist.columns:
+            for pid, group in price_hist.groupby(key, sort=False):
+                diffs = pd.to_datetime(group["observed_at"], utc=True).diff()
+                non_pos = group[diffs <= pd.Timedelta(0)]
+                if not non_pos.empty:
+                    bad = non_pos.iloc[0]
+                    ts_str = str(bad["observed_at"])
+                    entity = f"{key}={pid!s}"
+                    return (
+                        False,
+                        f"price_history is not strictly monotonic for {entity} at {ts_str}",
+                        {
+                            "violating_entity": entity,
+                            "timestamp": ts_str,
+                            "deadline": "strictly_increasing",
+                        },
+                    )
+
+    # 2. Containment, on the columns the strict schemas hold (DL-83). Only this season's rows:
+    # its deadlines are the only ones silver knows.
+    season = context.get("season")
+    deadline = pd.Series(deadlines, dtype="datetime64[ns, UTC]")
+    for t_name in (Table.PLAYER_METRIC.value, Table.PLAYER_ADVANCED.value):
+        metric = tbl_dict.get(t_name)
+        if metric is None or metric.empty:
+            continue
+        rows = metric[(metric["season"] == season) & metric["as_of_gameweek"].notna()]
+        due = rows["as_of_gameweek"].astype(int).map(deadline)
+        late = rows[pd.to_datetime(rows["observed_at"], utc=True) > due]
+        if not late.empty:
+            bad = late.iloc[0]
+            gw = int(bad["as_of_gameweek"])
+            return _leak(t_name, bad, "observed_at", f"after the GW{gw} deadline", deadline[gw])
+
+    played = tbl_dict.get(Table.PLAYER_GAMEWEEK.value)
+    if played is not None and not played.empty:
+        rows = played[(played["season"] == season) & played["kickoff_time"].notna()]
+        own = rows["gameweek"].astype(int).map(deadline)
+        early = rows[pd.to_datetime(rows["kickoff_time"], utc=True) <= own]
+        if not early.empty:
+            # Kicked off before its own deadline: the outcome was already a feature when it was
+            # being predicted.
+            bad = early.iloc[0]
+            gw = int(bad["gameweek"])
+            return _leak(
+                Table.PLAYER_GAMEWEEK.value,
+                bad,
+                "kickoff_time",
+                f"before the GW{gw} deadline",
+                deadline[gw],
+            )
+
+    return True, "timestamps respect gameweek deadlines and price history is monotonic", {}
+
+
+def _leak(
+    table: str, row: pd.Series, column: str, when: str, deadline: pd.Timestamp
+) -> CheckResult:
+    key = "player_code" if pd.notna(row.get("player_code")) else "source_player_id"
+    entity = f"{key}={row.get(key)}"
+    return (
+        False,
+        f"{table} has {column} {row[column]} {when} {deadline} for {entity}",
+        {"violating_entity": entity, "timestamp": str(row[column]), "deadline": str(deadline)},
     )
 
 
@@ -416,6 +542,15 @@ GATES: tuple[Gate, ...] = (
         requirement="FR-11",
         summary="Fixture difficulty is on the published 1-5 scale",
         check=_difficulty_is_on_the_published_scale,
+    ),
+    Gate(
+        name="temporal_monotonicity_and_containment",
+        gate_class=GateClass.RANGE,
+        severity=GateSeverity.ERROR,
+        table=Table.GAMEWEEK.value,
+        requirement="NFR-06",
+        summary="Timestamps strictly respect gameweek deadlines and price history is monotonic",
+        check=_temporal_monotonicity_and_containment,
     ),
     Gate(
         name="player_team_reference",

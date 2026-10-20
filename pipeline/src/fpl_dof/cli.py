@@ -7,13 +7,21 @@ Stdlib argparse on purpose: one fewer dependency, and the CLI is a thin shell ov
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import os
 import sys
 from collections.abc import Sequence
 
 from fpl_dof import __version__
 from fpl_dof.config import ConfigError, layout_for, load_config
-from fpl_dof.obs import ManifestWriter, StageStatus, configure_logging, get_logger, new_run_id
+from fpl_dof.obs import (
+    ManifestWriter,
+    StageStatus,
+    configure_logging,
+    get_logger,
+    new_run_id,
+    utcnow,
+)
 from fpl_dof.obs.logging import run_context
 from fpl_dof.paths import find_repo_root
 from fpl_dof.pipeline import (
@@ -52,6 +60,10 @@ def build_parser() -> argparse.ArgumentParser:
         "--data-dir",
         help="Override the data root for this invocation.",
     )
+    parser.add_argument(
+        "--as-of",
+        help="Evaluate the pipeline as of an ISO timestamp (e.g. 2026-08-15T12:00:00Z).",
+    )
 
     subparsers = parser.add_subparsers(dest="command", metavar="STAGE", required=True)
 
@@ -60,6 +72,11 @@ def build_parser() -> argparse.ArgumentParser:
             "--force-refresh",
             action="store_true",
             help="Ignore caches and re-fetch from source.",
+        )
+        sub.add_argument(
+            "--rebackfill",
+            action="store_true",
+            help="Re-fetch immutable historical seasons ignoring bronze snapshots.",
         )
         sub.add_argument(
             "--offline",
@@ -98,6 +115,37 @@ def build_parser() -> argparse.ArgumentParser:
         help="Run only these stages, in registry order.",
     )
 
+    silver_parser = subparsers.add_parser("silver", help="Silver tier utilities")
+    silver_sub = silver_parser.add_subparsers(dest="silver_command", required=True)
+    rebuild_parser = silver_sub.add_parser(
+        "rebuild",
+        help="Rebuild silver from bronze after a schema change: moves the old silver to "
+        "data/quarantine/, replays price history, then runs transform.",
+    )
+    add_common(rebuild_parser)
+    replay_parser = silver_sub.add_parser(
+        "replay-prices",
+        help="Rebuild price_history.parquet from bronze snapshots.",
+    )
+    replay_parser.add_argument(
+        "--clean",
+        action="store_true",
+        help="Rebuild from scratch rather than merging with existing price history.",
+    )
+
+    bronze_parser = subparsers.add_parser("bronze", help="Bronze tier utilities")
+    bronze_sub = bronze_parser.add_subparsers(dest="bronze_command", required=True)
+    verify_parser = bronze_sub.add_parser(
+        "verify",
+        help="Verify integrity of bronze snapshots against corruption and torn writes.",
+    )
+    verify_parser.add_argument(
+        "--quarantine",
+        action="store_true",
+        help="Move corrupt and orphaned files out of bronze into data/quarantine/, kept as "
+        "evidence. Exits non-zero only if an issue remains in bronze.",
+    )
+
     return parser
 
 
@@ -123,6 +171,48 @@ def main(argv: Sequence[str] | None = None) -> int:
     layout = layout_for(config)
     layout.ensure()
 
+    if args.command == "silver" and args.silver_command == "replay-prices":
+        from fpl_dof.sources import replay_prices
+
+        result = replay_prices(
+            bronze_root=layout.bronze,
+            silver_root=layout.silver,
+            clean=args.clean,
+        )
+        print(
+            f"replay-prices: processed {result['snapshots_processed']} snapshots, "
+            f"{result['rows_written']} rows written"
+        )
+        return EXIT_OK
+
+    if args.command == "bronze" and args.bronze_command == "verify":
+        from fpl_dof.sources import BronzeStore
+
+        bronze = BronzeStore(layout.bronze)
+        report = bronze.verify(quarantine=args.quarantine)
+        print(
+            f"bronze verify: {report.total_snapshots} snapshots checked, "
+            f"{report.passed} passed, {report.failed} failed, {len(report.issues)} issue(s)"
+        )
+        for issue in report.issues:
+            print(f"  [{issue.kind}] {issue.path}: {issue.detail}")
+        if report.quarantined:
+            print(f"quarantined {len(report.quarantined)} file(s) to {bronze.quarantine_root}")
+        return EXIT_STAGE_FAILED if report.unresolved else EXIT_OK
+
+    if args.command == "silver" and args.silver_command == "rebuild":
+        from fpl_dof.sources import replay_prices
+
+        # Kept, not deleted: accumulated rows older than the bronze window exist nowhere else.
+        aside = layout.root / "quarantine" / f"silver-{utcnow():%Y%m%dT%H%M%SZ}"
+        if layout.silver.exists():
+            aside.parent.mkdir(parents=True, exist_ok=True)
+            layout.silver.replace(aside)
+            print(f"silver rebuild: old silver moved to {aside}")
+        layout.ensure()
+        replay_prices(bronze_root=layout.bronze, silver_root=layout.silver, clean=True)
+        args.command = "transform"
+
     try:
         names = args.only if args.command == "run" else [args.command]
         stages = resolve_stages(names)
@@ -130,16 +220,27 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(str(exc), file=sys.stderr)
         return EXIT_BAD_USAGE
 
+    as_of = utcnow()
+    if args.as_of:
+        # Ingest fetches the present and stamps it with the present; evaluating it "as of" the
+        # past would file today's bytes under an old date (DP-11). Transform onwards can replay.
+        if any(stage.name == "ingest" for stage in stages):
+            print("--as-of replays bronze already held; it cannot run ingest", file=sys.stderr)
+            return EXIT_BAD_USAGE
+        as_of = dt.datetime.fromisoformat(args.as_of)
+        as_of = as_of if as_of.tzinfo is not None else as_of.replace(tzinfo=dt.UTC)
     run_id = new_run_id()
     options = StageOptions(
         force_refresh=args.force_refresh,
+        rebackfill=args.rebackfill,
         offline=args.offline,
         player_limit=args.player_limit,
         fast_path_only=args.fast,
     )
-    ctx = StageContext(config=config, layout=layout, run_id=run_id, options=options)
+    ctx = StageContext(config=config, layout=layout, run_id=run_id, options=options, as_of=as_of)
     writer = ManifestWriter(
         run_id=run_id,
+        as_of=as_of,
         config_digest=digest,
         runs_dir=layout.runs,
         data_root=layout.root,

@@ -19,10 +19,8 @@ import hashlib
 import json
 import os
 import sys
-import urllib.request
-from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 import pandas as pd
 
@@ -36,17 +34,18 @@ from fpl_dof.prospective.xp_accuracy import (
     population,
     score_gw,
 )
+from fpl_dof.sources import LiveFeed
 
 ROOT = Path(os.environ.get("PROSPECTIVE_ROOT", "/workspace/fpl_prospective"))
-API = "https://fantasy.premierleague.com/api/"
-UA = "fpl-dof-ci/1.0 (+https://github.com/talonegg/fpl_dof2; low-rate)"
 SEASON = "2026/27"
 
 
-def _get(url: str) -> Any:
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return json.loads(r.read())
+class Feed(Protocol):
+    """The live reads this script makes: :class:`fpl_dof.sources.LiveFeed`, or a test's fake."""
+
+    def state(self) -> dict[str, Any]: ...
+
+    def gameweek_live(self, gameweek: int) -> dict[str, Any]: ...
 
 
 def _sha(p: Path) -> str:
@@ -89,13 +88,16 @@ def actuals(doc: dict[str, Any], live: dict[str, Any], players: set[int]) -> pd.
     return pd.DataFrame(rows)
 
 
-def run(root: Path = ROOT, get: Callable[[str], Any] = _get, now: dt.datetime | None = None) -> int:
+def run(root: Path = ROOT, feed: Feed | None = None, now: dt.datetime | None = None) -> int:
+    if feed is None:
+        with LiveFeed() as live:
+            return run(root, live, now)
     scores_p = root / "xp_scores.csv"
     old = pd.read_csv(scores_p) if scores_p.exists() else pd.DataFrame(columns=list(SCORE_FIELDS))
     done = set(old["gw"].astype(int)) if len(old) else set()
     docs = [json.loads(p.read_text()) for p in sorted((root / "decisions").glob("GW*.json"))]
     docs = [d for d in docs if "xp_sha256" in d]
-    events = {int(e["id"]): e for e in get(API + "bootstrap-static/")["events"]} if docs else {}
+    events = {int(e["id"]): e for e in feed.state()["events"]} if docs else {}
     stamp = (now or dt.datetime.now(dt.UTC)).isoformat()
     new_rows: list[dict[str, Any]] = []
     for doc in docs:
@@ -110,7 +112,7 @@ def run(root: Path = ROOT, get: Callable[[str], Any] = _get, now: dt.datetime | 
             continue
         listed = set(avail["player"].astype(int)) if avail is not None else None
         pool = set().union(*(set(d["player"].astype(int)) for d in xp.values()))
-        act = actuals(doc, get(API + f"event/{gw}/live/"), pool)
+        act = actuals(doc, feed.gameweek_live(gw), pool)
         if avail is not None:
             act = act.merge(avail, on="player", how="left")
         act.to_parquet(root / doc["xp_gold_dir"] / "actual.parquet", index=False)

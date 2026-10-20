@@ -818,7 +818,7 @@ class GoalkeeperConfig(_Section):
     silver model carries no shot column on ``player_gameweek`` at all; ``shots`` exists only on the
     advanced-metrics table, it is a *player's own* shots taken, and no scraped source is enabled by
     default. So opponent shot volume is not available and is not invented (the same call
-    [DL-48](../../../docs/planning/00-decision-log.md) made about European rotation). What is
+    [DL-48](../../../../docs/decisions/DL-48.md) made about European rotation). What is
     available is M2's **expected goals conceded** for the fixture, and it is used as the proxy,
     stated rather than substituted silently (DP-09, DP-10): more expected goals against a side
     means more shots faced by its keeper, because the one is computed from the other upstream.
@@ -1297,7 +1297,7 @@ class MonolithConfig(_Section):
 
     **There is deliberately no flag here**, and its absence is the design. Every other E10 story
     ships behind a `discrimination` bool that a future promotion review can flip
-    ([DL-47](../../../docs/planning/00-decision-log.md#dl-47)); this one has nothing to flip because
+    ([DL-47](../../../../docs/decisions/DL-47.md)); this one has nothing to flip because
     the epic is explicit that it is "never promoted over the chain without an explicit DP-10
     decision". It always runs and always reports.
 
@@ -1458,7 +1458,8 @@ class OptimiserConfig(_Section):
             "`price_position`: highest B0 (per-position price line) score, then second highest "
             "for vice — the walk-forward backtest's b0 captain, +2.20 captain pts/GW over the "
             "model's own pick across 2023/24-2025/26, which skews to GKP/DEF. `model`: the "
-            "solver's own xp-maximising captain (the previous behaviour)."
+            "solver's own xp-maximising captain (the previous behaviour). DL-76: returns to "
+            "`model` once the model card shows the model's top-20 precision above B0's."
         ),
     )
     shadow_c1: bool = Field(

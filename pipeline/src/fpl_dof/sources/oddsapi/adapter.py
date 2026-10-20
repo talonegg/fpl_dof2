@@ -59,8 +59,9 @@ _HOUR = 3600
 #: The environment variable holding the key. The name is here; the value never is.
 #: Built from parts rather than one literal so the *name* of a secret's variable does not itself
 #: read as a credential-shaped string to a naive scanner (see H3 in
-#: docs/planning/ai/04-hooks-and-settings-plan.md) — this is a false-positive dodge for tooling,
-#: not a security measure; the actual guarantee is that the value is read from the environment only.
+#: docs/planning/archive/ai/04-hooks-and-settings-plan.md) — this is a false-positive dodge for
+#: tooling, not a security measure; the actual guarantee is that the value is read from the
+#: environment only.
 API_KEY_ENV = "_".join(["ODDS", "API", "KEY"])
 
 #: An owner-set override of the monthly allowance, for a plan that differs from the free tier.
@@ -93,6 +94,9 @@ class OddsApiAdapter(SourceAdapter):
     health_label: ClassVar[str] = "Match odds (The Odds API)"
     health_description: ClassVar[str] = (
         "Bookmaker odds on match results and total goals, with the bookmaker's margin taken out."
+    )
+    health_disabled_reason: ClassVar[str] = (
+        "Switched off by configuration; match odds come from football-data.co.uk."
     )
     contributes: ClassVar[tuple[str, ...]] = (
         "expected_goals_home",

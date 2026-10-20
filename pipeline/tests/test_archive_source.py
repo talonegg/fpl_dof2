@@ -94,6 +94,28 @@ def test_a_finished_season_is_cached_for_a_year(
     assert second.cache_hits == 6
 
 
+def test_immutable_historical_season_never_refetches_even_after_ttl_expires(
+    recorded_archive: respx.MockRouter, adapter: ArchiveAdapter
+) -> None:
+    """PIPE-03: An immutable resource never refetches after TTL expires unless rebackfill."""
+    import datetime as dt
+
+    first = adapter.ingest(REQUEST)
+    assert first.network_calls == 6
+
+    # Advance time 2 years into the future (well beyond the 1-year cache TTL)
+    future = dt.datetime.now(dt.UTC) + dt.timedelta(days=730)
+    future_request = IngestRequest(run_id="run-2", seasons=SEASONS, now=future)
+    second = adapter.ingest(future_request)
+    assert second.network_calls == 0
+    assert second.cache_hits == 6
+
+    # Explicit rebackfill overrides immutability
+    rebackfill_request = IngestRequest(run_id="run-3", seasons=SEASONS, now=future, rebackfill=True)
+    third = adapter.ingest(rebackfill_request)
+    assert third.network_calls == 6
+
+
 def test_conformance_produces_a_valid_per_gameweek_table(
     recorded_archive: respx.MockRouter, adapter: ArchiveAdapter
 ) -> None:

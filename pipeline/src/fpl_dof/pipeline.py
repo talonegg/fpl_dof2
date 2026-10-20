@@ -10,6 +10,7 @@ table and means an incomplete stage cannot break ``--help``.
 
 from __future__ import annotations
 
+import datetime as dt
 import importlib
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
@@ -36,6 +37,7 @@ class StageOptions:
     """Run-time switches that apply across stages."""
 
     force_refresh: bool = False
+    rebackfill: bool = False
     offline: bool = False
     player_limit: int | None = None
     fast_path_only: bool = False
@@ -54,6 +56,7 @@ class StageContext:
     layout: DataLayout
     run_id: str
     options: StageOptions = field(default=StageOptions())
+    as_of: dt.datetime = field(default_factory=utcnow)
 
 
 @dataclass(frozen=True, slots=True)
@@ -196,6 +199,12 @@ def run_stages(
             except Exception as exc:
                 finished = utcnow()
                 log.exception("stage.failed")
+                failed_metrics: dict[str, float | int | str] = {}
+                drift = getattr(exc, "diff", None)
+                if drift:
+                    import json
+
+                    failed_metrics["schema_drift"] = json.dumps(drift)
                 writer.record(
                     StageRecord(
                         name=stage.name,
@@ -203,6 +212,7 @@ def run_stages(
                         started_at=started,
                         finished_at=finished,
                         duration_seconds=(finished - started).total_seconds(),
+                        metrics=failed_metrics,
                         error=f"{type(exc).__name__}: {exc}",
                     )
                 )
