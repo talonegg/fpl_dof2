@@ -161,6 +161,7 @@ def tables() -> dict[str, pd.DataFrame]:
                 "season": SEASON,
                 "source": preferred,
                 "source_player_id": f"{preferred}-1",
+                "observed_at": pd.Timestamp("2026-08-01T00:00Z"),
                 "scope": "season",
                 "expected_goals": 1.5,
             },
@@ -168,6 +169,7 @@ def tables() -> dict[str, pd.DataFrame]:
                 "season": SEASON,
                 "source": fallback,
                 "source_player_id": f"{fallback}-1",
+                "observed_at": pd.Timestamp("2026-08-02T00:00Z"),
                 "scope": "season",
                 "expected_goals": 1.9,
                 "tackles": 11.0,
@@ -185,6 +187,8 @@ def test_resolution_and_precedence_produce_one_canonical_row() -> None:
     assert row["expected_goals"] == 1.5
     # Contributed by the lower-precedence source, which the higher one does not measure at all.
     assert row["tackles"] == 11.0
+    # Knowable once its latest contributor was (DL-83).
+    assert row["observed_at"] == pd.Timestamp("2026-08-02T00:00Z")
     assert report.unmatched_rate(DEFAULT_FIELD_PRECEDENCE["expected_goals"][0]) == 0.0
     validate(Table.PLAYER_METRIC, metrics)
     validate(Table.PLAYER_CROSSWALK, produced[Table.PLAYER_CROSSWALK.value])

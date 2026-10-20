@@ -78,6 +78,10 @@ ADVANCED_METRICS: tuple[str, ...] = (
 #: failure R-10 describes.
 MATCH_METHODS: tuple[str, ...] = ("deterministic", "fuzzy", "override", "unmatched")
 
+#: How a source's rows arrived: captured live, or backdated from a timestamped match log or from
+#: running-total snapshots after the source was added mid-season (DL-83).
+INGRESS_METHODS: tuple[str, ...] = ("live", "match_log", "running_total")
+
 #: Whether an advanced row describes one fixture or a season to date. Sources differ, and pretending
 #: a season aggregate is a gameweek observation would leak the future into every backtest.
 METRIC_SCOPES: tuple[str, ...] = ("gameweek", "season")
@@ -494,6 +498,7 @@ class PlayerCrosswalkSchema(pa.DataFrameModel):
     confidence: Series[float] = pa.Field(ge=0, le=1)
     verified: Series[bool]
     """True only for a human-reviewed override. A fuzzy match at 0.97 is still a guess."""
+    ingress: Series[str] = pa.Field(isin=INGRESS_METHODS)
 
     class Config:
         strict = True
@@ -511,6 +516,9 @@ class PlayerAdvancedSchema(_AdvancedMetrics):
 
     season: Series[str]
     as_of_gameweek: Series[int] = pa.Field(ge=1, le=38, nullable=True)
+    observed_at: Series[pd.DatetimeTZDtype] = pa.Field(dtype_kwargs={"unit": "ns", "tz": "UTC"})
+    """When the row's content became knowable: the capture, or a backdated row's latest event. The
+    look-ahead gate holds it against the ``as_of_gameweek`` deadline (DL-83)."""
     source: Series[str]
     source_player_id: Series[str]
     player_id: Series[int] = pa.Field(ge=1, nullable=True)
@@ -541,6 +549,8 @@ class PlayerMetricSchema(_AdvancedMetrics):
 
     season: Series[str]
     as_of_gameweek: Series[int] = pa.Field(ge=1, le=38, nullable=True)
+    observed_at: Series[pd.DatetimeTZDtype] = pa.Field(dtype_kwargs={"unit": "ns", "tz": "UTC"})
+    """The latest ``observed_at`` of the rows merged into this one (DL-83)."""
     player_id: Series[int] = pa.Field(ge=1, nullable=True)
     player_code: Series[int] = pa.Field(ge=1)
     scope: Series[str] = pa.Field(isin=METRIC_SCOPES)

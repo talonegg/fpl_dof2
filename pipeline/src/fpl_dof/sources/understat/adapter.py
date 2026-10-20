@@ -163,6 +163,7 @@ class UnderstatAdapter(SourceAdapter):
             now=request.now,
             suffix=HTML_SUFFIX,
         )
+        self.note_observed(season, fetched)
         return self.parse_players(fetched.payload, key=year)
 
     def parse_players(self, payload: bytes, *, key: str) -> list[dict[str, Any]]:
@@ -252,6 +253,7 @@ class UnderstatAdapter(SourceAdapter):
             {
                 "season": season,
                 "as_of_gameweek": as_of_gw,
+                "observed_at": self.observed.get(season),
                 "source": self.name,
                 "source_player_id": str(record["id"]),
                 "player_id": None,

@@ -164,9 +164,10 @@ def run(ctx: StageContext) -> StageResult:
     gw_frame = merged_tables.get(Table.GAMEWEEK.value)
     as_of_gw = None
     if gw_frame is not None and not gw_frame.empty:
-        from fpl_dof.week.cadence import current_gameweek
+        from fpl_dof.week.cadence import gameweek_ahead
 
-        as_of_gw = current_gameweek(gw_frame, ctx.as_of)
+        # Null after the season's last deadline: such a capture is knowable for no gameweek (DL-83).
+        as_of_gw = gameweek_ahead(gw_frame, ctx.as_of)
 
     produced, resolution = canonicalise(
         merged_tables,

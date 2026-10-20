@@ -215,6 +215,7 @@ class FbrefAdapter(SourceAdapter):
             now=request.now,
             suffix=HTML_SUFFIX,
         )
+        self.note_observed(season, fetched)
         return self.parse_page(fetched.payload, page=page, key=self.season_slug(season))
 
     def parse_page(self, payload: bytes, *, page: str, key: str) -> list[dict[str, str]]:
@@ -325,6 +326,7 @@ class FbrefAdapter(SourceAdapter):
                         {
                             "season": season,
                             "as_of_gameweek": as_of_gw,
+                            "observed_at": self.observed.get(season),
                             "source": self.name,
                             "source_player_id": player_id,
                             "player_id": None,

@@ -130,4 +130,5 @@ by hand.
 | [DL-80](DL-80.md) | 2026-10-18 | Accepted | Branching and release model: feature → dev/Rx.y.z → pre-release → main, tagged per release |
 | [DL-81](DL-81.md) | 2026-10-19 | Accepted | R1.1.0 is reopened: remediation before promotion |
 | [DL-82](DL-82.md) | 2026-10-20 | Accepted | Feature branches merge into the release's dev branch directly, without a pull request |
+| [DL-83](DL-83.md) | 2026-10-20 | Accepted | Advanced metrics carry their capture time; backdating never estimates |
 <!-- index:end -->

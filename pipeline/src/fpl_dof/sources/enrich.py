@@ -112,12 +112,16 @@ def _merge_metrics(advanced: pd.DataFrame, config: SourcesConfig) -> pd.DataFram
     if known.empty:
         return pd.DataFrame(columns=columns_for(Table.PLAYER_METRIC))
 
+    keys = ["season", "as_of_gameweek", "player_code", "player_id", "scope", "gameweek"]
     merged = merge_by_precedence(
         known,
-        keys=["season", "as_of_gameweek", "player_code", "player_id", "scope", "gameweek"],
+        keys=keys,
         fields=list(ADVANCED_METRICS),
         precedence=effective_precedence(config.field_precedence),
     )
+    # A merged row is knowable once its latest contributor is (DL-83).
+    observed = known.groupby(keys, dropna=False, sort=False)["observed_at"].max().reset_index()
+    merged = merged.merge(observed, on=keys, how="left")
     return merged[columns_for(Table.PLAYER_METRIC)]
 
 

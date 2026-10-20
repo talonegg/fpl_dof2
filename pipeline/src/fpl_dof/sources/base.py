@@ -21,7 +21,7 @@ import pandas as pd
 
 from fpl_dof.config.models import SourceOverride
 from fpl_dof.rules.models import ApiRules
-from fpl_dof.sources.fetch import Fetcher
+from fpl_dof.sources.fetch import Fetched, Fetcher
 
 
 @dataclass(frozen=True, slots=True)
@@ -204,6 +204,13 @@ class SourceAdapter(ABC):
     def __init__(self, fetcher: Fetcher, options: SourceOverride | None = None) -> None:
         self.fetcher = fetcher
         self.options = options or SourceOverride()
+        self.observed: dict[str, dt.datetime] = {}
+        """The latest snapshot time read per key: what stamps ``observed_at`` (DL-83)."""
+
+    def note_observed(self, key: str, fetched: Fetched) -> None:
+        """Remember when the bytes just read were captured, keeping the latest per key."""
+        moment = fetched.snapshot.meta.fetched_at
+        self.observed[key] = max(self.observed.get(key, moment), moment)
 
     def url_for(self, path: str) -> str:
         return f"{self.base_url.rstrip('/')}/{path.lstrip('/')}"
