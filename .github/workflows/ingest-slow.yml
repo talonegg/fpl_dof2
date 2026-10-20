@@ -99,20 +99,14 @@ jobs:
           remote="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
           python pipeline/scripts/retention.py rolling data/bronze --remote "$remote"
 
-      - name: Archive today's full bronze snapshot to `snapshots` (E7-S4, NFR-06)
+      # One tarball per closed gameweek, written once (PIPE-14, DL-81). Fails, and so alerts, only
+      # when bronze holds no gameweek schedule; a run with no newly closed gameweek writes nothing.
+      - name: Archive each closed gameweek's bronze to `snapshots` (E7-S4, NFR-06)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -eu
           remote="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
-          gameweek="$(fpl-dof-schedule | python -c "import json,sys; print(json.load(sys.stdin).get('gameweek') or 0)")"
-          if [ "$gameweek" = "0" ]; then
-            echo "::error title=Archive failed::could not determine current gameweek from bronze bootstrap snapshot; snapshots branch archive cannot proceed"
-            exit 1
-          fi
-          tar -czf /tmp/bronze-full.tar.gz -C data bronze
-          python pipeline/scripts/retention.py permanent /tmp/bronze-full.tar.gz \
-            --remote "$remote" --source bronze-full --gameweek "$gameweek"
+          python pipeline/scripts/retention.py archive data/bronze --remote "$remote"
 
   alert:
     needs: [guard, ingest]

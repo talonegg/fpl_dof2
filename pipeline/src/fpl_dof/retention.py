@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import datetime as dt
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import PurePosixPath
 
@@ -84,9 +85,70 @@ def plan_retention(paths: list[str], *, today: dt.date, window_days: int) -> Ret
     return RetentionPlan(retain=tuple(retain), prune=tuple(prune), undated=tuple(undated))
 
 
+@dataclass(frozen=True, slots=True)
+class ArchivePlan:
+    """Which gameweeks the permanent archive writes now, and which it can no longer write."""
+
+    archive: dict[int, tuple[str, ...]]
+    """Gameweek -> the bronze paths that make up its evidence. Closed and not yet archived."""
+    partial: tuple[int, ...]
+    """Gameweeks in ``archive`` whose window began before the oldest bronze still held."""
+    lost: tuple[int, ...]
+    """Closed, never archived, and no bronze left for them: gone for good."""
+
+
+def plan_gameweek_archive(
+    paths: list[str],
+    *,
+    deadlines: Mapping[int, dt.datetime],
+    today: dt.date,
+    archived: set[int],
+) -> ArchivePlan:
+    """Partition bronze into one permanent archive per gameweek (PIPE-14, NFR-06).
+
+    Gameweek N's evidence is the bronze dated after GW N-1's deadline day, up to and including GW
+    N's deadline day: what was known when GW N was decided. The window closes the day after its
+    deadline, so a gameweek is archived once and never rewritten. GW1 takes everything up to its
+    deadline day.
+    shortcut: bronze dated after the season's final deadline day is not archived; add a season-end
+    window if those results are ever needed as evidence.
+    """
+    dated: list[tuple[dt.date, str]] = []
+    for path in paths:
+        try:
+            dated.append((snapshot_date(path), path))
+        except UndatedSnapshotError:
+            continue
+    oldest = min((date for date, _ in dated), default=None)
+
+    archive: dict[int, tuple[str, ...]] = {}
+    partial: list[int] = []
+    lost: list[int] = []
+    previous: dt.date | None = None
+    for gameweek in sorted(deadlines):
+        end = deadlines[gameweek].date()
+        start = previous
+        previous = end
+        if gameweek in archived or today <= end:
+            continue
+        window = tuple(
+            path for date, path in dated if (start is None or date > start) and date <= end
+        )
+        if not window:
+            lost.append(gameweek)
+            continue
+        archive[gameweek] = window
+        if start is not None and oldest is not None and oldest > start + dt.timedelta(days=1):
+            partial.append(gameweek)
+
+    return ArchivePlan(archive=archive, partial=tuple(partial), lost=tuple(lost))
+
+
 __all__ = [
+    "ArchivePlan",
     "RetentionPlan",
     "UndatedSnapshotError",
+    "plan_gameweek_archive",
     "plan_retention",
     "snapshot_date",
 ]
