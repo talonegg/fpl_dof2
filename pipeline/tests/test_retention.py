@@ -2,10 +2,16 @@ from __future__ import annotations
 
 import datetime as dt
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
-from fpl_dof.retention import UndatedSnapshotError, plan_retention, snapshot_date
+from fpl_dof.retention import (
+    UndatedSnapshotError,
+    plan_gameweek_archive,
+    plan_retention,
+    snapshot_date,
+)
 
 
 def test_snapshot_date_finds_the_date_directory_at_any_depth() -> None:
@@ -179,64 +185,148 @@ def test_restore_rolling_branch_missing_branch(tmp_path: Path) -> None:
     assert ok is False
 
 
-def test_append_permanent_snapshot_maintains_index(tmp_path: Path) -> None:
-    import json
-    import subprocess
+def _scripts_retention() -> ModuleType:
     import sys
 
     scripts_dir = Path(__file__).resolve().parents[1] / "scripts"
     if str(scripts_dir) not in sys.path:
         sys.path.insert(0, str(scripts_dir))
-    from retention import append_permanent_snapshot
+    import retention
 
-    bare_repo = tmp_path / "remote.git"
-    subprocess.run(["git", "init", "--bare", str(bare_repo)], check=True, capture_output=True)
+    return retention
 
-    scratch = tmp_path / "scratch"
-    scratch.mkdir()
-    subprocess.run(["git", "init"], cwd=scratch, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "checkout", "-b", "snapshots"], cwd=scratch, check=True, capture_output=True
+
+DEADLINES = {
+    1: dt.datetime(2026, 8, 14, 17, 30, tzinfo=dt.UTC),
+    2: dt.datetime(2026, 8, 21, 17, 30, tzinfo=dt.UTC),
+    3: dt.datetime(2026, 8, 28, 17, 30, tzinfo=dt.UTC),
+    4: dt.datetime(2026, 9, 4, 17, 30, tzinfo=dt.UTC),
+}
+
+
+def test_plan_gameweek_archive_takes_each_closed_window_once() -> None:
+    paths = [
+        "fpl/bootstrap_static/2026-08-16/all.json.gz",  # GW2's window, after GW1's deadline day
+        "fpl/bootstrap_static/2026-08-21/all.json.gz",  # GW2's own deadline day
+        "fpl/bootstrap_static/2026-08-25/all.json.gz",  # GW3
+        "fpl/bootstrap_static/2026-09-04/all.json.gz",  # GW4, still open
+        "fpl/undated/all.json.gz",
+    ]
+    plan = plan_gameweek_archive(
+        paths, deadlines=DEADLINES, today=dt.date(2026, 9, 2), archived=set()
     )
-    (scratch / "README.md").write_text("snapshots branch", encoding="utf-8")
-    subprocess.run(["git", "add", "-A"], cwd=scratch, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "-c", "user.name=CI", "-c", "user.email=ci@test", "commit", "-m", "init"],
-        cwd=scratch,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "push", str(bare_repo), "snapshots:snapshots"],
-        cwd=scratch,
-        check=True,
-        capture_output=True,
-    )
+    assert plan.archive == {2: tuple(paths[:2]), 3: (paths[2],)}
+    assert plan.partial == (2,)  # GW2's window began on 15 Aug; the oldest bronze is 16 Aug
+    assert plan.lost == (1,)
 
-    tarball = tmp_path / "bronze-gw5.tar.gz"
-    tarball.write_bytes(b"dummy tarball content")
+    again = plan_gameweek_archive(
+        paths, deadlines=DEADLINES, today=dt.date(2026, 9, 2), archived={2, 3}
+    )
+    assert again.archive == {}
+    assert again.lost == (1,)
 
-    ok = append_permanent_snapshot(
-        checkout_dir=tmp_path / "perm_checkout",
-        payload_path=tarball,
-        remote=str(bare_repo),
-        branch="snapshots",
-        source="bronze-full",
+
+def test_plan_gameweek_archive_waits_for_the_deadline_day_to_end() -> None:
+    paths = ["fpl/bootstrap_static/2026-08-14/all.json.gz"]
+    on_the_day = plan_gameweek_archive(
+        paths, deadlines=DEADLINES, today=dt.date(2026, 8, 14), archived=set()
+    )
+    assert on_the_day.archive == {}
+    day_after = plan_gameweek_archive(
+        paths, deadlines=DEADLINES, today=dt.date(2026, 8, 15), archived=set()
+    )
+    assert day_after.archive == {1: (paths[0],)}
+
+
+def _git(*args: str, cwd: Path) -> str:
+    import subprocess
+
+    return subprocess.run(
+        ["git", *args], cwd=cwd, check=True, capture_output=True, text=True
+    ).stdout
+
+
+def test_archive_bronze_by_gameweek_writes_once_and_records_losses(tmp_path: Path) -> None:
+    import json
+    import tarfile
+
+    from fpl_dof.sources.bronze import BronzeStore
+
+    retention = _scripts_retention()
+    bare = tmp_path / "remote.git"
+    _git("init", "--bare", str(bare), cwd=tmp_path)
+
+    bronze = tmp_path / "bronze"
+    store = BronzeStore(bronze)
+    events = [
+        {"id": gw, "deadline_time": deadline.isoformat(), "finished": False, "is_next": False}
+        for gw, deadline in DEADLINES.items()
+    ]
+    for day in (16, 21, 25):
+        store.write(
+            json.dumps({"events": events}).encode(),
+            source="fpl",
+            source_version="1",
+            resource="bootstrap_static",
+            key="all",
+            url="https://example.invalid/bootstrap-static/",
+            http_status=200,
+            now=dt.datetime(2026, 8, day, 6, 0, tzinfo=dt.UTC),
+        )
+
+    def archive() -> dict[str, list[int]]:
+        result: dict[str, list[int]] = retention.archive_bronze_by_gameweek(
+            bronze_dir=bronze,
+            checkout_dir=tmp_path / "checkout",
+            remote=str(bare),
+            today=dt.date(2026, 9, 2),
+        )
+        return result
+
+    assert archive() == {"written": [2, 3], "partial": [2], "lost": [1]}
+
+    clone = tmp_path / "clone"
+    _git("clone", "--branch", "snapshots", str(bare), str(clone), cwd=tmp_path)
+    season = clone / "bronze-full" / "2026-27"
+    index = json.loads((season / "index.json").read_text(encoding="utf-8"))
+    assert index == {"archived": [2, 3], "partial": [2], "lost": [1]}
+    with tarfile.open(season / "gw02.tar.gz") as tar:
+        assert len([n for n in tar.getnames() if n.endswith(".json.gz")]) == 2
+
+    # The same run again changes nothing: a written gameweek is never rewritten.
+    commits = _git("rev-list", "--count", "HEAD", cwd=clone)
+    assert archive() == {"written": [], "partial": [], "lost": [1]}
+    _git("pull", "--quiet", cwd=clone)
+    assert _git("rev-list", "--count", "HEAD", cwd=clone) == commits
+
+
+def test_archive_bronze_by_gameweek_fails_without_a_schedule(tmp_path: Path) -> None:
+    retention = _scripts_retention()
+    with pytest.raises(retention.NoGameweekScheduleError):
+        retention.archive_bronze_by_gameweek(
+            bronze_dir=tmp_path / "bronze",
+            checkout_dir=tmp_path / "checkout",
+            remote=str(tmp_path / "unused.git"),
+        )
+
+
+def test_append_permanent_snapshot_writes_no_index(tmp_path: Path) -> None:
+    """The ledger shares this mechanism; the archive's index must never appear there."""
+    retention = _scripts_retention()
+    bare = tmp_path / "remote.git"
+    _git("init", "--bare", str(bare), cwd=tmp_path)
+    payload = tmp_path / "gw05.json"
+    payload.write_text("{}", encoding="utf-8")
+
+    assert retention.append_permanent_snapshot(
+        checkout_dir=tmp_path / "checkout",
+        payload_path=payload,
+        remote=str(bare),
+        branch="ledger",
+        source="advice",
         gameweek=5,
     )
-    assert ok is True
-
-    # Clone snapshots and verify index.json
-    verify_dir = tmp_path / "verify"
-    subprocess.run(
-        ["git", "clone", "--branch", "snapshots", str(bare_repo), str(verify_dir)],
-        check=True,
-        capture_output=True,
-    )
-    index_file = verify_dir / "index.json"
-    assert index_file.exists()
-    index_data = json.loads(index_file.read_text(encoding="utf-8"))
-    assert len(index_data["snapshots"]) == 1
-    assert index_data["snapshots"][0]["gameweek"] == 5
-    assert index_data["lost_gameweeks"] == [1, 2, 3, 4]
-    assert "Gameweeks 1-4 were lost" in index_data["note"]
+    clone = tmp_path / "clone"
+    _git("clone", "--branch", "ledger", str(bare), str(clone), cwd=tmp_path)
+    assert (clone / "advice" / "gw05.json").exists()
+    assert not (clone / "index.json").exists()

@@ -11,7 +11,8 @@ amount of `data`-branch churn may threaten it.
 Usage (run from the repo root, with `bronze_dir` pointing at a checked-out bronze store)::
 
     python pipeline/scripts/retention.py rolling <bronze_dir> --remote <url> --window-days 30
-    python pipeline/scripts/retention.py permanent <bronze_dir> --remote <url> --gameweek 3
+    python pipeline/scripts/retention.py permanent <payload> --remote <url> --gameweek 3
+    python pipeline/scripts/retention.py archive <bronze_dir> --remote <url>
 
 Both subcommands push to a real remote. `--dry-run` runs the same planning and staging logic
 without pushing, for verification against a scratch local remote.
@@ -20,20 +21,20 @@ without pushing, for verification against a scratch local remote.
 from __future__ import annotations
 
 import argparse
-import contextlib
 import datetime as dt
 import json
 import shutil
 import stat
 import subprocess
 import sys
+import tarfile
 from pathlib import Path
-from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from fpl_dof.config import load_config
-from fpl_dof.retention import plan_retention
+from fpl_dof.retention import plan_gameweek_archive, plan_retention
+from fpl_dof.sources import gameweeks_from_bronze
 
 
 class GitError(RuntimeError):
@@ -228,19 +229,7 @@ def append_permanent_snapshot(
     the same gameweek twice must not grow the branch, since it is meant to be kept forever.
     """
     destination_relative = f"{source}/gw{gameweek:02d}{payload_path.suffix}"
-
-    if checkout_dir.exists():
-        _rmtree(checkout_dir)
-    checkout_dir.mkdir(parents=True)
-    _run_git(["init", "--quiet"], cwd=checkout_dir)
-
-    branch_exists = True
-    try:
-        _run_git(["fetch", remote, f"{branch}:refs/fpl-dof/snapshots-staging"], cwd=checkout_dir)
-        _run_git(["checkout", "refs/fpl-dof/snapshots-staging"], cwd=checkout_dir)
-    except GitError:
-        branch_exists = False
-        _run_git(["checkout", "--orphan", branch], cwd=checkout_dir)
+    branch_exists = _checkout_branch(checkout_dir, remote, branch)
 
     destination = checkout_dir / destination_relative
     if destination.exists() and destination.read_bytes() == payload_path.read_bytes():
@@ -249,58 +238,11 @@ def append_permanent_snapshot(
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(payload_path, destination)
 
-    # PIPE-14: Maintain index.json tracking all snapshots and noting lost gameweeks
-    index_path = checkout_dir / "index.json"
-    index_data: dict[str, Any] = {"snapshots": [], "lost_gameweeks": []}
-    if index_path.exists():
-        with contextlib.suppress(Exception):
-            index_data = json.loads(index_path.read_text(encoding="utf-8"))
-
-    recorded_entry = {
-        "source": source,
-        "gameweek": gameweek,
-        "path": destination_relative,
-        "recorded_at": dt.datetime.now(dt.UTC).isoformat(),
-    }
-    snapshots_list = [
-        s
-        for s in index_data.get("snapshots", [])
-        if not (s.get("source") == source and s.get("gameweek") == gameweek)
-    ]
-    snapshots_list.append(recorded_entry)
-    snapshots_list.sort(key=lambda x: (x.get("source", ""), x.get("gameweek", 0)))
-    index_data["snapshots"] = snapshots_list
-
-    source_gws = {s["gameweek"] for s in snapshots_list if s.get("source") == source}
-    min_gw = min(source_gws) if source_gws else 1
-    if min_gw > 1:
-        lost = sorted(set(range(1, min_gw)) - source_gws)
-        index_data["lost_gameweeks"] = lost
-        index_data["note"] = (
-            f"Gameweeks {lost[0]}-{lost[-1]} were lost before permanent snapshot archiving "
-            "was activated (PIPE-14)."
-        )
-
-    index_path.write_text(json.dumps(index_data, indent=2), encoding="utf-8")
-
     if dry_run:
         return True
 
-    _run_git(["add", "-A"], cwd=checkout_dir)
     try:
-        _run_git(
-            [
-                "-c",
-                "user.email=fpl-dof-ci@users.noreply.github.com",
-                "-c",
-                "user.name=fpl-dof CI",
-                "commit",
-                "--quiet",
-                "-m",
-                f"snapshots: {source} gw{gameweek}",
-            ],
-            cwd=checkout_dir,
-        )
+        _commit_all(checkout_dir, f"snapshots: {source} gw{gameweek}")
     except GitError as exc:
         # `git commit` on a clean tree is the same fact the byte-comparison above already checks
         # for, reached by a different path (e.g. `git add` normalising line endings or file mode
@@ -312,9 +254,116 @@ def append_permanent_snapshot(
             raise
         return False
 
+    _push(checkout_dir, remote, branch, branch_exists)
+    return True
+
+
+def _checkout_branch(checkout_dir: Path, remote: str, branch: str) -> bool:
+    """A fresh checkout of `branch`, or an empty orphan of that name. True if it already existed."""
+    if checkout_dir.exists():
+        _rmtree(checkout_dir)
+    checkout_dir.mkdir(parents=True)
+    _run_git(["init", "--quiet"], cwd=checkout_dir)
+    try:
+        _run_git(["fetch", remote, f"{branch}:refs/fpl-dof/snapshots-staging"], cwd=checkout_dir)
+        _run_git(["checkout", "refs/fpl-dof/snapshots-staging"], cwd=checkout_dir)
+        return True
+    except GitError:
+        _run_git(["checkout", "--orphan", branch], cwd=checkout_dir)
+        return False
+
+
+def _commit_all(checkout_dir: Path, message: str) -> None:
+    _run_git(["add", "-A"], cwd=checkout_dir)
+    _run_git(
+        [
+            "-c",
+            "user.email=fpl-dof-ci@users.noreply.github.com",
+            "-c",
+            "user.name=fpl-dof CI",
+            "commit",
+            "--quiet",
+            "-m",
+            message,
+        ],
+        cwd=checkout_dir,
+    )
+
+
+def _push(checkout_dir: Path, remote: str, branch: str, branch_exists: bool) -> None:
     push_ref = "HEAD:refs/heads/" + branch if not branch_exists else f"HEAD:{branch}"
     _run_git(["push", remote, push_ref], cwd=checkout_dir)
-    return True
+
+
+class NoGameweekScheduleError(RuntimeError):
+    """Bronze holds no readable gameweek schedule, so no gameweek can be archived."""
+
+
+def archive_bronze_by_gameweek(
+    *,
+    bronze_dir: Path,
+    checkout_dir: Path,
+    remote: str,
+    branch: str = "snapshots",
+    source: str = "bronze-full",
+    today: dt.date | None = None,
+    dry_run: bool = False,
+) -> dict[str, list[int]]:
+    """Write each closed gameweek's bronze to `snapshots` once, and record what is lost (PIPE-14).
+
+    Paths are ``<source>/<season>/gwNN.tar.gz``; one that exists is never rewritten. The season's
+    ``index.json`` lists the gameweeks archived, archived partially (their window began before the
+    oldest bronze still held) and lost. Raises :class:`NoGameweekScheduleError` when bronze has no
+    gameweek schedule: that is a broken ingest, never a quiet skip.
+    """
+    gameweeks = gameweeks_from_bronze(bronze_dir)
+    if gameweeks is None or gameweeks.empty:
+        raise NoGameweekScheduleError(f"no gameweek schedule in the bronze at {bronze_dir}")
+    deadlines: dict[int, dt.datetime] = {}
+    for gameweek, deadline in zip(gameweeks["gameweek"], gameweeks["deadline_time"], strict=True):
+        deadlines[int(gameweek)] = deadline
+    first = deadlines[min(deadlines)]
+    season = f"{first.year}-{(first.year + 1) % 100:02d}"
+
+    branch_exists = _checkout_branch(checkout_dir, remote, branch)
+    season_dir = checkout_dir / source / season
+    archived = {int(path.name[2:4]) for path in season_dir.glob("gw[0-9][0-9].tar.gz")}
+    plan = plan_gameweek_archive(
+        _bronze_paths(bronze_dir),
+        deadlines=deadlines,
+        today=today or dt.datetime.now(dt.UTC).date(),
+        archived=archived,
+    )
+
+    index_path = season_dir / "index.json"
+    index: dict[str, list[int]] = {"archived": [], "partial": [], "lost": []}
+    if index_path.exists():
+        index.update(json.loads(index_path.read_text(encoding="utf-8")))
+    updated = {
+        "archived": sorted(archived | set(plan.archive)),
+        "partial": sorted(set(index["partial"]) | set(plan.partial)),
+        "lost": sorted(set(index["lost"]) | set(plan.lost)),
+    }
+    result = {
+        "written": sorted(plan.archive),
+        "partial": list(plan.partial),
+        "lost": list(plan.lost),
+    }
+    if updated == index and index_path.exists():
+        return result
+
+    season_dir.mkdir(parents=True, exist_ok=True)
+    for gameweek, paths in plan.archive.items():
+        with tarfile.open(season_dir / f"gw{gameweek:02d}.tar.gz", "w:gz") as tar:
+            for relative in paths:
+                tar.add(bronze_dir / relative, arcname=f"bronze/{relative}")
+    index_path.write_text(json.dumps(updated, indent=2) + "\n", encoding="utf-8")
+
+    if dry_run:
+        return result
+    _commit_all(checkout_dir, f"snapshots: {source} {season} gameweeks {result['written']}")
+    _push(checkout_dir, remote, branch, branch_exists)
+    return result
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -356,6 +405,13 @@ def _build_parser() -> argparse.ArgumentParser:
     permanent.add_argument("--checkout-dir", type=Path, default=Path(".snapshots-staging"))
     permanent.add_argument("--dry-run", action="store_true")
 
+    archive = sub.add_parser("archive", help="Archive each closed gameweek's bronze once")
+    archive.add_argument("bronze_dir", type=Path)
+    archive.add_argument("--remote", required=True)
+    archive.add_argument("--branch", default="snapshots")
+    archive.add_argument("--checkout-dir", type=Path, default=Path(".snapshots-staging"))
+    archive.add_argument("--dry-run", action="store_true")
+
     return parser
 
 
@@ -385,6 +441,24 @@ def main(argv: list[str] | None = None) -> int:
             f"rolling: retained={counts['retained']} pruned={counts['pruned']} "
             f"undated={counts['undated']} silver={counts.get('silver', 0)}"
         )
+        return 0
+
+    if args.command == "archive":
+        try:
+            result = archive_bronze_by_gameweek(
+                bronze_dir=args.bronze_dir,
+                checkout_dir=args.checkout_dir,
+                remote=args.remote,
+                branch=args.branch,
+                dry_run=args.dry_run,
+            )
+        except NoGameweekScheduleError as exc:
+            print(f"::error title=Archive failed::{exc}")
+            return 1
+        if not (result["written"] or result["lost"]):
+            print("archive: no gameweek has closed since the last archive; nothing to write")
+        else:
+            print(f"archive: {result}")
         return 0
 
     appended = append_permanent_snapshot(

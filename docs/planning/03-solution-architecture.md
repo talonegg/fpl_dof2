@@ -261,7 +261,7 @@ visibly stale on the health page, rather than serving something wrong (Invariant
 
 | Layer | Content | Format | Persisted between CI runs? |
 | --- | --- | --- | --- |
-| **Bronze** | Verbatim source responses with a `.meta.json` lineage sidecar (URL, time, SHA-256) | Gzipped JSON/HTML | Partly — the rolling window on `data`; by design also one permanent tarball per GW on `snapshots` — **never written so far** (PIPE-14) |
+| **Bronze** | Verbatim source responses with a `.meta.json` lineage sidecar (URL, time, SHA-256) | Gzipped JSON/HTML | Partly — the rolling window on `data`; one permanent tarball per closed gameweek on `snapshots`, first written when R1.1.0 reaches `main` (PIPE-14) |
 | **Silver** | Conformed canonical tables (`silver/tables.py`), validated on read and write | Parquet, by season | **No** — rebuilt from bronze each run. Accumulating tables (`price_history`, `player_gameweek`) therefore lose history on CI; PIPE-06 fixes this |
 | **Gold** | Forecasts, plans, decisions, model and backtest cards | Parquet + JSON + Markdown | **No**, except advice on `ledger`. The published contract survives as a 14-day artefact and on Pages |
 | **Web contract** | The narrow, versioned slice the browser may read | JSON, `/data/v1/` | Replaced per publish |
@@ -309,7 +309,7 @@ every clone. That is why R-13 is rated High and why the stores have different me
 | Store | Mechanism | Rationale |
 | --- | --- | --- |
 | **`data`** — rolling bronze | Orphan branch, rebuilt from the retained window (~30 days) and force-pushed by `pipeline/scripts/retention.py` | History is truncated, not accumulated; these snapshots debug the recent past |
-| **`snapshots`** — permanent bronze | Append-only; one tarball per gameweek. **Not yet written:** the archive step never learns the gameweek, so it has skipped every run and the branch does not exist (PIPE-14) | The NFR-06 evidence trail, small enough to keep forever |
+| **`snapshots`** — permanent bronze | Append-only; `bronze-full/<season>/gwNN.tar.gz` holds the bronze dated after the previous deadline day up to the gameweek's own, written once the day after its deadline, and `index.json` lists the gameweeks archived, partial and lost (PIPE-14, DL-81). First written when R1.1.0 reaches `main` | The NFR-06 evidence trail, small enough to keep forever |
 | **`ledger`** — advice and prospective records | Append-only; `advice/gwNN.json` written before each deadline, `prospective/gw*.tgz` frozen with it | What was advised, provably before the event (DL-69) |
 | **Published contract** | Actions artefact `web-data-contract` (14 days) → Pages | Serving surface, not an archive |
 
@@ -341,7 +341,7 @@ manually dispatchable.
 | --- | --- | --- |
 | `ci.yml` | Push to `main`, `pre-release`, `dev/**`; every pull request | Lint, type-check, unit, property and contract tests; `scripts/docs.py check` |
 | `ingest-fast.yml` | Hourly; a guard (`fpl-dof-schedule --decide fast`) decides whether to fetch | `bootstrap-static` and `fixtures` — prices, status, ownership. Rebuilds `data` |
-| `ingest-slow.yml` | Daily, with a fallback slot; dispatch | Full ingest including per-player summaries; updates `data`; adds the gameweek's permanent tarball to `snapshots` |
+| `ingest-slow.yml` | Daily, with a fallback slot; dispatch | Full ingest including per-player summaries; updates `data`; archives each newly closed gameweek's bronze to `snapshots`, once, and fails if bronze has no gameweek schedule |
 | `pipeline.yml` | Nightly with a fallback; a deadline guard several times an hour; after `Ingest (slow)`; dispatch | `guard` → `prospective` (frozen harness, appended to `ledger`) → `run` (`fpl-dof run --only transform…publish`, advice appended to `ledger`, contract uploaded) |
 | `day-before.yml` | Every 20 minutes in a nightly UTC window | On the day before a deadline, dispatches `ingest-slow`; Pipeline and Deploy follow by `workflow_run` |
 | `deploy.yml` | Push to `main`; after Pipeline completes | Builds the SPA, downloads the latest contract, deploys to Pages |
