@@ -129,4 +129,5 @@ by hand.
 | [DL-79](DL-79.md) | 2026-10-17 | Accepted | R1.1.0 keeps its order after GW4; four design fixes join it; PIPE-09 narrowed; OD-04 closed |
 | [DL-80](DL-80.md) | 2026-10-18 | Accepted | Branching and release model: feature → dev/Rx.y.z → pre-release → main, tagged per release |
 | [DL-81](DL-81.md) | 2026-10-19 | Accepted | R1.1.0 is reopened: remediation before promotion |
+| [DL-82](DL-82.md) | 2026-10-20 | Accepted | Feature branches merge into the release's dev branch directly, without a pull request |
 <!-- index:end -->
