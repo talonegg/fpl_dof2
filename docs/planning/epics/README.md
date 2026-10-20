@@ -2,16 +2,16 @@
 
 Work is delivered in releases numbered `Rx.y.z`. **R1.0** was the first build: epics E0–E14,
 archived in [`../archive/R1.0/`](../archive/README.md) — all but E8, which stays live here as the
-ongoing in-season monitoring epic. **R1.1.0**, the data pipeline uplift, is tagged; **R1.1.1**, which
-verifies it on `main`, is the open release. Each
+ongoing in-season monitoring epic. **R1.1.0**, the data pipeline uplift, is closed and archived in
+[`../archive/R1.1.0/`](../archive/README.md); **R1.1.1**, which verified it on `main`, is the open
+release. Each
 release and epic records its outcome in its Status line and the decisions it took in [`docs/decisions/`](../../decisions/README.md).
 
 ## Register
 
 | Release | Plan | Status |
 | --- | --- | --- |
-| **R1.1.0** — data pipeline uplift | [Backlog PIPE-01 … PIPE-14](R1.1.0-data-pipeline-backlog.md) — scope and order set by [DL-79](../../decisions/DL-79.md) | Tagged 2026-10-21, after remediation REM-01 … REM-11 ([DL-81](../../decisions/DL-81.md)). Archived once R1.1.1 ticks its last box |
-| **R1.1.1** — R1.1.0 verified on `main` | PIPE-14's `snapshots` box in the [R1.1.0 backlog](R1.1.0-data-pipeline-backlog.md), set by [DL-85](../../decisions/DL-85.md) | Open on `dev/R1.1.1`; waits on the first slow ingest on `main` writing `snapshots` |
+| **R1.1.1** — R1.1.0 verified on `main` | PIPE-14's `snapshots` box in the [R1.1.0 backlog](../archive/R1.1.0/R1.1.0-data-pipeline-backlog.md), set by [DL-85](../../decisions/DL-85.md) | Done on `dev/R1.1.1`: the box is ticked (`ingest-slow` run 39436687166) and R1.1.0 archived; ready to promote and tag |
 | Ongoing, every season | [E8 — ongoing in-season monitoring](E8-ongoing-in-season-monitoring.md): the season state and decision points (rewritten each gameweek), the weekly loop, the bar for changing the model mid-season | Live, GW1 → 30 May 2027; updated weekly |
 
 **Planning a release.** Write `Rx.y.z-<slug>.md` here — its stories, acceptance boxes and Status
