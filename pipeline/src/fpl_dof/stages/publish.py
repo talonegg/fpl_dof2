@@ -691,10 +691,6 @@ def _latest_finished(gameweeks: pd.DataFrame) -> int | None:
     return as_int(finished["gameweek"].max()) if not finished.empty else None
 
 
-def _has_next(gameweeks: pd.DataFrame) -> bool:
-    return not gameweeks.empty and bool(gameweeks["is_next"].any())
-
-
 def _squad(squad: dict[str, Any], rules: GameRules) -> dict[str, Any]:
     payload = dict(squad)
     payload["contract_version"] = CONTRACT_VERSION

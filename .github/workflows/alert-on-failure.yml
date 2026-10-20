@@ -18,7 +18,7 @@
 #       issues: write
 #
 # Every workflow that can fail unattended (ci.yml only on `main`/schedule, not on every PR churn;
-# ingest-fast.yml, ingest-slow.yml, pipeline.yml, retention.yml, deploy.yml, backtest.yml) should
+# ingest-fast.yml, ingest-slow.yml, pipeline.yml, deploy.yml, backtest.yml) should
 # add a trailing job shaped like the one above. Issues are deduplicated by a hidden HTML-comment
 # marker keyed on `workflow_name`, so repeated failures of the same workflow update one issue
 # instead of spawning a new one each time — a failing nightly pipeline must not fill the issue

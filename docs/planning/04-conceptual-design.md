@@ -102,25 +102,29 @@ fails, the run stops and the last publication stays live.
 #### S2 — Understat *(adapter built, off, blocked)*
 
 xG, npxG, xA, shots, key passes into `player_advanced`. `robots.txt` disallows the site (D-23);
-nothing published consumes it (DL-33). Ingress removed by PIPE-09.
+nothing published consumes it (DL-33). Off by default; the adapter stays, dormant (PIPE-09).
 
 #### S3 — FBref *(adapter built, off, blocked)*
 
-Defensive and progressive actions. Cloudflare 403 on every request (D-23); removed by PIPE-09.
+Defensive and progressive actions. Cloudflare 403 on every request (D-23); off by default, the
+adapter dormant (PIPE-09).
 Defensive Contribution comes from the FPL feed instead (M4).
 
-#### S4 — Bookmaker odds *(enabled, credit-capped, unused by the model)*
+#### S4 — Bookmaker odds *(football-data.co.uk through its adapter; The Odds API off)*
 
-`oddsapi` is on by default (DL-59) and fetches nothing without `ODDS_API_KEY`; its free-tier credit
-budget is enforced in the adapter. No history (D-20), so not backtestable; the M2 market blend is
-unwired (DL-60). Stood down by PIPE-09. football-data.co.uk odds are read by the prospective harness
-**outside** `sources/` (DL-73, 03 §12 P5); a registered adapter is PIPE-04.
+`fdcouk` reads football-data.co.uk's match files (PIPE-04): off in the pipeline run, and read by the
+prospective harness through `sources.LiveFeed` for upcoming odds (REM-07). Past seasons' files are
+immutable, fetched once each; it de-vigs and conforms them into `team_match_expectation`, and gold
+`team_match_odds` takes the last pre-deadline capture per fixture (PIPE-05). `oddsapi` is off by
+default (PIPE-09) and fetches nothing without `ODDS_API_KEY`; its free-tier credit budget is enforced
+in the adapter. No history (D-20), so not backtestable; the M2 market blend is unwired (DL-60).
 
 #### S5 — Historical archive *(build-time)*
 
 `fplarchive` reads prior-season per-gameweek data from the community mirror, because the API has none
-(DL-19). Off by default; the CI backtest enables it (DL-68). Identity across seasons is FPL's stable
-`code` for players and clubs (DL-52).
+(DL-19). Off by default; the CI backtest enables it (DL-68). Its bronze is immutable: never
+re-fetched unless `--rebackfill`, and kept on `data` beyond the rolling window (PIPE-03). Identity
+across seasons is FPL's stable `code` for players and clubs (DL-52).
 
 #### Future sources *(OD-04)*
 
@@ -144,8 +148,9 @@ Every adapter subclasses `SourceAdapter` (`sources/base.py`):
 
 **Shared:** `Fetcher` (`sources/fetch.py`) — serial rate limit, retry with backoff and jitter,
 honest user agent, secret redaction, and caching by serving the latest snapshot inside its TTL;
-`BronzeStore`; `robots.py`. No conditional requests (PIPE-07). Credit budgeting lives in the one
-adapter that needs it.
+`BronzeStore`; `robots.py`. Conditional requests: a snapshot's `ETag` and `Last-Modified` are sent
+back, and a 304 revalidates it without a download (PIPE-07); a forced re-fetch sends neither
+(REM-10). Credit budgeting lives in the one adapter that needs it.
 
 **Registry:** `@register`; `sources.overrides.<name>.enabled` overrides the class default; an unknown
 name is rejected. A failing non-essential source removes its fields and nothing else (NFR-15).
@@ -170,8 +175,9 @@ name is rejected. A failing non-essential source removes its fields and nothing 
 
 Identity is FPL's stable player `code`; season-local ids never cross a season (DL-19, DL-52).
 `player_gameweek` is one row per player **per fixture**, so doubles and postponements are not special
-cases, and carries `kickoff_time` as its knowability boundary. Forecasts and decisions are gold, not
-silver. Silver has no `run_id` column; lineage is per snapshot and artefact (§12.4).
+cases, and carries `kickoff_time` as its knowability boundary. `player_advanced` and `player_metric`
+carry `as_of_gameweek` and `observed_at`, and the crosswalk records each source's `ingress`
+(DL-83). Forecasts and decisions are gold, not silver. Silver has no `run_id` column; lineage is per snapshot and artefact (§12.4).
 
 ### 3.2 Entity resolution (FR-07, R-10)
 
@@ -192,8 +198,9 @@ Under `paths.DataLayout`; what persists between CI runs is
 | Layer | Layout |
 | --- | --- |
 | Bronze | `bronze/{source}/{resource}/{date}/{key}__{timestamp}.json.gz` + `.meta.json` (URL, status, time, SHA-256, `run_id`, source version) |
-| Silver | `silver/season={s}/{table}.parquet`, rebuilt from bronze each run |
-| Gold | `gold/season={s}/` — `expected_points.parquet`, `squad.json`, `plan.json`, `week.json`, `quality.json`, `model-card.md`, backtest outputs |
+| Silver | `silver/season={s}/{table}.parquet`, rebuilt from bronze each run, `price_history` excepted (03 §7.1) |
+| Gold | `gold/season={s}/` — `expected_points.parquet`, `player_career_history.parquet`, `team_match_odds.parquet`, `squad.json`, `plan.json`, `week.json`, `quality.json`, `model-card.md`, backtest outputs |
+| Quarantine | `quarantine/bronze/…` from `bronze verify --quarantine`; `quarantine/silver-{time}/` from `silver rebuild` (REM-10). Kept, never read |
 | Ledger | `ledger/advice/gwNN.json`, append-only (DL-69) |
 | Runs | `runs/{run_id}/manifest.json` |
 | Web contract | `web/v1/*.json`, served at `/data/v1/` (03 §7.2) |
@@ -648,7 +655,7 @@ Weighted toward where a bug is likely and invisible (DP-13).
 | **Leakage** | No outcome column reaches a prediction; a rewritten future leaves a fold bit-identical |
 | **Quality gate** | Injected bad data blocks publication |
 | **Fault injection** | Each non-essential source fails; the run degrades (`test_source_degradation.py`) |
-| **Source isolation** | `test_source_isolation.py`, `src/` only (03 §12 P5) |
+| **Source isolation** | `test_source_isolation.py`, over `src/` and `scripts/`; it also fails if a stage or core module reads the wall clock |
 | **Backtest** | Weekly in CI, reporting only; frozen model configs pinned |
 | **Slow** | `--slow`: the chip replay (DL-28) |
 | **Web** | Vitest and Testing Library |
@@ -680,8 +687,8 @@ log status, size and cache hit, never payloads. Kept as CI artefacts.
 
 `runs/{run_id}/manifest.json` (`obs/manifest.py`), flushed after every stage: run id, times, status,
 git SHA and dirty flag, config digest, and per stage its status, timing, metrics (source outcomes,
-gates, solver status) and artefacts with checksum, size and rows. Stages read the clock themselves
-rather than one recorded `as_of` (03 §12 P4).
+gates, solver status) and artefacts with checksum, size and rows. It records the run's `as_of`, the
+one clock every stage reads (PIPE-12); `schema_version` 2 added it.
 
 ### 12.3 Metrics history
 
@@ -800,7 +807,7 @@ A new input must currently reach each of the four fit assemblies (03 §12 P1).
 
 ### 14.4 Structural safeguards
 
-- `test_source_isolation.py` forbids naming a source outside `sources/` (`src/` only).
+- `test_source_isolation.py` forbids naming a source outside `sources/`, in `src/` and `scripts/`.
 - The web contract is versioned and validated on write (03 §7.2); the read side is unchecked (03 §12
   W1).
 - The forecast→decision contract carries variance, so a distributional decision model needs no

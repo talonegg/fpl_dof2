@@ -73,8 +73,8 @@ design (DL-08, NFR-11). The official API now carries the expected-goals signals 
 | --- | --- | --- |
 | FPL API | `sources/fpl` | Essential. Failure stops the run; the last good publication stays live |
 | FPL archive | `sources/fplarchive` | Off by default; enabled for the backtest (`config/ci-backtest.yaml`, DL-68) |
-| Understat, FBref | `sources/understat`, `sources/fbref` | Blocked upstream (`robots.txt`, Cloudflare 403) — D-23. Off by default (`enabled_by_default = False`); no workflow enables them. PIPE-09 removes them |
-| The Odds API | `sources/oddsapi` | Enabled by default (`config/defaults/sources.yaml`); degrades cleanly without `ODDS_API_KEY`. Free-tier credit cap, no history — D-20; not used by the model (DL-59, DL-60). Stood down by PIPE-09 |
+| Understat, FBref | `sources/understat`, `sources/fbref` | Blocked upstream (`robots.txt`, Cloudflare 403) — D-23. Off by default; no workflow enables them. The adapters stay, dormant, so retained bronze still replays (PIPE-09) |
+| The Odds API | `sources/oddsapi` | Off by default (PIPE-09); degrades cleanly without `ODDS_API_KEY`, which no workflow passes. Free-tier credit cap, no history — D-20; not used by the model (DL-59, DL-60) |
 | football-data.co.uk | `sources/fdcouk` | Off in the pipeline run. The prospective harness reads upcoming odds through it (`sources.LiveFeed`, REM-07); past seasons' match files are conformed into silver by permanent club code and fetched once each (PIPE-03, PIPE-04) |
 
 ---
@@ -261,9 +261,9 @@ visibly stale on the health page, rather than serving something wrong (Invariant
 
 | Layer | Content | Format | Persisted between CI runs? |
 | --- | --- | --- | --- |
-| **Bronze** | Verbatim source responses with a `.meta.json` lineage sidecar (URL, time, SHA-256) | Gzipped JSON/HTML | Partly — the rolling window on `data`; one permanent tarball per closed gameweek on `snapshots`, first written when R1.1.0 reaches `main` (PIPE-14) |
-| **Silver** | Conformed canonical tables (`silver/tables.py`), validated on read and write | Parquet, by season | **No** — rebuilt from bronze each run. Accumulating tables (`price_history`, `player_gameweek`) therefore lose history on CI; PIPE-06 fixes this |
-| **Gold** | Forecasts, plans, decisions, model and backtest cards | Parquet + JSON + Markdown | **No**, except advice on `ledger`. The published contract survives as a 14-day artefact and on Pages |
+| **Bronze** | Verbatim source responses with a `.meta.json` lineage sidecar (URL, time, SHA-256, validators, immutability) | Gzipped JSON/HTML | Partly — the rolling window on `data`, plus immutable prior-season snapshots whatever their age (PIPE-03); one permanent tarball per closed gameweek on `snapshots`, first written when R1.1.0 reaches `main` (PIPE-14) |
+| **Silver** | Conformed canonical tables (`silver/tables.py`), validated on read and write; advanced metrics keyed by `as_of_gameweek` and stamped `observed_at` (DL-83) | Parquet, by season | Partly — rebuilt from bronze each run, except `price_history`, which is persisted on `data` and rebuilt from bronze by `silver replay-prices` (PIPE-06). A table from an older schema stops transform until `silver rebuild` (REM-10) |
+| **Gold** | Forecasts, plans, decisions, model and backtest cards; `player_career_history` and `team_match_odds`, built by `transform` (PIPE-02, PIPE-05) | Parquet + JSON + Markdown | **No**, except advice on `ledger`. The published contract survives as a 14-day artefact and on Pages |
 | **Web contract** | The narrow, versioned slice the browser may read | JSON, `/data/v1/` | Replaced per publish |
 
 ### 7.2 The web data contract
@@ -308,14 +308,14 @@ every clone. That is why R-13 is rated High and why the stores have different me
 
 | Store | Mechanism | Rationale |
 | --- | --- | --- |
-| **`data`** — rolling bronze | Orphan branch, rebuilt from the retained window (~30 days) by `pipeline/scripts/retention.py`, which first folds in what the branch holds and force-pushes with a lease on it, so concurrent workflows never drop each other's pushes | History is truncated, not accumulated; these snapshots debug the recent past |
+| **`data`** — rolling bronze | Orphan branch, rebuilt from the retained window (`retention.bronze_days`) and the immutable prior-season snapshots by `pipeline/scripts/retention.py`, with the accumulated `price_history`. The script first folds in what the branch holds and force-pushes with a lease on it, so concurrent workflows never drop each other's pushes | History is truncated, not accumulated; these snapshots debug the recent past |
 | **`snapshots`** — permanent bronze | Append-only; `bronze-full/<season>/gwNN.tar.gz` holds the bronze dated after the previous deadline day up to the gameweek's own, written once the day after its deadline, and `index.json` lists the gameweeks archived, partial and lost (PIPE-14, DL-81). First written when R1.1.0 reaches `main` | The NFR-06 evidence trail, small enough to keep forever |
 | **`ledger`** — advice and prospective records | Append-only; `advice/gwNN.json` written before each deadline, `prospective/gw*.tgz` frozen with it | What was advised, provably before the event (DL-69) |
 | **Published contract** | Actions artefact `web-data-contract` (14 days) → Pages | Serving surface, not an archive |
 
 **CI artefacts never hold anything NFR-06 depends on.** They expire; anything reproducibility needs
-lives in a branch. The retention window is set in both `ingest-fast.yml` and configuration and must
-be kept equal by hand (§12, O4).
+lives in a branch. The retention window has one home, `retention.bronze_days`, which the script
+reads (REM-10).
 
 ---
 
@@ -464,7 +464,8 @@ fpl_dof2/
 Two things are load-bearing in this layout:
 
 1. **`sources/` is the only directory that may name a source** — enforced by
-   `tests/test_source_isolation.py`. It scans `src/` only, which is how §12 P5 slipped through.
+   `tests/test_source_isolation.py`, which scans `src/` and `pipeline/scripts/`, and fails on adapter
+   internals re-exported from the `sources` root.
 2. **`contracts/` is the single definition of the two-language seam.** Both sides generate from it;
    neither hand-writes it.
 
@@ -476,8 +477,9 @@ A review of the code as built, in the vocabulary of deep modules: a **module** i
 behaviour sits behind a small interface; a **seam** is where that interface lives; a seam with one
 adapter is hypothetical, with two it is real. The test of a module is whether deleting it makes
 complexity vanish (a pass-through) or reappear across its callers (it was earning its keep). Findings
-cite file and line as of the review; they are a design backlog, not yet scheduled. When one is taken
-up it becomes a story in the open release or a `D-nn` in the [debt register](debt-register.md).
+cite file and line as of the review; they are a design backlog. When one is taken up it becomes a
+story in the open release or a `D-nn` in the [debt register](debt-register.md); one that R1.1.0 closed
+says so in its first words.
 
 ### 12.1 Dependency direction
 
@@ -486,7 +488,7 @@ up it becomes a story in the open release or a `D-nn` in the [debt register](deb
 | `sources` | `silver`, `rules` |
 | `silver`, `rules` | `rules` / nothing |
 | `forecast` | `rules` |
-| `optimise` | `rules`, `squad`, **`forecast`** (`captain.py:17-18`, `replay.py:68-71`) |
+| `optimise` | `rules`, `squad` |
 | `squad` | `rules` |
 | `week` | `rules`, `squad`, `optimise` |
 | `shadow` | `rules`, `squad`, `optimise` |
@@ -494,8 +496,8 @@ up it becomes a story in the open release or a `D-nn` in the [debt register](deb
 | `quality` | `silver` |
 | `stages` | everything, plus 13 stage-to-stage imports |
 
-No cycles between packages; nothing outside `sources/` imports a source subpackage. The one
-direction that should not exist is **`optimise → forecast`** (DP-02).
+No cycles between packages; nothing outside `sources/` imports a source subpackage, and `optimise`
+imports nothing from `forecast` (DP-02, PIPE-13).
 
 ### 12.2 Where the design is deep — keep
 
@@ -515,11 +517,11 @@ direction that should not exist is **`optimise → forecast`** (DP-02).
 
 | # | Finding | Evidence | Deepening |
 | --- | --- | --- | --- |
-| **P1** | **The forecast fit is assembled in four places, two of them in the decision layer** (DP-02). Fold → training rows → `fit_components` → features recurs; `optimise/replay.py` carries its own `_team_matches` that has drifted from `xp_v1`'s (no xG). B0 is fitted inside `optimise/captain.py`; the C1 challenger has its own features and fit outside the `Predictor` protocol | `forecast/live.py:131-246`, `forecast/backtest.py:392-604`, `forecast/xp_v1.py:527-530`, `optimise/replay.py:280-438,591`, `optimise/captain.py:17`, `shadow/c1.py:63` | One interface in `forecast/`: `fit_as_of(history, deadline, config, rules) → FittedModel` with `.predict(window)`. live, backtest, replay and C1 call it. B0's captain score becomes a forecast column that `optimise` reads |
+| **P1** | **Partly closed by PIPE-13:** live, backtest and the chip replay fit through `fit_as_of`, and `optimise` reads the forecast's `captain_score`; the C1 challenger still fits on its own. **The forecast fit is assembled in four places, two of them in the decision layer** (DP-02). Fold → training rows → `fit_components` → features recurs; `optimise/replay.py` carries its own `_team_matches` that has drifted from `xp_v1`'s (no xG). B0 is fitted inside `optimise/captain.py`; the C1 challenger has its own features and fit outside the `Predictor` protocol | `forecast/live.py:131-246`, `forecast/backtest.py:392-604`, `forecast/xp_v1.py:527-530`, `optimise/replay.py:280-438,591`, `optimise/captain.py:17`, `shadow/c1.py:63` | One interface in `forecast/`: `fit_as_of(history, deadline, config, rules) → FittedModel` with `.predict(window)`. live, backtest, replay and C1 call it. B0's captain score becomes a forecast column that `optimise` reads |
 | **P2** | **Three solver models each re-encode squad legality**; solver construction is repeated; `optimiser.solver` is never read — squad and transfer hard-code CBC | `optimise/squad.py:251,288-326,342`, `optimise/transfer.py:278-332,348`, `optimise/horizon.py:154,388-470`; formation tally at `squad.py:430`, `transfer.py:468`, `horizon.py:655` | `optimise/milp.py`: `add_squad_constraints(problem, select, start, rules, week=None)` and `solver_for(config)`. Each model keeps only its objective. Delete the dead field |
 | **P3** | **The stage edge holds domain logic and duplicated orchestration** (2,648 lines). Publish fits M2 and, through the season log, runs the hindsight oracle; six optional artefacts are handled inline with differing error handling; `week` and `decision` duplicate context loading and their `_write`; the gold season path is rebuilt ten times; ~410 lines of backtest-card Markdown live in the stage while core `model_card.py` writes files | `stages/publish.py:93-160,368-379`, `week/oracle.py:118`, `stages/week.py:64-112,280`, `stages/decision.py:38-84,144`, `stages/backtest.py:127-540`, `forecast/model_card.py:342` | `DataLayout.gold_for(season)` and one artefacts module owning file names; `load_decision_context(ctx) → DecisionContext | Skipped`; `optional_artefact(name, build)`; M2 ratings as a forecast output; card renderers return strings and stages write them |
-| **P4** | **The clock and "the next gameweek" are not coherent** (DP-11). `utcnow()` is read eight times across stages; three definitions of the next gameweek — first unfinished, first deadline after now, FPL's `is_next`. Between a deadline passing and the gameweek finishing, `xp_next` may describe GW N while the advice is for GW N+1 (inferred, not yet reproduced) | `forecast/live.py:84`, `forecast/xp_v0.py:332`, `week/cadence.py:130`, `stages/publish.py:383`, `stages/week.py:76,140`, `quality/rules.py:143` | Set `StageContext.as_of` once in `cli.py` and record it in the manifest; one `current_gameweek(gameweeks, as_of)` used by forecast, week and publish. A prerequisite for PIPE-01 and PIPE-10 |
-| **P5** | **A source is handled outside `sources/`, and the guard misses it** (DP-01). football-data.co.uk URLs, a second team-name resolver, and a `urllib` fetch writing straight to bronze, bypassing `Fetcher`, robots and lineage. The isolation test neither lists the source nor scans `scripts/` | `prospective/fdcouk.py:16`, `prospective/timing.py:50` vs `sources/resolve.py:302`, `scripts/prospective_ci.py:56-81`, `tests/test_source_isolation.py:28-37` | A registered, off-by-default `fdcouk` adapter (PIPE-04). Meanwhile add the pattern to the test and scan `scripts/` |
+| **P4** | **Closed by PIPE-12:** one `as_of` per run, recorded in the manifest, and one gameweek predicate ([DL-84](../decisions/DL-84.md)). **The clock and "the next gameweek" are not coherent** (DP-11). `utcnow()` is read eight times across stages; three definitions of the next gameweek — first unfinished, first deadline after now, FPL's `is_next`. Between a deadline passing and the gameweek finishing, `xp_next` may describe GW N while the advice is for GW N+1 (inferred, not yet reproduced) | `forecast/live.py:84`, `forecast/xp_v0.py:332`, `week/cadence.py:130`, `stages/publish.py:383`, `stages/week.py:76,140`, `quality/rules.py:143` | Set `StageContext.as_of` once in `cli.py` and record it in the manifest; one `current_gameweek(gameweeks, as_of)` used by forecast, week and publish. A prerequisite for PIPE-01 and PIPE-10 |
+| **P5** | **Closed by PIPE-04:** the `fdcouk` adapter, scripts reading through `sources.LiveFeed`, and an isolation test that scans `scripts/` with no allow-list (REM-06). **A source is handled outside `sources/`, and the guard misses it** (DP-01). football-data.co.uk URLs, a second team-name resolver, and a `urllib` fetch writing straight to bronze, bypassing `Fetcher`, robots and lineage. The isolation test neither lists the source nor scans `scripts/` | `prospective/fdcouk.py:16`, `prospective/timing.py:50` vs `sources/resolve.py:302`, `scripts/prospective_ci.py:56-81`, `tests/test_source_isolation.py:28-37` | A registered, off-by-default `fdcouk` adapter (PIPE-04). Meanwhile add the pattern to the test and scan `scripts/` |
 | **P6** | **The published-model seam is implicit.** Choosing xp_v1 or the xp_v0 cold-start fallback is pure logic living in the edge; the package exports the *fallback* as `build_forecast`, unused; the Poisson survival function and points arithmetic are duplicated across `rules/scoring.py`, `xp_v0` and `xp_v1` | `stages/forecast.py:114`, `forecast/__init__.py`, `xp_v0.py:66,399-482`, `xp_v1.py:146,352-411`, `rules/scoring.py:60` | `forecast.publishable(inputs, rules, config) → Forecast` as the package entry point; `rules.scoring.expected_points(components, position, rules)` shared by every model |
 | **P7** | **Shallow facades and a grab-bag in `week/`.** Three pure re-export modules; three different functions called `next_deadline`; `cadence.py` mixes deadlines, CI idempotency, cron gating and a veto; scheduling spread over five files | `week/deadline.py`, `week/day_before.py`, `week/ci_runs.py`, `week/cadence.py:118`, `forecast/live.py:80`, `schedule_cli.py`, `scripts/day_before_gate.py` | Delete the facades; move cron and CI gating into a `schedule/` package so `week/` is only about advice |
 | **P8** | **Very large files** — a locality cost, not a depth one. `config/models.py` is 2,215 lines and 53 classes, imported directly by 40 files; `sources/fpl/adapter.py` 1,301; `forecast/models.py` 1,106; `optimise/horizon.py` 950 | `wc -l` | Split `config/models.py` by area behind the package root. The others sit behind deep seams; split only when touched |
@@ -543,30 +545,32 @@ direction that should not exist is **`optimise → forecast`** (DP-02).
 | --- | --- | --- | --- |
 | **O1** | **Deploy runs after every Pipeline completion**, including guard-only skips, which report success — up to ~96 redundant builds a day re-deploying an old contract (counted from triggers, not run history) | `deploy.yml:18-42` | Deploy only when the triggering run uploaded `web-data-contract` |
 | **O2** | **Workflows chain through title strings and display names** (`[day-before` matched in three files; `workflows: ["Pipeline"]`; cron strings compared literally) | `ingest-slow.yml:9`, `pipeline.yml:17-19,94,112`, `deploy.yml:38-42` | A typed `workflow_dispatch` input or a small hand-off artefact |
-| **O3** | **Branch-restore logic copied five times**; the guard restores `silver` from a branch that only holds bronze | `ingest-fast.yml:43`, `ingest-slow.yml:79`, `pipeline.yml:75,333,348` | One composite action or `retention.py restore` |
-| **O4** | **The retention window is kept equal by hand** in YAML and configuration; the alert workflow's comment names a `retention.yml` that does not exist | `ingest-fast.yml:73-76`, `alert-on-failure.yml:21` | Read the window from configuration in the workflow step |
+| **O3** | **Closed by PIPE-06:** every workflow restores with `retention.py restore`. **Branch-restore logic copied five times**; the guard restores `silver` from a branch that only holds bronze | `ingest-fast.yml:43`, `ingest-slow.yml:79`, `pipeline.yml:75,333,348` | One composite action or `retention.py restore` |
+| **O4** | **Closed by REM-10:** the window is read from configuration only. **The retention window is kept equal by hand** in YAML and configuration; the alert workflow's comment names a `retention.yml` that does not exist | `ingest-fast.yml:73-76`, `alert-on-failure.yml:21` | Read the window from configuration in the workflow step |
 
 ---
 
 ## 13. R1.1.0 — target data architecture
 
 The open release, the data pipeline uplift, is planned in
-[`epics/R1.1.0-data-pipeline-backlog.md`](epics/R1.1.0-data-pipeline-backlog.md) (PIPE-01 … PIPE-11,
-in draft). Its stories and acceptance criteria live there; this section records what it changes in the
-architecture above, and where it depends on §12.
+[`epics/R1.1.0-data-pipeline-backlog.md`](epics/R1.1.0-data-pipeline-backlog.md) (PIPE-01 … PIPE-14),
+built and remediated on `dev/R1.1.0` ([DL-81](../decisions/DL-81.md)). Its stories and acceptance
+criteria live there; this section records what it changes in the architecture above, and where it
+depends on §12.
 
 ### 13.1 What changes
 
 | Concern | Today (§2–§9) | After R1.1.0 | Items |
 | --- | --- | --- | --- |
-| Source set | Five adapters: the scrapers off by default and blocked; The Odds API on, capped and unused by the model | FPL API, FPL archive and a registered **`fdcouk`** adapter; Understat, FBref and The Odds API **decommissioned** (no ingress; retained bronze still replayable) | PIPE-04, PIPE-09 |
+| Source set | Five adapters: the scrapers off by default and blocked; The Odds API on, capped and unused by the model | FPL API, FPL archive and a registered **`fdcouk`** adapter; Understat, FBref and The Odds API **off by default**, their adapters dormant so retained bronze still replays | PIPE-04, PIPE-09 |
 | Prior seasons | Archive re-fetched on TTL expiry, from an external mirror | **Frozen bronze tier**: completed seasons never touch the network unless re-acquisition is forced | PIPE-03 |
 | Transport | Unconditional GET on TTL expiry | **Conditional requests** (`ETag`, `Last-Modified`; 304 is a zero-byte fetch recorded in lineage) | PIPE-07 |
 | Ingest safety | Structural drift found in transform, after the slow sweep | A **drift canary** on `bootstrap-static` and `fixtures` halts ingest before per-player fetches, with a key diff in the manifest | PIPE-08 |
-| Bronze integrity | Torn or corrupt snapshots crash transform | `fpl-dof bronze verify` (checksums, gzip, orphans) with a quarantine option | PIPE-11 |
+| Bronze integrity | Torn or corrupt snapshots crash transform | `fpl-dof bronze verify` (checksums, gzip, orphans), run before transform in CI; `--quarantine` moves bad files to `data/quarantine/` and fails only on what it cannot move (REM-10) | PIPE-11 |
 | Silver persistence | Rebuilt each run; accumulating tables lose history on CI | Accumulating partitions (`price_history`) persisted on `data`; a deterministic replay rebuilds them from bronze | PIPE-06 |
-| Temporal grain | Scraped aggregates conformed as `scope="season"`, `gameweek=None` | Metrics keyed by `season` **and `as_of_gameweek`**; mid-season sources backfilled to deadline-aligned snapshots with provenance | PIPE-01 |
-| Look-ahead guard | Invariant 5 enforced by tests and the backtester | Plus a **blocking temporal non-leakage gate** on silver | PIPE-10 |
+| Temporal grain | Scraped aggregates conformed as `scope="season"`, `gameweek=None` | Metrics keyed by `season` **and `as_of_gameweek`**; mid-season sources backfilled to deadline-aligned snapshots, never estimated backwards, with `observed_at` and the crosswalk's `ingress` as provenance ([DL-83](../decisions/DL-83.md)) | PIPE-01 |
+| Look-ahead guard | Invariant 5 enforced by tests and the backtester | Plus a **blocking temporal non-leakage gate** on silver's own columns (DL-83) | PIPE-10 |
+| Clock | Several clock reads; three definitions of the next gameweek | One `as_of` per run, in the manifest; one gameweek predicate ([DL-84](../decisions/DL-84.md)) | PIPE-12 |
 | Gold | Per-run outputs only | Two **unified gold datasets**, built by `transform`: `player_career_history` keyed on the permanent `player_code`, and `team_match_odds` with one de-vig formulation across seasons; clubs carry the permanent code from silver `team.code`, by each row's season. First read in R1.2 (DL-81) | PIPE-02, PIPE-05 |
 
 ```mermaid
