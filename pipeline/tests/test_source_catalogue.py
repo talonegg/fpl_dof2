@@ -42,7 +42,8 @@ SCRIBE_LABELS: dict[str, tuple[str, str]] = {
     "fplarchive": ("reference", "Past seasons archive (community FPL archive)"),
     "understat": ("live", "Expected goals (Understat)"),
     "fbref": ("live", "Advanced player stats (FBref)"),
-    "fdcouk": ("live", "Upcoming match odds (football-data.co.uk)"),
+    "fdcouk": ("live", "Match odds in the pipeline run (football-data.co.uk)"),
+    "fdcouk_fixtures": ("live", "Upcoming match odds (football-data.co.uk)"),
     "fdcouk_history": (
         "reference",
         "Past match odds, 2023/24–2025/26 (football-data.co.uk)",  # noqa: RUF001 - Scribe's label, verbatim
@@ -254,6 +255,7 @@ def test_the_published_run_shows_every_source_in_its_real_state(
     assert states == {
         "fpl": ("live", "ok"),
         "fdcouk": ("live", "disabled"),
+        "fdcouk_fixtures": ("live", "ok"),
         "oddsapi": ("live", "disabled"),
         "understat": ("live", "disabled"),
         "fbref": ("live", "disabled"),

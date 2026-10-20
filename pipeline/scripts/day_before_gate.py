@@ -3,9 +3,10 @@
     python pipeline/scripts/day_before_gate.py [--manual]
     python pipeline/scripts/day_before_gate.py --veto-plan /workspace/fpl_prospective/ci/plan.json
 
-Reads bootstrap-static once and lists recent Ingest (slow) runs with ``gh`` (read-only
-GITHUB_TOKEN) for the idempotency check. Any failure to read either is a logged skip
-(``::warning::``), never a partial refresh. Logic and tests: ``fpl_dof.week.day_before``.
+Reads the game's state once, through the source layer (REM-06), and lists recent Ingest (slow)
+runs with ``gh`` (read-only GITHUB_TOKEN) for the idempotency check. Any failure to read either
+is a logged skip (``::warning::``), never a partial refresh. Logic and tests:
+``fpl_dof.week.day_before``.
 """
 
 from __future__ import annotations
@@ -16,24 +17,21 @@ import json
 import os
 import subprocess
 import sys
-import urllib.request
 from pathlib import Path
 from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from fpl_dof.sources import LiveFeed
 from fpl_dof.week.day_before import gate, veto_plan
 
 FIELDS = "databaseId,displayTitle,status,conclusion,createdAt"
-URL = "https://fantasy.premierleague.com/api/bootstrap-static/"
-UA = "fpl-dof-ci/1.0 (+https://github.com/talonegg/fpl_dof2; low-rate)"
 
 
 def fetch() -> tuple[dict[str, Any] | None, str | None]:
     try:
-        req = urllib.request.Request(URL, headers={"User-Agent": UA})
-        with urllib.request.urlopen(req, timeout=30) as r:
-            return json.loads(r.read()), None
+        with LiveFeed() as feed:
+            return feed.state(), None
     except Exception as exc:
         return None, f"{type(exc).__name__}: {exc}"
 

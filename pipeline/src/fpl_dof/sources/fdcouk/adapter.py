@@ -61,6 +61,56 @@ SEASONS: dict[str, str] = {
 
 Getter = Callable[[str], bytes]
 
+#: football-data.co.uk's club names (lower case, letters and digits only) -> FPL's permanent club
+#: code. The source's own naming, mapped once at the boundary: past seasons' rows carry the code,
+#: as the archive's do (D-26); the current season's are resolved to season-local ids downstream.
+CLUB_CODES: dict[str, int] = {
+    "arsenal": 3,
+    "astonvilla": 7,
+    "bournemouth": 91,
+    "brentford": 94,
+    "brighton": 36,
+    "chelsea": 8,
+    "coventry": 9,
+    "coventrycity": 9,
+    "crystalpalace": 31,
+    "everton": 11,
+    "fulham": 54,
+    "hull": 88,
+    "hullcity": 88,
+    "ipswich": 40,
+    "ipswichtown": 40,
+    "leeds": 2,
+    "leedsunited": 2,
+    "liverpool": 14,
+    "mancity": 43,
+    "manchestercity": 43,
+    "manutd": 1,
+    "manunited": 1,
+    "manchesterunited": 1,
+    "newcastle": 4,
+    "newcastleunited": 4,
+    "nottinghamforest": 17,
+    "nottmforest": 17,
+    "spurs": 6,
+    "tottenham": 6,
+    "tottenhamhotspur": 6,
+    "sunderland": 56,
+    "sheffieldutd": 49,
+    "sheffieldunited": 49,
+    "burnley": 90,
+    "luton": 102,
+    "lutontown": 102,
+    "wolves": 39,
+    "wolverhampton": 39,
+    "wolverhamptonwanderers": 39,
+    "westham": 21,
+    "westhamunited": 21,
+    "leicester": 13,
+    "leicestercity": 13,
+    "southampton": 20,
+}
+
 
 def fetch_history(
     frozen_root: Path, expected: Mapping[str, str], get: Getter
@@ -93,29 +143,6 @@ def fetch_history(
     return out
 
 
-def latest_fixtures_csv(data_dir: Path | None = None) -> bytes:
-    """Read the latest fixtures CSV snapshot from Bronze, if one exists."""
-    from fpl_dof.sources.bronze import BronzeStore, Snapshot, SnapshotMeta
-
-    root = data_dir or Path("data")
-    store = BronzeStore(root / "bronze" if (root / "bronze").is_dir() else root)
-    directory = store.resource_dir("fdcouk", "fixtures")
-    if not directory.is_dir():
-        return b""
-    candidates = sorted(directory.glob("*/*"))
-    for path in reversed(candidates):
-        if path.name.endswith(".meta.json"):
-            continue
-        meta_path = path.with_name(path.name + ".meta.json")
-        if meta_path.exists():
-            snap = Snapshot(
-                path=path,
-                meta=SnapshotMeta.model_validate_json(meta_path.read_text(encoding="utf-8")),
-            )
-            return snap.read_bytes()
-    return b""
-
-
 @register
 class FdcoukAdapter(SourceAdapter):
     name: ClassVar[str] = "fdcouk"
@@ -125,13 +152,13 @@ class FdcoukAdapter(SourceAdapter):
     enabled_by_default: ClassVar[bool] = False
     essential: ClassVar[bool] = False
     attribution: ClassVar[str] = "Match odds via football-data.co.uk"
-    health_label: ClassVar[str] = "Upcoming match odds (football-data.co.uk)"
+    health_label: ClassVar[str] = "Match odds in the pipeline run (football-data.co.uk)"
     health_description: ClassVar[str] = (
         "Bookmaker odds for upcoming fixtures, de-vigged into team goal expectations."
     )
     health_disabled_reason: ClassVar[str] = (
-        "Switched off by default; upcoming match odds are fetched on-demand "
-        "during the pre-deadline window."
+        "Off in the pipeline run. The prospective harness fetches upcoming odds through it in "
+        "the hours before each deadline, and those are shown under Upcoming match odds."
     )
     contributes: ClassVar[tuple[str, ...]] = (
         "expected_goals_home",
@@ -172,8 +199,15 @@ class FdcoukAdapter(SourceAdapter):
         # football-data.co.uk serves Latin-1, decoded as prospective/timing.py does.
         return fetched.payload.decode("latin-1")
 
-    def parse_fixtures_csv(self, text: str, season: str, captured_at: pd.Timestamp) -> pd.DataFrame:
-        """Parse raw fixtures.csv into conformed TeamMatchExpectation rows."""
+    def parse_fixtures_csv(
+        self, text: str, season: str, captured_at: pd.Timestamp | None
+    ) -> pd.DataFrame:
+        """Parse a football-data CSV into conformed TeamMatchExpectation rows.
+
+        ``captured_at=None`` marks a completed season's file: each row is stamped with its kickoff,
+        the latest moment its pre-match prices can have been taken, and carries permanent club
+        codes, since its clubs are not the current season's.
+        """
         cleaned = text.lstrip("\ufeff").replace("ï»¿", "", 1)
         try:
             reader = list(csv.DictReader(io.StringIO(cleaned)))
@@ -193,7 +227,8 @@ class FdcoukAdapter(SourceAdapter):
             if not home or not away:
                 continue
 
-            # Read 1X2 odds: prefer Bet365, fall back to Market Average / Max
+            # Read 1X2 odds: prefer Bet365, fall back to Market Average / Max. The CSV gives
+            # strings, so a missing price is "" and falls through.
             h_odds = _number(r.get("B365H") or r.get("AvgH") or r.get("MaxH"))
             d_odds = _number(r.get("B365D") or r.get("AvgD") or r.get("MaxD"))
             a_odds = _number(r.get("B365A") or r.get("AvgA") or r.get("MaxA"))
@@ -223,16 +258,17 @@ class FdcoukAdapter(SourceAdapter):
             time_str = r.get("Time", "").strip()
             kickoff = _parse_kickoff(date_str, time_str)
 
+            past = captured_at is None
             rows.append(
                 {
                     "season": season,
                     "source": self.name,
-                    "captured_at": captured_at,
+                    "captured_at": kickoff if past else captured_at,
                     "kickoff_time": kickoff,
                     "home_team": home,
                     "away_team": away,
-                    "home_team_id": None,
-                    "away_team_id": None,
+                    "home_team_id": _club_code(home) if past else None,
+                    "away_team_id": _club_code(away) if past else None,
                     "expected_goals_home": fitted.expected_goals_home,
                     "expected_goals_away": fitted.expected_goals_away,
                     "clean_sheet_probability_home": fitted.clean_sheet_probability_home,
@@ -259,6 +295,13 @@ class FdcoukAdapter(SourceAdapter):
             report.resources["fixtures"] = len(payload)
         except Exception as exc:
             report.warnings.append(str(exc))
+        for season in _past_seasons(request):
+            try:
+                report.resources[f"season_odds/{season}"] = len(
+                    self.fetch_season_csv(season, request)
+                )
+            except Exception as exc:
+                report.warnings.append(f"{season}: {exc}")
 
         report.network_calls = self.fetcher.network_calls - before_calls
         report.cache_hits = self.fetcher.cache_hits - before_hits
@@ -273,16 +316,67 @@ class FdcoukAdapter(SourceAdapter):
         if season is None:
             return Conformed(tables={}, warnings=["no season supplied; no fdcouk data"])
 
+        frames: list[pd.DataFrame] = []
+        warnings: list[str] = []
         try:
             text = self.fetch_fixtures_csv(request)
+            snapshot = self.fetcher.bronze.latest(
+                self.name, "fixtures", "upcoming", as_of=request.now
+            )
+            # When the prices were fetched, never when the run happened (as price history, REM-02).
+            captured = pd.Timestamp(
+                snapshot.meta.fetched_at if snapshot else (request.now or utcnow())
+            ).tz_convert("UTC")
+            frames.append(self.parse_fixtures_csv(text, season, captured))
         except Exception as exc:
-            return Conformed(tables={}, warnings=[f"no fixtures odds: {exc}"])
+            warnings.append(f"no fixtures odds: {exc}")
+        for past in _past_seasons(request):
+            try:
+                text = self.fetch_season_csv(past, request)
+                frames.append(self.parse_fixtures_csv(text, past, None))
+            except Exception as exc:
+                warnings.append(f"no {past} season odds: {exc}")
 
-        captured = pd.Timestamp(request.now or utcnow()).tz_convert("UTC")
-        frame = self.parse_fixtures_csv(text, season, captured)
-        if frame.empty:
-            return Conformed(tables={}, warnings=["no priced fixtures in fixtures.csv"])
-        return Conformed(tables={Table.TEAM_MATCH_EXPECTATION.value: frame})
+        frames = [frame for frame in frames if not frame.empty]
+        if not frames:
+            return Conformed(tables={}, warnings=[*warnings, "no priced fixtures"])
+        frame = pd.concat(frames, ignore_index=True)
+        return Conformed(tables={Table.TEAM_MATCH_EXPECTATION.value: frame}, warnings=warnings)
+
+    def fetch_season_csv(self, season: str, request: IngestRequest) -> str:
+        """A completed season's match file (E0.csv), fetched once and kept (PIPE-03)."""
+        res = self.resource("season_odds")
+        code = _season_code(season)
+        fetched = self.fetcher.fetch(
+            SEASONS[code],
+            source=self.name,
+            source_version=self.version,
+            resource=res.name,
+            key=code,
+            cache_ttl_seconds=res.cache_ttl_seconds,
+            force_refresh=request.force_refresh,
+            offline=request.offline,
+            now=request.now,
+            immutable=True,
+            rebackfill=request.rebackfill,
+        )
+        return fetched.payload.decode("latin-1")
+
+
+def _season_code(season: str) -> str:
+    """``"2024/25"`` -> ``"2425"``, football-data's folder name."""
+    return season[2:4] + season[5:7]
+
+
+def _past_seasons(request: IngestRequest) -> list[str]:
+    """The completed seasons asked for that football-data publishes a match file for."""
+    return [
+        s for s in (request.seasons or ()) if s != request.season and _season_code(s) in SEASONS
+    ]
+
+
+def _club_code(name: str) -> int | None:
+    return CLUB_CODES.get("".join(ch for ch in name.lower() if ch.isalnum()))
 
 
 def _number(value: object) -> float | None:
@@ -311,6 +405,7 @@ def _parse_kickoff(date_str: str, time_str: str) -> pd.Timestamp | NaTType:
 
 __all__ = [
     "BASE_URL",
+    "CLUB_CODES",
     "HISTORY",
     "MMZ_BASE",
     "SEASONS",

@@ -17,9 +17,22 @@ pinned by ``tests/test_source_catalogue.py``:
 
 from __future__ import annotations
 
-from fpl_dof.sources.catalogue import REFERENCE, SourceDescriptor
+from fpl_dof.sources.catalogue import LIVE, REFERENCE, SourceDescriptor
 
 EXTERNAL_SOURCES: tuple[SourceDescriptor, ...] = (
+    SourceDescriptor(
+        key="fdcouk_fixtures",
+        kind=LIVE,
+        label="Upcoming match odds (football-data.co.uk)",
+        description=(
+            "Bookmaker odds for this gameweek's fixtures, fetched before the deadline. These are "
+            "the odds the odds-based model (A+odds) decides with."
+        ),
+        enabled=True,
+        registered=False,
+        record_block="odds",
+        record_check="live_odds",
+    ),
     SourceDescriptor(
         key="fdcouk_history",
         kind=REFERENCE,

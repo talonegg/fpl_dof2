@@ -135,6 +135,21 @@ def _fixtures_csv(rows: list[tuple[str, str]]) -> bytes:
     return (head + body).encode("latin-1")
 
 
+def _conformed(csv: bytes, tmp: Path) -> Any:
+    """``fixtures.csv`` as the adapter conforms it: what the plan step receives (REM-06)."""
+    import pandas as pd
+
+    from fpl_dof.config.models import HttpConfig
+    from fpl_dof.sources.bronze import BronzeStore
+    from fpl_dof.sources.fdcouk.adapter import FdcoukAdapter
+    from fpl_dof.sources.fetch import Fetcher
+
+    with Fetcher(config=HttpConfig(), bronze=BronzeStore(tmp), run_id="t") as fetcher:
+        return FdcoukAdapter(fetcher).parse_fixtures_csv(
+            csv.decode("latin-1"), "2026/27", pd.Timestamp("2026-10-16T09:00Z")
+        )
+
+
 def test_bundled_join_keeps_promoted_sides(live_frame: Any) -> None:
     import pandas as pd
 
@@ -210,7 +225,7 @@ def test_resolve_team(name: str, team: int | None) -> None:
     assert resolve_team(name, TEAMS) == team
 
 
-def test_odds_coverage_counts_only_this_gameweeks_e0_rows() -> None:
+def test_odds_coverage_counts_only_this_gameweeks_e0_rows(tmp_path: Path) -> None:
     fixtures = [
         {"event": 7, "team_h": 2, "team_a": 3},
         {"event": 7, "team_h": 4, "team_a": 6},
@@ -220,10 +235,13 @@ def test_odds_coverage_counts_only_this_gameweeks_e0_rows() -> None:
         _fixtures_csv([("Coventry", "Hull"), ("Arsenal", "Man City")])
         + b"E1,x,x,Ipswich,Man United\n"
     )
-    assert odds_coverage(csv, 7, TEAMS, fixtures) == (1, 2)
-    assert odds_coverage(b"", 7, TEAMS, fixtures) == (0, 2)
+    assert odds_coverage(_conformed(csv, tmp_path), 7, TEAMS, fixtures) == (1, 2)
+    assert odds_coverage(_conformed(b"", tmp_path), 7, TEAMS, fixtures) == (0, 2)
     assert odds_coverage(
-        "\ufeff".encode() + _fixtures_csv([("Coventry", "Hull"), ("Ipswich", "Man United")]),
+        _conformed(
+            "\ufeff".encode() + _fixtures_csv([("Coventry", "Hull"), ("Ipswich", "Man United")]),
+            tmp_path,
+        ),
         7,
         TEAMS,
         fixtures,
@@ -335,15 +353,17 @@ def test_plan_writes_the_decision_reason(
     fixtures = [{"event": 7, "team_h": 2, "team_a": 3}, {"event": 7, "team_h": 4, "team_a": 6}]
     monkeypatch.setattr(ci, "_bootstrap", lambda: bootstrap)
     monkeypatch.setattr(ci, "_now", lambda: DL - dt.timedelta(hours=hours_before))
-    monkeypatch.setattr(
-        ci,
-        "_get",
-        lambda url: json.dumps(fixtures).encode(),
-    )
-    monkeypatch.setattr(ci, "latest_fixtures_csv", lambda data_dir=None: _fixtures_csv(csv_rows))
+    monkeypatch.setattr(ci, "_fixtures", lambda: fixtures)
+    raw = _fixtures_csv(csv_rows)
+    monkeypatch.setattr(ci, "_upcoming_odds", lambda: (_conformed(raw, tmp_path / "b"), raw))
     out = tmp_path / "gh_output"
     monkeypatch.setenv("GITHUB_OUTPUT", str(out))
     ci.plan()
     plan = json.loads((tmp_path / "ci" / "plan.json").read_text())
     assert plan["decide"] is decide and plan["decide_reason"].startswith(reason)
     assert f"decide={str(decide).lower()}" in out.read_text()
+    # REM-07: a decision keeps its odds, byte for byte, where the frozen harness reads them.
+    record = tmp_path / ci.UPCOMING_ODDS_RECORD / "GW7_fixtures.csv"
+    assert record.exists() == (decide and hours_before < 14)
+    if record.exists():
+        assert record.read_bytes() == raw
