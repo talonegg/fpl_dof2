@@ -22,10 +22,10 @@ How to write and archive documents: [`agents/documentation.md`](agents/documenta
 | Source | What it provides | State |
 | --- | --- | --- |
 | **Official FPL API** | Players, prices, status, ownership, fixtures, per-gameweek stats including expected goals and assists, and the game's own rules | Essential: if it fails, the run stops and the last good advice stays live |
-| **FPL community archive** (GitHub mirror) | Past seasons gameweek by gameweek — the backtest's history | Used by the backtest; frozen locally from R1.1.0 (PIPE-03) |
-| **football-data.co.uk** | Bookmaker match odds, past and upcoming | Read by the prospective harness outside the adapter layer today; becomes a proper adapter in R1.1.0 (PIPE-04, PIPE-05) |
-| Understat, FBref | Advanced player metrics (scraped) | **Blocked** upstream (D-23) and off by default; nothing that ships depends on them; removed in R1.1.0 (PIPE-09) |
-| The Odds API | Live match odds | On by default but degrades without a key; free-tier credit cap and no history (D-20); not used by the model; stood down in R1.1.0 (PIPE-09) |
+| **FPL community archive** (GitHub mirror) | Past seasons gameweek by gameweek — the backtest's history | Used by the backtest; immutable once fetched, never re-fetched unless forced (PIPE-03) |
+| **football-data.co.uk** | Bookmaker match odds, past and upcoming | The `fdcouk` adapter, off in the pipeline run; the prospective harness reads upcoming odds through it (PIPE-04, PIPE-05) |
+| Understat, FBref | Advanced player metrics (scraped) | **Blocked** upstream (D-23) and off by default; nothing that ships depends on them; the adapters stay, dormant (PIPE-09) |
+| The Odds API | Live match odds | Off by default (PIPE-09); free-tier credit cap and no history (D-20); not used by the model |
 
 Every source sits behind an adapter in `pipeline/src/fpl_dof/sources/`, the only code allowed to know
 a source exists (DP-01). Detail: [architecture §2](planning/03-solution-architecture.md#2-context-view-c4-level-1),
@@ -74,7 +74,8 @@ review in §12) and [conceptual design](planning/04-conceptual-design.md) (each 
 - **R1.0 — delivered.** Epics E0–E14 built the platform end to end; they are archived as records in
   [`planning/archive/R1.0/`](planning/archive/README.md).
 - **R1.1.0 — open: data pipeline uplift.** [Backlog PIPE-01 … PIPE-14](planning/epics/R1.1.0-data-pipeline-backlog.md),
-  built on `dev/R1.1.0` and in remediation before promotion ([DL-81](decisions/DL-81.md)). Its effect on the architecture: [architecture §13](planning/03-solution-architecture.md#13-r110--target-data-architecture).
+  built and remediated on `dev/R1.1.0` ([DL-81](decisions/DL-81.md)); promotion waits on the
+  [gate](planning/epics/R1.1.0-data-pipeline-backlog.md#42-promotion-gate). Its effect on the architecture: [architecture §13](planning/03-solution-architecture.md#13-r110--target-data-architecture).
 - **The season — live.** [E8 — ongoing in-season monitoring](planning/epics/E8-ongoing-in-season-monitoring.md)
   holds the season state and decision points, rewritten each gameweek.
 
@@ -89,13 +90,10 @@ criteria. The [release register](planning/epics/README.md) decides the order.
 - A chip calendar for set 1 before GW15; set 1 expires at the GW19 deadline.
 
 **R1.1.0 — data pipeline uplift ([remediation plan](planning/epics/R1.1.0-data-pipeline-backlog.md#4-remediation-plan))**
-- First, a green build and the chip-replay crash (REM-01); then the permanent bronze archive, still
-  never written, once per gameweek (REM-04).
-- Then correctness: price history and `--as-of` (REM-02), one writer on `data` (REM-03), club codes
-  in gold (REM-05), odds behind the adapter (REM-06), the prospective odds feed (REM-07), forecast
-  behaviour restored (REM-08), the look-ahead gate on real tables (REM-09).
-- Then the smaller defects (REM-10) and the fact homes (REM-11); promotion waits on the gate in
-  backlog §4.2.
+- REM-01 … REM-11 are built. Before promotion: run the slow chip replay once, then the pre-release
+  smoke (backlog §4.2); promote by the `release` skill.
+- The permanent bronze archive starts with the first slow ingest on `main` (PIPE-14); until then
+  bronze older than the rolling window is lost.
 
 **Design fixes not yet scheduled ([architecture §12](planning/03-solution-architecture.md#12-module-design--review-of-2026-10-17))**
 - One planning horizon: `xp_horizon` reads `decision.horizon` (D-29, [DL-78](decisions/DL-78.md)).

@@ -74,7 +74,7 @@ building are in the [release register](epics/README.md#choosing-what-to-build-ne
 | Release | State |
 | --- | --- |
 | **R1.0** — E0–E14 | Delivered: the steel thread to GW1 ([DL-10](../decisions/DL-10.md)), then the full system. [Archived](archive/README.md), except E8 |
-| **R1.1.0** — data pipeline uplift | Open; built, and in [remediation](epics/R1.1.0-data-pipeline-backlog.md#4-remediation-plan) before promotion ([DL-81](../decisions/DL-81.md)). Its architecture, and the 03 §12 findings it depends on: [03 §13](03-solution-architecture.md#13-r110--target-data-architecture) |
+| **R1.1.0** — data pipeline uplift | Open; built and [remediated](epics/R1.1.0-data-pipeline-backlog.md#4-remediation-plan) ([DL-81](../decisions/DL-81.md)); promotion waits on the [gate](epics/R1.1.0-data-pipeline-backlog.md#42-promotion-gate). Its architecture, and the 03 §12 findings it depends on: [03 §13](03-solution-architecture.md#13-r110--target-data-architecture) |
 | **E8** — in-season monitoring | Live to GW38 beside whichever release is open; says when the season's evidence should change what is built |
 
 **Cross-cutting concerns are not a release.** Orchestration, observability, testing and
@@ -126,18 +126,18 @@ All owned by the owner.
 | ID | Risk | Impact | Likelihood | Response |
 | --- | --- | --- | --- | --- |
 | R-01 | GW1 passes before the system is usable | High | **Closed** | The steel thread shipped (DL-10), but GW1–GW4 were decided without the tool; the live loop was repaired by DL-66 to DL-69 |
-| R-02 | FPL API changes shape or blocks automated access | High | Medium | Adapter isolation; contract tests on recordings; immutable bronze; polite, identified access. A drift canary is PIPE-08 |
+| R-02 | FPL API changes shape or blocks automated access | High | Medium | Adapter isolation; contract tests on recordings; immutable bronze; polite, identified access; a drift canary halts ingest on a changed shape (PIPE-08) |
 | R-03 | Model adds no real edge over intuition | High | **Materialised, partly** | Beats price on average, not at the head (R-15a, model card). Trailing form is published beside it ([DL-70](../decisions/DL-70.md)); the scout UI stands alone |
 | R-04 | Overfitting produces confident wrong forecasts | Medium | High | Weekly walk-forward backtest in CI ([DL-68](../decisions/DL-68.md)); held-out seasons; shadow mode (R-17) |
 | R-05 | Build stalls mid-season, leaving a half-built system | Medium | Low | R1.0 closed working; every R1.1.0 item exits usable (B2) |
-| R-06 | Scraped sources break | Medium | **Materialised** | Understat and FBref refuse access (D-23, [DL-31](../decisions/DL-31.md)); degraded per NFR-15, and nothing shipped depends on them because the API carries xG ([DL-46](../decisions/DL-46.md)). Ingress stops at PIPE-09 |
+| R-06 | Scraped sources break | Medium | **Materialised** | Understat and FBref refuse access (D-23, [DL-31](../decisions/DL-31.md)); degraded per NFR-15, and nothing shipped depends on them because the API carries xG ([DL-46](../decisions/DL-46.md)). Both off by default (PIPE-09) |
 | R-07 | Optimiser solve time exceeds the CI budget | Medium | High | HiGHS, chips by enumeration ([DL-15](../decisions/DL-15.md), [DL-26](../decisions/DL-26.md)); pruning; greedy fallback; no from-scratch solve in season ([DL-67](../decisions/DL-67.md)). High until D-19 is re-checked after the first double gameweek |
-| R-08 | Odds free-tier credits exhausted | Low | **Materialised** | The Odds API's cap is restrictive and it has no history (D-20); runs degrade without it. Odds come from football-data.co.uk ([DL-73](../decisions/DL-73.md)); PIPE-04, PIPE-09 |
+| R-08 | Odds free-tier credits exhausted | Low | **Materialised** | The Odds API's cap is restrictive and it has no history (D-20); runs degrade without it. Odds come from football-data.co.uk through the `fdcouk` adapter ([DL-73](../decisions/DL-73.md), PIPE-04); The Odds API is off by default (PIPE-09) |
 | R-09 | Scheduled jobs fire late and miss a deadline | Medium | Low | Mitigated by the day-before run and the deadline guard; manual dispatch always available ([03 §9](03-solution-architecture.md#9-orchestration)) |
-| R-10 | Entity resolution silently mismatches across sources | High | Low | Three-tier resolution and an unmatched-rate gate (D-07). No external player source is reachable; the live exposure is club names for football-data.co.uk (I-08) |
+| R-10 | Entity resolution silently mismatches across sources | High | Low | Three-tier resolution and an unmatched-rate gate (D-07). No external player source is reachable; the live exposure is club names for football-data.co.uk, resolved in its adapter |
 | R-11 | Free tiers change terms or limits | Medium | Low | Static output is portable; local execution is the fallback |
 | R-12 | Motivation decays once the novelty fades | Medium | Medium | One improvement a week ([E8 §2](epics/E8-ongoing-in-season-monitoring.md#2-the-weekly-loop)); useful even if development stops |
-| R-13 | Published artefacts grow past free-tier limits | Medium | Low | Mitigated: `data` is an orphan branch rebuilt and force-pushed; permanent stores are small and append-only ([03 §7.3](03-solution-architecture.md#73-storage-volume-and-retention-mechanics), [DL-42](../decisions/DL-42.md)). Window kept equal by hand (03 §12 O4) |
+| R-13 | Published artefacts grow past free-tier limits | Medium | Low | Mitigated: `data` is an orphan branch rebuilt and force-pushed; permanent stores are small and append-only ([03 §7.3](03-solution-architecture.md#73-storage-volume-and-retention-mechanics), [DL-42](../decisions/DL-42.md)). The window is read from configuration; immutable prior-season bronze is kept beyond it (REM-10) |
 | R-14 | **Cold start** — promoted clubs and new signings have no Premier League history, so priors set their expected points | Medium | **Materialised, receding** | Confidence tier per player; wide uncertainty; the `xp_v0` fallback below the cold-start threshold (D-25). Shrinks as minutes accrue |
 | R-15 | ~~Expected points collapses onto price~~ | — | **Closed** | The model card's price-dependence diagnostic shows information beyond price. What occurred instead is R-15a |
 | R-15a | **Weak discrimination at the head of the ranking** — better than B0 on average, not better than B0 or trailing form in each gameweek's top 20 ([DL-21](../decisions/DL-21.md); metric corrected by [DL-49](../decisions/DL-49.md), finding stood) | High — captaincy, hits and chips act there | **Materialised** | D-13. No hit, chip or wildcard on the forecast alone until top-20 precision beats B0, restated on every model card. Candidates sit in shadow (E8 season state) |
@@ -159,8 +159,8 @@ acting on the advice, ends the project. ASM-2 and ASM-3 failed and were absorbed
 | I-04 | Odds provider undecided (OD-03) | Blocked E5-S4 | **Closed** — [DL-59](../decisions/DL-59.md); in practice superseded (R-08) |
 | I-05 | Effective ownership not computable from public data (CON-12) | FR-16, FR-21, the risk dial | **Closed** — [DL-24](../decisions/DL-24.md) |
 | I-06 | DL-11 (UTC storage, dual-zone display) is still `Proposed` | The code follows it; the record does not | **Closed** — accepted 2026-10-17 |
-| I-07 | Clock and "next gameweek" incoherent (03 §12 P4) | After a deadline, forecast and advice may name different gameweeks; blocks PIPE-01, PIPE-10 | **Open** — planned as PIPE-12 ([DL-79](../decisions/DL-79.md)) |
-| I-08 | football-data.co.uk handled outside `sources/`, unseen by the isolation test (03 §12 P5) | Breaches Invariant 1 / DP-01 | **Open** — PIPE-04, widened by [DL-79](../decisions/DL-79.md) |
+| I-07 | Clock and "next gameweek" incoherent (03 §12 P4) | After a deadline, forecast and advice may name different gameweeks; blocks PIPE-01, PIPE-10 | **Closed** — PIPE-12: one `as_of` per run, one gameweek predicate ([DL-84](../decisions/DL-84.md)) |
+| I-08 | football-data.co.uk handled outside `sources/`, unseen by the isolation test (03 §12 P5) | Breaches Invariant 1 / DP-01 | **Closed** — PIPE-04: the `fdcouk` adapter; scripts read through `sources.LiveFeed` (REM-06) |
 | I-09 | The app does not check what it reads; `contract_version` never read (03 §12 W1) | A contract change renders wrong instead of degrading (DP-04, DP-15) | **Open** |
 | I-10 | TypeScript copies without a corpus have drifted, e.g. bench order (03 §12 W2) | App and pipeline disagree about one squad | **Open** |
 | I-11 | Deploy runs after every pipeline completion, even guard-only skips (03 §12 O1) | Redundant builds of an unchanged contract | **Open** |
@@ -170,13 +170,13 @@ acting on the advice, ends the project. ASM-2 and ASM-3 failed and were absorbed
 | ID | Dependency | Type | Note |
 | --- | --- | --- | --- |
 | D-01 | Official FPL API | External, critical | No contract, SLA or versioning. Failure stops the run; the last good publication stays live |
-| D-02 | Understat / FBref | External, lost | Both refuse access (D-23); `robots.txt` honoured; ingress stops at PIPE-09 |
-| D-03 | The Odds API free tier | External, degradable | Capped, no history (D-20); stood down by PIPE-09 |
+| D-02 | Understat / FBref | External, lost | Both refuse access (D-23); `robots.txt` honoured; off by default (PIPE-09) |
+| D-03 | The Odds API free tier | External, degradable | Capped, no history (D-20); off by default (PIPE-09) |
 | D-04 | GitHub Actions and the state branches | Platform, critical | All compute, free for a public repo ([DL-12](../decisions/DL-12.md)); state on `data`, `snapshots`, `ledger` (03 §7.3) |
 | D-05 | GitHub Pages | Platform, critical | Delivery surface (DL-12) |
-| D-06 | FPL community archive (GitHub mirror) | External, important | Prior seasons for training and backtest ([DL-19](../decisions/DL-19.md)); frozen by PIPE-03 |
+| D-06 | FPL community archive (GitHub mirror) | External, important | Prior seasons for training and backtest ([DL-19](../decisions/DL-19.md)); immutable once fetched (PIPE-03) |
 | D-07 | Owner's availability | Internal, critical | The only labour, and the actuator at every deadline (ASM-6) |
-| D-08 | football-data.co.uk | External, degradable | Match odds for the prospective harness (DL-73); adapter is PIPE-04 |
+| D-08 | football-data.co.uk | External, degradable | Match odds through the `fdcouk` adapter, for the prospective harness (DL-73, PIPE-04) |
 
 ---
 
