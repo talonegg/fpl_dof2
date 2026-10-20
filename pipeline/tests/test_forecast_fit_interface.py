@@ -142,9 +142,7 @@ def test_fit_as_of_and_predict_live_and_backtest(game_rules: GameRules) -> None:
             },
         ]
     )
-    teams = pd.DataFrame(
-        [{"team_id": 1, "short_name": "T1"}, {"team_id": 2, "short_name": "T2"}]
-    )
+    teams = pd.DataFrame([{"team_id": 1, "short_name": "T1"}, {"team_id": 2, "short_name": "T2"}])
     fixtures = pd.DataFrame(
         [
             {
@@ -187,3 +185,25 @@ def test_fit_as_of_and_predict_live_and_backtest(game_rules: GameRules) -> None:
     assert scores is not None
     assert 101 in scores and 102 in scores
     assert isinstance(scores[101], float)
+
+
+def test_replay_predicts_one_season_against_the_archive_calendar(game_rules: GameRules) -> None:
+    """REM-01: the replay path runs without ``--slow`` and never pools players across seasons."""
+    history = _sample_history()
+    # GW3 of 2025/26 kicks off after the deadline: the horizon's fixture, known from the calendar.
+    gw3 = history[(history["season"] == "2025/26") & (history["gameweek"] == 2)].copy()
+    gw3["gameweek"] = 3
+    gw3["fixture_id"] = 3
+    gw3["kickoff_time"] = pd.Timestamp("2025-09-07T12:00:00Z")
+    # A player seen only in the earlier season must not join the replayed squad pool.
+    retired = history[(history["season"] == "2024/25") & (history["player_code"] == 101)].copy()
+    retired["player_code"] = retired["player_id"] = 301
+    history = pd.concat([history, gw3, retired], ignore_index=True)
+    history["web_name"] = "P" + history["player_code"].astype(str)  # the archive carries names
+
+    fitted = fit_as_of(history, pd.Timestamp("2025-09-01T10:00:00Z"), ForecastConfig(), game_rules)
+    frame = fitted.predict([3], history=history, season="2025/26")
+
+    assert set(frame["player_id"]) == {101, 102, 201, 202}
+    assert (frame["next_gameweek"] == 3).all()
+    assert "captain_score" in frame.columns

@@ -34,25 +34,25 @@ DEFENSIVE_METRICS: tuple[str, ...] = (
 
 #: Standard 2026/27 FPL local team ID -> permanent club code.
 TEAM_ID_TO_CODE_2627: dict[int, int] = {
-    1: 3,    # Arsenal
-    2: 7,    # Aston Villa
-    3: 91,   # Bournemouth
-    4: 94,   # Brentford
-    5: 36,   # Brighton
-    6: 8,    # Chelsea
-    7: 9,    # Coventry
-    8: 31,   # Crystal Palace
-    9: 11,   # Everton
+    1: 3,  # Arsenal
+    2: 7,  # Aston Villa
+    3: 91,  # Bournemouth
+    4: 94,  # Brentford
+    5: 36,  # Brighton
+    6: 8,  # Chelsea
+    7: 9,  # Coventry
+    8: 31,  # Crystal Palace
+    9: 11,  # Everton
     10: 54,  # Fulham
     11: 88,  # Hull
     12: 40,  # Ipswich
-    13: 2,   # Leeds
+    13: 2,  # Leeds
     14: 14,  # Liverpool
     15: 43,  # Man City
-    16: 1,   # Man Utd
-    17: 4,   # Newcastle
+    16: 1,  # Man Utd
+    17: 4,  # Newcastle
     18: 17,  # Nott'm Forest
-    19: 6,   # Spurs
+    19: 6,  # Spurs
     20: 56,  # Sunderland
 }
 
