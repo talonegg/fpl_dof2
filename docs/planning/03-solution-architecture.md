@@ -308,7 +308,7 @@ every clone. That is why R-13 is rated High and why the stores have different me
 
 | Store | Mechanism | Rationale |
 | --- | --- | --- |
-| **`data`** — rolling bronze | Orphan branch, rebuilt from the retained window (~30 days) and force-pushed by `pipeline/scripts/retention.py` | History is truncated, not accumulated; these snapshots debug the recent past |
+| **`data`** — rolling bronze | Orphan branch, rebuilt from the retained window (~30 days) by `pipeline/scripts/retention.py`, which first folds in what the branch holds and force-pushes with a lease on it, so concurrent workflows never drop each other's pushes | History is truncated, not accumulated; these snapshots debug the recent past |
 | **`snapshots`** — permanent bronze | Append-only; `bronze-full/<season>/gwNN.tar.gz` holds the bronze dated after the previous deadline day up to the gameweek's own, written once the day after its deadline, and `index.json` lists the gameweeks archived, partial and lost (PIPE-14, DL-81). First written when R1.1.0 reaches `main` | The NFR-06 evidence trail, small enough to keep forever |
 | **`ledger`** — advice and prospective records | Append-only; `advice/gwNN.json` written before each deadline, `prospective/gw*.tgz` frozen with it | What was advised, provably before the event (DL-69) |
 | **Published contract** | Actions artefact `web-data-contract` (14 days) → Pages | Serving surface, not an archive |
