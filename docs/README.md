@@ -74,7 +74,7 @@ review in §12) and [conceptual design](planning/04-conceptual-design.md) (each 
 - **R1.0 — delivered.** Epics E0–E14 built the platform end to end; they are archived as records in
   [`planning/archive/R1.0/`](planning/archive/README.md).
 - **R1.1.0 — open: data pipeline uplift.** [Backlog PIPE-01 … PIPE-14](planning/epics/R1.1.0-data-pipeline-backlog.md),
-  in draft. Its effect on the architecture: [architecture §13](planning/03-solution-architecture.md#13-r110--target-data-architecture).
+  built on `dev/R1.1.0` and in remediation before promotion ([DL-81](decisions/DL-81.md)). Its effect on the architecture: [architecture §13](planning/03-solution-architecture.md#13-r110--target-data-architecture).
 - **The season — live.** [E8 — ongoing in-season monitoring](planning/epics/E8-ongoing-in-season-monitoring.md)
   holds the season state and decision points, rewritten each gameweek.
 
@@ -88,16 +88,14 @@ criteria. The [release register](planning/epics/README.md) decides the order.
   "intuition ahead"; the response is R1.1.0 as ordered ([DL-79](decisions/DL-79.md)).
 - A chip calendar for set 1 before GW15; set 1 expires at the GW19 deadline.
 
-**R1.1.0 — data pipeline uplift ([backlog](planning/epics/R1.1.0-data-pipeline-backlog.md))**
-- Phase 1, hygiene: first, write the permanent bronze archive, which has never run (PIPE-14);
-  freeze prior seasons (PIPE-03); a football-data.co.uk adapter that also ends the
-  fetch outside `sources/` (PIPE-04); persist accumulating silver tables with one restore step
-  (PIPE-06); conditional HTTP (PIPE-07); The Odds API off by default (PIPE-09).
-- Phase 2, temporal integrity: one clock and one current gameweek (PIPE-12), then season ×
-  as-of-gameweek scoping (PIPE-01), a blocking look-ahead gate (PIPE-10), a schema-drift canary
-  (PIPE-08).
-- Phase 3, unified gold: one forecast-fitting interface (PIPE-13), then multi-season player history
-  (PIPE-02) and match odds across seasons (PIPE-05); bronze integrity tooling (PIPE-11).
+**R1.1.0 — data pipeline uplift ([remediation plan](planning/epics/R1.1.0-data-pipeline-backlog.md#4-remediation-plan))**
+- First, a green build and the chip-replay crash (REM-01); then the permanent bronze archive, still
+  never written, once per gameweek (REM-04).
+- Then correctness: price history and `--as-of` (REM-02), one writer on `data` (REM-03), club codes
+  in gold (REM-05), odds behind the adapter (REM-06), the prospective odds feed (REM-07), forecast
+  behaviour restored (REM-08), the look-ahead gate on real tables (REM-09).
+- Then the smaller defects (REM-10) and the fact homes (REM-11); promotion waits on the gate in
+  backlog §4.2.
 
 **Design fixes not yet scheduled ([architecture §12](planning/03-solution-architecture.md#12-module-design--review-of-2026-10-17))**
 - One planning horizon: `xp_horizon` reads `decision.horizon` (D-29, [DL-78](decisions/DL-78.md)).
