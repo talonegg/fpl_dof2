@@ -11,6 +11,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import json
+import os
 import subprocess
 import uuid
 from enum import StrEnum
@@ -18,12 +19,17 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-MANIFEST_SCHEMA_VERSION = 1
+#: 2 added ``as_of``, the run's one clock (PIPE-12, REM-10).
+MANIFEST_SCHEMA_VERSION = 2
 _CHECKSUM_CHUNK_BYTES = 1 << 20
 
 
 def utcnow() -> dt.datetime:
     """The only clock this codebase reads. UTC, always (DL-11)."""
+    override = os.environ.get("FPL_DOF_AS_OF")
+    if override:
+        as_of = dt.datetime.fromisoformat(override)
+        return as_of if as_of.tzinfo is not None else as_of.replace(tzinfo=dt.UTC)
     return dt.datetime.now(tz=dt.UTC)
 
 
@@ -129,6 +135,7 @@ class RunManifest(BaseModel):
     schema_version: int = MANIFEST_SCHEMA_VERSION
     run_id: str
     started_at: dt.datetime
+    as_of: dt.datetime = Field(default_factory=utcnow)
     finished_at: dt.datetime | None = None
     status: StageStatus | None = None
     git_sha: str | None = None
@@ -160,12 +167,14 @@ class ManifestWriter:
         data_root: Path,
         requested_stages: list[str] | None = None,
         repo: Path | None = None,
+        as_of: dt.datetime | None = None,
     ) -> None:
         self.runs_dir = runs_dir
         self.data_root = data_root
         self.manifest = RunManifest(
             run_id=run_id,
             started_at=utcnow(),
+            as_of=as_of or utcnow(),
             git_sha=git_sha(repo),
             git_dirty=git_dirty(repo),
             config_digest=config_digest,

@@ -8,12 +8,14 @@ signing getting a confident forecast from no data at all.
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 import pytest
 
+from conftest import before_next_deadline
 from fpl_dof.config.models import ForecastConfig
 from fpl_dof.forecast.diagnostics import (
     PriceDependence,
@@ -275,7 +277,12 @@ def inputs() -> ForecastInputs:
         [_history(player_id=i) for i in range(1, len(SQUAD_SHAPE) * 3 + 1)], ignore_index=True
     )
     return ForecastInputs(
-        players=players, teams=teams, fixtures=fixtures, gameweeks=gameweeks, history=history
+        players=players,
+        teams=teams,
+        fixtures=fixtures,
+        gameweeks=gameweeks,
+        history=history,
+        as_of=before_next_deadline(gameweeks),
     )
 
 
@@ -359,6 +366,7 @@ def test_an_injured_player_is_priced_at_zero(inputs: ForecastInputs, game_rules:
             teams=inputs.teams,
             fixtures=inputs.fixtures,
             gameweeks=inputs.gameweeks,
+            as_of=before_next_deadline(inputs.gameweeks),
             history=inputs.history,
         ),
         game_rules,
@@ -380,6 +388,7 @@ def test_a_stated_chance_of_playing_overrides_the_flag(
             teams=inputs.teams,
             fixtures=inputs.fixtures,
             gameweeks=inputs.gameweeks,
+            as_of=before_next_deadline(inputs.gameweeks),
             history=inputs.history,
         ),
         game_rules,
@@ -708,3 +717,62 @@ def test_every_model_card_restates_the_dl21_guardrail(
     assert "No -8 hit, chip or wildcard is justified by `xp_v1` alone" in text
     assert "top-20 precision beats B0" in text
     assert "DL-21" in text
+
+
+def test_forecast_uses_as_of_to_determine_next_gameweek(
+    inputs: ForecastInputs, game_rules: GameRules
+) -> None:
+    """PIPE-12: After a deadline passes before finishing, xp_next describes upcoming GW."""
+    import datetime as dt
+
+    # Make GW1 deadline in the past, but GW1 finished=False
+    gw = inputs.gameweeks.copy()
+    gw.loc[gw["gameweek"] == 1, "finished"] = False
+    gw.loc[gw["gameweek"] == 1, "deadline_time"] = pd.Timestamp("2026-08-21T17:30:00Z").tz_convert(
+        "UTC"
+    )
+    gw.loc[gw["gameweek"] == 2, "finished"] = False
+    gw.loc[gw["gameweek"] == 2, "deadline_time"] = pd.Timestamp("2026-08-28T17:30:00Z").tz_convert(
+        "UTC"
+    )
+
+    as_of = dt.datetime(2026, 8, 22, 12, 0, 0, tzinfo=dt.UTC)
+    inputs_with_as_of = ForecastInputs(
+        players=inputs.players,
+        teams=inputs.teams,
+        fixtures=inputs.fixtures,
+        gameweeks=gw,
+        history=inputs.history,
+        as_of=as_of,
+    )
+    result = build_forecast(inputs_with_as_of, game_rules, CONFIG)
+    assert result["next_gameweek"].iloc[0] == 2
+    # xp_next should equal xp_gw_2
+    assert (result["xp_next"] == result["xp_gw_2"]).all()
+
+
+def test_captain_score_is_fitted_only_on_gameweeks_played_before_as_of(
+    inputs: ForecastInputs, game_rules: GameRules
+) -> None:
+    """REM-08: xp_v0 writes ``captain_score`` too, and a gameweek kicking off after ``as_of``
+    never reaches it (Invariant 5)."""
+    assert build_forecast(inputs, game_rules, CONFIG)["captain_score"].isna().all()
+
+    kicked_off = inputs.as_of - pd.Timedelta(days=7)
+    later = inputs.as_of + pd.Timedelta(hours=2)
+    played = pd.DataFrame(
+        [
+            {"position": "FWD", "price": price, "total_points": points, "kickoff_time": when}
+            for price, points, when in [
+                (8.0, 8, kicked_off),
+                (5.5, 2, kicked_off),
+                (8.0, 99, later),
+            ]
+        ]
+    )
+    result = build_forecast(replace(inputs, player_gameweek=played), game_rules, CONFIG).set_index(
+        "player_id"
+    )
+    forwards = result[result["position"] == "FWD"]
+    assert list(forwards.loc[forwards["price"] == 8.0, "captain_score"]) == pytest.approx([8.0] * 3)
+    assert list(forwards.loc[forwards["price"] == 5.5, "captain_score"]) == pytest.approx([2.0])

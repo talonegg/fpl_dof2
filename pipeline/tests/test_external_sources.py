@@ -344,20 +344,17 @@ def test_no_key_means_no_request_is_even_attempted(
     assert report.warnings
 
 
-def test_the_shipped_default_config_enables_the_odds_source(tmp_path: Path) -> None:
-    """E11-S5: live means enabled everywhere, not just where the secret happens to be set.
+def test_the_shipped_default_config_leaves_the_odds_source_off(tmp_path: Path) -> None:
+    """PIPE-09, DL-79: The Odds API is off by default, like the scrapers.
 
-    Enabling it only in CI would mean local and CI runs exercise a different source set, which is
-    the drift Invariant 1 exists to prevent. Safe because the adapter degrades cleanly with no key
-    (the two tests immediately above this one) — the shipped default relies on that, not on every
-    environment having credentials.
+    Odds come from football-data.co.uk (PIPE-04, PIPE-05).
     """
     from fpl_dof.config import load_config
 
     config, _ = load_config(environ={"FPL_DOF_DATA_DIR": str(tmp_path)}, local_override=None)
     override = config.sources.overrides.get("oddsapi")
-    assert override is not None
-    assert override.enabled is True
+    assert override is None or override.enabled is False
+    assert OddsApiAdapter.enabled_by_default is False
 
 
 def test_prices_become_team_goal_expectations(
@@ -455,3 +452,64 @@ def test_each_source_declares_which_fields_it_contributes() -> None:
     for adapter in (UnderstatAdapter, FbrefAdapter):
         assert adapter.contributes
         assert set(adapter.contributes) <= set(ADVANCED_METRICS)
+
+
+def test_past_season_odds_keep_permanent_club_codes_through_enrichment(tmp_path: Path) -> None:
+    """REM-06: a completed season's match file conforms behind the adapter, by permanent club code
+    and stamped with kickoff; enrichment maps only the current season's names to its local ids."""
+    import pandas as pd
+
+    from fpl_dof.config.models import HttpConfig
+    from fpl_dof.sources.bronze import BronzeStore
+    from fpl_dof.sources.enrich import _attach_team_ids
+    from fpl_dof.sources.fdcouk.adapter import FdcoukAdapter
+    from fpl_dof.sources.fetch import Fetcher
+
+    csv = (
+        "Div,Date,Time,HomeTeam,AwayTeam,B365H,B365D,B365A,AvgH,AvgD,AvgA\n"
+        "E0,17/08/2024,15:00,Arsenal,Wolves,1.25,6.50,11.00,1.27,6.20,10.50\n"
+        "E0,18/08/2024,14:00,Everton,Brighton,,,,2.90,3.30,2.50\n"  # no Bet365: the average
+        "E1,17/08/2024,15:00,Leeds,Portsmouth,1.50,4.00,6.00,1.5,4.0,6.0\n"
+    )
+    with Fetcher(config=HttpConfig(), bronze=BronzeStore(tmp_path), run_id="t") as fetcher:
+        past = FdcoukAdapter(fetcher).parse_fixtures_csv(csv, "2024/25", None)
+
+    assert list(past["home_team_id"]) == [3, 11]  # Arsenal, Everton
+    assert list(past["away_team_id"]) == [39, 36]  # Wolves, Brighton
+    assert (past["captured_at"] == past["kickoff_time"]).all()
+
+    current = past.iloc[[0]].assign(
+        season="2026/27",
+        home_team_id=None,
+        away_team_id=None,
+        home_team="Arsenal",
+        away_team="Everton",
+    )
+    teams = pd.DataFrame(
+        {"team_id": [1, 9], "name": ["Arsenal", "Everton"], "short_name": ["ARS", "EVE"]}
+    )
+    enriched = _attach_team_ids(pd.concat([past, current], ignore_index=True), teams, "2026/27")
+    assert list(enriched["home_team_id"]) == [3, 11, 1]
+    assert list(enriched["away_team_id"]) == [39, 36, 9]
+
+
+def test_a_completed_seasons_odds_are_fetched_once_and_never_again(tmp_path: Path) -> None:
+    """REM-06 / PIPE-04: a past season's match file is immutable bronze; a second run makes no
+    request for it (PIPE-03)."""
+    from fpl_dof.config.models import HttpConfig
+    from fpl_dof.sources.base import IngestRequest
+    from fpl_dof.sources.bronze import BronzeStore
+    from fpl_dof.sources.fdcouk.adapter import SEASONS, FdcoukAdapter
+    from fpl_dof.sources.fetch import Fetcher
+
+    body = (
+        "Div,Date,Time,HomeTeam,AwayTeam,B365H,B365D,B365A\n"
+        "E0,17/08/2024,15:00,Arsenal,Wolves,1.25,6.5,11\n"
+    )
+    request = IngestRequest(run_id="t", season="2026/27", seasons=("2024/25",))
+    with respx.mock(assert_all_called=False) as mock:
+        route = mock.get(SEASONS["2425"]).mock(return_value=httpx.Response(200, text=body))
+        for _ in range(2):
+            with Fetcher(config=HttpConfig(), bronze=BronzeStore(tmp_path), run_id="t") as fetcher:
+                assert "Wolves" in FdcoukAdapter(fetcher).fetch_season_csv("2024/25", request)
+    assert route.call_count == 1

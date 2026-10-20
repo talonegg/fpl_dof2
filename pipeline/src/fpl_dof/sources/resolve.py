@@ -25,9 +25,10 @@ one, because club-based matching is invalidated the moment somebody transfers.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 import yaml
@@ -230,6 +231,7 @@ def resolve(
         name = str(record.source_name)
         club = team_key(str(record.source_team or ""))
         position = str(record.source_position) if pd.notna(record.source_position) else None
+        ingress = getattr(record, "ingress", None)
 
         matched: Candidate | None = None
         method = "unmatched"
@@ -279,6 +281,7 @@ def resolve(
                 "match_method": method,
                 "confidence": confidence,
                 "verified": method == "override",
+                "ingress": str(ingress) if pd.notna(ingress) else "live",
             }
         )
         report.counts.setdefault(source, {}).setdefault(method, 0)
@@ -316,7 +319,35 @@ def resolve_teams(names: pd.Series, teams: pd.DataFrame) -> dict[str, int]:
     }
 
 
+CLUB_ALIASES: dict[str, str] = {
+    "Man United": "Man Utd",
+    "Tottenham": "Spurs",
+    "Sheffield United": "Sheffield Utd",
+    "Nott'm Forest": "Nott'm Forest",
+    "Coventry": "Coventry City",
+    "Hull": "Hull City",
+    "Ipswich": "Ipswich Town",
+}
+
+
+def resolve_team(name: str, teams: Iterable[Mapping[str, Any]]) -> int | None:
+    """Match odds provider club name -> FPL team id: alias, exact, then unique prefix; else None."""
+
+    def _norm(s: str) -> str:
+        return "".join(ch for ch in str(s).lower() if ch.isalpha())
+
+    by_norm = {_norm(t["name"]): int(t["id"]) for t in teams}
+    target = _norm(CLUB_ALIASES.get(name, name))
+    if target in by_norm:
+        return by_norm[target]
+    hits = [
+        i for n, i in by_norm.items() if target and (n.startswith(target) or target.startswith(n))
+    ]
+    return hits[0] if len(hits) == 1 else None
+
+
 __all__ = [
+    "CLUB_ALIASES",
     "OVERRIDES_FILENAME",
     "REF_COLUMNS",
     "Candidate",
@@ -324,5 +355,6 @@ __all__ = [
     "ResolutionReport",
     "load_overrides",
     "resolve",
+    "resolve_team",
     "resolve_teams",
 ]

@@ -144,8 +144,8 @@ detail and open questions.
 | --- | --- |
 | Chip sets | Two sets of four: Wildcard, Free Hit, Triple Captain, Bench Boost |
 | Usage | One chip per gameweek maximum |
-| **Set 1 expiry** | **GW19 deadline — 13:30 GMT, Saturday 2 January 2027.** Unused chips in set 1 are lost |
-| Set 2 | Same four chips, available from GW19+ through the end of the season |
+| **Set 1 expiry** | **The GW19 deadline — 18:30 GMT, Friday 1 January 2027** per the API on 17 Oct 2026 (it was 13:30 GMT on 2 Jan pre-season; FPL moves deadlines, so read `events` in `bootstrap-static`). Unused chips in set 1 are lost. Set 1 windows from `chips`: Wildcard and Free Hit GW2–19, Triple Captain and Bench Boost GW1–19 |
+| Set 2 | Same four chips, GW20–38 |
 
 ## Season dates ✅ verified
 
@@ -153,7 +153,7 @@ detail and open questions.
 | --- | --- |
 | Fri 21 Aug 2026, 18:30 BST | GW1 deadline |
 | Fri 21 Aug 2026 | Season starts (Arsenal v Coventry City) |
-| Sat 2 Jan 2027, 13:30 GMT | GW19 deadline — chip set 1 expires |
+| Fri 1 Jan 2027, 18:30 GMT | GW19 deadline — chip set 1 expires (per the API, 17 Oct 2026) |
 | Sun 30 May 2027 | Final match round |
 | — | Gameweek "lockdown" (scores final) is 09:00 UK time the day **after** the last match of the gameweek — changed from one hour post-whistle |
 

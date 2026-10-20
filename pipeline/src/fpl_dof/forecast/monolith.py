@@ -6,7 +6,7 @@ promotion review could flip. There is no flag. The epic is explicit that a monol
 promoted over the chain without an explicit DP-10 decision"*, and a switch that exists is a switch
 somebody eventually throws.
 
-**Why it exists at all.** [DP-10](../../../../docs/DESIGN-PRINCIPLES.md) says to prefer the
+**Why it exists at all.** [DP-10](../../../../docs/guiding-principles.md) says to prefer the
 formulation you can argue with *where two designs are close in expected quality* — and it says so in
 the same breath as "unless the monolith is materially better, and if it is, that trade-off is a
 recorded decision (Q-04)". Both halves of that sentence require a number. Without one, "the
@@ -25,7 +25,7 @@ again on every backtest run, and that can therefore change its mind.
   ``walk_forward`` loop on the same ``training_rows`` frame the chain gets, and predicts on the same
   outcome-stripped ``visible`` frame. A second, hand-rolled training split would be a second chance
   to leak, and a leaked benchmark would report a gap that is entirely its own dishonesty
-  ([DL-28](../../../../docs/planning/00-decision-log.md#dl-28), Invariant 5, DP-13).
+  ([DL-28](../../../../docs/decisions/DL-28.md), Invariant 5, DP-13).
 * **Ordinary, unswept hyperparameters.** See :class:`~fpl_dof.config.models.MonolithConfig`. A
   monolith tuned against the folds it is graded on would report its own overfitting as the chain's
   deficit.
@@ -44,9 +44,9 @@ source and installable as a wheel on every platform the scheduled runner uses (I
 NFR-01); it handles missing values natively, which matters because much of this feature store is
 legitimately null — a per-90 rate over a window in which nobody played is *unmeasured*, and the
 alternative to native support is imputing a number, which is exactly the invented fact
-[DL-18](../../../../docs/planning/00-decision-log.md#dl-18) warns about; it takes categorical
+[DL-18](../../../../docs/decisions/DL-18.md) warns about; it takes categorical
 features without a one-hot expansion of twenty-five club codes; and it is the same library
-[DL-04](../../../../docs/planning/00-decision-log.md#dl-04) already named as this project's intended
+[DL-04](../../../../docs/decisions/DL-04.md) already named as this project's intended
 stack for anything of the kind. LightGBM would be marginally faster on a dataset a thousand times
 this size and brings a compiled dependency for it.
 """

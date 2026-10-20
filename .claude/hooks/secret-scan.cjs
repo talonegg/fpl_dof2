@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // PreToolUse hook: blocks `git commit` when staged content looks like it contains a secret.
-// See docs/planning/ai/04-hooks-and-settings-plan.md H3.
+// See docs/planning/archive/ai/04-hooks-and-settings-plan.md H3.
 //
 // Reads the PreToolUse payload from stdin, and if the Bash command being run is a `git commit`,
 // scans `git diff --cached` for common secret shapes. Deliberately conservative: false positives
@@ -59,7 +59,7 @@ function main() {
           permissionDecision: "deny",
           permissionDecisionReason:
             `Staged changes appear to contain ${label}. Blocked before commit ` +
-            `(see docs/planning/ai/04-hooks-and-settings-plan.md, H3). ` +
+            `(see docs/planning/archive/ai/04-hooks-and-settings-plan.md, H3). ` +
             `If this is a false positive, unstage the offending file, confirm it is safe, ` +
             `and re-stage deliberately.`,
         },

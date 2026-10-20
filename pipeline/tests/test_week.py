@@ -21,6 +21,7 @@ from fpl_dof.week.alerts import AlertSeverity, collect_alerts
 from fpl_dof.week.deadline import (
     UK_ZONE,
     NoDeadlineError,
+    current_gameweek,
     describe_deadline,
     next_deadline,
     to_contract,
@@ -57,6 +58,19 @@ def test_the_next_deadline_is_the_next_one_by_time(game_rules: GameRules) -> Non
         decide_by_hours=12,
     )
     assert view.gameweek == 2
+
+
+def test_current_gameweek_between_deadline_and_gameweek_finished() -> None:
+    """PIPE-12 (03 §12 P4): When a deadline passes, next gameweek to decide is upcoming."""
+    frame = _gameweeks(
+        (1, "2026-08-21T17:30:00Z"), (2, "2026-08-28T17:30:00Z"), (3, "2026-09-12T10:00:00Z")
+    )
+    # Before GW1 deadline
+    assert current_gameweek(frame, as_of=dt.datetime(2026, 8, 21, 12, 0, tzinfo=dt.UTC)) == 1
+    # 30 mins after GW1 deadline passes (GW1 in-flight/unfinished) -> advances to GW2
+    assert current_gameweek(frame, as_of=dt.datetime(2026, 8, 21, 18, 0, tzinfo=dt.UTC)) == 2
+    # Post-season -> returns max gameweek
+    assert current_gameweek(frame, as_of=dt.datetime(2027, 6, 1, tzinfo=dt.UTC)) == 3
 
 
 def test_a_finished_season_says_so_rather_than_returning_nothing() -> None:

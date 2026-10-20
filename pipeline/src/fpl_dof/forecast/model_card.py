@@ -347,7 +347,7 @@ def write_model_card(
 def _explainability_lines(backtest: Mapping[str, object]) -> list[str]:
     """What the chain's interpretability costs, in the card a human reads before a deadline.
 
-    [DP-10](../../../docs/DESIGN-PRINCIPLES.md) requires that a materially better monolith makes
+    [DP-10](../../../../docs/guiding-principles.md) requires that a materially better monolith makes
     the interpretability trade a *recorded decision* rather than an assumption. A number that lives
     only in `backtest.json` is not a decision anybody is making — it is a field nobody opens — so
     the sentence the harness writes is reproduced here verbatim rather than reworded, because two

@@ -3,7 +3,7 @@
 Two halves, tested as two halves, because they are independent claims.
 
 **Measurement.** ``minutes_brier`` was null in every backtest report the harness had ever produced,
-which is why [DL-22](../../docs/planning/00-decision-log.md) found E3-S3's acceptance criterion had
+which is why [DL-22](../../docs/decisions/DL-22.md) found E3-S3's acceptance criterion had
 never actually been met. These tests check that the number now exists, that it is measured on the
 population it is supposed to be measured on — including the 60% of rows where nobody played, which
 the accuracy metrics deliberately drop — and that it is split per position and per observed band.

@@ -145,7 +145,7 @@ def status_flag_haircut_minutes(features: pd.DataFrame, config: ForecastConfig) 
     E0 had **no minutes model** (debt D-02). What it had was a start probability shrunk from the
     player's start rate, multiplied by an availability haircut read off the FPL status flag, and a
     fixed prior that a non-starter appears at all. E3-S3's acceptance criterion was to beat that,
-    and [DL-22](../../../docs/planning/00-decision-log.md) found the criterion had never actually
+    and [DL-22](../../../../docs/decisions/DL-22.md) found the criterion had never actually
     been measured because ``minutes_brier`` was always null. This is the thing to measure against.
 
     **The availability half is 1.0 for every historical row, and that is faithful rather than a

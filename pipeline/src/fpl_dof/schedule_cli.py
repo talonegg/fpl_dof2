@@ -103,7 +103,16 @@ def time_to_deadline(
         # already handle safely. It must never be the reason a workflow reports failure.
         return None, None, f"the gameweek table could not be read: {type(exc).__name__}: {exc}"
     if gameweeks is None or gameweeks.empty:
+        try:
+            from fpl_dof.sources import gameweeks_from_bronze
+
+            gameweeks = gameweeks_from_bronze(layout.bronze)
+        except Exception:
+            pass
+
+    if gameweeks is None or gameweeks.empty:
         return None, None, "the gameweek table has not been ingested yet"
+
     try:
         view = next_deadline(
             gameweeks,

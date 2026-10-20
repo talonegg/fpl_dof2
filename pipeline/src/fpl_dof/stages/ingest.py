@@ -40,9 +40,11 @@ def run(ctx: StageContext) -> StageResult:
         request = IngestRequest(
             run_id=ctx.run_id,
             force_refresh=ctx.options.force_refresh,
+            rebackfill=ctx.options.rebackfill,
             offline=ctx.options.offline,
             player_limit=ctx.options.player_limit,
             fast_path_only=ctx.options.fast_path_only,
+            now=ctx.as_of,
             entry_id=ctx.config.entry.team_id,
             league_id=ctx.config.entry.league_id,
             league_rival_limit=ctx.config.entry.league_rival_limit,
@@ -54,6 +56,12 @@ def run(ctx: StageContext) -> StageResult:
             try:
                 report = adapter.ingest(request)
             except Exception as exc:
+                drift = getattr(exc, "diff", None)
+                if drift:
+                    log.error(
+                        "ingest.schema_drift",
+                        extra={"source": adapter.name, "diff": drift, "error": str(exc)},
+                    )
                 # An enriching source that cannot be reached costs its own fields. Only a source
                 # that declares itself essential can stop the run (NFR-15, DP-15).
                 if adapter.essential:

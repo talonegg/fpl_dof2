@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
+from conftest import before_next_deadline
 from fpl_dof.config.models import ForecastConfig
 from fpl_dof.forecast import live
 from fpl_dof.forecast.features import build_features
@@ -235,6 +236,7 @@ def inputs(history: pd.DataFrame) -> ForecastInputs:
         teams=pd.DataFrame([{"team_id": team, "short_name": f"T{team}"} for team in TEAMS]),
         fixtures=_fixtures(),
         gameweeks=_gameweeks(),
+        as_of=before_next_deadline(_gameweeks()),
         history=_season_history(history),
         player_gameweek=history,
     )
@@ -253,7 +255,7 @@ def test_the_live_scorer_reproduces_the_backtest_under_league_average_opposition
     is exactly the league-average opposition the backtest scores every prediction under today. Any
     difference that survives that is a difference in the model, which is what D-25 was.
     """
-    _, deadline, _ = live.next_deadline(_gameweeks(), CONFIG)
+    _, deadline, _ = live.next_deadline(_gameweeks(), CONFIG, before_next_deadline(_gameweeks()))
     past = history[history["kickoff_time"] < deadline]
 
     predictor = ComponentPredictor(CONFIG, game_rules)
@@ -302,7 +304,7 @@ def test_the_parity_test_would_notice_a_difference(
     history: pd.DataFrame, game_rules: GameRules
 ) -> None:
     """A parity test that cannot fail proves nothing. Real opposition must move the number."""
-    _, deadline, _ = live.next_deadline(_gameweeks(), CONFIG)
+    _, deadline, _ = live.next_deadline(_gameweeks(), CONFIG, before_next_deadline(_gameweeks()))
     past = history[history["kickoff_time"] < deadline]
     models = fit_components(
         live.training_set(history, deadline, CONFIG),
@@ -427,6 +429,7 @@ def test_an_injured_player_is_priced_at_zero(inputs: ForecastInputs, game_rules:
             teams=inputs.teams,
             fixtures=inputs.fixtures,
             gameweeks=inputs.gameweeks,
+            as_of=before_next_deadline(inputs.gameweeks),
             history=inputs.history,
             player_gameweek=inputs.player_gameweek,
         ),
@@ -451,7 +454,7 @@ def test_the_fixture_index_reads_the_calendar_not_the_players() -> None:
 
 
 def test_a_double_gameweek_adds_both_fixtures(history: pd.DataFrame, game_rules: GameRules) -> None:
-    _, deadline, _ = live.next_deadline(_gameweeks(), CONFIG)
+    _, deadline, _ = live.next_deadline(_gameweeks(), CONFIG, before_next_deadline(_gameweeks()))
     past = history[history["kickoff_time"] < deadline]
     models = fit_components(
         live.training_set(history, deadline, CONFIG), team_matches(past), CONFIG, game_rules
@@ -494,6 +497,7 @@ def test_too_little_history_falls_back_to_xp_v0_with_a_stated_reason(
             teams=inputs.teams,
             fixtures=inputs.fixtures,
             gameweeks=gameweeks,
+            as_of=before_next_deadline(gameweeks),
             history=inputs.history,
             player_gameweek=thin,
         ),
@@ -516,6 +520,7 @@ def test_no_per_gameweek_table_at_all_falls_back(
             teams=inputs.teams,
             fixtures=inputs.fixtures,
             gameweeks=_gameweeks().assign(finished=False),
+            as_of=before_next_deadline(_gameweeks().assign(finished=False)),
             history=inputs.history,
             player_gameweek=None,
         ),

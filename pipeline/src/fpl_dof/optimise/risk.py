@@ -1,7 +1,7 @@
 """E4-S4 — the risk dial, and the ownership bet it implies. FR-21, FR-16, DL-07, DL-24.
 
 **Ownership here is `selected_by_percent` and nothing else.** That is OD-06's resolution, recorded
-at [DL-24](../../../../docs/planning/00-decision-log.md) before any of this was written. The
+at [DL-24](../../../../docs/decisions/DL-24.md) before any of this was written. The
 standard formula `EO = selected_by% + captained_by%` is correct and is *not computable from
 public FPL data*: captaincy share is exposed by no public endpoint, and the gameweek data that is
 published carries only a single most-captained player id — an id, not a distribution.

@@ -137,6 +137,7 @@ class Fetcher:
         )
         self.network_calls = 0
         self.cache_hits = 0
+        self.conditional_hits = 0
 
     def close(self) -> None:
         if self._owns_client:
@@ -171,6 +172,8 @@ class Fetcher:
         now: dt.datetime | None = None,
         suffix: str = SNAPSHOT_SUFFIX,
         redact_params: tuple[str, ...] = (),
+        immutable: bool = False,
+        rebackfill: bool = False,
     ) -> Fetched:
         moment = now or utcnow()
         ttl = (
@@ -178,11 +181,21 @@ class Fetcher:
             if cache_ttl_seconds is None
             else cache_ttl_seconds
         )
-        cached = self.bronze.latest(source, resource, key, suffix=suffix)
+        cached = self.bronze.latest(source, resource, key, suffix=suffix, as_of=moment)
 
-        if cached is not None and not force_refresh and cached.age_seconds(moment) < ttl:
+        is_immutable = immutable or (
+            getattr(cached.meta, "immutable", False) if cached is not None else False
+        )
+        if (
+            cached is not None
+            and not (force_refresh or rebackfill)
+            and (is_immutable or cached.age_seconds(moment) < ttl)
+        ):
             self.cache_hits += 1
-            log.debug("fetch.cache_hit", extra={"url": url, "resource": resource, "key": key})
+            log.debug(
+                "fetch.cache_hit",
+                extra={"url": url, "resource": resource, "key": key, "immutable": is_immutable},
+            )
             return Fetched(payload=cached.read_bytes(), snapshot=cached, from_cache=True)
 
         if offline:
@@ -200,9 +213,31 @@ class Fetcher:
             )
             return Fetched(payload=cached.read_bytes(), snapshot=cached, from_cache=True)
 
+        request_headers: dict[str, str] = {}
+        # A forced re-fetch asks for the bytes, not whether they changed: a 304 would re-bless the
+        # very snapshot being replaced (REM-10).
+        if cached is not None and not (force_refresh or rebackfill):
+            if cached.meta.etag:
+                request_headers["If-None-Match"] = cached.meta.etag
+            if cached.meta.last_modified:
+                request_headers["If-Modified-Since"] = cached.meta.last_modified
+
         response = self._request_with_retries(
-            url, source=source, resource=resource, key=key, params=params
+            url, source=source, resource=resource, key=key, params=params, headers=request_headers
         )
+
+        if response.status_code == 304 and cached is not None:
+            self.conditional_hits += 1
+            log.debug("fetch.conditional_hit", extra={"url": url, "resource": resource, "key": key})
+            snapshot = self.bronze.touch(
+                cached,
+                now=moment,
+                run_id=self.run_id,
+                etag=response.headers.get("etag"),
+                last_modified=response.headers.get("last-modified"),
+            )
+            return Fetched(payload=cached.read_bytes(), snapshot=snapshot, from_cache=True)
+
         snapshot = self.bronze.write(
             response.content,
             source=source,
@@ -219,6 +254,9 @@ class Fetcher:
             # the worst possible way to find out.
             now=moment,
             suffix=suffix,
+            immutable=immutable,
+            etag=response.headers.get("etag"),
+            last_modified=response.headers.get("last-modified"),
         )
         return Fetched(payload=response.content, snapshot=snapshot, from_cache=False)
 
@@ -230,6 +268,7 @@ class Fetcher:
         resource: str,
         key: str,
         params: Mapping[str, str] | None,
+        headers: Mapping[str, str] | None = None,
     ) -> httpx.Response:
         retry = self.config.retry
         last_error: str = "no attempt was made"
@@ -238,7 +277,11 @@ class Fetcher:
             self._limiter.wait()
             self.network_calls += 1
             try:
-                response = self.client.get(url, params=dict(params) if params else None)
+                response = self.client.get(
+                    url,
+                    params=dict(params) if params else None,
+                    headers=dict(headers) if headers else None,
+                )
             except httpx.HTTPError as exc:
                 last_error = f"{type(exc).__name__}: {exc}"
             else:

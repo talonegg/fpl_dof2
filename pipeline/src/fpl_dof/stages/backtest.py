@@ -449,7 +449,7 @@ def _minutes_section(result: BacktestResult, ctx: StageContext) -> list[str]:
     """M1's calibration against the E0 status-flag haircut (E10-S1, closes D-14).
 
     The section E3-S3's acceptance criterion always asked for and
-    [DL-22](../../../docs/planning/00-decision-log.md) found had never been written, because
+    [DL-22](../../../../docs/decisions/DL-22.md) found had never been written, because
     ``minutes_brier`` was null in every report the harness had ever produced.
     """
     candidate_state = "on" if ctx.config.forecast.discrimination.minutes_v2 else "off"

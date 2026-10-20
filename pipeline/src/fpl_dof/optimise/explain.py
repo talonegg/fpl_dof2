@@ -11,7 +11,7 @@ how a manager talks themselves into a hit.
 
 The D-13 caveat
 ---------------
-[DL-21](../../../../docs/planning/00-decision-log.md) found the forecast loses to a model-free
+[DL-21](../../../../docs/decisions/DL-21.md) found the forecast loses to a model-free
 benchmark on top-20 precision — the exact part of the ranking a hit, a chip or a wildcard acts on —
 and opened D-13. E4's own §0 makes the consequence a constraint on this epic rather than a footnote:
 

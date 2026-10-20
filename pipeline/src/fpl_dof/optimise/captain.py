@@ -14,24 +14,23 @@ from dataclasses import replace
 
 import pandas as pd
 
-from fpl_dof.forecast import baselines
-from fpl_dof.forecast.features import TARGET
 from fpl_dof.frames import as_float, as_int
 from fpl_dof.optimise.transfer import TransferOption, TransferRecommendation
 from fpl_dof.squad.selection import Selection
 
 
 def price_position_scores(
-    forecast: pd.DataFrame, history: pd.DataFrame | None
+    forecast: pd.DataFrame, history: pd.DataFrame | None = None
 ) -> dict[int, float] | None:
-    """B0 score per ``player_id`` in ``forecast``, fitted on ``history``. ``None`` if unfittable."""
-    if history is None or history.empty or TARGET not in history.columns:
+    """B0 score per ``player_id`` in ``forecast``, read from ``captain_score``.
+
+    Returns ``None`` if absent.
+    """
+    if forecast is None or forecast.empty or "captain_score" not in forecast.columns:
         return None
-    training = history.dropna(subset=[TARGET, "price", "position"])
-    if training.empty:
+    scores = forecast["captain_score"]
+    if scores.isna().all():
         return None
-    fitted = baselines.fit_b0(training, TARGET)
-    scores = fitted.predict(forecast)
     return {as_int(pid): float(v) for pid, v in zip(forecast["player_id"], scores, strict=True)}
 
 

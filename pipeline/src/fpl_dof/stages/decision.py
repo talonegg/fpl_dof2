@@ -18,7 +18,6 @@ from pathlib import Path
 import pandas as pd
 
 from fpl_dof.obs.logging import get_logger
-from fpl_dof.obs.manifest import utcnow
 from fpl_dof.optimise.plan import as_dict, build_plan
 from fpl_dof.optimise.squad import InfeasibleError
 from fpl_dof.pipeline import Output, StageContext, StageResult
@@ -48,7 +47,7 @@ def run(ctx: StageContext) -> StageResult:
 
     deadline = next_deadline(
         gameweeks,
-        now=utcnow(),
+        now=ctx.as_of,
         local_zone=ctx.config.runtime.timezone,
         decide_by_hours=ctx.config.alerts.decide_by_hours_before_deadline,
     )

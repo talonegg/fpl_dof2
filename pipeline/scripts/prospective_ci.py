@@ -28,16 +28,17 @@ import subprocess
 import sys
 import tarfile
 import tempfile
-import urllib.request
 from pathlib import Path
 from typing import Any
+
+import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from fpl_dof.prospective.bundle import verify_bundle
-from fpl_dof.prospective.fdcouk import fetch_history
 from fpl_dof.prospective.freshness import assess, silver_stats
 from fpl_dof.prospective.timing import DECIDE_WINDOW, decide_timing, odds_coverage
+from fpl_dof.sources import UPCOMING_ODDS_RECORD, LiveFeed
 
 ROOT = Path(os.environ.get("PROSPECTIVE_ROOT", "/workspace/fpl_prospective"))
 FROZEN = Path(os.environ.get("PROSPECTIVE_FROZEN", "/workspace/fpl_dof2_frozen"))
@@ -51,9 +52,6 @@ PREVIEW = ROOT / "preview"
 HARNESS_PY = os.environ.get("PROSPECTIVE_PY", "/workspace/fpl_dof2/.venv/bin/python")
 PREVIEW_TIMEOUT_S = int(os.environ.get("PROSPECTIVE_PREVIEW_TIMEOUT", "1500"))
 SEASON = "2026/27"
-API = "https://fantasy.premierleague.com/api/"
-UA = "fpl-dof-ci/1.0 (+https://github.com/talonegg/fpl_dof2; low-rate)"
-ODDS_URL = "https://www.football-data.co.uk/fixtures.csv"
 #: What survives between runs (on the `ledger` branch). raw/ and cache/ are rebuilt; the
 #: decision documents record the sha256 of every raw input they used.
 RECORD = (
@@ -67,19 +65,13 @@ RECORD = (
     "xp_scores_paired.csv",
     "xp_calibration.csv",
     "data/gold/xp",
-    # Raw pre-deadline odds snapshots for prospective gameweeks (GW7+)
-    "data/bronze/fdcouk",
+    # The upcoming odds each decision used, as fetched (REM-07): the frozen A+odds model's input.
+    UPCOMING_ODDS_RECORD,
 )
 
 
 def _now() -> dt.datetime:
     return dt.datetime.now(dt.UTC)
-
-
-def _get(url: str) -> bytes:
-    req = urllib.request.Request(url, headers={"User-Agent": UA})
-    with urllib.request.urlopen(req, timeout=60) as r:
-        return bytes(r.read())
 
 
 def _write(path: Path, obj: Any) -> None:
@@ -99,7 +91,8 @@ def prepare() -> int:
     manifest = _manifest()
     report = verify_bundle(FROZEN, ROOT, manifest)
     expected = manifest["models"]["A_odds"]["model_files_sha256"]
-    odds = fetch_history(FROZEN, expected, _get)
+    with LiveFeed() as feed:
+        odds = feed.place_odds_history(FROZEN, expected)
     # Re-verify now the downloaded files are in place, so the per-model view is final.
     report = verify_bundle(FROZEN, ROOT, manifest)
     _write(
@@ -121,7 +114,23 @@ def prepare() -> int:
 
 
 def _bootstrap() -> dict[str, Any]:
-    return dict(json.loads(_get(API + "bootstrap-static/")))
+    with LiveFeed() as feed:
+        return feed.state()
+
+
+def _fixtures() -> list[dict[str, Any]]:
+    with LiveFeed() as feed:
+        return feed.fixtures()
+
+
+def _upcoming_odds() -> tuple[pd.DataFrame, bytes]:
+    """This gameweek's market odds, conformed, and the snapshot's bytes; empty if unreachable."""
+    try:
+        with LiveFeed() as feed:
+            return feed.upcoming_odds()
+    except Exception as exc:
+        print(f"plan: upcoming odds unavailable ({type(exc).__name__}: {exc}); treating as absent")
+        return pd.DataFrame(columns=["home_team", "away_team"]), b""
 
 
 def _last_finished(bootstrap: dict[str, Any]) -> int:
@@ -151,22 +160,18 @@ def plan() -> int:
         deadline = dt.datetime.fromisoformat(nxt["deadline_time"].replace("Z", "+00:00"))
         already = (ROOT / "decisions" / f"GW{gw}.json").exists()
         joined = total = 0
+        raw = b""
         if not already and dt.timedelta(0) < deadline - _now() <= DECIDE_WINDOW:
-            fixtures = json.loads(_get(API + "fixtures/"))
-            try:
-                csv_bytes = _get(ODDS_URL)
-            except OSError as exc:
-                print(f"plan: fixtures.csv fetch failed ({exc}); treating odds as absent")
-                csv_bytes = b""
-            joined, total = odds_coverage(csv_bytes, gw, bs["teams"], fixtures)
+            odds, raw = _upcoming_odds()
+            joined, total = odds_coverage(odds, gw, bs["teams"], _fixtures())
         timing = decide_timing(
             now=_now(), deadline=deadline, already_decided=already, joined=joined, total=total
         )
         decide, reason, coverage = timing.decide, timing.reason, [joined, total]
-        if decide and csv_bytes:
-            bronze_odds = ROOT / "data" / "bronze" / "fdcouk" / f"GW{gw}_fixtures.csv"
-            bronze_odds.parent.mkdir(parents=True, exist_ok=True)
-            bronze_odds.write_bytes(csv_bytes)
+        if decide and raw:
+            record = ROOT / UPCOMING_ODDS_RECORD / f"GW{gw}_fixtures.csv"
+            record.parent.mkdir(parents=True, exist_ok=True)
+            record.write_bytes(raw)
     finished = {e["id"] for e in bs["events"] if e["finished"] and e["data_checked"]}
     decided = {int(p.stem[2:]) for p in (ROOT / "decisions").glob("GW*.json")}
     scores = ROOT / "scores.csv"

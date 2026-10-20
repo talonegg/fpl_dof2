@@ -8,6 +8,7 @@ sort of duplication that ends with two models being fed subtly different worlds.
 
 from __future__ import annotations
 
+import datetime as dt
 from dataclasses import dataclass
 
 import pandas as pd
@@ -29,6 +30,9 @@ class ForecastInputs:
     gameweeks: pd.DataFrame
     history: pd.DataFrame
     """Per-*season* career totals. The cold-start model's whole evidence base."""
+
+    as_of: dt.datetime
+    """The run's one clock instant (PIPE-12): which gameweek is decided, and what was knowable."""
 
     player_gameweek: pd.DataFrame | None = None
     """Per-gameweek rows for the current season. What M1-M8 are fitted on."""

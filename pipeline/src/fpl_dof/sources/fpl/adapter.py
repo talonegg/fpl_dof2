@@ -59,6 +59,7 @@ from fpl_dof.sources.errors import (
     SourceNotFoundError,
 )
 from fpl_dof.sources.registry import register
+from fpl_dof.sources.replay import extract_price_history_rows
 
 log = get_logger(__name__)
 
@@ -68,6 +69,14 @@ _WEEK = 7 * 24 * _HOUR
 #: Fields downstream code depends on. Their absence is a contract breach, not a missing value.
 REQUIRED_BOOTSTRAP_KEYS = ("elements", "teams", "element_types", "events", "game_settings")
 REQUIRED_ELEMENT_KEYS = ("id", "element_type", "team", "now_cost", "web_name", "status")
+REQUIRED_FIXTURE_KEYS = (
+    "id",
+    "team_h",
+    "team_a",
+    "team_h_difficulty",
+    "team_a_difficulty",
+    "finished",
+)
 REQUIRED_HISTORY_PAST_KEYS = (
     "season_name",
     "minutes",
@@ -227,11 +236,24 @@ class FplApiAdapter(SourceAdapter):
             )
         missing = [key for key in REQUIRED_BOOTSTRAP_KEYS if key not in data]
         if missing:
+            diff = {"missing": missing, "received": sorted(data.keys())}
+            log.error(
+                "ingest.schema_drift",
+                extra={
+                    "source": self.name,
+                    "resource": resource.name,
+                    "missing": missing,
+                    "received": sorted(data.keys()),
+                },
+            )
             raise SourceContractError(
-                f"bootstrap-static is missing required keys: {', '.join(missing)}",
+                f"bootstrap-static schema drift; missing required keys: {', '.join(missing)}",
                 source=self.name,
                 resource=resource.name,
                 key="all",
+                expected=list(REQUIRED_BOOTSTRAP_KEYS),
+                received=list(data.keys()),
+                diff=diff,
             )
         elements = data["elements"]
         if not isinstance(elements, list) or not elements:
@@ -243,11 +265,25 @@ class FplApiAdapter(SourceAdapter):
             )
         element_missing = [key for key in REQUIRED_ELEMENT_KEYS if key not in elements[0]]
         if element_missing:
+            diff = {"missing": element_missing, "received": sorted(elements[0].keys())}
+            log.error(
+                "ingest.schema_drift",
+                extra={
+                    "source": self.name,
+                    "resource": "elements",
+                    "missing": element_missing,
+                    "received": sorted(elements[0].keys()),
+                },
+            )
             raise SourceContractError(
-                f"element records are missing required keys: {', '.join(element_missing)}",
+                "element records schema drift; missing required keys: "
+                f"{', '.join(element_missing)}",
                 source=self.name,
                 resource=resource.name,
                 key="all",
+                expected=list(REQUIRED_ELEMENT_KEYS),
+                received=list(elements[0].keys()),
+                diff=diff,
             )
         return data
 
@@ -272,6 +308,28 @@ class FplApiAdapter(SourceAdapter):
                 resource=resource.name,
                 key="all",
             )
+        if data and isinstance(data[0], dict):
+            fixture_missing = [key for key in REQUIRED_FIXTURE_KEYS if key not in data[0]]
+            if fixture_missing:
+                diff = {"missing": fixture_missing, "received": sorted(data[0].keys())}
+                log.error(
+                    "ingest.schema_drift",
+                    extra={
+                        "source": self.name,
+                        "resource": resource.name,
+                        "missing": fixture_missing,
+                        "received": sorted(data[0].keys()),
+                    },
+                )
+                raise SourceContractError(
+                    f"fixtures schema drift; missing required keys: {', '.join(fixture_missing)}",
+                    source=self.name,
+                    resource=resource.name,
+                    key="all",
+                    expected=list(REQUIRED_FIXTURE_KEYS),
+                    received=list(data[0].keys()),
+                    diff=diff,
+                )
         return data
 
     def fetch_element_summary(self, element_id: int, request: IngestRequest) -> dict[str, Any]:
@@ -523,6 +581,7 @@ class FplApiAdapter(SourceAdapter):
             [
                 {
                     "team_id": int(team["id"]),
+                    "code": int(team["code"]),
                     "name": str(team["name"]),
                     "short_name": str(team["short_name"]),
                     "strength_overall_home": int(team.get("strength_overall_home") or 0),
@@ -679,27 +738,12 @@ class FplApiAdapter(SourceAdapter):
         )
 
     def _price_history(self, bootstrap: dict[str, Any], now: pd.Timestamp) -> pd.DataFrame:
-        """One observation of every player's price and ownership, stamped now.
+        """One observation of every player's price and ownership, stamped with its fetch time.
 
         The API publishes only the present. This row is the only record that will ever exist of
         what today looked like, which is why the store appends rather than overwrites.
         """
-        divisor = self._currency_divisor(bootstrap)
-        rows = [
-            {
-                "observed_at": now,
-                "player_id": int(element["id"]),
-                "player_code": int(element["code"]),
-                "price": float(element["now_cost"]) / divisor,
-                "selected_by_percent": float(element.get("selected_by_percent") or 0.0),
-                "transfers_in_event": int(element.get("transfers_in_event") or 0),
-                "transfers_out_event": int(element.get("transfers_out_event") or 0),
-                "cost_change_event": float(element.get("cost_change_event") or 0) / divisor,
-                "cost_change_start": float(element.get("cost_change_start") or 0) / divisor,
-            }
-            for element in bootstrap["elements"]
-            if not element.get("removed")
-        ]
+        rows = extract_price_history_rows(bootstrap, now)
         return pd.DataFrame(rows)
 
     def _entry(self, entry: dict[str, Any], bootstrap: dict[str, Any]) -> pd.DataFrame:
@@ -948,7 +992,14 @@ class FplApiAdapter(SourceAdapter):
         warnings: list[str] = []
         bootstrap = self.fetch_bootstrap(request)
         fixtures = self.fetch_fixtures(request)
-        now = pd.Timestamp(request.now or utcnow()).tz_convert("UTC")
+        snapshot = self.fetcher.bronze.latest(
+            self.name, "bootstrap_static", "all", as_of=request.now
+        )
+        # The snapshot's own fetch time, never the run's: a re-run adds no rows, and the replay
+        # (sources/replay.py) reproduces exactly what live runs wrote (DP-11).
+        observed = pd.Timestamp(
+            snapshot.meta.fetched_at if snapshot else (request.now or utcnow())
+        ).tz_convert("UTC")
 
         tables: dict[str, pd.DataFrame] = {
             Table.PLAYER.value: self._players(bootstrap),
@@ -956,7 +1007,7 @@ class FplApiAdapter(SourceAdapter):
             Table.FIXTURE.value: self._fixtures(fixtures),
             Table.GAMEWEEK.value: self._gameweeks(bootstrap),
             Table.CHIP.value: self._chips(bootstrap),
-            Table.PRICE_HISTORY.value: self._price_history(bootstrap, now),
+            Table.PRICE_HISTORY.value: self._price_history(bootstrap, observed),
             Table.PLAYER_SEASON_HISTORY.value: self._season_history(bootstrap, request, warnings),
             Table.PLAYER_GAMEWEEK.value: self._player_gameweek(bootstrap, request, warnings),
         }
@@ -974,7 +1025,6 @@ class FplApiAdapter(SourceAdapter):
         if request.league_id is not None:
             tables.update(self._conform_league(request.league_id, bootstrap, request, warnings))
 
-        snapshot = self.fetcher.bronze.latest(self.name, "bootstrap_static", "all")
         return Conformed(
             tables=tables,
             rules=self.extract_rules(bootstrap),

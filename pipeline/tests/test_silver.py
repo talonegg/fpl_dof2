@@ -21,6 +21,7 @@ from fpl_dof.pipeline import StageContext
 from fpl_dof.rules.models import GameRules, Position
 from fpl_dof.silver.store import read_table, read_table_optional, table_path, write_table
 from fpl_dof.silver.tables import OPTIONAL_TABLES, SchemaViolationError, Table, validate
+from fpl_dof.sources import replay_prices
 from fpl_dof.sources.base import IngestRequest
 from fpl_dof.sources.bronze import BronzeStore
 from fpl_dof.sources.fetch import Fetcher
@@ -302,3 +303,75 @@ def test_rules_are_written_alongside_the_tables(
 def test_reading_rules_before_transform_is_an_error(config: Config, layout: DataLayout) -> None:
     with pytest.raises(transform.NoBronzeError, match="transform"):
         transform.read_rules(_ctx(config, layout), "2026/27")
+
+
+def test_replay_prices_reconstructs_price_history_deterministically(
+    populated_bronze: DataLayout,
+) -> None:
+    result = replay_prices(populated_bronze.bronze, populated_bronze.silver)
+    assert result["snapshots_processed"] >= 1
+    assert result["rows_written"] > 0
+
+    path1 = populated_bronze.silver / "season=2026-27" / "price_history.parquet"
+    assert path1.exists()
+    df1 = read_table(populated_bronze.silver, "2026/27", Table.PRICE_HISTORY)
+    assert not df1.empty
+    bytes1 = path1.read_bytes()
+
+    # Replay again with clean=True; byte comparison guarantees byte-level determinism (DP-11)
+    result2 = replay_prices(populated_bronze.bronze, populated_bronze.silver, clean=True)
+    assert result2 == result
+    bytes2 = path1.read_bytes()
+    assert bytes1 == bytes2
+
+
+def test_transform_and_replay_write_the_same_price_rows(
+    config: Config, populated_bronze: DataLayout
+) -> None:
+    """REM-02: a price row carries its snapshot's fetch time, so re-runs and the replay agree."""
+    transform.run(_ctx(config, populated_bronze))
+    live = read_table(populated_bronze.silver, "2026/27", Table.PRICE_HISTORY)
+
+    transform.run(_ctx(config, populated_bronze))
+    again = read_table(populated_bronze.silver, "2026/27", Table.PRICE_HISTORY)
+    assert len(again) == len(live), "re-running transform on the same bronze must add no rows"
+
+    replay_prices(populated_bronze.bronze, populated_bronze.silver, clean=True)
+    replayed = read_table(populated_bronze.silver, "2026/27", Table.PRICE_HISTORY)
+    pd.testing.assert_frame_equal(
+        live.reset_index(drop=True), replayed[live.columns].reset_index(drop=True)
+    )
+
+
+def test_an_older_row_appended_late_keeps_the_table_in_order(
+    config: Config, populated_bronze: DataLayout
+) -> None:
+    """REM-02: the price-order gate must never be tripped by the order rows arrived in."""
+    from fpl_dof.silver.store import append_table
+
+    transform.run(_ctx(config, populated_bronze))
+    live = read_table(populated_bronze.silver, "2026/27", Table.PRICE_HISTORY)
+    older = live.assign(observed_at=live["observed_at"] - pd.Timedelta(days=1))
+
+    append_table(populated_bronze.silver, "2026/27", Table.PRICE_HISTORY, older)
+    stored = read_table(populated_bronze.silver, "2026/27", Table.PRICE_HISTORY)
+
+    assert len(stored) == 2 * len(live)
+    assert stored["observed_at"].is_monotonic_increasing
+
+
+def test_transform_builds_gold_with_permanent_club_codes(
+    config: Config, populated_bronze: DataLayout
+) -> None:
+    """REM-05: transform builds gold, and every live row's club resolves to a permanent code."""
+    from fpl_dof.gold import read_player_career_history
+
+    result = transform.run(_ctx(config, populated_bronze))
+    assert "degraded.gold" not in result.metrics
+    gold = populated_bronze.gold / "season=2026-27"
+    career = read_player_career_history(gold)
+    teams = read_table(populated_bronze.silver, "2026/27", Table.TEAM)
+    assert len(career) == result.metrics["rows.gold.player_career_history"]
+    live = career[career["season"] == "2026/27"]
+    assert live["team_code"].notna().all()
+    assert set(live["team_code"]) <= set(teams["code"])

@@ -29,6 +29,9 @@ jobs:
       - name: Install fpl-dof (pipeline[dev])
         run: python -m pip install -e "pipeline[dev]"
 
+      - name: docs check (decision index, links, DL-nn citations; DL-74)
+        run: python scripts/docs.py check
+
       - name: ruff check
         run: python -m ruff check pipeline
 

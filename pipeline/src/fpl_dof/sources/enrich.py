@@ -33,6 +33,7 @@ def canonicalise(
     season: str,
     config: SourcesConfig,
     overrides: Mapping[str, Mapping[str, int]] | None = None,
+    as_of_gameweek: int | None = None,
 ) -> tuple[dict[str, pd.DataFrame], ResolutionReport]:
     """Resolve identities and apply field precedence, returning the tables that changed.
 
@@ -69,7 +70,15 @@ def canonicalise(
     resolved = produced.get(Table.PLAYER_CROSSWALK.value)
     advanced = tables.get(Table.PLAYER_ADVANCED.value)
     if advanced is not None and not advanced.empty and resolved is not None:
-        identified = _attach_identities(advanced, resolved)
+        adv = advanced.copy()
+        if "as_of_gameweek" not in adv.columns:
+            adv["as_of_gameweek"] = None
+        if as_of_gameweek is not None:
+            current_mask = (adv["season"] == season) & adv["as_of_gameweek"].isna()
+            adv.loc[current_mask, "as_of_gameweek"] = as_of_gameweek
+            past_mask = (adv["season"] != season) & adv["as_of_gameweek"].isna()
+            adv.loc[past_mask, "as_of_gameweek"] = 38
+        identified = _attach_identities(adv, resolved)
         produced[Table.PLAYER_ADVANCED.value] = identified
         metrics = _merge_metrics(identified, config)
         if not metrics.empty:
@@ -77,7 +86,7 @@ def canonicalise(
 
     expectations = tables.get(Table.TEAM_MATCH_EXPECTATION.value)
     if expectations is not None and not expectations.empty and teams is not None:
-        produced[Table.TEAM_MATCH_EXPECTATION.value] = _attach_team_ids(expectations, teams)
+        produced[Table.TEAM_MATCH_EXPECTATION.value] = _attach_team_ids(expectations, teams, season)
 
     return produced, report
 
@@ -103,25 +112,36 @@ def _merge_metrics(advanced: pd.DataFrame, config: SourcesConfig) -> pd.DataFram
     if known.empty:
         return pd.DataFrame(columns=columns_for(Table.PLAYER_METRIC))
 
+    keys = ["season", "as_of_gameweek", "player_code", "player_id", "scope", "gameweek"]
     merged = merge_by_precedence(
         known,
-        keys=["season", "player_code", "player_id", "scope", "gameweek"],
+        keys=keys,
         fields=list(ADVANCED_METRICS),
         precedence=effective_precedence(config.field_precedence),
     )
+    # A merged row is knowable once its latest contributor is (DL-83).
+    observed = known.groupby(keys, dropna=False, sort=False)["observed_at"].max().reset_index()
+    merged = merged.merge(observed, on=keys, how="left")
     return merged[columns_for(Table.PLAYER_METRIC)]
 
 
-def _attach_team_ids(expectations: pd.DataFrame, teams: pd.DataFrame) -> pd.DataFrame:
-    """Map the market's club names onto canonical team ids, leaving unknown ones null."""
+def _attach_team_ids(expectations: pd.DataFrame, teams: pd.DataFrame, season: str) -> pd.DataFrame:
+    """Map the current season's club names onto its team ids, leaving unknown ones null.
+
+    Only the current season's rows: ``teams`` holds this season's clubs and ids, and another
+    season's rows already carry the permanent club code their adapter gave them (D-26).
+    """
     frame = expectations.copy()
-    names = pd.concat([frame["home_team"], frame["away_team"]], ignore_index=True)
+    current = frame["season"] == season
+    names = pd.concat(
+        [frame.loc[current, "home_team"], frame.loc[current, "away_team"]], ignore_index=True
+    )
     lookup = resolve_teams(names, teams)
     unknown = sorted({str(name) for name in names.dropna().unique()} - set(lookup))
     if unknown:
         log.warning("enrich.unmapped_clubs", extra={"clubs": unknown[:10]})
-    frame["home_team_id"] = frame["home_team"].map(lookup)
-    frame["away_team_id"] = frame["away_team"].map(lookup)
+    frame.loc[current, "home_team_id"] = frame.loc[current, "home_team"].map(lookup)
+    frame.loc[current, "away_team_id"] = frame.loc[current, "away_team"].map(lookup)
     return frame
 
 

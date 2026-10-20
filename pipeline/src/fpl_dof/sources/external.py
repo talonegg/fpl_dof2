@@ -8,7 +8,7 @@ prospective record the publish job already receives, never from a fetch made for
 Labels and wording are Scribe's (projects/fpl-data-sources/labels.md, T-004). Facts behind them are
 pinned by ``tests/test_source_catalogue.py``:
 
-* the history seasons are exactly ``prospective.fdcouk.HISTORY`` (hash-pinned in the bundle
+* the history seasons are exactly ``sources.fdcouk.adapter.HISTORY`` (hash-pinned in the bundle
   manifest at the 2026-10-13 freeze); 2026/27 is deliberately not one of them;
 * the 2026/27 backfill is the dated copy ``scripts/models_history/data/fdcouk/E0_2627_20261017.csv``
   (also written once to the ledger at ``backfill/fdcouk/E0_2627_20261017.csv``);

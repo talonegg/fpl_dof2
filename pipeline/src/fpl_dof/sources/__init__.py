@@ -14,7 +14,7 @@ from fpl_dof.sources.base import (
     Resource,
     SourceAdapter,
 )
-from fpl_dof.sources.bronze import BronzeStore, Snapshot, SnapshotMeta
+from fpl_dof.sources.bronze import META_SUFFIX, BronzeStore, Snapshot, SnapshotMeta
 from fpl_dof.sources.catalogue import LIVE, REFERENCE, SourceDescriptor, describe
 from fpl_dof.sources.enrich import canonicalise
 from fpl_dof.sources.errors import (
@@ -25,17 +25,24 @@ from fpl_dof.sources.errors import (
     SourceRateLimitedError,
     SourceUnavailableError,
 )
+from fpl_dof.sources.feeds import UPCOMING_ODDS_RECORD, LiveFeed
 from fpl_dof.sources.fetch import Fetched, Fetcher, RateLimiter
 from fpl_dof.sources.registry import build, known, register
+from fpl_dof.sources.replay import extract_price_history_rows, gameweeks_from_bronze, replay_prices
+from fpl_dof.sources.resolve import CLUB_ALIASES, resolve_team
 
 __all__ = [
+    "CLUB_ALIASES",
     "LIVE",
+    "META_SUFFIX",
     "REFERENCE",
+    "UPCOMING_ODDS_RECORD",
     "BronzeStore",
     "Fetched",
     "Fetcher",
     "IngestReport",
     "IngestRequest",
+    "LiveFeed",
     "OfflineWithoutSnapshotError",
     "RateLimiter",
     "Resource",
@@ -51,6 +58,10 @@ __all__ = [
     "build",
     "canonicalise",
     "describe",
+    "extract_price_history_rows",
+    "gameweeks_from_bronze",
     "known",
     "register",
+    "replay_prices",
+    "resolve_team",
 ]

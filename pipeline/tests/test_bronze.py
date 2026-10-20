@@ -96,3 +96,47 @@ def test_different_keys_do_not_collide(tmp_path: Path) -> None:
     assert first is not None and second is not None
     assert first.read_bytes() == b"one"
     assert second.read_bytes() == b"two"
+
+
+def test_touch_revalidates_snapshot_and_preserves_payload(tmp_path: Path) -> None:
+    store = BronzeStore(tmp_path)
+    t0 = dt.datetime(2026, 8, 10, 10, 0, tzinfo=dt.UTC)
+    snap = _write(store, b"immutable content", key="item", now=t0)
+    assert snap.meta.etag is None
+
+    t1 = dt.datetime(2026, 8, 11, 14, 0, tzinfo=dt.UTC)
+    touched = store.touch(snap, now=t1, etag='"etag-xyz"')
+    assert touched.read_bytes() == b"immutable content"
+    assert touched.meta.fetched_at == t1
+    assert touched.meta.etag == '"etag-xyz"'
+
+    latest = store.latest("demo", "things", "item")
+    assert latest is not None
+    assert latest.meta.fetched_at == t1
+    assert latest.meta.etag == '"etag-xyz"'
+    assert latest.read_bytes() == b"immutable content"
+
+
+def test_latest_as_of_ignores_what_was_fetched_after_it(tmp_path: Path) -> None:
+    """REM-02: a run evaluated in the past never reads bronze fetched after it (Invariant 5)."""
+    store = BronzeStore(tmp_path)
+    moments = [dt.datetime(2026, 8, day, 6, 0, tzinfo=dt.UTC) for day in (10, 20)]
+    for moment in moments:
+        store.write(
+            moment.isoformat().encode(),
+            source="fpl",
+            source_version="1",
+            resource="bootstrap_static",
+            key="all",
+            url="https://example.invalid/",
+            http_status=200,
+            now=moment,
+        )
+
+    latest = store.latest("fpl", "bootstrap_static", "all")
+    assert latest is not None and latest.meta.fetched_at == moments[1]
+    mid_month = dt.datetime(2026, 8, 15, tzinfo=dt.UTC)
+    bounded = store.latest("fpl", "bootstrap_static", "all", as_of=mid_month)
+    assert bounded is not None and bounded.meta.fetched_at == moments[0]
+    before_both = moments[0] - dt.timedelta(days=1)
+    assert store.latest("fpl", "bootstrap_static", "all", as_of=before_both) is None

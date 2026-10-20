@@ -16,20 +16,19 @@ the hook, or disable it.
 model, changing the optimiser formulation, altering a contract or schema, or deciding how something
 gets tested. The summary below is for recognition only — it is not enough to design from.
 
-| | Structure | | Adaptability |
+| | Structure | | Trust |
 | --- | --- | --- | --- |
-| DP-01 | Sources are plugins; the core never names one | DP-05 | Business rules are configuration, in every language |
-| DP-02 | Prediction and decision are separate concerns | DP-06 | Every tunable is named, defaulted and justified |
-| DP-03 | Pure core, effectful edge | DP-07 | Build vertical slices that each exit usable |
-| DP-04 | Every seam is a versioned, typed contract | DP-08 | New behaviour ships dark, promoted on evidence |
+| DP-01 | Sources are plugins; the core never names one | DP-11 | Every run is reproducible from its recorded inputs |
+| DP-02 | Prediction and decision are separate concerns | DP-13 | Test hardest where being wrong is invisible |
+| DP-03 | Pure core, effectful edge | DP-14 | Every artefact traces to its reason; every fact has one home |
+| DP-04 | Every seam is a versioned, typed contract | DP-15 | Degrade, never break |
+| DP-05 | Business rules are configuration, in every language | | |
+| DP-06 | Every tunable is named, defaulted and justified | | |
 
-| | Transparency | | Trust |
-| --- | --- | --- | --- |
-| DP-09 | Every number carries derivation, uncertainty, provenance | DP-11 | Every run is reproducible from its recorded inputs |
-| DP-10 | Prefer the formulation you can argue with | DP-12 | Measure skill against a baseline, never absolutely |
-| | | DP-13 | Test hardest where being wrong is invisible |
-| | | DP-14 | Every artefact traces to a requirement |
-| | | DP-15 | Degrade, never break |
+**Guiding, not binding** — editable, in `docs/guiding-principles.md`; departing from one is a
+decision (`DL-nn`), not a defect: DP-07 vertical slices · DP-08 ships dark, promoted on evidence ·
+DP-09 every number carries derivation, uncertainty, provenance · DP-10 prefer the formulation you can
+argue with · DP-12 measure skill against a baseline.
 
 **Status: binding constraints, not aspirations.** Violating code is a defect — fix it, or record a
 waiver: an inline `DP-WAIVER(DP-nn): <reason> — see DL-nn` marker at the code site **plus** a
