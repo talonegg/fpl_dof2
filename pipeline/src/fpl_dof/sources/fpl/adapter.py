@@ -581,6 +581,7 @@ class FplApiAdapter(SourceAdapter):
             [
                 {
                     "team_id": int(team["id"]),
+                    "code": int(team["code"]),
                     "name": str(team["name"]),
                     "short_name": str(team["short_name"]),
                     "strength_overall_home": int(team.get("strength_overall_home") or 0),

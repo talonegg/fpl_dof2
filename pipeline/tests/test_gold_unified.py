@@ -27,9 +27,23 @@ from fpl_dof.silver.tables import Table
 
 
 def _create_mock_silver(silver_dir: Path) -> None:
+    """The real layout (REM-05): every season's rows sit in the current season's partition."""
+    s26 = silver_dir / "season=2026-27"
+    s26.mkdir(parents=True, exist_ok=True)
+    # 2026/27's season-local ids. Archive rows carry permanent codes, so 3 is Arsenal in 2024/25
+    # and Bournemouth's local id in 2026/27: mapping the archive row through this table is the bug.
+    pd.DataFrame(
+        {
+            "team_id": [1, 2, 3],
+            "code": [3, 7, 91],
+            "name": ["Arsenal", "Aston Villa", "Bournemouth"],
+            "short_name": ["ARS", "AVL", "BOU"],
+            "strength_overall_home": [4, 3, 3],
+            "strength_overall_away": [4, 3, 3],
+        }
+    ).to_parquet(s26 / f"{Table.TEAM.value}.parquet", index=False)
+
     # 1. Past season 2024/25: defensive metrics were not measured (must be null)
-    s24 = silver_dir / "season=2024-25"
-    s24.mkdir(parents=True, exist_ok=True)
     df_24 = pd.DataFrame(
         [
             {
@@ -70,11 +84,8 @@ def _create_mock_silver(silver_dir: Path) -> None:
             }
         ]
     )
-    df_24.to_parquet(s24 / f"{Table.PLAYER_GAMEWEEK.value}.parquet", index=False)
 
     # 2. Live season 2026/27: defensive metrics are measured; player_id is reassigned!
-    s26 = silver_dir / "season=2026-27"
-    s26.mkdir(parents=True, exist_ok=True)
     df_26 = pd.DataFrame(
         [
             {
@@ -152,7 +163,9 @@ def _create_mock_silver(silver_dir: Path) -> None:
             },
         ]
     )
-    df_26.to_parquet(s26 / f"{Table.PLAYER_GAMEWEEK.value}.parquet", index=False)
+    pd.concat([df_24, df_26], ignore_index=True).to_parquet(
+        s26 / f"{Table.PLAYER_GAMEWEEK.value}.parquet", index=False
+    )
 
     # Silver fixtures for 2026/27
     fix_26 = pd.DataFrame(
@@ -228,9 +241,11 @@ def test_player_career_history_unification(tmp_path: Path) -> None:
     row_26 = saka_history[saka_history["season"] == "2026/27"].iloc[0]
     assert row_26["defensive_contribution"] == 2
 
-    # 3. Canonical club codes standardized (Arsenal is permanent code 3)
+    # 3. Canonical club codes standardized (Arsenal is permanent code 3) in both seasons
     assert row_24["team_code"] == 3
+    assert row_24["opponent_team_code"] == 7
     assert row_26["team_code"] == 3
+    assert row_26["opponent_team_code"] == 7
 
 
 def test_team_match_odds_unification(tmp_path: Path) -> None:

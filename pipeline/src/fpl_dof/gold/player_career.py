@@ -32,29 +32,6 @@ DEFENSIVE_METRICS: tuple[str, ...] = (
     "clearances_blocks_interceptions",
 )
 
-#: Standard 2026/27 FPL local team ID -> permanent club code.
-TEAM_ID_TO_CODE_2627: dict[int, int] = {
-    1: 3,  # Arsenal
-    2: 7,  # Aston Villa
-    3: 91,  # Bournemouth
-    4: 94,  # Brentford
-    5: 36,  # Brighton
-    6: 8,  # Chelsea
-    7: 9,  # Coventry
-    8: 31,  # Crystal Palace
-    9: 11,  # Everton
-    10: 54,  # Fulham
-    11: 88,  # Hull
-    12: 40,  # Ipswich
-    13: 2,  # Leeds
-    14: 14,  # Liverpool
-    15: 43,  # Man City
-    16: 1,  # Man Utd
-    17: 4,  # Newcastle
-    18: 17,  # Nott'm Forest
-    19: 6,  # Spurs
-    20: 56,  # Sunderland
-}
 
 CAREER_COLUMNS: tuple[str, ...] = (
     "season",
@@ -101,6 +78,23 @@ def _season_from_path(path: Path) -> str | None:
     return None
 
 
+def club_codes(partition: Path) -> dict[int, int]:
+    """The partition's season-local team id -> permanent club code, from its silver team table."""
+    path = partition / f"{Table.TEAM.value}.parquet"
+    if not path.exists():
+        return {}
+    teams = pd.read_parquet(path, columns=["team_id", "code"])
+    return {int(t): int(c) for t, c in zip(teams["team_id"], teams["code"], strict=True)}
+
+
+def to_club_code(
+    ids: pd.Series, seasons: pd.Series, current: str, codes: dict[int, int]
+) -> pd.Series:
+    """Club codes for ``ids``: the current season's are season-local ids, mapped through ``codes``;
+    every other season's are already the archive's permanent codes (D-26)."""
+    return ids.where(seasons != current, ids.map(codes)).astype("Int64")
+
+
 def build_player_career_history(
     silver_dir: Path,
     gold_dir: Path | None = None,
@@ -127,23 +121,19 @@ def build_player_career_history(
         if "season" not in frame.columns:
             frame["season"] = season
 
-        # 1. Standardize club codes across seasons
-        if season == "2026/27":
-            frame["team_code"] = frame["team_id"].map(TEAM_ID_TO_CODE_2627)
-            frame["opponent_team_code"] = frame["opponent_team_id"].map(TEAM_ID_TO_CODE_2627)
-        else:
-            # Historical archives already store permanent club codes in team_id
-            frame["team_code"] = frame["team_id"]
-            frame["opponent_team_code"] = frame["opponent_team_id"]
+        # 1. Club codes, by each row's own season: the partition holds every season (REM-05).
+        codes = club_codes(s_dir)
+        frame["team_code"] = to_club_code(frame["team_id"], frame["season"], season, codes)
+        frame["opponent_team_code"] = to_club_code(
+            frame["opponent_team_id"], frame["season"], season, codes
+        )
 
-        # 2. Defensive Contribution columns must be strictly null for seasons before 2025/26 (DL-18)
-        if season < "2025/26":
-            for col in DEFENSIVE_METRICS:
+        # 2. Defensive Contribution is strictly null for rows before 2025/26 (DL-18).
+        for col in DEFENSIVE_METRICS:
+            if col not in frame.columns:
                 frame[col] = None
-        else:
-            for col in DEFENSIVE_METRICS:
-                if col not in frame.columns:
-                    frame[col] = None
+        frame[list(DEFENSIVE_METRICS)] = frame[list(DEFENSIVE_METRICS)].astype(object)
+        frame.loc[frame["season"] < "2025/26", list(DEFENSIVE_METRICS)] = None
 
         for col in CAREER_COLUMNS:
             if col not in frame.columns:

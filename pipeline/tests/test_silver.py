@@ -358,3 +358,20 @@ def test_an_older_row_appended_late_keeps_the_table_in_order(
 
     assert len(stored) == 2 * len(live)
     assert stored["observed_at"].is_monotonic_increasing
+
+
+def test_transform_builds_gold_with_permanent_club_codes(
+    config: Config, populated_bronze: DataLayout
+) -> None:
+    """REM-05: transform builds gold, and every live row's club resolves to a permanent code."""
+    from fpl_dof.gold import read_player_career_history
+
+    result = transform.run(_ctx(config, populated_bronze))
+    assert "degraded.gold" not in result.metrics
+    gold = populated_bronze.gold / "season=2026-27"
+    career = read_player_career_history(gold)
+    teams = read_table(populated_bronze.silver, "2026/27", Table.TEAM)
+    assert len(career) == result.metrics["rows.gold.player_career_history"]
+    live = career[career["season"] == "2026/27"]
+    assert live["team_code"].notna().all()
+    assert set(live["team_code"]) <= set(teams["code"])

@@ -85,6 +85,8 @@ METRIC_SCOPES: tuple[str, ...] = ("gameweek", "season")
 
 class TeamSchema(pa.DataFrameModel):
     team_id: Series[int] = pa.Field(unique=True, ge=1)
+    code: Series[int] = pa.Field(unique=True, ge=1)
+    """The club's permanent code: the id the archive uses in every season (D-26)."""
     name: Series[str]
     short_name: Series[str]
     strength_overall_home: Series[int] = pa.Field(ge=0, le=5)
