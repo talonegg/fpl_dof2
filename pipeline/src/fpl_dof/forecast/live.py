@@ -75,28 +75,29 @@ def completed_gameweeks(player_gameweek: pd.DataFrame | None, *, before: pd.Time
 def next_deadline(
     gameweeks: pd.DataFrame,
     config: ForecastConfig,
-    as_of: dt.datetime | pd.Timestamp | None = None,
+    as_of: dt.datetime | pd.Timestamp,
 ) -> tuple[int, pd.Timestamp, list[int]]:
-    """The gameweek being decided, its deadline, and the horizon that follows it."""
-    if as_of is not None:
-        next_gameweek = current_gameweek(gameweeks, as_of)
-        row = gameweeks[gameweeks["gameweek"] == next_gameweek]
-        if row.empty:
-            raise ColdStartError(f"gameweek {next_gameweek} not found in gameweeks table")
-        first = row.iloc[0]
-    else:
-        upcoming = gameweeks[~gameweeks["finished"]].sort_values("gameweek")
-        if upcoming.empty:
-            raise ColdStartError("every gameweek is finished; there is nothing to forecast")
-        first = upcoming.iloc[0]
-        next_gameweek = as_int(first["gameweek"])
+    """The gameweek being decided, the cutoff the fit learns up to, and the forecast horizon.
+
+    The gameweek decided is the one whose deadline is next (``current_gameweek``, PIPE-12). The
+    fit stops earlier while a gameweek is in play: at the first *unfinished* gameweek's deadline,
+    so a half-played gameweek's partial minutes and points never enter training (REM-08, DL-81).
+    """
+    if gameweeks.empty:
+        raise ColdStartError("the gameweek table is empty; there is nothing to forecast")
+    next_gameweek = current_gameweek(gameweeks, as_of)
+    deadlines = gameweeks.set_index("gameweek")["deadline_time"]
+    cutoff = pd.Timestamp(deadlines[next_gameweek])
+    unfinished = gameweeks[~gameweeks["finished"].astype(bool)]
+    if not unfinished.empty:
+        cutoff = min(cutoff, pd.Timestamp(unfinished["deadline_time"].min()))
     last = as_int(gameweeks["gameweek"].max())
     horizon = [
         gameweek
         for gameweek in range(next_gameweek, next_gameweek + config.horizon_gameweeks)
         if gameweek <= last
     ]
-    return next_gameweek, pd.Timestamp(first["deadline_time"]).tz_convert("UTC"), horizon
+    return next_gameweek, cutoff.tz_convert("UTC"), horizon
 
 
 def build_forecast(

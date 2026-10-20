@@ -23,7 +23,6 @@ from pathlib import Path
 from typing import Any
 
 from fpl_dof.obs.logging import get_logger
-from fpl_dof.obs.manifest import utcnow
 from fpl_dof.paths import DataLayout
 
 log = get_logger(__name__)
@@ -39,7 +38,7 @@ def advice_path(layout: DataLayout, gameweek: int) -> Path:
 def record_advice(
     layout: DataLayout,
     week_payload: Mapping[str, Any],
-    as_of: dt.datetime | None = None,
+    as_of: dt.datetime,
 ) -> Path | None:
     """Write the ``advised`` block of a week payload to the ledger, keyed by its gameweek.
 
@@ -51,7 +50,7 @@ def record_advice(
     if not isinstance(advised, Mapping) or "gameweek" not in advised:
         return None
     gameweek = int(advised["gameweek"])
-    recorded_moment = as_of or utcnow()
+    recorded_moment = as_of
     entry = {
         "gameweek": gameweek,
         "run_id": week_payload.get("run_id"),

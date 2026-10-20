@@ -320,8 +320,13 @@ def fit_as_of(
     rules: GameRules,
     *,
     training: pd.DataFrame | None = None,
+    season: str | None = None,
 ) -> FittedForecastModel:
-    """Fit the component models and baselines on history knowable strictly before deadline."""
+    """Fit the component models and baselines on history knowable strictly before deadline.
+
+    ``season`` is the season being forecast: the current one live, the replayed or backtested one
+    otherwise. Its own rows are the only ones team strength is fitted on (see below).
+    """
     if history is None or history.empty:
         raise ColdStartError("no per-gameweek history: the component chain has nothing to fit")
 
@@ -338,12 +343,13 @@ def fit_as_of(
     if training is None:
         training = training_set(history, deadline_ts, config)
 
-    target_season = (
-        rules.season
-        if (past["season"] == rules.season).any()
-        else past.sort_values("kickoff_time")["season"].iloc[-1]
-    )
-    season_past = past[past["season"] == target_season]
+    # Team strength is fitted on the forecast season only, and deliberately (REM-08). Club ids
+    # come in two spaces: the live feed's season-local id and the archive's stable club code
+    # (D-26). Within one season they agree; across the boundary a number names a different club,
+    # so pooling would rate this season's clubs on another club's results. Before a season's first
+    # kickoff that leaves no matches, and team strength is league average, as it always was.
+    # Widening M2 to prior seasons is a model change, and needs DP-08's evidence.
+    season_past = past[past["season"] == (season or rules.season)]
     matches = team_matches(season_past, use_xg=config.expected_goals.team_strength_from_xg)
 
     models = fit_components(training, matches, config, rules)

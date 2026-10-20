@@ -39,6 +39,8 @@ import numpy as np
 import pandas as pd
 
 from fpl_dof.config.models import ForecastConfig
+from fpl_dof.forecast import baselines
+from fpl_dof.forecast.features import TARGET
 from fpl_dof.forecast.inputs import ForecastInputs
 from fpl_dof.frames import as_int, gameweek_column, gameweek_sd_column
 from fpl_dof.obs.logging import get_logger
@@ -339,11 +341,7 @@ def build_forecast(
     frame["confidence"] = confidence_tier(frame["evidence_minutes"], config)
 
     # --- horizon ---
-    if getattr(inputs, "as_of", None) is not None:
-        next_gw = current_gameweek(inputs.gameweeks, inputs.as_of)  # type: ignore[arg-type]
-    else:
-        upcoming = inputs.gameweeks[~inputs.gameweeks["finished"]].sort_values("gameweek")
-        next_gw = as_int(upcoming.iloc[0]["gameweek"])
+    next_gw = current_gameweek(inputs.gameweeks, inputs.as_of)
     horizon = [
         gw
         for gw in range(next_gw, next_gw + config.horizon_gameweeks)
@@ -384,7 +382,23 @@ def build_forecast(
             "mean_xp_next": round(float(result["xp_next"].mean()), 3),
         },
     )
+    result["captain_score"] = _captain_scores(result, inputs)
     return result
+
+
+def _captain_scores(frame: pd.DataFrame, inputs: ForecastInputs) -> np.ndarray:
+    """B0's price-and-position score per row, fitted on the gameweeks played before ``as_of``.
+
+    The default captain rule reads ``captain_score`` whichever model built the forecast (REM-08),
+    so the cold-start fallback writes it too. NaN when nothing has been played to fit on; the rule
+    then reports that and falls back.
+    """
+    played = inputs.player_gameweek
+    if played is not None and not played.empty:
+        played = played[played["kickoff_time"] < pd.Timestamp(inputs.as_of)]
+    if played is None or played.empty:
+        return np.full(len(frame), np.nan)
+    return baselines.fit_b0(played, TARGET).predict(frame).to_numpy()
 
 
 def _score_gameweeks(

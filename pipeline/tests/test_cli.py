@@ -116,3 +116,25 @@ def test_as_of_refuses_to_run_ingest(tmp_path: Path, stages: list[str]) -> None:
     """REM-02: ingest fetches the present; filing it under a past date would corrupt bronze."""
     code = main(["--data-dir", str(tmp_path / "data"), "--as-of", "2026-08-15T12:00:00Z", *stages])
     assert code == EXIT_BAD_USAGE
+
+
+def test_every_artefact_names_one_gameweek_while_a_gameweek_is_in_play(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """REM-08 / PIPE-12: after GW1's deadline and before it finishes, the forecast, the week and
+    the plan all decide GW2. Each stage used to pick its gameweek by its own predicate."""
+    monkeypatch.setenv("FPL_DOF_AS_OF", "2026-08-22T12:00:00+00:00")  # GW1 deadline 21 Aug
+    data_dir = tmp_path / "data"
+    assert main(["--data-dir", str(data_dir), "run"]) == EXIT_OK
+
+    def read(name: str) -> dict[str, object]:
+        return dict(json.loads((data_dir / "web" / "v1" / name).read_text(encoding="utf-8")))
+
+    meta, week, plan = read("meta.json"), read("week.json"), read("plan.json")
+    gameweeks = {
+        meta["next_gameweek"],
+        week["deadline"]["gameweek"],  # type: ignore[index]
+        plan["deadline"]["gameweek"],  # type: ignore[index]
+    }
+    assert gameweeks == {2}
+    assert plan.get("gameweeks", [2])[0] == 2  # type: ignore[index]

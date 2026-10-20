@@ -100,3 +100,20 @@ def test_the_sources_root_exports_nothing_from_inside_an_adapter() -> None:
         if getattr(getattr(sources, name), "__module__", "").startswith(adapters)
     ]
     assert not leaked, f"Invariant 1 breach: fpl_dof.sources re-exports adapter internals {leaked}"
+
+
+def test_no_stage_or_core_module_reads_the_wall_clock() -> None:
+    """PIPE-12 / REM-08: the run's one clock is ``ctx.as_of``. Only the effectful edge reads the
+    real time: the CLIs, the stage runner's own timings, logging and the manifest, and the source
+    layer stamping when it fetched something."""
+    edge = (SRC / "obs", SOURCES_PKG)
+    allowed = {SRC / "cli.py", SRC / "schedule_cli.py", SRC / "pipeline.py"}
+    clock = re.compile(r"\butcnow\(|\bdatetime\.now\(|\bdate\.today\(|\btime\.time\(\)")
+    offenders = [
+        f"{path.relative_to(PIPELINE_ROOT)}:{number}"
+        for path in SRC.rglob("*.py")
+        if path not in allowed and not any(root in path.parents for root in edge)
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1)
+        if clock.search(line) and not line.lstrip().startswith(("#", "def "))
+    ]
+    assert not offenders, f"wall clock read outside the edge: {', '.join(offenders)}"
