@@ -7,6 +7,7 @@ Stdlib argparse on purpose: one fewer dependency, and the CLI is a thin shell ov
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import os
 import sys
 from collections.abc import Sequence
@@ -152,9 +153,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         environ["FPL_DOF_DATA_DIR"] = args.data_dir
     if args.log_level:
         environ["FPL_DOF_LOG_LEVEL"] = args.log_level
-    if args.as_of:
-        environ["FPL_DOF_AS_OF"] = args.as_of
-        os.environ["FPL_DOF_AS_OF"] = args.as_of
 
     try:
         config, digest = load_config(environ=environ)
@@ -203,8 +201,16 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(str(exc), file=sys.stderr)
         return EXIT_BAD_USAGE
 
-    run_id = new_run_id()
     as_of = utcnow()
+    if args.as_of:
+        # Ingest fetches the present and stamps it with the present; evaluating it "as of" the
+        # past would file today's bytes under an old date (DP-11). Transform onwards can replay.
+        if any(stage.name == "ingest" for stage in stages):
+            print("--as-of replays bronze already held; it cannot run ingest", file=sys.stderr)
+            return EXIT_BAD_USAGE
+        as_of = dt.datetime.fromisoformat(args.as_of)
+        as_of = as_of if as_of.tzinfo is not None else as_of.replace(tzinfo=dt.UTC)
+    run_id = new_run_id()
     options = StageOptions(
         force_refresh=args.force_refresh,
         rebackfill=args.rebackfill,

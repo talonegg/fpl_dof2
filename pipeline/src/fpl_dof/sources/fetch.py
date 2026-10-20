@@ -181,7 +181,7 @@ class Fetcher:
             if cache_ttl_seconds is None
             else cache_ttl_seconds
         )
-        cached = self.bronze.latest(source, resource, key, suffix=suffix)
+        cached = self.bronze.latest(source, resource, key, suffix=suffix, as_of=moment)
 
         is_immutable = immutable or (
             getattr(cached.meta, "immutable", False) if cached is not None else False

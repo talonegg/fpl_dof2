@@ -323,3 +323,38 @@ def test_replay_prices_reconstructs_price_history_deterministically(
     assert result2 == result
     bytes2 = path1.read_bytes()
     assert bytes1 == bytes2
+
+
+def test_transform_and_replay_write_the_same_price_rows(
+    config: Config, populated_bronze: DataLayout
+) -> None:
+    """REM-02: a price row carries its snapshot's fetch time, so re-runs and the replay agree."""
+    transform.run(_ctx(config, populated_bronze))
+    live = read_table(populated_bronze.silver, "2026/27", Table.PRICE_HISTORY)
+
+    transform.run(_ctx(config, populated_bronze))
+    again = read_table(populated_bronze.silver, "2026/27", Table.PRICE_HISTORY)
+    assert len(again) == len(live), "re-running transform on the same bronze must add no rows"
+
+    replay_prices(populated_bronze.bronze, populated_bronze.silver, clean=True)
+    replayed = read_table(populated_bronze.silver, "2026/27", Table.PRICE_HISTORY)
+    pd.testing.assert_frame_equal(
+        live.reset_index(drop=True), replayed[live.columns].reset_index(drop=True)
+    )
+
+
+def test_an_older_row_appended_late_keeps_the_table_in_order(
+    config: Config, populated_bronze: DataLayout
+) -> None:
+    """REM-02: the price-order gate must never be tripped by the order rows arrived in."""
+    from fpl_dof.silver.store import append_table
+
+    transform.run(_ctx(config, populated_bronze))
+    live = read_table(populated_bronze.silver, "2026/27", Table.PRICE_HISTORY)
+    older = live.assign(observed_at=live["observed_at"] - pd.Timedelta(days=1))
+
+    append_table(populated_bronze.silver, "2026/27", Table.PRICE_HISTORY, older)
+    stored = read_table(populated_bronze.silver, "2026/27", Table.PRICE_HISTORY)
+
+    assert len(stored) == 2 * len(live)
+    assert stored["observed_at"].is_monotonic_increasing
