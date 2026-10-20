@@ -82,11 +82,9 @@ jobs:
 
 
       - name: Full ingest (element-summary + external sources)
-        # E11-S5: ODDS_API_KEY is an Actions secret (Invariant 10 — never in the repo, never in the
-        # client bundle). Absent (a fork, or before the owner sets it), the adapter degrades to the
-        # ratings-only path rather than failing the run (DP-15) — this step needs no conditional.
+        # No ODDS_API_KEY: The Odds API is off by default (PIPE-09), so no step is handed a secret
+        # it does not use.
         env:
-          ODDS_API_KEY: ${{ secrets.ODDS_API_KEY }}
           # See ingest-fast.yml: the entry is fetched at ingest, so the ID must reach it (DL-69).
           FPL_DOF_TEAM_ID: ${{ vars.FPL_DOF_TEAM_ID }}
           FPL_DOF_LEAGUE_ID: ${{ vars.FPL_DOF_LEAGUE_ID }}

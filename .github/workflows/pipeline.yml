@@ -349,6 +349,11 @@ jobs:
           name: prospective-record
           path: prospective-record
 
+      # PIPE-11, REM-10: a torn or corrupt snapshot is moved to data/quarantine/ before transform
+      # reads bronze, and the step lists it by path. Anything verify cannot move aside fails here.
+      - name: Verify bronze before transform
+        run: fpl-dof bronze verify --quarantine
+
       # Runs the exact E0 code path (D-10): `fpl-dof run --only ...`, no CI-only branch anywhere.
       - name: Run the pipeline (transform through publish)
         env:

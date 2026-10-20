@@ -19,7 +19,8 @@ from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict, Field
 
-MANIFEST_SCHEMA_VERSION = 1
+#: 2 added ``as_of``, the run's one clock (PIPE-12, REM-10).
+MANIFEST_SCHEMA_VERSION = 2
 _CHECKSUM_CHUNK_BYTES = 1 << 20
 
 

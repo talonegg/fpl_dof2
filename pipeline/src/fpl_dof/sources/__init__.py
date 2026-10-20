@@ -14,7 +14,7 @@ from fpl_dof.sources.base import (
     Resource,
     SourceAdapter,
 )
-from fpl_dof.sources.bronze import BronzeStore, Snapshot, SnapshotMeta
+from fpl_dof.sources.bronze import META_SUFFIX, BronzeStore, Snapshot, SnapshotMeta
 from fpl_dof.sources.catalogue import LIVE, REFERENCE, SourceDescriptor, describe
 from fpl_dof.sources.enrich import canonicalise
 from fpl_dof.sources.errors import (
@@ -34,6 +34,7 @@ from fpl_dof.sources.resolve import CLUB_ALIASES, resolve_team
 __all__ = [
     "CLUB_ALIASES",
     "LIVE",
+    "META_SUFFIX",
     "REFERENCE",
     "UPCOMING_ODDS_RECORD",
     "BronzeStore",

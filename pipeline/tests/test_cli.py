@@ -138,3 +138,24 @@ def test_every_artefact_names_one_gameweek_while_a_gameweek_is_in_play(
     }
     assert gameweeks == {2}
     assert plan.get("gameweeks", [2])[0] == 2  # type: ignore[index]
+
+
+def test_silver_from_before_a_schema_change_names_the_rebuild_and_the_rebuild_works(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """REM-10: old-layout silver stops transform with the fix in the message, not a schema dump;
+    `silver rebuild` sets it aside (kept) and rebuilds from bronze."""
+    import pandas as pd
+
+    data_dir = tmp_path / "data"
+    assert main(["--data-dir", str(data_dir), "run", "--only", "ingest", "transform"]) == EXIT_OK
+    table = next((data_dir / "silver").glob("season=*/price_history.parquet"))
+    pd.read_parquet(table).drop(columns=["player_code"]).to_parquet(table)  # an older layout
+
+    assert main(["--data-dir", str(data_dir), "transform"]) != EXIT_OK
+    assert "fpl-dof silver rebuild" in capsys.readouterr().err
+
+    assert main(["--data-dir", str(data_dir), "silver", "rebuild"]) == EXIT_OK
+    assert "player_code" in pd.read_parquet(table).columns
+    kept = list((data_dir / "quarantine").glob("silver-*/season=*/price_history.parquet"))
+    assert len(kept) == 1 and "player_code" not in pd.read_parquet(kept[0]).columns

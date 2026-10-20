@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import json
 from pathlib import Path
 from types import ModuleType
 
@@ -424,3 +425,54 @@ def test_rebuild_rolling_branch_retries_when_the_branch_moves(
     (newer / "all__21.json.gz").write_bytes(b"payload")
     rebuild()
     assert len(calls) == 2
+
+
+def test_immutable_prior_season_bronze_outlives_the_window(tmp_path: Path) -> None:
+    """REM-10: a finished season's snapshot cannot change, so the rolling branch keeps it rather
+    than letting the next run fetch it again. Its mutable neighbour of the same age is pruned."""
+    rebuild_rolling_branch = _scripts_retention().rebuild_rolling_branch
+    day = tmp_path / "data" / "bronze" / "fplarchive" / "merged_gw" / "2026-07-01"
+    day.mkdir(parents=True)
+    for name, immutable in (("2024-25__x.csv.gz", True), ("live__x.csv.gz", False)):
+        (day / name).write_bytes(b"payload")
+        (day / f"{name}.meta.json").write_text(
+            json.dumps({"immutable": immutable}), encoding="utf-8"
+        )
+
+    staging = tmp_path / "staging"
+    counts = rebuild_rolling_branch(
+        bronze_dir=tmp_path / "data" / "bronze",
+        staging_dir=staging,
+        remote="dummy",
+        window_days=30,
+        today=dt.date(2026, 10, 20),
+        dry_run=True,
+    )
+    staged = staging / "bronze" / "fplarchive" / "merged_gw" / "2026-07-01"
+    assert sorted(p.name for p in staged.iterdir()) == [
+        "2024-25__x.csv.gz",
+        "2024-25__x.csv.gz.meta.json",
+    ]
+    assert counts["pruned"] == 2
+
+
+def test_the_rolling_window_is_read_from_configuration(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """REM-10: no fallback literal; a window set in config is the one applied."""
+    retention = _scripts_retention()
+    override = tmp_path / "window.yaml"
+    override.write_text("retention:\n  bronze_days: 5\n", encoding="utf-8")
+    monkeypatch.setenv("FPL_DOF_CONFIG_FILE", str(override))
+    day = tmp_path / "data" / "bronze" / "fpl" / "bootstrap_static" / "2026-10-10"
+    day.mkdir(parents=True)
+    (day / "all__x.json.gz").write_bytes(b"payload")
+
+    counts = retention.rebuild_rolling_branch(
+        bronze_dir=tmp_path / "data" / "bronze",
+        staging_dir=tmp_path / "staging",
+        remote="dummy",
+        today=dt.date(2026, 10, 20),
+        dry_run=True,
+    )
+    assert counts["pruned"] == 1  # ten days old: kept by the old literal 30, pruned by config's 5
