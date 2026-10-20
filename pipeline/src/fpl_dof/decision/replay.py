@@ -268,7 +268,7 @@ def _replay_one(
     started = time.monotonic()
     horizon = tuple(range(gameweek, gameweek + decision.horizon.gameweeks))
 
-    fitted = fit_as_of(history, deadline, forecast_config, rules, training=training)
+    fitted = fit_as_of(history, deadline, forecast_config, rules, training=training, season=season)
     players = fitted.predict(horizon, history=history, season=season)
     state = _squad_at(players, rules, optimiser, replay, gameweek=gameweek)
     calendar = _widened_chip_windows(chips, history, season)

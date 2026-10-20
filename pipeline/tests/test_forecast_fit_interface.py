@@ -11,9 +11,12 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
+import pytest
 
+from conftest import before_next_deadline
 from fpl_dof.config.models import ForecastConfig
 from fpl_dof.forecast.fit import FittedForecastModel, fit_as_of
 from fpl_dof.forecast.inputs import ForecastInputs
@@ -169,6 +172,7 @@ def test_fit_as_of_and_predict_live_and_backtest(game_rules: GameRules) -> None:
         teams=teams,
         fixtures=fixtures,
         gameweeks=gameweeks,
+        as_of=before_next_deadline(gameweeks),
         history=pd.DataFrame(),
         player_gameweek=history,
     )
@@ -207,3 +211,74 @@ def test_replay_predicts_one_season_against_the_archive_calendar(game_rules: Gam
     assert set(frame["player_id"]) == {101, 102, 201, 202}
     assert (frame["next_gameweek"] == 3).all()
     assert "captain_score" in frame.columns
+
+
+def test_a_gameweek_in_play_never_enters_the_fit() -> None:
+    """REM-08: between GW1's deadline and GW1 finishing, GW2 is decided but the fit stops at GW1's
+    deadline, so GW1's partial minutes and points never train anything."""
+    from fpl_dof.forecast.live import next_deadline
+
+    d1, d2 = pd.Timestamp("2026-08-21T17:30Z"), pd.Timestamp("2026-08-28T17:30Z")
+    gameweeks = pd.DataFrame(
+        {"gameweek": [1, 2, 3], "deadline_time": [d1, d2, d2 + pd.Timedelta(days=7)],
+         "finished": [False, False, False]}
+    )  # fmt: skip
+    in_play = d1 + pd.Timedelta(hours=20)
+
+    gameweek, cutoff, horizon = next_deadline(gameweeks, ForecastConfig(), in_play)
+    assert (gameweek, horizon[0]) == (2, 2)
+    assert cutoff == d1
+
+    finished = gameweeks.assign(finished=[True, False, False])
+    assert next_deadline(finished, ForecastConfig(), in_play)[1] == d2
+
+
+def test_team_strength_is_league_average_before_the_forecast_seasons_first_kickoff(
+    game_rules: GameRules,
+) -> None:
+    """REM-08: with no rows of the season being forecast, team strength is fitted on nothing. Last
+    season's clubs are permanent codes; this season's fixtures are local ids (D-26)."""
+    history = _sample_history()  # 2024/25 and 2025/26 only
+    fitted = fit_as_of(
+        history, pd.Timestamp("2026-08-01T00:00Z"), ForecastConfig(), game_rules, season="2026/27"
+    )
+    assert fitted.models.team_strength.attack == {}
+    assert fitted.models.team_strength.home_advantage_matches == 0.0
+
+
+def test_the_backtest_fits_the_live_model_through_fit_as_of(
+    game_rules: GameRules, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """REM-08 / PIPE-13: the backtest calls ``fit_as_of`` for the live model, and its fit predicts
+    exactly what a live-style fit at the same deadline does."""
+    import fpl_dof.forecast.fit as fit
+    from fpl_dof.config.models import BacktestConfig
+    from fpl_dof.forecast.backtest import OUTCOME_COLUMNS, deadlines_for, fold_rows, walk_forward
+    from fpl_dof.forecast.xp_v1 import ComponentPredictor
+
+    config = ForecastConfig()
+    history = _sample_history()
+    calls: list[tuple[pd.Timestamp, str | None, FittedForecastModel]] = []
+    real = fit.fit_as_of
+
+    def spy(*args: Any, **kwargs: Any) -> FittedForecastModel:
+        fitted = real(*args, **kwargs)
+        calls.append((args[1], kwargs.get("season"), fitted))
+        return fitted
+
+    monkeypatch.setattr(fit, "fit_as_of", spy)
+    walk_forward(
+        history,
+        ComponentPredictor(config, game_rules),
+        forecast_config=config,
+        backtest_config=BacktestConfig(minimum_training_matches=1),
+    )
+    assert calls, "the backtest fitted the live model without fit_as_of"
+
+    deadline, season, backtest_fit = calls[-1]
+    assert season is not None, "the backtest fitted without naming the fold season"
+    gameweek = next(gw for s, gw, d in deadlines_for(history) if d == deadline and s == season)
+    rows = fold_rows(history, season, gameweek, deadline, config)
+    visible = rows.drop(columns=list(OUTCOME_COLUMNS), errors="ignore")
+    live_fit = real(history, deadline, config, game_rules, season=season)
+    pd.testing.assert_series_equal(backtest_fit.predict(visible), live_fit.predict(visible))

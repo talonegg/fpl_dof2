@@ -31,14 +31,14 @@ class ForecastInputs:
     history: pd.DataFrame
     """Per-*season* career totals. The cold-start model's whole evidence base."""
 
+    as_of: dt.datetime
+    """The run's one clock instant (PIPE-12): which gameweek is decided, and what was knowable."""
+
     player_gameweek: pd.DataFrame | None = None
     """Per-gameweek rows for the current season. What M1-M8 are fitted on."""
 
     metrics: pd.DataFrame | None = None
     """The conformed advanced table, when a source supplies one. Feeds the prior-season prior."""
-
-    as_of: dt.datetime | None = None
-    """Single pipeline clock instant (PIPE-12). Governs next_gameweek determination."""
 
 
 __all__ = ["ForecastInputs"]

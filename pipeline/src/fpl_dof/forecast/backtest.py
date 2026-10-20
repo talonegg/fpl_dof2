@@ -50,7 +50,7 @@ from fpl_dof.forecast.metrics import (
 )
 from fpl_dof.forecast.models import RATE_COMPONENTS, TeamStrengthModel
 from fpl_dof.forecast.monolith import MonolithPredictor, gap_by_position, gap_statement, head_gap
-from fpl_dof.forecast.xp_v1 import team_matches
+from fpl_dof.forecast.xp_v1 import ComponentPredictor, team_matches
 from fpl_dof.frames import as_int
 from fpl_dof.obs.logging import get_logger
 
@@ -410,7 +410,17 @@ def walk_forward(
         # wrong. So predictors see inputs only.
         visible = merged.drop(columns=list(OUTCOME_COLUMNS), errors="ignore")
 
-        predictor.fit(training)
+        if isinstance(predictor, ComponentPredictor):
+            # The live model is fitted through the one interface live and the replay use, on the
+            # fold's own season (PIPE-13, REM-08): the backtest measures what ships.
+            from fpl_dof.forecast.fit import fit_as_of  # fit imports this module
+
+            fitted = fit_as_of(
+                frame, deadline, predictor.config, predictor.rules, training=training, season=season
+            )
+            predictor.models = fitted.models
+        else:
+            predictor.fit(training)
         merged[MODEL_COLUMN] = predictor.predict(visible).to_numpy()
 
         # Refitted every fold on the same frame the chain was fitted on, and predicting on the same
