@@ -132,4 +132,5 @@ by hand.
 | [DL-82](DL-82.md) | 2026-10-20 | Accepted | Feature branches merge into the release's dev branch directly, without a pull request |
 | [DL-83](DL-83.md) | 2026-10-20 | Accepted | Advanced metrics carry their capture time; backdating never estimates |
 | [DL-84](DL-84.md) | 2026-10-20 | Accepted | The gameweek a run decides is the first deadline still ahead |
+| [DL-85](DL-85.md) | 2026-10-21 | Accepted | R1.1.0 is promoted with its one main-only box open; R1.1.1 verifies it |
 <!-- index:end -->
