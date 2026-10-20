@@ -22,18 +22,24 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import io
 import json
 import shutil
 import stat
 import subprocess
 import sys
 import tarfile
+import tempfile
 from pathlib import Path
+
+import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from fpl_dof.config import load_config
 from fpl_dof.retention import plan_gameweek_archive, plan_retention
+from fpl_dof.silver.store import append_table
+from fpl_dof.silver.tables import Table
 from fpl_dof.sources import gameweeks_from_bronze
 
 
@@ -76,6 +82,49 @@ def _bronze_paths(bronze_dir: Path) -> list[str]:
     )
 
 
+#: Pushes to `data` that lose the lease to another workflow are retried this many times.
+PUSH_ATTEMPTS = 3
+
+
+def _fold_in_remote(
+    staging_dir: Path, remote: str, branch: str, bronze_dir: Path, silver_dir: Path | None
+) -> str:
+    """Fold what `branch` holds now into the local store, and return the commit it was read from.
+
+    Three workflows rebuild `data` from what they restored when they started. Folding the branch in
+    again just before pushing, and pushing only if it has not moved since, means no run's push can
+    drop bronze or price rows that another run pushed meanwhile. Bronze files are immutable and
+    uniquely named, so the local copy wins a clash; price rows are merged on their keys. ``""`` when
+    the branch does not exist yet.
+    """
+    try:
+        _run_git(["fetch", "--depth=1", remote, f"+{branch}:refs/fpl-dof/lease"], cwd=staging_dir)
+    except GitError:
+        return ""
+    sha = _run_git(["rev-parse", "refs/fpl-dof/lease"], cwd=staging_dir).strip()
+    archive = subprocess.run(
+        ["git", "archive", "--format=tar", sha],
+        cwd=staging_dir,
+        capture_output=True,
+        timeout=120,
+        check=True,
+    ).stdout
+    with tempfile.TemporaryDirectory() as tmp:
+        with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
+            tar.extractall(tmp, filter="data")
+        held = Path(tmp)
+        for path in (held / "bronze").rglob("*"):
+            target = bronze_dir / path.relative_to(held / "bronze")
+            if path.is_file() and not target.exists():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(path, target)
+        if silver_dir is not None:
+            for path in (held / "silver").glob("season=*/price_history.parquet"):
+                season = path.parent.name.removeprefix("season=").replace("-", "/")
+                append_table(silver_dir, season, Table.PRICE_HISTORY, pd.read_parquet(path))
+    return sha
+
+
 def rebuild_rolling_branch(
     *,
     bronze_dir: Path,
@@ -88,24 +137,66 @@ def rebuild_rolling_branch(
     silver_dir: Path | None = None,
 ) -> dict[str, int]:
     """Rebuild `branch` from scratch as an orphan, containing only the retained window, and
-    force-push it. Returns counts for reporting — the caller decides what to log."""
+    force-push it, but only over the commit folded in first (REM-03). Returns counts for
+    reporting; the caller decides what to log."""
     if window_days is None:
         try:
             cfg, _ = load_config()
             window_days = cfg.retention.bronze_days
         except Exception:
             window_days = 30
+    if silver_dir is None and (bronze_dir.parent / "silver").is_dir():
+        silver_dir = bronze_dir.parent / "silver"
 
+    for attempt in range(1, PUSH_ATTEMPTS + 1):
+        if staging_dir.exists():
+            _rmtree(staging_dir)
+        staging_dir.mkdir(parents=True)
+        _run_git(["init", "--quiet"], cwd=staging_dir)
+        lease = (
+            "" if dry_run else _fold_in_remote(staging_dir, remote, branch, bronze_dir, silver_dir)
+        )
+        counts = _stage_rolling(bronze_dir, staging_dir, silver_dir, window_days, today)
+        if dry_run:
+            return counts
+
+        _run_git(["checkout", "--orphan", branch], cwd=staging_dir)
+        _commit_all(
+            staging_dir,
+            f"data: rolling {window_days}-day bronze window as of {today or dt.date.today()}",
+        )
+        try:
+            _run_git(
+                [
+                    "push",
+                    f"--force-with-lease=refs/heads/{branch}:{lease}",
+                    remote,
+                    f"{branch}:{branch}",
+                ],
+                cwd=staging_dir,
+            )
+            return counts
+        except GitError as exc:
+            if "stale info" not in str(exc) and "rejected" not in str(exc):
+                raise
+            print(f"rolling: {branch} moved during this run; folding it in again ({attempt})")
+    raise GitError(f"{branch} kept moving; gave up after {PUSH_ATTEMPTS} attempts")
+
+
+def _stage_rolling(
+    bronze_dir: Path,
+    staging_dir: Path,
+    silver_dir: Path | None,
+    window_days: int,
+    today: dt.date | None,
+) -> dict[str, int]:
+    """Copy the retained window and the accumulated price history into the staging checkout."""
     paths = _bronze_paths(bronze_dir)
     # A retention window applies to dated snapshots; sidecars share their snapshot's date
     # directory, so partitioning the full path list (snapshots and sidecars together) keeps a
     # snapshot and its lineage record moving together rather than pruning one without the other.
     plan = plan_retention(paths, today=today or dt.date.today(), window_days=window_days)
     retained = plan.retain + plan.undated
-
-    if staging_dir.exists():
-        _rmtree(staging_dir)
-    staging_dir.mkdir(parents=True)
 
     for relative in retained:
         source = bronze_dir / relative
@@ -114,11 +205,6 @@ def rebuild_rolling_branch(
         shutil.copy2(source, destination)
 
     # PIPE-06: Persist accumulating silver partitions (price_history.parquet)
-    if silver_dir is None:
-        candidate_silver = bronze_dir.parent / "silver"
-        if candidate_silver.is_dir():
-            silver_dir = candidate_silver
-
     silver_count = 0
     if silver_dir is not None and silver_dir.is_dir():
         for p in sorted(silver_dir.glob("season=*/price_history.parquet")):
@@ -128,33 +214,12 @@ def rebuild_rolling_branch(
             shutil.copy2(p, dest)
             silver_count += 1
 
-    counts = {
+    return {
         "retained": len(retained),
         "pruned": len(plan.prune),
         "undated": len(plan.undated),
         "silver": silver_count,
     }
-    if dry_run:
-        return counts
-
-    _run_git(["init", "--quiet"], cwd=staging_dir)
-    _run_git(["checkout", "--orphan", branch], cwd=staging_dir)
-    _run_git(["add", "-A"], cwd=staging_dir)
-    _run_git(
-        [
-            "-c",
-            "user.email=fpl-dof-ci@users.noreply.github.com",
-            "-c",
-            "user.name=fpl-dof CI",
-            "commit",
-            "--quiet",
-            "-m",
-            f"data: rolling {window_days}-day bronze window as of {today or dt.date.today()}",
-        ],
-        cwd=staging_dir,
-    )
-    _run_git(["push", "--force", remote, f"{branch}:{branch}"], cwd=staging_dir)
-    return counts
 
 
 def restore_rolling_branch(

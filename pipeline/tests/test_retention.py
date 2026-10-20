@@ -4,6 +4,7 @@ import datetime as dt
 from pathlib import Path
 from types import ModuleType
 
+import pandas as pd
 import pytest
 
 from fpl_dof.retention import (
@@ -330,3 +331,96 @@ def test_append_permanent_snapshot_writes_no_index(tmp_path: Path) -> None:
     _git("clone", "--branch", "ledger", str(bare), str(clone), cwd=tmp_path)
     assert (clone / "advice" / "gw05.json").exists()
     assert not (clone / "index.json").exists()
+
+
+def _price_rows(day: int) -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "observed_at": [pd.Timestamp(f"2026-08-{day:02d}T06:00Z")],
+            "player_id": [1],
+            "player_code": [101],
+            "price": [5.0],
+            "selected_by_percent": [1.0],
+            "transfers_in_event": [0],
+            "transfers_out_event": [0],
+            "cost_change_event": [0.0],
+            "cost_change_start": [0.0],
+        }
+    )
+
+
+def _store(root: Path, day: int) -> Path:
+    """A local data root holding one bronze snapshot and one price row, both dated `day`."""
+    from fpl_dof.silver.store import write_table
+    from fpl_dof.silver.tables import Table
+
+    snapshot = root / "bronze" / "fpl" / "bootstrap_static" / f"2026-08-{day:02d}"
+    snapshot.mkdir(parents=True)
+    (snapshot / f"all__{day}.json.gz").write_bytes(b"payload")
+    write_table(root / "silver", "2026/27", Table.PRICE_HISTORY, _price_rows(day))
+    return root
+
+
+def test_rebuild_rolling_branch_never_drops_what_another_run_pushed(tmp_path: Path) -> None:
+    """REM-03: a run that restored before another pushed folds that push in, never drops it."""
+    from fpl_dof.silver.store import read_table
+    from fpl_dof.silver.tables import Table
+
+    retention = _scripts_retention()
+    bare = tmp_path / "remote.git"
+    _git("init", "--bare", str(bare), cwd=tmp_path)
+
+    def push(root: Path) -> None:
+        retention.rebuild_rolling_branch(
+            bronze_dir=root / "bronze",
+            staging_dir=tmp_path / f"staging-{root.name}",
+            remote=str(bare),
+            window_days=30,
+            today=dt.date(2026, 8, 31),
+        )
+
+    push(_store(tmp_path / "fast", 20))  # ingest-fast pushes first...
+    late = _store(tmp_path / "pipeline", 21)  # ...the pipeline restored before that push
+    push(late)
+
+    clone = tmp_path / "clone"
+    _git("clone", "--branch", "data", str(bare), str(clone), cwd=tmp_path)
+    days = sorted(p.name for p in (clone / "bronze" / "fpl" / "bootstrap_static").iterdir())
+    assert days == ["2026-08-20", "2026-08-21"]
+    prices = read_table(clone / "silver", "2026/27", Table.PRICE_HISTORY)
+    assert sorted(prices["observed_at"].dt.day) == [20, 21]
+
+
+def test_rebuild_rolling_branch_retries_when_the_branch_moves(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    retention = _scripts_retention()
+    bare = tmp_path / "remote.git"
+    _git("init", "--bare", str(bare), cwd=tmp_path)
+    root = _store(tmp_path / "data", 20)
+
+    def rebuild() -> None:
+        retention.rebuild_rolling_branch(
+            bronze_dir=root / "bronze",
+            staging_dir=tmp_path / "staging",
+            remote=str(bare),
+            window_days=30,
+            today=dt.date(2026, 8, 31),
+        )
+
+    rebuild()
+    real_fold = retention._fold_in_remote
+    calls: list[str] = []
+
+    def stale_once(*args: object) -> str:
+        sha: str = real_fold(*args)
+        calls.append(sha)
+        return "1" * 40 if len(calls) == 1 else sha  # as if another run pushed after the fold
+
+    monkeypatch.setattr(retention, "_fold_in_remote", stale_once)
+    # New bronze, as a real run brings: an identical commit would be a no-op push, never leased.
+    newer = root / "bronze" / "fpl" / "bootstrap_static" / "2026-08-21"
+    newer.mkdir(parents=True)
+    (newer / "all__21.json.gz").write_bytes(b"payload")
+    rebuild()
+    assert len(calls) == 2
