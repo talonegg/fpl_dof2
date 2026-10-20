@@ -1,7 +1,7 @@
 {
   "gameweek": 8,
-  "run_id": "20261020T074823Z-cec837b8",
-  "recorded_at": "2026-10-20T07:48:40.724483Z",
+  "run_id": "20261020T141401Z-70fcb413",
+  "recorded_at": "2026-10-20T14:14:01.378102Z",
   "advised": {
     "gameweek": 8,
     "squad": [
@@ -12,9 +12,9 @@
       115,
       124,
       165,
-      173,
       237,
       277,
+      330,
       399,
       411,
       426,
@@ -23,15 +23,15 @@
     ],
     "starting": [
       109,
-      8,
-      277,
       115,
-      173,
+      8,
+      330,
       399,
       124,
       426,
       68,
       237,
+      277,
       464
     ],
     "bench_order": [
@@ -43,31 +43,31 @@
     "captain": 426,
     "vice_captain": 399,
     "formation": "1-4-5-1",
-    "expected_points": 38.298
+    "expected_points": 37.286
   },
   "recommendation": {
-    "rationale": "1 free transfer(s) gain 1.05 expected points",
+    "rationale": "1 free transfer(s) gain 1.25 expected points",
     "is_roll": false,
     "transfers": 1,
     "hit_points": 0,
-    "net_expected_points": 38.2982,
-    "gain_over_roll": 1.0539,
-    "bank_after": 0.9,
+    "net_expected_points": 37.2859,
+    "gain_over_roll": 1.2548,
+    "bank_after": 0.2,
     "moves": [
       {
         "out": {
           "player_id": 175,
           "web_name": "van Ewijk",
           "price": 3.9,
-          "xp_next": 1.853,
+          "xp_next": 1.666,
           "form_points_per_match": 2.4
         },
         "in": {
-          "player_id": 173,
-          "web_name": "Thomas",
-          "price": 4.0,
-          "xp_next": 3.48,
-          "form_points_per_match": 4.667
+          "player_id": 330,
+          "web_name": "Bogle",
+          "price": 4.7,
+          "xp_next": 3.464,
+          "form_points_per_match": 7.167
         }
       }
     ],
@@ -75,27 +75,27 @@
       {
         "transfers": 0,
         "hit_points": 0,
-        "net_expected_points": 37.2443,
+        "net_expected_points": 36.0311,
         "gain_over_roll": 0.0,
         "moves": []
       },
       {
         "transfers": 1,
         "hit_points": 0,
-        "net_expected_points": 38.2982,
-        "gain_over_roll": 1.0539,
+        "net_expected_points": 37.2859,
+        "gain_over_roll": 1.2548,
         "moves": [
-          "van Ewijk (\u00a33.9m) -> Thomas (\u00a34.0m)"
+          "van Ewijk (\u00a33.9m) -> Bogle (\u00a34.7m)"
         ]
       },
       {
         "transfers": 2,
         "hit_points": -4,
-        "net_expected_points": 34.7945,
-        "gain_over_roll": -2.4498,
+        "net_expected_points": 34.118,
+        "gain_over_roll": -1.9131,
         "moves": [
-          "Konsa (\u00a34.6m) -> Thomas (\u00a34.0m)",
-          "Kinsky (\u00a34.5m) -> Raya (\u00a36.1m)"
+          "Konsa (\u00a34.6m) -> Justin (\u00a34.5m)",
+          "van Ewijk (\u00a33.9m) -> Muharemovi\u0107 (\u00a35.0m)"
         ]
       }
     ],
