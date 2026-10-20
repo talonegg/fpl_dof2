@@ -73,9 +73,9 @@ review in §12) and [conceptual design](planning/04-conceptual-design.md) (each 
 
 - **R1.0 — delivered.** Epics E0–E14 built the platform end to end; they are archived as records in
   [`planning/archive/R1.0/`](planning/archive/README.md).
-- **R1.1.0 — open: data pipeline uplift.** [Backlog PIPE-01 … PIPE-14](planning/epics/R1.1.0-data-pipeline-backlog.md),
-  built and remediated on `dev/R1.1.0` ([DL-81](decisions/DL-81.md)); promotion waits on the
-  [gate](planning/epics/R1.1.0-data-pipeline-backlog.md#42-promotion-gate). Its effect on the architecture: [architecture §13](planning/03-solution-architecture.md#13-r110--target-data-architecture).
+- **R1.1.0 — tagged 2026-10-21: data pipeline uplift.** [Backlog PIPE-01 … PIPE-14](planning/epics/R1.1.0-data-pipeline-backlog.md),
+  remediated before release ([DL-81](decisions/DL-81.md)). **R1.1.1 — open:** verifies the permanent
+  archive on `main` ([DL-85](decisions/DL-85.md)). Its effect on the architecture: [architecture §13](planning/03-solution-architecture.md#13-r110--target-data-architecture).
 - **The season — live.** [E8 — ongoing in-season monitoring](planning/epics/E8-ongoing-in-season-monitoring.md)
   holds the season state and decision points, rewritten each gameweek.
 
@@ -89,11 +89,10 @@ criteria. The [release register](planning/epics/README.md) decides the order.
   "intuition ahead"; the response is R1.1.0 as ordered ([DL-79](decisions/DL-79.md)).
 - A chip calendar for set 1 before GW15; set 1 expires at the GW19 deadline.
 
-**R1.1.0 — data pipeline uplift ([remediation plan](planning/epics/R1.1.0-data-pipeline-backlog.md#4-remediation-plan))**
-- REM-01 … REM-11 are built. Before promotion: run the slow chip replay once, then the pre-release
-  smoke (backlog §4.2); promote by the `release` skill.
-- The permanent bronze archive starts with the first slow ingest on `main` (PIPE-14); until then
-  bronze older than the rolling window is lost.
+**R1.1.1 — R1.1.0 verified on `main` ([DL-85](decisions/DL-85.md))**
+- After the first slow ingest on `main`, check that `snapshots` holds its gameweek tarball and
+  `index.json`; tick PIPE-14's box naming that run, then archive the R1.1.0 backlog
+  ([release register](planning/epics/README.md)).
 
 **Design fixes not yet scheduled ([architecture §12](planning/03-solution-architecture.md#12-module-design--review-of-2026-10-17))**
 - One planning horizon: `xp_horizon` reads `decision.horizon` (D-29, [DL-78](decisions/DL-78.md)).
@@ -126,7 +125,7 @@ settled DL-11, DL-72 and OD-04 and recorded DL-76 to DL-79.
 | Structure, stack, hosting, data flow, the web contract, orchestration; the module-design review and R1.1.0 target architecture | [Solution architecture](planning/03-solution-architecture.md) |
 | Each component's design: sources, data layer, models, optimiser, UX, testing, extensibility; open questions (`Q-nn`) | [Conceptual design](planning/04-conceptual-design.md) |
 | Releases (`Rx.y.z`): what is being built now, how to choose what next, and the branching and release model | [Release register](planning/epics/README.md); the procedure is the `release` skill |
-| R1.1.0, the open release: data pipeline uplift backlog | [`planning/epics/R1.1.0-data-pipeline-backlog.md`](planning/epics/R1.1.0-data-pipeline-backlog.md) |
+| R1.1.0, tagged, and R1.1.1, which verifies its last box: the data pipeline uplift backlog | [`planning/epics/R1.1.0-data-pipeline-backlog.md`](planning/epics/R1.1.0-data-pipeline-backlog.md) |
 | Where the season stands (rewritten each gameweek), the weekly loop, and the bar for changing the model mid-season | [E8 — ongoing in-season monitoring](planning/epics/E8-ongoing-in-season-monitoring.md) |
 | Environment variables and secrets handling | [`environment.md`](environment.md) |
 | FPL scoring, prices, chips; the FPL API | The `fpl-rules` and `fpl-api` skills in `.claude/skills/` |

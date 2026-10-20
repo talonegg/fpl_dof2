@@ -8,7 +8,7 @@ Architecture is in [03](03-solution-architecture.md), component design in
 [04](04-conceptual-design.md).
 
 > **Status at 2026-10-17, GW7 deadline day.** In season. R1.0 (epics E0–E14) is delivered and
-> archived; R1.1.0, the data pipeline uplift, is open; where the season stands is
+> archived; R1.1.0, the data pipeline uplift, is tagged and R1.1.1 open; where the season stands is
 > [E8's season state](epics/E8-ongoing-in-season-monitoring.md). The plan of record is the
 > [release register](epics/README.md); shortcuts are in the [debt register](debt-register.md).
 > §3, §4, §7 and §8 were superseded by the epics (DL-10) and archived in
@@ -74,7 +74,7 @@ building are in the [release register](epics/README.md#choosing-what-to-build-ne
 | Release | State |
 | --- | --- |
 | **R1.0** — E0–E14 | Delivered: the steel thread to GW1 ([DL-10](../decisions/DL-10.md)), then the full system. [Archived](archive/README.md), except E8 |
-| **R1.1.0** — data pipeline uplift | Open; built and [remediated](epics/R1.1.0-data-pipeline-backlog.md#4-remediation-plan) ([DL-81](../decisions/DL-81.md)); promotion waits on the [gate](epics/R1.1.0-data-pipeline-backlog.md#42-promotion-gate). Its architecture, and the 03 §12 findings it depends on: [03 §13](03-solution-architecture.md#13-r110--target-data-architecture) |
+| **R1.1.0** — data pipeline uplift | Tagged 2026-10-21, after [remediation](epics/R1.1.0-data-pipeline-backlog.md#4-remediation-plan) ([DL-81](../decisions/DL-81.md)); R1.1.1 verifies the permanent archive on `main` ([DL-85](../decisions/DL-85.md)). Its architecture, and the 03 §12 findings it depends on: [03 §13](03-solution-architecture.md#13-r110--target-data-architecture) |
 | **E8** — in-season monitoring | Live to GW38 beside whichever release is open; says when the season's evidence should change what is built |
 
 **Cross-cutting concerns are not a release.** Orchestration, observability, testing and

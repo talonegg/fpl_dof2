@@ -5,7 +5,8 @@ ingests data, forecasts expected points, solves a multi-gameweek MILP, and publi
 artefacts; a React SPA reads them. No server, no database, no runtime backend.
 
 **`docs/README.md` maps where every fact lives** — read it when you need context beyond this file.
-Work ships in releases `Rx.y.z`: R1.0 was epics E0–E14; R1.1.0, the data pipeline uplift, is open.
+Work ships in releases `Rx.y.z`: R1.0 was epics E0–E14; R1.1.0, the data pipeline uplift, is
+tagged; R1.1.1, which verifies it on `main` (DL-85), is open.
 The plan of record is the release register, `docs/planning/epics/README.md`. A decision cited as
 `DL-nn` is the file `docs/decisions/DL-nn.md`: open it directly rather than searching.
 `docs/planning/archive/` holds closed epics and superseded plans as records; plain searches skip it
