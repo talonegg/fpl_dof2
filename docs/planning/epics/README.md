@@ -20,13 +20,13 @@ index, and run `python scripts/docs.py check` to find the links to re-point
 
 ## Branching and releases
 
-[DL-80](../../decisions/DL-80.md). The step-by-step procedure, with commands, is the `release` skill
-(`.claude/skills/release/SKILL.md`).
+[DL-80](../../decisions/DL-80.md), [DL-82](../../decisions/DL-82.md). The step-by-step procedure, with commands, is the
+`release` skill (`.claude/skills/release/SKILL.md`).
 
 ```
-feature/<description> ──PR──► dev/Rx.y.z ──PR──► pre-release ──PR──► main ──► tag Rx.y.z
-   (deleted on merge)          (the release)    (main + promotion;   (production; merge deploys;
-                                                  CI + site smoke)     tag publishes the Release)
+feature/<description> ──merge──► dev/Rx.y.z ──PR──► pre-release ──PR──► main ──► tag Rx.y.z
+ (kept until the tag)            (the release)      (main + promotion;  (production; merge deploys;
+                                                     CI + site smoke)    tag publishes the Release)
 hotfix: feature/<fix> from main ──PR──► pre-release ──PR──► main ──► tag Rx.y.(z+1) ──► merge main into dev/Rx.y.z
 ```
 
@@ -35,7 +35,7 @@ hotfix: feature/<fix> from main ──PR──► pre-release ──PR──► 
 | `main` | Production: scheduled workflows run its code and every merge deploys. Pull requests from `pre-release` only; one annotated tag per release |
 | `pre-release` | `main` plus the promotion under test; brought level with `main` before each promotion. CI and `pre-release.yml`'s smoke test run on it |
 | `dev/Rx.y.z` | The open release (now `dev/R1.1.0`), cut from `main` when the release starts; deleted after its tag exists |
-| `feature/<description>` | One feature or fix, from the open `dev/Rx.y.z` (or from `main` for a hotfix); deleted on merge |
+| `feature/<description>` | One feature or fix, from the open `dev/Rx.y.z`, merged into it directly after the local checks pass; deleted once the release is tagged. A hotfix branches from `main` and goes by pull request into `pre-release` |
 
 `main` and `pre-release` accept changes only by pull request with passing checks. A release's number
 is chosen when its dev branch is cut: `y` for a planned release, `z` for a hotfix, `x` for a change of

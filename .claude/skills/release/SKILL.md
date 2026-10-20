@@ -1,12 +1,12 @@
 ---
 name: release
-description: The branching and release procedure for this repository — feature branches, the dev/Rx.y.z release branch, promotion through pre-release into main, tagging, hotfixes, and starting the next release. Load before creating a branch, opening or merging a pull request, promoting a release, tagging, or fixing something in production.
+description: The branching and release procedure for this repository — feature branches merged straight into the dev/Rx.y.z release branch, promotion through pre-release into main, tagging, hotfixes, and starting the next release. Load before creating or merging a branch, opening a pull request, promoting a release, tagging, or fixing something in production.
 user-invokable: true
 ---
 
 # Branching and releases
 
-Policy and rationale: DL-80 and the release register (`docs/planning/epics/README.md`). This skill is
+Policy and rationale: DL-80, DL-82 and the release register (`docs/planning/epics/README.md`). This skill is
 the procedure. Releases are numbered `Rx.y.z`; `main` carries one annotated tag per release.
 
 ## The branches
@@ -15,8 +15,8 @@ the procedure. Releases are numbered `Rx.y.z`; `main` carries one annotated tag 
 | --- | --- | --- |
 | `main` | Production. Scheduled workflows run its code; every merge deploys to Pages | Pull request from `pre-release` only (protected) |
 | `pre-release` | Main plus the promotion under test. CI and the pre-release smoke test run on it | Pull request from `dev/Rx.y.z` or a hotfix branch only (protected) |
-| `dev/Rx.y.z` | The open release, e.g. `dev/R1.1.0`. Cut from `main` when the release starts | Pull requests from `feature/*` |
-| `feature/<description>` | One feature or fix, kebab-case description. Deleted once merged | You |
+| `dev/Rx.y.z` | The open release, e.g. `dev/R1.1.0`. Cut from `main` when the release starts | Direct merges from `feature/*`, after the local checks pass (DL-82) |
+| `feature/<description>` | One feature or fix, kebab-case description. Kept until the release is tagged, then deleted | You |
 | `data`, `snapshots`, `ledger` | Pipeline state, written by workflows | Never by hand |
 
 **Never** commit or push directly to `main` or `pre-release`, never force-push either, and never
@@ -24,15 +24,20 @@ delete a `dev/Rx.y.z` branch before its release is tagged.
 
 ## A feature or fix for the open release
 
+No pull request (DL-82). Run the local checks first — lint, format, type check, the Python and web
+tests and the docs check, as `CLAUDE.md` lists them — and do not push into a red dev branch.
+
 ```bash
 git fetch origin
 git switch -c feature/<description> origin/dev/R1.1.0
-# ...commit, naming the FR/NFR ids...
-git push -u origin feature/<description>
-gh pr create --base dev/R1.1.0 --title "<what>" --body "<why; FR/NFR; DL-nn>"
-# after CI passes and it is merged:
-gh pr merge <n> --merge --delete-branch
+# ...commit, naming the FR/NFR ids; run the local checks...
+git push -u origin feature/<description>        # optional: a remote copy while it is open
+git switch dev/R1.1.0 && git pull --ff-only
+git merge --no-ff feature/<description> -m "Merge feature/<description> into dev/R1.1.0"
+git push origin dev/R1.1.0                      # CI runs on dev/**; fix any failure first
 ```
+
+Keep the feature branch: it is deleted with the others when the release is tagged.
 
 ## Promote the release
 
@@ -41,8 +46,8 @@ gh pr merge <n> --merge --delete-branch
    `gh pr create --base pre-release --head main --title "Sync pre-release with main"`.
 2. **Promote:** `gh pr create --base pre-release --head dev/R1.1.0 --title "Promote R1.1.0"`; merge it
    once CI passes. The push to `pre-release` runs CI and the pre-release smoke test.
-3. **If anything fails,** fix it on a `feature/*` branch into `dev/R1.1.0` and promote again. Never
-   fix on `pre-release` itself.
+3. **If anything fails,** fix it on a `feature/*` branch merged into `dev/R1.1.0` and promote again.
+   Never fix on `pre-release` itself.
 4. **Release:** `gh pr create --base main --head pre-release --title "Release R1.1.0"`. CI and the
    smoke test must pass (both are required checks). Merge with a merge commit; `deploy.yml` deploys.
 5. **Tag** the merge commit on main, annotated, and push it — `release.yml` publishes the GitHub
@@ -50,7 +55,12 @@ gh pr merge <n> --merge --delete-branch
    ```bash
    git fetch origin && git tag -a R1.1.0 origin/main -m "R1.1.0 — <title>" && git push origin R1.1.0
    ```
-6. **Close the release in the docs** (release register: fill its Status line, archive its plan to
+6. **Delete the release's feature branches**, local and remote, now that the tag exists:
+   ```bash
+   git branch --merged origin/main --list 'feature/*' | xargs -r git branch -d
+   git branch -r --merged origin/main --list 'origin/feature/*' | sed 's|origin/||' | xargs -r git push origin --delete
+   ```
+7. **Close the release in the docs** (release register: fill its Status line, archive its plan to
    `docs/planning/archive/R1.1.0/`), on the next dev branch.
 
 ## Start the next release
