@@ -10,7 +10,7 @@ amount of `data`-branch churn may threaten it.
 
 Usage (run from the repo root, with `bronze_dir` pointing at a checked-out bronze store)::
 
-    python pipeline/scripts/retention.py rolling <bronze_dir> --remote <url> --window-days 30
+    python pipeline/scripts/retention.py rolling <bronze_dir> --remote <url>
     python pipeline/scripts/retention.py permanent <payload> --remote <url> --gameweek 3
     python pipeline/scripts/retention.py archive <bronze_dir> --remote <url>
 
@@ -40,7 +40,7 @@ from fpl_dof.config import load_config
 from fpl_dof.retention import plan_gameweek_archive, plan_retention
 from fpl_dof.silver.store import append_table
 from fpl_dof.silver.tables import Table
-from fpl_dof.sources import gameweeks_from_bronze
+from fpl_dof.sources import META_SUFFIX, gameweeks_from_bronze
 
 
 class GitError(RuntimeError):
@@ -80,6 +80,19 @@ def _bronze_paths(bronze_dir: Path) -> list[str]:
         for path in bronze_dir.rglob("*")
         if path.is_file()
     )
+
+
+def _immutable(bronze_dir: Path, paths: list[str]) -> frozenset[str]:
+    """Snapshots whose lineage says they can never change, with their sidecars."""
+    keep: set[str] = set()
+    for sidecar in (p for p in paths if p.endswith(META_SUFFIX)):
+        try:
+            immutable = json.loads((bronze_dir / sidecar).read_text(encoding="utf-8"))["immutable"]
+        except OSError, ValueError, KeyError:
+            continue  # unreadable lineage proves nothing; the window decides
+        if immutable is True:
+            keep.update({sidecar, sidecar[: -len(META_SUFFIX)]})
+    return frozenset(keep)
 
 
 #: Pushes to `data` that lose the lease to another workflow are retried this many times.
@@ -140,11 +153,9 @@ def rebuild_rolling_branch(
     force-push it, but only over the commit folded in first (REM-03). Returns counts for
     reporting; the caller decides what to log."""
     if window_days is None:
-        try:
-            cfg, _ = load_config()
-            window_days = cfg.retention.bronze_days
-        except Exception:
-            window_days = 30
+        # Configuration is the window's one home (REM-10). A config that cannot load stops the
+        # rebuild rather than pruning bronze by a guessed window.
+        window_days = load_config()[0].retention.bronze_days
     if silver_dir is None and (bronze_dir.parent / "silver").is_dir():
         silver_dir = bronze_dir.parent / "silver"
 
@@ -195,7 +206,12 @@ def _stage_rolling(
     # A retention window applies to dated snapshots; sidecars share their snapshot's date
     # directory, so partitioning the full path list (snapshots and sidecars together) keeps a
     # snapshot and its lineage record moving together rather than pruning one without the other.
-    plan = plan_retention(paths, today=today or dt.date.today(), window_days=window_days)
+    plan = plan_retention(
+        paths,
+        today=today or dt.date.today(),
+        window_days=window_days,
+        keep=_immutable(bronze_dir, paths),
+    )
     retained = plan.retain + plan.undated
 
     for relative in retained:

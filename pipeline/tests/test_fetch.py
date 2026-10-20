@@ -258,7 +258,9 @@ def test_conditional_request_sends_etag_and_handles_304(tmp_path: Path) -> None:
 
 
 @respx.mock
-def test_force_refresh_bypasses_conditional_headers(tmp_path: Path) -> None:
+@pytest.mark.parametrize("flag", ["force_refresh", "rebackfill"])
+def test_a_forced_fetch_bypasses_conditional_headers(tmp_path: Path, flag: str) -> None:
+    """REM-10: a 304 to a forced re-fetch would re-bless the very bytes being replaced."""
     respx.get(URL).mock(
         return_value=httpx.Response(200, content=b"initial", headers={"ETag": '"v1-hash"'})
     )
@@ -271,7 +273,7 @@ def test_force_refresh_bypasses_conditional_headers(tmp_path: Path) -> None:
             return httpx.Response(200, content=b"refreshed")
 
         respx.get(URL).mock(side_effect=unconditional_handler)
-        refreshed = fetcher.fetch(URL, force_refresh=True, **FETCH_KWARGS)  # type: ignore[arg-type]
+        refreshed = fetcher.fetch(URL, **{flag: True}, **FETCH_KWARGS)  # type: ignore[arg-type]
         assert refreshed.from_cache is False
         assert refreshed.payload == b"refreshed"
         assert fetcher.conditional_hits == 0

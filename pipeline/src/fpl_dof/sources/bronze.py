@@ -21,6 +21,7 @@ import hashlib
 import os
 import re
 import shutil
+import zlib
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -80,6 +81,18 @@ class Snapshot:
         return ((now or utcnow()) - self.meta.fetched_at).total_seconds()
 
 
+def _write_sidecar(payload: Path, meta: SnapshotMeta) -> None:
+    """Write the lineage record whole or not at all (REM-10).
+
+    :meth:`BronzeStore.touch` rewrites an existing snapshot's sidecar; a write torn half-way would
+    leave a good payload with unreadable lineage. A rename within one directory is atomic.
+    """
+    sidecar = payload.with_name(payload.name + META_SUFFIX)
+    partial = sidecar.with_name(sidecar.name + ".partial")
+    partial.write_text(meta.model_dump_json(indent=2), encoding="utf-8")
+    partial.replace(sidecar)
+
+
 @dataclass(frozen=True, slots=True)
 class IntegrityIssue:
     path: Path
@@ -93,11 +106,16 @@ class VerifyReport:
     passed: int = 0
     failed: int = 0
     issues: list[IntegrityIssue] = field(default_factory=list)
-    pruned: list[Path] = field(default_factory=list)
+    quarantined: list[Path] = field(default_factory=list)
 
     @property
     def is_clean(self) -> bool:
         return self.failed == 0 and len(self.issues) == 0
+
+    @property
+    def unresolved(self) -> list[IntegrityIssue]:
+        """Issues still in bronze: everything not quarantined. Non-empty fails the command."""
+        return [issue for issue in self.issues if issue.path not in self.quarantined]
 
 
 class BronzeStore:
@@ -105,6 +123,8 @@ class BronzeStore:
 
     def __init__(self, root: Path) -> None:
         self.root = root
+        self.quarantine_root = root.parent / "quarantine" / root.name
+        """Where :meth:`verify` moves what it cannot trust, mirroring bronze's own layout."""
 
     def resource_dir(self, source: str, resource: str) -> Path:
         return self.root / source / resource
@@ -160,9 +180,7 @@ class BronzeStore:
             etag=etag,
             last_modified=last_modified,
         )
-        path.with_name(path.name + META_SUFFIX).write_text(
-            meta.model_dump_json(indent=2), encoding="utf-8"
-        )
+        _write_sidecar(path, meta)
         return Snapshot(path=path, meta=meta)
 
     def touch(
@@ -204,8 +222,7 @@ class BronzeStore:
                 "last_modified": last_modified or snapshot.meta.last_modified,
             }
         )
-        meta_path = path.with_name(path.name + META_SUFFIX)
-        meta_path.write_text(meta.model_dump_json(indent=2), encoding="utf-8")
+        _write_sidecar(path, meta)
         return Snapshot(path=path, meta=meta)
 
     def latest(
@@ -238,11 +255,26 @@ class BronzeStore:
             return Snapshot(path=path, meta=meta)
         return None
 
-    def verify(self, *, prune_orphans: bool = False) -> VerifyReport:
-        """Inspect the Bronze store for corruption, torn writes, and orphaned files (PIPE-11)."""
+    def verify(self, *, quarantine: bool = False) -> VerifyReport:
+        """Inspect the Bronze store for corruption, torn writes, and orphaned files (PIPE-11).
+
+        ``quarantine`` moves each bad file to :attr:`quarantine_root`, beside bronze rather than in
+        it: out of every read, but kept as evidence of what went wrong (REM-10).
+        """
         report = VerifyReport()
         if not self.root.is_dir():
             return report
+
+        def flag(path: Path, kind: str, detail: str, *files: Path) -> None:
+            report.issues.append(IntegrityIssue(path=path, kind=kind, detail=detail))
+            report.failed += 1
+            if quarantine and files:
+                for bad in files:
+                    if bad.exists():
+                        target = self.quarantine_root / bad.relative_to(self.root)
+                        target.parent.mkdir(parents=True, exist_ok=True)
+                        bad.replace(target)
+                report.quarantined.extend(files)
 
         date_pattern = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
@@ -250,52 +282,35 @@ class BronzeStore:
             for resource_dir in sorted(p for p in source_dir.iterdir() if p.is_dir()):
                 for day_dir in sorted(p for p in resource_dir.iterdir() if p.is_dir()):
                     if not date_pattern.match(day_dir.name):
-                        report.issues.append(
-                            IntegrityIssue(
-                                path=day_dir,
-                                kind="invalid_directory",
-                                detail=f"directory {day_dir.name} is not in YYYY-MM-DD format",
-                            )
+                        flag(
+                            day_dir,
+                            "invalid_directory",
+                            f"directory {day_dir.name} is not in YYYY-MM-DD format",
                         )
-                        report.failed += 1
 
                     all_files = [f for f in day_dir.iterdir() if f.is_file()]
                     meta_files = {f for f in all_files if f.name.endswith(META_SUFFIX)}
                     payload_files = {f for f in all_files if not f.name.endswith(META_SUFFIX)}
 
-                    for payload in sorted(payload_files):
-                        meta_path = payload.with_name(payload.name + META_SUFFIX)
-                        if meta_path not in meta_files:
-                            report.issues.append(
-                                IntegrityIssue(
-                                    path=payload,
-                                    kind="missing_metadata",
-                                    detail="payload has no accompanying .meta.json sidecar",
-                                )
-                            )
-                            report.failed += 1
-                            if prune_orphans:
-                                payload.unlink(missing_ok=True)
-                                report.pruned.append(payload)
-
                     for meta_file in sorted(meta_files):
                         payload_path = meta_file.with_name(meta_file.name[: -len(META_SUFFIX)])
                         if payload_path not in payload_files:
-                            report.issues.append(
-                                IntegrityIssue(
-                                    path=meta_file,
-                                    kind="missing_payload",
-                                    detail="metadata sidecar has no accompanying payload file",
-                                )
+                            flag(
+                                meta_file,
+                                "missing_payload",
+                                "metadata sidecar has no accompanying payload file",
+                                meta_file,
                             )
-                            report.failed += 1
-                            if prune_orphans:
-                                meta_file.unlink(missing_ok=True)
-                                report.pruned.append(meta_file)
 
                     for payload in sorted(payload_files):
                         meta_path = payload.with_name(payload.name + META_SUFFIX)
                         if meta_path not in meta_files:
+                            flag(
+                                payload,
+                                "missing_metadata",
+                                "payload has no accompanying .meta.json sidecar",
+                                payload,
+                            )
                             continue
 
                         report.total_snapshots += 1
@@ -303,43 +318,31 @@ class BronzeStore:
                             meta = SnapshotMeta.model_validate_json(
                                 meta_path.read_text(encoding="utf-8")
                             )
+                        except (OSError, ValueError) as exc:
+                            flag(payload, "corrupt_metadata", str(exc), payload, meta_path)
+                            continue
+                        try:
                             with gzip.open(payload, "rb") as gz:
                                 uncompressed = gz.read()
-                            actual_sha = hashlib.sha256(uncompressed).hexdigest()
-                            if actual_sha != meta.sha256:
-                                raise ValueError(
-                                    f"checksum mismatch: expected {meta.sha256}, got {actual_sha}"
-                                )
-                            report.passed += 1
-                        except (gzip.BadGzipFile, EOFError, OSError) as exc:
-                            report.failed += 1
-                            report.issues.append(
-                                IntegrityIssue(
-                                    path=payload,
-                                    kind="corrupt_gzip",
-                                    detail=f"decompression failed: {exc}",
-                                )
+                        except (OSError, EOFError, zlib.error) as exc:
+                            # zlib.error is not an OSError: a damaged deflate stream raises it.
+                            flag(
+                                payload,
+                                "corrupt_gzip",
+                                f"decompression failed: {exc}",
+                                payload,
+                                meta_path,
                             )
-                            if prune_orphans:
-                                payload.unlink(missing_ok=True)
-                                meta_path.unlink(missing_ok=True)
-                                report.pruned.extend([payload, meta_path])
-                        except Exception as exc:
-                            report.failed += 1
-                            kind = (
-                                "checksum_mismatch"
-                                if "checksum mismatch" in str(exc)
-                                else "corrupt_metadata"
+                            continue
+                        actual_sha = hashlib.sha256(uncompressed).hexdigest()
+                        if actual_sha != meta.sha256:
+                            flag(
+                                payload,
+                                "checksum_mismatch",
+                                f"checksum mismatch: expected {meta.sha256}, got {actual_sha}",
+                                payload,
+                                meta_path,
                             )
-                            report.issues.append(
-                                IntegrityIssue(
-                                    path=payload,
-                                    kind=kind,
-                                    detail=str(exc),
-                                )
-                            )
-                            if prune_orphans:
-                                payload.unlink(missing_ok=True)
-                                meta_path.unlink(missing_ok=True)
-                                report.pruned.extend([payload, meta_path])
+                            continue
+                        report.passed += 1
         return report

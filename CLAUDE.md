@@ -42,6 +42,8 @@ Python lives in `.venv` at the repo root, created with `uv`. `uv` is installed a
 | This week's decision only | `.venv\Scripts\fpl-dof week` |
 | Walk-forward backtest — **not** part of `run` | `.venv\Scripts\fpl-dof backtest`. Needs the archive source enabled and `sources.backfill_seasons` set in `config/local.yaml`; CI uses the committed `config/ci-backtest.yaml` via `FPL_DOF_CONFIG_FILE` (DL-68) |
 | Re-run ignoring caches | `.venv\Scripts\fpl-dof run --force-refresh` |
+| Check bronze for corrupt or torn snapshots | `.venv\Scripts\fpl-dof bronze verify`; `--quarantine` moves bad files to `data/quarantine/` (CI runs it before transform) |
+| Rebuild silver after a schema change (transform names it when needed) | `.venv\Scripts\fpl-dof silver rebuild` — the old silver is moved to `data/quarantine/`, not deleted |
 | Python tests | `cd pipeline && ..\.venv\Scripts\python -m pytest -q` |
 | Live-API drift tests | `cd pipeline && ..\.venv\Scripts\python -m pytest -q --network` |
 | Slow tests — the historical chip replay (D-18/DL-28), ~16 min | `cd pipeline && ..\.venv\Scripts\python -m pytest -q --slow tests/test_chip_replay.py`. Needs the archive backfill in silver; writes its finding to `data/gold/chip-replay.json` |

@@ -117,6 +117,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     silver_parser = subparsers.add_parser("silver", help="Silver tier utilities")
     silver_sub = silver_parser.add_subparsers(dest="silver_command", required=True)
+    rebuild_parser = silver_sub.add_parser(
+        "rebuild",
+        help="Rebuild silver from bronze after a schema change: moves the old silver to "
+        "data/quarantine/, replays price history, then runs transform.",
+    )
+    add_common(rebuild_parser)
     replay_parser = silver_sub.add_parser(
         "replay-prices",
         help="Rebuild price_history.parquet from bronze snapshots.",
@@ -134,9 +140,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Verify integrity of bronze snapshots against corruption and torn writes.",
     )
     verify_parser.add_argument(
-        "--prune-orphans",
+        "--quarantine",
         action="store_true",
-        help="Safely remove orphaned payloads and corrupted snapshots.",
+        help="Move corrupt and orphaned files out of bronze into data/quarantine/, kept as "
+        "evidence. Exits non-zero only if an issue remains in bronze.",
     )
 
     return parser
@@ -182,17 +189,29 @@ def main(argv: Sequence[str] | None = None) -> int:
         from fpl_dof.sources import BronzeStore
 
         bronze = BronzeStore(layout.bronze)
-        report = bronze.verify(prune_orphans=args.prune_orphans)
+        report = bronze.verify(quarantine=args.quarantine)
         print(
             f"bronze verify: {report.total_snapshots} snapshots checked, "
             f"{report.passed} passed, {report.failed} failed, {len(report.issues)} issue(s)"
         )
         for issue in report.issues:
             print(f"  [{issue.kind}] {issue.path}: {issue.detail}")
-        if report.pruned:
-            print(f"pruned {len(report.pruned)} corrupted or orphaned file(s)")
-        success = report.is_clean or bool(args.prune_orphans and report.pruned)
-        return EXIT_OK if success else EXIT_STAGE_FAILED
+        if report.quarantined:
+            print(f"quarantined {len(report.quarantined)} file(s) to {bronze.quarantine_root}")
+        return EXIT_STAGE_FAILED if report.unresolved else EXIT_OK
+
+    if args.command == "silver" and args.silver_command == "rebuild":
+        from fpl_dof.sources import replay_prices
+
+        # Kept, not deleted: accumulated rows older than the bronze window exist nowhere else.
+        aside = layout.root / "quarantine" / f"silver-{utcnow():%Y%m%dT%H%M%SZ}"
+        if layout.silver.exists():
+            aside.parent.mkdir(parents=True, exist_ok=True)
+            layout.silver.replace(aside)
+            print(f"silver rebuild: old silver moved to {aside}")
+        layout.ensure()
+        replay_prices(bronze_root=layout.bronze, silver_root=layout.silver, clean=True)
+        args.command = "transform"
 
     try:
         names = args.only if args.command == "run" else [args.command]

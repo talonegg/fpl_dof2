@@ -65,9 +65,8 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           remote="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
-          # No --window-days override: the script's default (30) matches
-          # RetentionConfig.bronze_days's default. If config/local.yaml or config/defaults ever
-          # override that value, pass --window-days here to match — see DL-41.
+          # The window is RetentionConfig.bronze_days, read by the script; immutable prior-season
+          # snapshots are kept whatever their age (REM-10).
           python pipeline/scripts/retention.py rolling data/bronze --remote "$remote"
 
   alert:

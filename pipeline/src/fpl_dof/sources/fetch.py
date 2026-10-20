@@ -214,7 +214,9 @@ class Fetcher:
             return Fetched(payload=cached.read_bytes(), snapshot=cached, from_cache=True)
 
         request_headers: dict[str, str] = {}
-        if cached is not None and not force_refresh:
+        # A forced re-fetch asks for the bytes, not whether they changed: a 304 would re-bless the
+        # very snapshot being replaced (REM-10).
+        if cached is not None and not (force_refresh or rebackfill):
             if cached.meta.etag:
                 request_headers["If-None-Match"] = cached.meta.etag
             if cached.meta.last_modified:

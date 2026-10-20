@@ -55,13 +55,18 @@ class RetentionPlan:
     """Paths retention could not date. Always retained (never pruned) — see UndatedSnapshotError."""
 
 
-def plan_retention(paths: list[str], *, today: dt.date, window_days: int) -> RetentionPlan:
+def plan_retention(
+    paths: list[str], *, today: dt.date, window_days: int, keep: frozenset[str] = frozenset()
+) -> RetentionPlan:
     """Partition bronze snapshot paths into what a rebuilt ``data`` branch should keep.
 
     A snapshot is retained when its embedded date is within ``window_days`` of ``today``,
     inclusive of the boundary day itself. An undated path is retained and reported separately
     rather than pruned, so a future change to the bronze layout fails loudly (as a growing
     ``undated`` list) instead of quietly deleting evidence.
+
+    ``keep`` is retained whatever its age: immutable snapshots of finished seasons and their
+    sidecars, which cannot change and would otherwise be re-fetched once they aged out (REM-10).
     """
     if window_days <= 0:
         raise ValueError(f"window_days must be positive, got {window_days}")
@@ -77,7 +82,7 @@ def plan_retention(paths: list[str], *, today: dt.date, window_days: int) -> Ret
         except UndatedSnapshotError:
             undated.append(path)
             continue
-        if date > cutoff:
+        if date > cutoff or path in keep:
             retain.append(path)
         else:
             prune.append(path)

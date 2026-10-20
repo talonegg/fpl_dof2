@@ -18,8 +18,9 @@ commented template is [`.env.example`](../.env.example).
 | `FPL_DOF_ODDS_CREDIT_BUDGET` | Monthly request cap, enforced in the adapter | No | `450` |
 
 **Handling.** Non-secrets go in a gitignored `.env` locally. The one secret, `ODDS_API_KEY`, goes in
-`.env` locally and in GitHub Actions secrets in CI: never in a settings file, never in the client
-bundle (NFR-13). The secret-scan hook in `.claude/hooks/` guards commits.
+`.env` locally, never in a settings file, never in the client bundle (NFR-13). The Odds API is off by
+default (PIPE-09), so no workflow passes the key; the Actions secret can stay unset. The secret-scan
+hook in `.claude/hooks/` guards commits.
 
 **In CI.** `FPL_DOF_TEAM_ID` and `FPL_DOF_LEAGUE_ID` are repository **variables**, not secrets and
 not committed config, and reach the ingest workflows as well as `pipeline.yml`, because the entry is
