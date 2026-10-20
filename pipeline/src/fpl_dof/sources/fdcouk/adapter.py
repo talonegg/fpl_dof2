@@ -13,9 +13,12 @@ import datetime as dt
 import io
 from collections.abc import Callable, Mapping
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import pandas as pd
+
+if TYPE_CHECKING:
+    from pandas._libs.tslibs.nattype import NaTType
 
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.obs.manifest import utcnow
@@ -166,7 +169,8 @@ class FdcoukAdapter(SourceAdapter):
             offline=request.offline,
             now=request.now,
         )
-        return fetched.payload
+        # football-data.co.uk serves Latin-1, decoded as prospective/timing.py does.
+        return fetched.payload.decode("latin-1")
 
     def parse_fixtures_csv(self, text: str, season: str, captured_at: pd.Timestamp) -> pd.DataFrame:
         """Parse raw fixtures.csv into conformed TeamMatchExpectation rows."""
@@ -291,7 +295,7 @@ def _number(value: object) -> float | None:
         return None
 
 
-def _parse_kickoff(date_str: str, time_str: str) -> pd.Timestamp:
+def _parse_kickoff(date_str: str, time_str: str) -> pd.Timestamp | NaTType:
     """Parse date like '18/10/2026' and time like '15:00' into UTC Timestamp."""
     if not date_str:
         return pd.NaT

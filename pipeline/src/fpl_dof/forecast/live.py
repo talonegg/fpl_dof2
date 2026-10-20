@@ -112,7 +112,8 @@ def build_forecast(
     history = inputs.player_gameweek
     _next_gameweek, deadline, horizon = next_deadline(inputs.gameweeks, config, as_of=inputs.as_of)
     fitted = fit_as_of(history, deadline, config, rules)
-    return fitted.predict(horizon, inputs=inputs)
+    frame: pd.DataFrame = fitted.predict(horizon, inputs=inputs)
+    return frame
 
 
 __all__ = [

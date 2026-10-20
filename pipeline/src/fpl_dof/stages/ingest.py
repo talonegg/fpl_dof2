@@ -56,10 +56,11 @@ def run(ctx: StageContext) -> StageResult:
             try:
                 report = adapter.ingest(request)
             except Exception as exc:
-                if getattr(exc, "diff", None):
+                drift = getattr(exc, "diff", None)
+                if drift:
                     log.error(
                         "ingest.schema_drift",
-                        extra={"source": adapter.name, "diff": exc.diff, "error": str(exc)},
+                        extra={"source": adapter.name, "diff": drift, "error": str(exc)},
                     )
                 # An enriching source that cannot be reached costs its own fields. Only a source
                 # that declares itself essential can stop the run (NFR-15, DP-15).

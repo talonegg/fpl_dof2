@@ -17,7 +17,7 @@ from typing import Any
 
 import pandas as pd
 
-from fpl_dof.frames import as_int
+from fpl_dof.frames import as_float, as_int
 from fpl_dof.gold.player_career import TEAM_ID_TO_CODE_2627, _season_from_path
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.silver.tables import Table
@@ -105,7 +105,7 @@ def _resolve_team_code(val: Any) -> int | None:
     try:
         iv = int(val)
         return iv
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         pass
     cleaned = "".join(ch for ch in str(val).lower() if ch.isalnum())
     return TEAM_NAME_TO_CODE.get(cleaned)
@@ -139,9 +139,9 @@ def build_team_match_odds(
         if fix_path.exists():
             fix_df = pd.read_parquet(fix_path)
             for r in fix_df.itertuples():
-                h_code = TEAM_ID_TO_CODE_2627.get(as_int(r.home_team_id), as_int(r.home_team_id))
-                a_code = TEAM_ID_TO_CODE_2627.get(as_int(r.away_team_id), as_int(r.away_team_id))
-                fix_map[(h_code, a_code)] = (
+                fix_home = TEAM_ID_TO_CODE_2627.get(as_int(r.home_team_id), as_int(r.home_team_id))
+                fix_away = TEAM_ID_TO_CODE_2627.get(as_int(r.away_team_id), as_int(r.away_team_id))
+                fix_map[(fix_home, fix_away)] = (
                     as_int(r.fixture_id) if pd.notna(r.fixture_id) else None,
                     as_int(r.gameweek) if pd.notna(r.gameweek) else None,
                 )
@@ -175,13 +175,13 @@ def build_team_match_odds(
                     "home_odds": getattr(row, "home_odds", None),
                     "draw_odds": getattr(row, "draw_odds", None),
                     "away_odds": getattr(row, "away_odds", None),
-                    "home_win_prob": round(float(row.home_win_probability), 6),
-                    "draw_prob": round(float(row.draw_probability), 6),
-                    "away_win_prob": round(float(row.away_win_probability), 6),
-                    "expected_home_goals": round(float(row.expected_goals_home), 4),
-                    "expected_away_goals": round(float(row.expected_goals_away), 4),
-                    "clean_sheet_home": round(float(row.clean_sheet_probability_home), 6),
-                    "clean_sheet_away": round(float(row.clean_sheet_probability_away), 6),
+                    "home_win_prob": round(as_float(row.home_win_probability), 6),
+                    "draw_prob": round(as_float(row.draw_probability), 6),
+                    "away_win_prob": round(as_float(row.away_win_probability), 6),
+                    "expected_home_goals": round(as_float(row.expected_goals_home), 4),
+                    "expected_away_goals": round(as_float(row.expected_goals_away), 4),
+                    "clean_sheet_home": round(as_float(row.clean_sheet_probability_home), 6),
+                    "clean_sheet_away": round(as_float(row.clean_sheet_probability_away), 6),
                 }
             )
 
@@ -211,17 +211,17 @@ def build_team_match_odds(
                     s_name = slabel
                     break
 
-            for r in hist_df.to_dict("records"):
-                h_raw = r.get("HomeTeam")
-                a_raw = r.get("AwayTeam")
-                h_code = _resolve_team_code(h_raw)
-                a_code = _resolve_team_code(a_raw)
-                if h_code is None or a_code is None:
+            for rec in hist_df.to_dict("records"):
+                h_raw = rec.get("HomeTeam")
+                a_raw = rec.get("AwayTeam")
+                home_code = _resolve_team_code(h_raw)
+                away_code = _resolve_team_code(a_raw)
+                if home_code is None or away_code is None:
                     continue
 
-                h_odds = r.get("B365H") or r.get("AvgH")
-                d_odds = r.get("B365D") or r.get("AvgD")
-                a_odds = r.get("B365A") or r.get("AvgA")
+                h_odds = rec.get("B365H") or rec.get("AvgH")
+                d_odds = rec.get("B365D") or rec.get("AvgD")
+                a_odds = rec.get("B365A") or rec.get("AvgA")
                 if not (h_odds and d_odds and a_odds):
                     continue
                 try:
@@ -230,17 +230,17 @@ def build_team_match_odds(
                         continue
                     devigged = devig({"home": h_val, "draw": d_val, "away": a_val})
                     fitted = fit_goal_expectations(result=devigged)
-                except (MarketError, ValueError):
+                except MarketError, ValueError:
                     continue
 
-                date_str = str(r.get("Date") or "").strip()
-                time_str = str(r.get("Time") or "").strip()
-                kickoff = pd.NaT
+                date_str = str(rec.get("Date") or "").strip()
+                time_str = str(rec.get("Time") or "").strip()
+                match_date: pd.Timestamp | None = None
                 if date_str:
                     combo = f"{date_str} {time_str}".strip() if time_str else date_str
                     for fmt in ("%d/%m/%Y %H:%M", "%d/%m/%y %H:%M", "%d/%m/%Y", "%d/%m/%y"):
                         try:
-                            kickoff = pd.to_datetime(combo, format=fmt, utc=True)
+                            match_date = pd.to_datetime(combo, format=fmt, utc=True)
                             break
                         except ValueError:
                             pass
@@ -250,9 +250,9 @@ def build_team_match_odds(
                         "season": s_name,
                         "gameweek": None,
                         "fixture_id": None,
-                        "match_date_utc": kickoff,
-                        "home_team_code": h_code,
-                        "away_team_code": a_code,
+                        "match_date_utc": match_date,
+                        "home_team_code": home_code,
+                        "away_team_code": away_code,
                         "home_odds": h_val,
                         "draw_odds": d_val,
                         "away_odds": a_val,
@@ -277,9 +277,7 @@ def build_team_match_odds(
         subset=["season", "home_team_code", "away_team_code"],
         keep="first",
     )
-    odds_df = odds_df.sort_values(
-        ["season", "home_team_code", "away_team_code"], ignore_index=True
-    )
+    odds_df = odds_df.sort_values(["season", "home_team_code", "away_team_code"], ignore_index=True)
 
     if gold_dir is not None:
         gold_dir.mkdir(parents=True, exist_ok=True)
