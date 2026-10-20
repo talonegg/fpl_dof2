@@ -210,9 +210,7 @@ class FittedForecastModel:
             )
         return pd.Series(predictions, index=features.index, dtype=float)
 
-    def _predict_live(
-        self, window: Sequence[int] | int, inputs: ForecastInputs
-    ) -> pd.DataFrame:
+    def _predict_live(self, window: Sequence[int] | int, inputs: ForecastInputs) -> pd.DataFrame:
         horizon = [window] if isinstance(window, int) else list(window)
         identity = _identity(inputs.players, self.config)
         features = _features(
@@ -269,8 +267,10 @@ class FittedForecastModel:
     ) -> pd.DataFrame:
         horizon = [window] if isinstance(window, int) else list(window)
         target_season = season or self.rules.season
+        # One season only: the replayed pool and its rolling features never span a season break.
+        past = self.past[self.past["season"] == target_season]
         identity = (
-            self.past.sort_values("kickoff_time")
+            past.sort_values("kickoff_time")
             .groupby("player_code")
             .last()[["web_name", "position", "team_id", "price"]]
         )
@@ -283,28 +283,27 @@ class FittedForecastModel:
             start_probability=1.0,
             start_floor=0.0,
             confidence="medium",
-            availability=1.0,
         )
         features = build_features(
-            self.past,
+            past,
             as_of=self.deadline,
             config=self.config.features,
-            positions=self.past[["player_code", "position"]],
+            positions=past[["player_code", "position"]],
         )
         if features.empty:
-            raise RuntimeError(f"no features could be built at {self.deadline}")
+            raise ColdStartError(f"no features could be built at {self.deadline}")
 
         frame = horizon_frame(
             features,
             identity=identity,
             horizon=horizon,
-            fixtures=fixture_index_from_history(history, horizon, season=target_season),
+            fixtures=fixture_index_from_history(history, target_season, horizon),
             models=self.models,
             rules=self.rules,
             config=self.config,
-            status_multipliers=dict(identity["availability"]),
-            discount=self.config.horizon_discount,
         )
+        if frame.empty:
+            raise ColdStartError(f"no player could be forecast at {self.deadline}")
         frame["start_probability"] = (
             1.0 - frame["p_no_appearance"].astype(float).clip(0.0, 1.0)
         ).clip(0.0, 1.0)

@@ -212,11 +212,14 @@ def _temporal_monotonicity_and_containment(
         and "gameweek" in gw_table.columns
         and "deadline_time" in gw_table.columns
     ):
-        for _, row in gw_table.iterrows():
-            gw = row["gameweek"]
-            dt_val = row["deadline_time"]
-            if pd.notna(gw) and pd.notna(dt_val):
-                deadlines[int(gw)] = pd.to_datetime(dt_val, utc=True)
+        known = gw_table.dropna(subset=["gameweek", "deadline_time"])
+        deadlines = dict(
+            zip(
+                known["gameweek"].astype(int),
+                pd.to_datetime(known["deadline_time"], utc=True),
+                strict=True,
+            )
+        )
 
     # 1. Price history check
     price_hist = tbl_dict.get(Table.PRICE_HISTORY.value)
@@ -224,7 +227,7 @@ def _temporal_monotonicity_and_containment(
         price_hist = frame
 
     now_val = context.get("now")
-    now_ts = pd.to_datetime(now_val, utc=True) if now_val is not None else None
+    now_ts = pd.to_datetime(now_val, utc=True) if isinstance(now_val, str | dt.datetime) else None
 
     if price_hist is not None and not price_hist.empty:
         obs = pd.to_datetime(price_hist["observed_at"], utc=True)
@@ -253,11 +256,12 @@ def _temporal_monotonicity_and_containment(
                 if not non_pos.empty:
                     bad = non_pos.iloc[0]
                     ts_str = str(bad["observed_at"])
+                    entity = f"{key}={pid!s}"
                     return (
                         False,
-                        f"price_history is not strictly monotonic for {key}={pid} at {ts_str}",
+                        f"price_history is not strictly monotonic for {entity} at {ts_str}",
                         {
-                            "violating_entity": f"{key}={pid}",
+                            "violating_entity": entity,
                             "timestamp": ts_str,
                             "deadline": "strictly_increasing",
                         },

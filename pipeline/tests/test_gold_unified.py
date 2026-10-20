@@ -39,7 +39,7 @@ def _create_mock_silver(silver_dir: Path) -> None:
                 "player_id": 10,  # seasonal id in 2024/25
                 "web_name": "Saka",
                 "position": "MID",
-                "team_id": 3,     # Arsenal code
+                "team_id": 3,  # Arsenal code
                 "opponent_team_id": 7,  # Aston Villa code
                 "fixture_id": 1,
                 "kickoff_time": pd.Timestamp("2024-08-17T14:00:00Z"),
@@ -84,7 +84,7 @@ def _create_mock_silver(silver_dir: Path) -> None:
                 "player_id": 99,  # reassigned seasonal id in 2026/27
                 "web_name": "Saka",
                 "position": "MID",
-                "team_id": 1,     # local id 1 for Arsenal in 2026/27
+                "team_id": 1,  # local id 1 for Arsenal in 2026/27
                 "opponent_team_id": 2,  # local id 2 for Aston Villa in 2026/27
                 "fixture_id": 101,
                 "kickoff_time": pd.Timestamp("2026-08-15T14:00:00Z"),
@@ -118,7 +118,7 @@ def _create_mock_silver(silver_dir: Path) -> None:
                 "season": "2026/27",
                 "gameweek": 1,
                 "player_code": 222,  # different player!
-                "player_id": 10,   # inherited number 10 in 2026/27
+                "player_id": 10,  # inherited number 10 in 2026/27
                 "web_name": "Havertz",
                 "position": "FWD",
                 "team_id": 1,
@@ -262,9 +262,9 @@ def test_team_match_odds_unification(tmp_path: Path) -> None:
 
     # Check 2024/25 match from historical CSV
     row_24 = odds[odds["season"] == "2024/25"].iloc[0]
-    assert row_24["home_team_code"] == 3   # Arsenal
+    assert row_24["home_team_code"] == 3  # Arsenal
     assert row_24["away_team_code"] == 39  # Wolves
-    assert row_24["home_win_prob"] > 0.7   # De-vigged favourite
+    assert row_24["home_win_prob"] > 0.7  # De-vigged favourite
     assert row_24["expected_home_goals"] > row_24["expected_away_goals"]
 
     # Test universal accessor
