@@ -3,16 +3,14 @@
 Work is delivered in releases numbered `Rx.y.z`. **R1.0** was the first build: epics E0–E14,
 archived in [`../archive/R1.0/`](../archive/README.md) — all but E8, which stays live here as the
 ongoing in-season monitoring epic. **R1.1.0**, the data pipeline uplift, is closed and archived in
-[`../archive/R1.1.0/`](../archive/README.md); **R1.1.1**, which verified it on `main`, is the open
-release. Each
-release and epic records its outcome in its Status line and the decisions it took in [`docs/decisions/`](../../decisions/README.md).
+[`../archive/R1.1.0/`](../archive/README.md), and **R1.1.1** verified it on `main`. **R1.2.0**, the
+first slice of the modular platform, is the open release. Each release and epic records its outcome in its Status line and the decisions it took in [`docs/decisions/`](../../decisions/README.md).
 
 ## Register
 
 | Release | Plan | Status |
 | --- | --- | --- |
-| **R1.1.1** — R1.1.0 verified on `main` | PIPE-14's `snapshots` box in the [R1.1.0 backlog](../archive/R1.1.0/R1.1.0-data-pipeline-backlog.md), set by [DL-85](../../decisions/DL-85.md) | Done on `dev/R1.1.1`: the box is ticked (`ingest-slow` run 39436687166) and R1.1.0 archived; ready to promote and tag |
-| **R1.2.0** — registry and five models live | [Modular platform backlog](R1.2.0-modular-platform-backlog.md) §2, MOD-01 … MOD-09; design in [05](../05-target-architecture.md), set by [DL-86](../../decisions/DL-86.md) | Planned; not started |
+| **R1.2.0** — registry and five models live | [Modular platform backlog](R1.2.0-modular-platform-backlog.md) §2, MOD-01 … MOD-09; design in [05](../05-target-architecture.md), set by [DL-86](../../decisions/DL-86.md) | Open on `dev/R1.2.0`; not started |
 | **R1.3.0** — gameweek orchestration | [Modular platform backlog](R1.2.0-modular-platform-backlog.md) §3, ORC-01 … ORC-06, epic level | Planned after R1.2.0 |
 | **R1.4.0** — independent web | [Modular platform backlog](R1.2.0-modular-platform-backlog.md) §4, WEB-01 … WEB-06, epic level | Planned after R1.3.0 |
 | Ongoing, every season | [E8 — ongoing in-season monitoring](E8-ongoing-in-season-monitoring.md): the season state and decision points (rewritten each gameweek), the weekly loop, the bar for changing the model mid-season | Live, GW1 → 30 May 2027; updated weekly |
@@ -39,7 +37,7 @@ hotfix: feature/<fix> from main ──PR──► pre-release ──PR──► 
 | --- | --- |
 | `main` | Production: scheduled workflows run its code and every merge deploys. Pull requests from `pre-release` only; one annotated tag per release |
 | `pre-release` | `main` plus the promotion under test; brought level with `main` before each promotion. CI and `pre-release.yml`'s smoke test run on it |
-| `dev/Rx.y.z` | The open release (now `dev/R1.1.1`), cut from `main` when the release starts; deleted after its tag exists |
+| `dev/Rx.y.z` | The open release (now `dev/R1.2.0`), cut from `main` when the release starts; deleted after its tag exists |
 | `feature/<description>` | One feature or fix, from the open `dev/Rx.y.z`, merged into it directly after the local checks pass; deleted once the release is tagged. A hotfix branches from `main` and goes by pull request into `pre-release` |
 
 `main` and `pre-release` accept changes only by pull request with passing checks. A release's number
