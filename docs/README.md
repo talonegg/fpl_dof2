@@ -102,6 +102,9 @@ criteria. The [release register](planning/epics/README.md) decides the order.
   bench order and model labels (W2); one artefact registry and loading hook (W3); check generated
   types in CI (W4).
 - Deploy only when a pipeline run actually published (O1); typed workflow hand-offs (O2).
+- Code findings of 2026-10-22: M7 reads no player's card record (F1); the freshness gate cannot fire
+  in CI (F2); the backtest trains on more seasons than the live model (F3); a hard-coded half-life
+  (F4); stale text in code (F5).
 
 **Open debt ([debt register](planning/debt-register.md))** — most visibly D-13 (the forecast does not
 yet beat the model-free benchmark at the head of the ranking) and D-23 (scraped sources blocked).
