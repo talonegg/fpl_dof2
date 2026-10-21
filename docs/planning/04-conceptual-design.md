@@ -92,9 +92,9 @@ Each source's adapter and state are tabled in
 #### S1 — Official FPL API *(essential)*
 
 Public, unauthenticated, undocumented (CON-5). The `fpl` adapter fetches `bootstrap-static/`,
-`fixtures/`, `element-summary/{id}/` (slow path only), `event/{gw}/live/`, `team/set-piece-notes/`,
-`leagues-classic/{id}/standings/`, and `entry/{id}/` with `history/`, `event/{gw}/picks/` and
-`transfers/`. It supplies prices, ownership, status flags, the points ledger, the rules (DL-17), chip
+`fixtures/`, `element-summary/{id}/`, `event/{gw}/live/` and `leagues-classic/{id}/standings/` (the
+last three slow path only), `team/set-piece-notes/`, and `entry/{id}/` with `history/`,
+`event/{gw}/picks/` and `transfers/`. It supplies prices, ownership, status flags, the points ledger, the rules (DL-17), chip
 windows — and **expected goals, assists and goals conceded per match**, so the model needs no scraped
 source (DL-34, DL-46). The pre-deadline picks gap is handled by squad state (§4.2, DL-20). If it
 fails, the run stops and the last publication stays live.
@@ -113,18 +113,27 @@ Defensive Contribution comes from the FPL feed instead (M4).
 #### S4 — Bookmaker odds *(football-data.co.uk through its adapter; The Odds API off)*
 
 `fdcouk` reads football-data.co.uk's match files (PIPE-04): off in the pipeline run, and read by the
-prospective harness through `sources.LiveFeed` for upcoming odds (REM-07). Past seasons' files are
-immutable, fetched once each; it de-vigs and conforms them into `team_match_expectation`, and gold
-`team_match_odds` takes the last pre-deadline capture per fixture (PIPE-05). `oddsapi` is off by
+prospective harness through `sources.LiveFeed` for upcoming odds and its hash-pinned past seasons
+(REM-07). When enabled — no shipped configuration enables it — it de-vigs past seasons' files, each
+immutable and fetched once, into `team_match_expectation`, and gold `team_match_odds` takes the last
+pre-deadline capture per fixture (PIPE-05); until then both stay empty. `oddsapi` is off by
 default (PIPE-09) and fetches nothing without `ODDS_API_KEY`; its free-tier credit budget is enforced
 in the adapter. No history (D-20), so not backtestable; the M2 market blend is unwired (DL-60).
 
 #### S5 — Historical archive *(build-time)*
 
 `fplarchive` reads prior-season per-gameweek data from the community mirror, because the API has none
-(DL-19). Off by default; the CI backtest enables it (DL-68). Its bronze is immutable: never
-re-fetched unless `--rebackfill`, and kept on `data` beyond the rolling window (PIPE-03). Identity
+(DL-19). Off by default; `config/ci-backtest.yaml` enables it for the weekly backtest and the
+prospective job's silver refresh (DL-68). Its bronze is immutable: never re-fetched unless
+`--rebackfill` or `--force-refresh`, and kept on `data` beyond the rolling window (PIPE-03). Identity
 across seasons is FPL's stable `code` for players and clubs (DL-52).
+
+#### Frozen reference data *(prospective harness, outside the registry)*
+
+The frozen prospective bundle reads data no ingest run produces: football-data.co.uk's 2023/24 to
+2025/26 match files, pinned by hash; a dated 2026/27 GW1–6 odds copy, used only to replay that
+record; and the fplcache archive of FPL snapshots, ending at 2025/26 GW38. `sources/external.py`
+declares them for `/health`.
 
 #### Future sources *(OD-04)*
 
@@ -138,16 +147,18 @@ Every adapter subclasses `SourceAdapter` (`sources/base.py`):
 
 | Member | Responsibility |
 | --- | --- |
-| `name`, `version`, `attribution`, `health_*` | Identity in lineage; text on `/health` |
-| `resources` | Each endpoint with its cache TTL and whether it is on the fast path |
+| `name`, `version`, `summary`, `base_url`, `attribution`, `health_*` | Identity in lineage; text on `/health` |
+| `resources` | Each endpoint with its cache TTL, whether it is on the fast path, and whether it is `immutable` (PIPE-03) |
 | `enabled_by_default`, `essential` | Runs without configuration? Can the run recommend without it? |
 | `contributes` | Canonical fields it can supply, for precedence |
 | `configuration_problem()` | Reports a missing credential before fetching |
-| `ingest(request)` | Fetch to bronze. **No parsing** |
-| `conform(request)` | Bronze to silver tables (and, for `fpl`, the rules) |
+| `ingest(request)` | Fetch to bronze, guarding slow-path resources with `wants()`. **No conforming** |
+| `conform(request)` | Bronze to silver tables (and, for `fpl`, the rules), stamping `observed_at` from `note_observed()` (DL-83) |
 
 **Shared:** `Fetcher` (`sources/fetch.py`) — serial rate limit, retry with backoff and jitter,
-honest user agent, secret redaction, and caching by serving the latest snapshot inside its TTL;
+honest user agent, secret redaction, and caching by serving the latest snapshot inside its TTL, or
+at any age if it is immutable; `--force-refresh` and `--rebackfill` bypass the cache, and `--offline`
+serves only bronze;
 `BronzeStore`; `robots.py`. Conditional requests: a snapshot's `ETag` and `Last-Modified` are sent
 back, and a 304 revalidates it without a download (PIPE-07); a forced re-fetch sends neither
 (REM-10). Credit budgeting lives in the one adapter that needs it.
@@ -168,7 +179,7 @@ name is rejected. A failing non-essential source removes its fields and nothing 
 | Group | Tables |
 | --- | --- |
 | Game | `player`, `team`, `fixture`, `gameweek`, `chip`, `set_piece_note` |
-| Performance | `player_gameweek`, `player_season_history`, `price_history` (accumulates) |
+| Performance | `player_gameweek`, `player_season_history`, `price_history` |
 | The owner | `entry`, `entry_pick`, `entry_transfer`, `entry_chip`, `entry_gameweek` (DL-69) |
 | Mini-league | `league_standing`, `league_pick` |
 | Cross-source | `player_crosswalk`, `player_advanced`, `player_metric`, `team_match_expectation` |
@@ -177,7 +188,9 @@ Identity is FPL's stable player `code`; season-local ids never cross a season (D
 `player_gameweek` is one row per player **per fixture**, so doubles and postponements are not special
 cases, and carries `kickoff_time` as its knowability boundary. `player_advanced` and `player_metric`
 carry `as_of_gameweek` and `observed_at`, and the crosswalk records each source's `ingress`
-(DL-83). Forecasts and decisions are gold, not silver. Silver has no `run_id` column; lineage is per snapshot and artefact (§12.4).
+(DL-83). `price_history`, `player_gameweek`, `player_advanced` and `player_metric` accumulate across
+runs rather than being rebuilt (`APPENDED` in `stages/transform.py`, 03 §7.1). Forecasts and
+decisions are gold, not silver. Silver has no `run_id` column; lineage is per snapshot and artefact (§12.4).
 
 ### 3.2 Entity resolution (FR-07, R-10)
 
@@ -197,8 +210,8 @@ Under `paths.DataLayout`; what persists between CI runs is
 
 | Layer | Layout |
 | --- | --- |
-| Bronze | `bronze/{source}/{resource}/{date}/{key}__{timestamp}.json.gz` + `.meta.json` (URL, status, time, SHA-256, `run_id`, source version) |
-| Silver | `silver/season={s}/{table}.parquet`, rebuilt from bronze each run, `price_history` excepted (03 §7.1) |
+| Bronze | `bronze/{source}/{resource}/{date}/{key}__{timestamp}.{json,csv,html}.gz` + `.meta.json` (URL, status, fetch time, SHA-256 of the uncompressed payload, size, `run_id`, source version, `immutable`, `ETag`/`Last-Modified`) |
+| Silver | `silver/season={s}/{table}.parquet` plus the season's `rules.json`; rebuilt from bronze each run except the accumulating tables (03 §7.1) |
 | Gold | `gold/season={s}/` — `expected_points.parquet`, `player_career_history.parquet`, `team_match_odds.parquet`, `squad.json`, `plan.json`, `week.json`, `quality.json`, `model-card.md`, backtest outputs |
 | Quarantine | `quarantine/bronze/…` from `bronze verify --quarantine`; `quarantine/silver-{time}/` from `silver rebuild` (REM-10). Kept, never read |
 | Ledger | `ledger/advice/gwNN.json`, append-only (DL-69) |
@@ -217,7 +230,7 @@ and fixture counts, player count against the previous run, snapshot age, a deadl
 Every gate names the requirement it protects; thresholds are configuration. Gates read the run's
 `as_of`, never the wall clock. The temporal gate (PIPE-10, DL-83) blocks three things:
 - a current-season metric row observed after its `as_of_gameweek` deadline;
-- a `player_gameweek` row that kicked off before its own gameweek's deadline;
+- a current-season `player_gameweek` row that kicked off at or before its own gameweek's deadline;
 - price history that is future-dated or not strictly increasing.
 
 A source added mid-season is backdated by `sources/retrospective.py` and held to the same check.
@@ -225,13 +238,17 @@ A source added mid-season is backdated by `sources/retrospective.py` and held to
 ### 3.5 Feature store
 
 `forecast/features.py` builds one frame for the live forecast, the backtest, the chip replay and the
-monolith, so training and inference share definitions: per-90s over 3/6/12 appearances for every
-scored statistic plus xG and xA; minutes; appearance and start rates; matches observed; rest;
+monolith, so training and inference share definitions: per-90s over the last 3/6/12 matches of goals,
+assists, clean sheets, saves, bonus, BPS, defensive contribution, xG, xA and total points
+(`forecast.features.rolling_statistics`; the chain reads the six-match window); minutes; appearance and start rates; matches observed; rest;
 congestion and recent absence; price; venue and opponent; prior-season ratios (off, D-22).
 
-**Hard rule:** every `FeatureSpec` declares its `Knowability`, rows are stamped `as_of` the deadline,
-and `assert_no_look_ahead` fails a fold that sees a later kickoff; season totals are admissible only
-in a later season (Invariant 5, R-04).
+**Hard rule:** every `FeatureSpec` declares its `Knowability`; `build_features` reads only matches
+that kicked off strictly before `as_of`, and stamps each row with it; `assert_no_look_ahead` fails a
+fold whose rows are stamped after its deadline; the backtest strips every outcome column before
+predicting (DL-32). Season totals are admissible only in a later season (Invariant 5, R-04). Live,
+the fit stops at the earliest unfinished gameweek's deadline, so a gameweek in play never trains
+the model (DL-84).
 
 ---
 
@@ -308,16 +325,17 @@ graph LR
 
 | Model | Built as | Variants (flags in §13) |
 | --- | --- | --- |
-| M1 | Empirical band frequencies; status flag scales P(play) | `minutes_v2` on (DL-48) |
+| M1 | Empirical band frequencies; status flag scales P(play) | `minutes_v2` on (DL-48, DL-76) |
 | M2 | Attack × defence × home, time-decayed, on goals | Fitted home advantage (DL-55); xG ratings dark (DL-56); promoted-club widening inert (DL-57); market blend unwired (DL-60) |
 | M3 | Shrunk per-90 on xG and xA (DL-34) | Opponent adjustment (DL-58), penalty duty (DL-50) off; share-of-team-xG not built |
 | M4 | Per-90 count; P(threshold) by Poisson survival | — |
 | M5 | From M2's goals against | — |
 | M6 | Shrunk per-90 saves | Pressure-normalised keeper off (DL-51) |
-| M7 | Shrunk per-90 yellow cards | No referee or red-card model |
+| M7 | Position prior per-90 only: no rolling yellow-card rate is built, so no player's own record is read | No referee or red-card model |
 | M8 | Expected BPS ranked against a population distribution | Not ranked within the match |
 
-The fit is assembled in four places, two in the decision layer (03 §12 P1); the published-model
+Live, the backtest and the chip replay fit through one interface, `fit_as_of` (`forecast/fit.py`);
+only the C1 challenger fits on its own (03 §12 P1). The published-model
 choice is implicit in the stage, and points arithmetic is duplicated across `rules/scoring.py`,
 `xp_v0` and `xp_v1` (03 §12 P6).
 
@@ -335,7 +353,8 @@ ranking is made of.
 ### M2 — Team strength and match model
 
 Expected goals for and against each club per fixture: league mean × attack × opponent defence × home
-advantage, time-decayed, fitted on goals over the current season in the live path. Validated on the
+advantage, time-decayed, fitted on goals over the forecast season only, in live, backtest and replay
+alike (DL-81). Validated on the
 fixture-aware backtest (DL-52).
 
 ### M3 — Goal involvement
@@ -346,8 +365,9 @@ goals and assists (DL-34).
 ### M4 — Defensive contribution
 
 The per-90 of the feed's `defensive_contribution`, scaled by the minutes distribution and treated as a
-Poisson count; P(count ≥ the rules' threshold) gives the points. The raw counts exist from 2025/26
-only, so it rests on one prior season (D-11, Q-13).
+Poisson count; P(count ≥ the rules' threshold) gives the points. Live, the chain fits on this
+season's counts; the raw counts exist from 2025/26 only, so the backtest and `xp_v0` rest on one
+prior season (D-11, Q-13).
 
 ### M5 — Clean sheets and concessions
 
@@ -356,7 +376,8 @@ linear in M2's goals against.
 
 ### M6 — Saves · M7 — Cards
 
-Shrunk per-90s of saves and of yellow cards; small contributors.
+Shrunk per-90 saves. Cards take the position's per-90 prior for every player, because
+`yellow_cards` is not in `forecast.features.rolling_statistics`; both are small contributors.
 
 ### M8 — Bonus points
 
@@ -367,14 +388,15 @@ spread, binomial over the other players. Prior-season bonus comes from a differe
 
 - **Mean:** appearance points plus each component, integrated over the three minutes bands.
 - **Variance:** a mixture over the bands, `Σ P(s)(Var_s + μ_s²) − μ²`, with goal, assist, duty and
-  clean-sheet terms. Defensive contribution, saves, bonus, cards and conceded add none — a known gap;
+  clean-sheet terms plus a unit floor in each played band. Defensive contribution, saves, bonus, cards and conceded add none — a known gap;
   the minutes mixture dominates (DL-51). Covariance between players is not modelled (§6.4).
 - **Horizon:** `forecast/horizon.py` scores each horizon gameweek's real fixtures — a blank scores
   zero, a double sums means and variances — into `xp_gw_<n>` and `xp_gw_<n>_sd`, plus a discounted
   `xp_horizon`.
 - **Output:** `expected_points.parquet` — per-gameweek μ and σ, minutes probabilities,
-  `start_probability`, `component_*` for the next gameweek, a confidence tier, and the `model` per
-  row. Variance travels with every mean (Invariant 6).
+  `start_probability`, `component_*` for the next gameweek, a confidence tier, B0's
+  `captain_score` (read by the captain rule, DL-76), and the `model` per row. Variance travels with
+  every mean (Invariant 6).
 
 ### Cold start (FR-14)
 
@@ -387,14 +409,18 @@ not priors.
 
 ### Backtesting (FR-37, B7)
 
-`forecast/backtest.py` walks forward: at each historical deadline it refits the chain and every
-baseline on rows strictly before it, strips every outcome column (DL-32), and predicts. `fpl-dof
+`forecast/backtest.py` walks forward over `backtest.training_seasons`: at each historical deadline it
+refits the chain through `fit_as_of`, as live does, and every baseline on rows strictly before it, strips every outcome column (DL-32), and predicts. `fpl-dof
 backtest` is not part of `run`; CI runs it weekly with the archive enabled (DL-68).
 
-- **Metrics:** MAE and skill; Spearman and calibration slope by position, price band and fixture band;
-  top-20 precision and captaincy hit rate **per gameweek** (DL-49); minutes Brier (DL-48).
-- **Baselines:** B0 (price within position), a constant, trailing form, the status-flag haircut.
-  Skill is against them, never absolute (DP-12).
+- **Metrics:** MAE, RMSE and skill; Spearman by position, price band and fixture band; calibration
+  slope by position and fixture band; top-20 precision and captaincy hit rate **per gameweek**
+  (DL-49), all on rows with at least `backtest.minimum_minutes_for_scoring` minutes; minutes Brier
+  over every row (DL-48).
+- **Baselines:** B0 (price within position), a constant, trailing six-gameweek points, the
+  status-flag haircut. The model beats B0 when its MAE skill is positive and its Spearman exceeds
+  B0's, and beats the model-free bar when its Spearman exceeds trailing form's. Skill is against
+  them, never absolute (DP-12).
 - **Monolith:** a gradient-boosted regressor on the same declared features, inside `walk_forward`
   only, never promotable, reporting the explainability gap (DL-53).
 - **Outputs:** `backtest.json`, `backtest-predictions.parquet`, `backtest-card.md`; and on every
@@ -402,7 +428,7 @@ backtest` is not part of `run`; CI runs it weekly with the archive enabled (DL-6
   **Read it before acting on a ranking** (DL-21): no −8 hit, chip or Wildcard on the chain alone
   (D-13).
 - **Not in the package:** a simulated season of the full optimiser. The chip replay
-  (`optimise/replay.py`, DL-28) covers chip timing only; season replays of the frozen models are built
+  (`decision/replay.py`, DL-28) covers chip timing only; season replays of the frozen models are built
   offline as `models_history`; the pre-registered comparison is
   [`prospective/`](../../prospective/README.md).
 
@@ -703,7 +729,8 @@ sidecars (URL, time, checksum, `run_id`, source version); the manifest (SHA, con
 checksums); `rules.json`'s source snapshot; `run_id` in gold artefacts and `model` per forecast row;
 advice frozen per gameweek on `ledger` before the deadline, with the prospective inputs (DL-69,
 DL-73); a permanent bronze tarball per gameweek (03 §7.3). There is no row-level link from gold to
-bronze: silver has no `run_id`, is rebuilt each run and loses accumulated history on CI (PIPE-06).
+bronze: silver has no `run_id`, and every table but the persisted `price_history` is rebuilt from, or
+accumulated over, retained bronze (03 §7.1).
 Reconstruction is by replaying retained bronze under the recorded SHA and config.
 
 ### 12.5 Surfacing
@@ -737,14 +764,14 @@ Every tunable is named, defaulted and described where declared (DP-06). Two do n
 | --- | --- | --- |
 | `forecast.expected_goals.enabled` | On | DL-34 |
 | `forecast.expected_goals.team_strength_from_xg` | Off; measured better, awaiting shadow gameweeks | DL-56 |
-| `forecast.discrimination.minutes_v2` | **On**, the champion's minutes model | Measured in DL-48; no entry records turning it on |
+| `forecast.discrimination.minutes_v2` | **On**, the champion's minutes model | Measured in DL-48; on without a shadow window (DL-76) |
 | `forecast.discrimination.adaptive_shrinkage` | Off | DL-49 |
 | `forecast.discrimination.duty_term` | Off | DL-50 |
 | `forecast.discrimination.gkp_v2` | Off | DL-51 |
 | `forecast.discrimination.opponent_adjusted_rates` | Off | DL-58 |
 | `forecast.features.prior_season.enabled` | Off | DL-31, DL-63 |
 | `decision.simulation.enabled` | On | DL-28 |
-| `optimiser.captain_rule` | `price_position` | No entry (§6.5) |
+| `optimiser.captain_rule` | `price_position` | DL-76 (§6.5) |
 
 **Shadow mode** — publishing a candidate for comparison without letting it decide — is how a model
 changes mid-season; promotion needs the
@@ -771,23 +798,30 @@ The owner's requirement (DL-05). A step outside a recipe means its abstraction h
 1. Create `sources/{name}/` with a `SourceAdapter` subclass under `@register`: `resources`,
    `contributes`, `attribution`, health text, `enabled_by_default = False`, `essential = False`.
 2. Implement `ingest` through `Fetcher` and `BronzeStore` (and `robots.py` if scraping), and
-   `conform` into existing silver tables — usually `player_advanced` or `team_match_expectation` —
-   resolving players through `resolve.py`.
+   `conform` into existing silver tables — usually `player_advanced` or `team_match_expectation`.
+   Emit `player_crosswalk` references (`resolve.REF_COLUMNS`), not resolved ids: `enrich.py`
+   resolves every source at once. Stamp `observed_at` with `note_observed()`; a source added
+   mid-season backdates through `retrospective.py`, which sets `ingress` (DL-83).
 3. Record real responses under `pipeline/tests/fixtures/`; add a `respx` contract test and a
    degradation test.
-4. Add its name and host to `FORBIDDEN_PATTERNS` in `tests/test_source_isolation.py`, and its fields
-   to the precedence defaults where it competes.
-5. Enable it in `config/defaults/sources.yaml` if it should run by default; credentials by environment
-   variable only ([`environment.md`](../environment.md)).
+4. Add its host and endpoint strings to `FORBIDDEN_PATTERNS` in `tests/test_source_isolation.py`
+   (registered names are checked automatically, in `src/` and `scripts/`), and its fields to
+   `DEFAULT_FIELD_PRECEDENCE` in `sources/precedence.py` where it competes.
+5. Enable it under `sources.overrides.<name>.enabled` in
+   `pipeline/src/fpl_dof/config/defaults/sources.yaml` if it should run by default; credentials by
+   environment variable only ([`environment.md`](../environment.md)), passed by the workflow that
+   ingests.
 6. Run. Bronze, silver, gates, lineage and `/health` work already.
 
 No change to models, optimiser or UI. A new table needs a schema in `silver/tables.py`; a new field
-needs model work to exploit. football-data.co.uk is the source read outside this recipe (PIPE-04).
+needs model work to exploit. The operational scripts (day-before gate, prospective harness, xP
+scorer) read through `sources.LiveFeed` rather than the ingest stage (REM-06, REM-07).
 
 ### 14.2 Adding a model component
 
 1. Add it in `forecast/models.py` — usually a `RateModel` in `RATE_COMPONENTS` — with a mean and a
-   variance contribution.
+   variance contribution, and add its observed column to `forecast.features.rolling_statistics`, or
+   the rate reads no player history and returns the position prior.
 2. Score it in `xp_v1`, add its `component_*` column, and report its fitted state in `describe()` so
    an inert component shows on the cards.
 3. Gate it behind a `forecast.discrimination` flag, off, so flags-off reproduces today exactly
@@ -795,7 +829,8 @@ needs model work to exploit. football-data.co.uk is the source read outside this
 4. Grade it in the backtest against the baselines, per position, flag on and off.
 5. Turn it on only past the E8 §5 bar, recording the decision.
 
-A new input must currently reach each of the four fit assemblies (03 §12 P1).
+Live, the backtest and the chip replay all fit through `fit_as_of`, so a new input reaches them
+together; C1 fits on its own (03 §12 P1).
 
 ### 14.3 Adding an optimiser constraint
 
