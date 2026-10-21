@@ -1,6 +1,6 @@
 # Configuration for the weekly CI backtest only (DL-68). Selected by `FPL_DOF_CONFIG_FILE` in
-# `.github/workflows/backtest.yml`; no other workflow reads it, so the live pipeline's behaviour is
-# unchanged by anything here.
+# `.github/workflows/backtest.yml` and by the prospective job in `pipeline.yml`; the `run` job does
+# not read it, so the live pipeline's behaviour is unchanged by anything here.
 #
 # Nothing in this file is a secret: the community archive is a public GitHub repository and the
 # season labels are facts about the calendar. It is committed because the walk-forward backtest
