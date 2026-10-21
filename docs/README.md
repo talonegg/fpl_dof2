@@ -22,8 +22,8 @@ How to write and archive documents: [`agents/documentation.md`](agents/documenta
 | Source | What it provides | State |
 | --- | --- | --- |
 | **Official FPL API** | Players, prices, status, ownership, fixtures, per-gameweek stats including expected goals and assists, and the game's own rules | Essential: if it fails, the run stops and the last good advice stays live |
-| **FPL community archive** (GitHub mirror) | Past seasons gameweek by gameweek — the backtest's history | Used by the backtest; immutable once fetched, never re-fetched unless forced (PIPE-03) |
-| **football-data.co.uk** | Bookmaker match odds, past and upcoming | The `fdcouk` adapter, off in the pipeline run; the prospective harness reads upcoming odds through it (PIPE-04, PIPE-05) |
+| **FPL community archive** (GitHub mirror) | Past seasons gameweek by gameweek — the backtest's history | Off by default; the backtest and the prospective harness enable it; immutable once fetched, never re-fetched unless forced (PIPE-03) |
+| **football-data.co.uk** | Bookmaker match odds, past and upcoming | The `fdcouk` adapter, off by default and enabled by no workflow; the prospective harness reads its odds through it (PIPE-04, REM-07) |
 | Understat, FBref | Advanced player metrics (scraped) | **Blocked** upstream (D-23) and off by default; nothing that ships depends on them; the adapters stay, dormant (PIPE-09) |
 | The Odds API | Live match odds | Off by default (PIPE-09); free-tier credit cap and no history (D-20); not used by the model |
 
@@ -51,18 +51,20 @@ graph LR
 - **Pipeline** — Python, one CLI (`fpl-dof`) run by GitHub Actions on a deadline-aware schedule. Raw
   responses are kept as immutable bronze snapshots; transform conforms them into canonical silver
   tables; quality gates block anything suspect; the forecast is a chain of small, arguable component
-  models (minutes, team strength, goals, defence, saves, cards, bonus); the decision layer solves
+  models (minutes, team strength, goal involvement, defensive contribution, clean sheets, saves,
+  cards, bonus); the decision layer solves
   mixed-integer programmes with PuLP for the squad, the week's transfers and a multi-gameweek plan
   with chip scenarios (the plan on HiGHS).
 - **Contract** — JSON Schemas in `contracts/v1/` define every published file; Python validates
   before writing and generates the TypeScript types from the same schemas (DP-04).
 - **Web app** — React and TypeScript, installable and usable offline. It reads the published files
   and nothing else; legality checks and quick re-picks run in the browser from the published rules.
-- **State** — rolling raw data on the `data` branch, a permanent snapshot per gameweek on
-  `snapshots`, and each week's advice on `ledger`, written before the deadline so the season log is
-  evidence rather than recollection.
+- **State** — rolling raw data and the accumulated price history on the `data` branch, a permanent
+  bronze archive per closed gameweek on `snapshots`, and each week's advice and prospective record on
+  `ledger`, written before the deadline so the season log is evidence rather than recollection.
 - **Off the main path** — the walk-forward backtest that grades the model (its verdict is in the
-  model card), a pre-registered prospective model comparison, and a challenger model run in shadow.
+  model card) and a pre-registered prospective model comparison. On it, but never acted on, a
+  challenger model runs in shadow in every `week` stage.
 
 Detail: [solution architecture](planning/03-solution-architecture.md) (as built, with a module-design
 review in §12) and [conceptual design](planning/04-conceptual-design.md) (each component).
@@ -75,7 +77,7 @@ review in §12) and [conceptual design](planning/04-conceptual-design.md) (each 
   [`planning/archive/R1.0/`](planning/archive/README.md).
 - **R1.1.0 — delivered 2026-10-21: data pipeline uplift.** Remediated before release
   ([DL-81](decisions/DL-81.md)); its backlog is archived in [`planning/archive/R1.1.0/`](planning/archive/README.md).
-  **R1.1.1 — done, not yet promoted:** the permanent archive verified on `main` ([DL-85](decisions/DL-85.md)). Its effect on the architecture: [architecture §13](planning/03-solution-architecture.md#13-r110--target-data-architecture).
+  **R1.1.1 — done, not yet promoted:** the permanent archive verified on `main` ([DL-85](decisions/DL-85.md)). Its effect on the architecture: [architecture §13](planning/03-solution-architecture.md#13-r110--data-architecture-as-delivered).
 - **The season — live.** [E8 — ongoing in-season monitoring](planning/epics/E8-ongoing-in-season-monitoring.md)
   holds the season state and decision points, rewritten each gameweek.
 
