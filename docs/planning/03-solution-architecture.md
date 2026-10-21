@@ -481,7 +481,7 @@ adapter is hypothetical, with two it is real. The test of a module is whether de
 complexity vanish (a pass-through) or reappear across its callers (it was earning its keep). Findings
 cite file and line as of the review; they are a design backlog. When one is taken up it becomes a
 story in the open release or a `D-nn` in the [debt register](debt-register.md); one that R1.1.0 closed
-says so in its first words.
+says so in its first words. §12.6 adds the code findings of the 2026-10-22 documentation review.
 
 ### 12.1 Dependency direction
 
@@ -550,6 +550,21 @@ imports nothing from `forecast` (DP-02, PIPE-13).
 | **O3** | **Closed by PIPE-06:** every workflow restores with `retention.py restore`. **Branch-restore logic copied five times**; the guard restores `silver` from a branch that only holds bronze | `ingest-fast.yml:43`, `ingest-slow.yml:79`, `pipeline.yml:75,333,348` | One composite action or `retention.py restore` |
 | **O4** | **Closed by REM-10:** the window is read from configuration only. **The retention window is kept equal by hand** in YAML and configuration; the alert workflow's comment names a `retention.yml` that does not exist | `ingest-fast.yml:73-76`, `alert-on-failure.yml:21` | Read the window from configuration in the workflow step |
 
+### 12.6 Code findings of the 2026-10-22 documentation review
+
+Found while rewriting the data and model documentation to the code; not yet taken up. F1 and F3
+change what the model predicts, so they need the
+[E8 §5](epics/E8-ongoing-in-season-monitoring.md#5-the-bar-for-changing-the-model-mid-season) bar
+before they ship.
+
+| # | Finding | Evidence | Fix |
+| --- | --- | --- | --- |
+| **F1** | **M7 never reads a player's own card record.** The chain reads each rate's `_per90_last6` column, but `yellow_cards` is not in `forecast.features.rolling_statistics`, so the observed rate is always null and `RateModel.predict` returns the position prior: every player of a position gets the same card rate | `config/models.py:1078-1090`, `forecast/xp_v1.py:198`, `forecast/models.py:678-680,1021` | Add `yellow_cards` to `rolling_statistics`; a test that every `RATE_COMPONENTS` column has a rolling feature. Grade it in the backtest first |
+| **F2** | **The `snapshot_freshness` gate cannot fire in CI** (Invariant 7). It ages bronze by each sidecar's file modification time, which `retention.py restore` resets to the restore time, so every snapshot looks fresh; it also reads the file system's clock rather than the sidecar's | `stages/quality.py:110-122`, `scripts/retention.py:6-9` | Age each snapshot by `SnapshotMeta.fetched_at` |
+| **F3** | **The graded model is not the shipped model.** The backtest pools every `backtest.training_seasons` season into each fold's training rows; live, the chain trains on the current season's `player_gameweek` only. The verdict on the model card grades a model trained on more data than the one that ranks players | `stages/backtest.py:55`, `forecast/fit.py:68-80`, `stages/forecast.py:55-66` | Decide which training window is right (a `DL-nn`), then make one path follow the other |
+| **F4** | **M2's time-decay half-life is a hard-coded tunable** (DP-06), with no waiver | `forecast/models.py:324` | Move it into `ForecastConfig` with a description and its justification |
+| **F5** | **Stale text in code.** The model card's `BACKTESTED_WEAKNESS` says `minutes_v2` is flagged off, and `forecast.yaml` says every discrimination flag is off; it has been on since DL-76. `sources/external.py` says no adapter fetches the frozen-bundle files, but `sources.LiveFeed` reads them through `fdcouk` | `forecast/model_card.py:55-63`, `config/defaults/forecast.yaml:94`, `sources/external.py:3-4` | Rewrite the three texts to the current truth |
+
 ---
 
 ## 13. R1.1.0 — data architecture as delivered
@@ -602,7 +617,7 @@ Four §12 findings were built into R1.1.0 because its items depended on them ([D
 | PIPE-04 | **P5** | The `fdcouk` adapter ended the fetch outside `sources/`; the operational scripts read it through `sources.LiveFeed` (REM-07) |
 | PIPE-06 | **O3, O4** | Persisting silver needed a branch restore in every workflow; it is one step, `retention.py restore` |
 
-The other §12 findings (P2, P3, P6–P10, W1–W6, O1, O2) stand; their scheduling is in the
+The other §12 findings (P2, P3, P6–P10, W1–W6, O1, O2, F1–F5) stand; their scheduling is in the
 [release register](epics/README.md).
 
 ---
