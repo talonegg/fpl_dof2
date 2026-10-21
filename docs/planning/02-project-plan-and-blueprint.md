@@ -74,7 +74,8 @@ building are in the [release register](epics/README.md#choosing-what-to-build-ne
 | Release | State |
 | --- | --- |
 | **R1.0** — E0–E14 | Delivered: the steel thread to GW1 ([DL-10](../decisions/DL-10.md)), then the full system. [Archived](archive/README.md), except E8 |
-| **R1.1.0** — data pipeline uplift | Delivered 2026-10-21, after [remediation](archive/R1.1.0/R1.1.0-data-pipeline-backlog.md#4-remediation-plan) ([DL-81](../decisions/DL-81.md)); R1.1.1 verified the permanent archive on `main` ([DL-85](../decisions/DL-85.md)). Its architecture, and the 03 §12 findings it depends on: [03 §13](03-solution-architecture.md#13-r110--target-data-architecture) |
+| **R1.1.0** — data pipeline uplift | Delivered 2026-10-21, after [remediation](archive/R1.1.0/R1.1.0-data-pipeline-backlog.md#4-remediation-plan) ([DL-81](../decisions/DL-81.md)); R1.1.1 verified the permanent archive on `main` ([DL-85](../decisions/DL-85.md)). Its architecture, and the 03 §12 findings it depends on: [03 §13](03-solution-architecture.md#13-r110--data-architecture-as-delivered) |
+| **R1.2.0 – R1.4.0** — modular platform | Planned ([DL-86](../decisions/DL-86.md)): orchestrator, model factory and web as independent modules around a strategy registry. Design: [05](05-target-architecture.md); stories: [backlog](epics/R1.2.0-modular-platform-backlog.md) |
 | **E8** — in-season monitoring | Live to GW38 beside whichever release is open; says when the season's evidence should change what is built |
 
 **Cross-cutting concerns are not a release.** Orchestration, observability, testing and

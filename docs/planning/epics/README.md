@@ -12,6 +12,9 @@ release and epic records its outcome in its Status line and the decisions it too
 | Release | Plan | Status |
 | --- | --- | --- |
 | **R1.1.1** — R1.1.0 verified on `main` | PIPE-14's `snapshots` box in the [R1.1.0 backlog](../archive/R1.1.0/R1.1.0-data-pipeline-backlog.md), set by [DL-85](../../decisions/DL-85.md) | Done on `dev/R1.1.1`: the box is ticked (`ingest-slow` run 39436687166) and R1.1.0 archived; ready to promote and tag |
+| **R1.2.0** — registry and five models live | [Modular platform backlog](R1.2.0-modular-platform-backlog.md) §2, MOD-01 … MOD-09; design in [05](../05-target-architecture.md), set by [DL-86](../../decisions/DL-86.md) | Planned; not started |
+| **R1.3.0** — gameweek orchestration | [Modular platform backlog](R1.2.0-modular-platform-backlog.md) §3, ORC-01 … ORC-06, epic level | Planned after R1.2.0 |
+| **R1.4.0** — independent web | [Modular platform backlog](R1.2.0-modular-platform-backlog.md) §4, WEB-01 … WEB-06, epic level | Planned after R1.3.0 |
 | Ongoing, every season | [E8 — ongoing in-season monitoring](E8-ongoing-in-season-monitoring.md): the season state and decision points (rewritten each gameweek), the weekly loop, the bar for changing the model mid-season | Live, GW1 → 30 May 2027; updated weekly |
 
 **Planning a release.** Write `Rx.y.z-<slug>.md` here — its stories, acceptance boxes and Status

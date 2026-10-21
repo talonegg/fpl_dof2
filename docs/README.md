@@ -78,6 +78,9 @@ review in §12) and [conceptual design](planning/04-conceptual-design.md) (each 
 - **R1.1.0 — delivered 2026-10-21: data pipeline uplift.** Remediated before release
   ([DL-81](decisions/DL-81.md)); its backlog is archived in [`planning/archive/R1.1.0/`](planning/archive/README.md).
   **R1.1.1 — done, not yet promoted:** the permanent archive verified on `main` ([DL-85](decisions/DL-85.md)). Its effect on the architecture: [architecture §13](planning/03-solution-architecture.md#13-r110--data-architecture-as-delivered).
+- **R1.2.0 – R1.4.0 — planned: the modular platform.** Orchestrator, model factory and web as
+  independent modules around a strategy registry ([DL-86](decisions/DL-86.md)); design in
+  [`planning/05-target-architecture.md`](planning/05-target-architecture.md).
 - **The season — live.** [E8 — ongoing in-season monitoring](planning/epics/E8-ongoing-in-season-monitoring.md)
   holds the season state and decision points, rewritten each gameweek.
 
@@ -94,17 +97,15 @@ criteria. The [release register](planning/epics/README.md) decides the order.
 **R1.1.1 — R1.1.0 verified on `main` ([DL-85](decisions/DL-85.md))**
 - Done on `dev/R1.1.1`; promote and tag it by the `release` skill.
 
+**The modular platform — R1.2.0 to R1.4.0 ([DL-86](decisions/DL-86.md))**
+- Stories and order in the [backlog](planning/epics/R1.2.0-modular-platform-backlog.md). It takes in
+  P1, P3, P6, P9, P10, W1–W5, O1, O2 and F1–F5 from
+  [architecture §12](planning/03-solution-architecture.md#12-module-design--review-of-2026-10-17).
+
 **Design fixes not yet scheduled ([architecture §12](planning/03-solution-architecture.md#12-module-design--review-of-2026-10-17))**
 - One planning horizon: `xp_horizon` reads `decision.horizon` (D-29, [DL-78](decisions/DL-78.md)).
-- Shared MILP legality constraints and a solver setting that is actually read (P2).
-- Domain logic out of the stage edge (P3); an explicit published-model entry point (P6).
-- The web app checks what it reads and its contract version (W1); end the Python/TypeScript drift in
-  bench order and model labels (W2); one artefact registry and loading hook (W3); check generated
-  types in CI (W4).
-- Deploy only when a pipeline run actually published (O1); typed workflow hand-offs (O2).
-- Code findings of 2026-10-22: M7 reads no player's card record (F1); the freshness gate cannot fire
-  in CI (F2); the backtest trains on more seasons than the live model (F3); a hard-coded half-life
-  (F4); stale text in code (F5).
+- Shared MILP legality constraints and a solver setting that is actually read (P2); `week/` facades
+  and scheduling (P7); very large files (P8); the data layer importing components (W6).
 
 **Open debt ([debt register](planning/debt-register.md))** — most visibly D-13 (the forecast does not
 yet beat the model-free benchmark at the head of the ranking) and D-23 (scraped sources blocked).
@@ -125,10 +126,12 @@ settled DL-11, DL-72 and OD-04 and recorded DL-76 to DL-79.
 | Purpose, objectives, scope, requirements (`FR-nn`, `NFR-nn`) and their status, constraints, assumptions, definition of done | [Charter](planning/01-project-charter.md) |
 | Blueprint (B1–B7), season calendar, RAID log (`R-nn`, `I-nn`) | [Project plan](planning/02-project-plan-and-blueprint.md) |
 | Shortcuts taken and what repays each (`D-nn`) | [Debt register](planning/debt-register.md) |
-| Structure, stack, hosting, data flow, the web contract, orchestration; the module-design review and R1.1.0 target architecture | [Solution architecture](planning/03-solution-architecture.md) |
+| Structure, stack, hosting, data flow, the web contract, orchestration — as built; the module-design review; R1.1.0's data architecture | [Solution architecture](planning/03-solution-architecture.md) |
+| The target design: orchestrator, model factory and web as independent modules, the strategy registry, the 2026-10-22 code review | [Target architecture](planning/05-target-architecture.md) |
 | Each component's design: sources, data layer, models, optimiser, UX, testing, extensibility; open questions (`Q-nn`) | [Conceptual design](planning/04-conceptual-design.md) |
 | Releases (`Rx.y.z`): what is being built now, how to choose what next, and the branching and release model | [Release register](planning/epics/README.md); the procedure is the `release` skill |
 | R1.1.1, the open release: R1.1.0 verified on `main` | [DL-85](decisions/DL-85.md) and the [release register](planning/epics/README.md) |
+| R1.2.0 – R1.4.0, planned: the modular platform's stories | [`planning/epics/R1.2.0-modular-platform-backlog.md`](planning/epics/R1.2.0-modular-platform-backlog.md) |
 | Where the season stands (rewritten each gameweek), the weekly loop, and the bar for changing the model mid-season | [E8 — ongoing in-season monitoring](planning/epics/E8-ongoing-in-season-monitoring.md) |
 | Environment variables and secrets handling | [`environment.md`](environment.md) |
 | FPL scoring, prices, chips; the FPL API | The `fpl-rules` and `fpl-api` skills in `.claude/skills/` |
@@ -142,7 +145,7 @@ settled DL-11, DL-72 and OD-04 and recorded DL-76 to DL-79.
 
 | Task | Read first |
 | --- | --- |
-| Design a module, add a source, change a model or the optimiser, alter a contract | `DESIGN-PRINCIPLES.md`, then the matching section of the conceptual design |
+| Design a module, add a source, change a model or the optimiser, alter a contract | `DESIGN-PRINCIPLES.md`, then the matching section of the conceptual design and the [target architecture](planning/05-target-architecture.md) |
 | Add a data source | [Design §14.1](planning/04-conceptual-design.md#141-adding-a-data-source) |
 | Change the forecast | [Design §5](planning/04-conceptual-design.md#5-analytical-models), the model card, [E8 §5](planning/epics/E8-ongoing-in-season-monitoring.md#5-the-bar-for-changing-the-model-mid-season) |
 | Change the optimiser | [Design §6](planning/04-conceptual-design.md#6-decision-engine) |
