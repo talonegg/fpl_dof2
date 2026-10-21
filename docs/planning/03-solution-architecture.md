@@ -222,33 +222,51 @@ enforced by `pipeline/tests/test_source_isolation.py`, not a linter.
 ## 6. Data flow
 
 ```mermaid
-sequenceDiagram
-    autonumber
-    participant CRON as Schedule / dispatch
-    participant G as Guard
-    participant ING as Ingest
-    participant BRZ as Bronze
-    participant TRF as Transform
-    participant QG as Quality gates
-    participant FC as Forecast
-    participant DEC as Optimise / week / decision
-    participant PUB as Publish
-    participant L as ledger branch
-    participant CDN as Pages
+flowchart TB
+    FPL["FPL API"]
+    ODDS["football-data.co.uk<br/>via sources.LiveFeed"]
+    ARC["FPL archive"]
 
-    CRON->>G: is a run due? (fpl-dof-schedule)
-    G->>ING: run_id assigned
-    ING->>BRZ: immutable snapshot + lineage sidecar
-    TRF->>BRZ: bronze verify --quarantine, then read latest snapshots
-    TRF->>QG: conformed silver tables
-    alt blocking gate fails
-        QG-->>CRON: stop, alert; last good publication stays live
-    else gates pass
-        FC->>DEC: xP mean, variance, components per player per GW
-        DEC->>L: this week's advice, before the deadline (DL-69)
-        DEC->>PUB: squad state, plan, chips, transfers, alerts
-        PUB->>CDN: validated /data/v1 artefacts via deploy.yml
+    subgraph ingest["ingest-fast (hourly, guarded) · ingest-slow (daily)"]
+        FET["fpl-dof ingest<br/>Fetcher: conditional GET,<br/>rate limit, retry"]
+        CAN{"drift canary<br/>bootstrap-static, fixtures"}
+        BRZ["bronze snapshot<br/>+ .meta.json sidecar"]
     end
+
+    subgraph prosp["pipeline.yml · prospective job"]
+        PRO["frozen harness<br/>decide before the deadline,<br/>score after"]
+    end
+
+    subgraph run["pipeline.yml · run job"]
+        VER["bronze verify<br/>--quarantine"]
+        TRF["transform<br/>conform, resolve, append"]
+        QG{"quality gates<br/>incl. temporal"}
+        FC["forecast<br/>fit_as_of → μ, σ per gameweek"]
+        DEC["optimise · week · decision<br/>transfers, captain, chips, plan;<br/>C1 challenger in shadow"]
+        PUB["publish<br/>validated against contracts/v1"]
+    end
+
+    DATA[("data branch<br/>rolling bronze, price_history")]
+    SNAP[("snapshots branch<br/>gwNN.tar.gz")]
+    LED[("ledger branch<br/>advice, prospective")]
+    PAGES[("GitHub Pages<br/>/data/v1")]
+    HALT(("ingest halts;<br/>key diff logged"))
+    STOP(("nothing publishes;<br/>last good stays live"))
+
+    FPL --> FET --> CAN
+    CAN -->|"shape holds"| BRZ
+    CAN -.->|"drift"| HALT
+    BRZ -->|"retention.py rolling"| DATA
+    DATA -->|"retention.py archive,<br/>each closed gameweek once"| SNAP
+    FPL & ODDS & ARC --> PRO
+    PRO -->|"prospective/gwNN.tgz"| LED
+    DATA -->|"retention.py restore"| VER --> TRF --> QG
+    QG -->|"pass"| FC --> DEC --> PUB
+    QG -.->|"blocking failure:<br/>alert issue opened"| STOP
+    DEC -->|"advice/gwNN.json,<br/>before the deadline"| LED
+    PRO -->|"prospective record"| PUB
+    TRF -->|"new price history"| DATA
+    PUB -->|"web-data-contract → deploy.yml"| PAGES
 ```
 
 **Key property:** a failed gate never publishes. The site keeps serving the last good artefact set,
@@ -259,6 +277,46 @@ visibly stale on the health page, rather than serving something wrong (Invariant
 ## 7. Data architecture
 
 ### 7.1 Medallion layers
+
+```mermaid
+flowchart LR
+    subgraph bronze["Bronze · data/bronze/{source}/{resource}/{date}/"]
+        BR["rolling snapshots<br/>key__timestamp.{json,csv,html}.gz<br/>+ .meta.json"]
+        BI["immutable prior-season<br/>snapshots (PIPE-03)"]
+    end
+
+    subgraph silver["Silver · data/silver/season={s}/"]
+        SR["rebuilt each run<br/>game, owner, mini-league,<br/>crosswalk, match expectation"]
+        SA["accumulating (APPENDED)<br/>price_history, player_gameweek,<br/>player_advanced, player_metric"]
+    end
+
+    subgraph gold["Gold · data/gold/season={s}/"]
+        GD["player_career_history,<br/>team_match_odds"]
+        GR["expected_points, squad, week,<br/>plan, quality, model card"]
+    end
+
+    WEB["Web contract<br/>web/v1/*.json → /data/v1"]
+    LEDG["data/ledger/advice/gwNN.json"]
+    QUA[("data/quarantine/<br/>bad bronze, superseded silver")]
+
+    subgraph branches["Persisted between CI runs"]
+        DATA[("data")]
+        SNAP[("snapshots")]
+        LEDB[("ledger")]
+    end
+
+    BR & BI -->|"transform"| SR & SA
+    SR & SA -->|"transform"| GD
+    SR & SA -->|"gates pass:<br/>forecast, decide"| GR
+    GR -->|"publish"| WEB
+    GR -->|"week"| LEDG
+    BR -.->|"bronze verify --quarantine"| QUA
+    SA -.->|"silver rebuild"| QUA
+    BR & BI <-->|"restore / rolling"| DATA
+    SA <-->|"price_history only"| DATA
+    BR -->|"one tarball per closed gameweek"| SNAP
+    LEDG <--> LEDB
+```
 
 | Layer | Content | Format | Persisted between CI runs? |
 | --- | --- | --- | --- |
