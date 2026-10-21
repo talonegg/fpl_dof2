@@ -5,7 +5,8 @@
 **Baselined:** 2026-08-09 · **Revised:** 2026-10-17 — rewritten to the system as built at the end of
 R1.0, with a module-design review (§12) and the R1.1.0 data architecture as delivered (§13)
 
-This page describes what runs today. Where the 2026-08-09 baseline chose something that was never
+This page describes what runs today; the design it is moving to is
+[05-target-architecture.md](05-target-architecture.md) ([DL-86](../decisions/DL-86.md)). Where the 2026-08-09 baseline chose something that was never
 built, the choice is gone from the tables and named once in §5.4. The binding constraints on any
 change are in [`DESIGN-PRINCIPLES.md`](../DESIGN-PRINCIPLES.md).
 
