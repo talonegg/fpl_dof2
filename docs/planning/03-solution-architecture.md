@@ -3,7 +3,7 @@
 **Companion to:** [01-project-charter.md](01-project-charter.md), [02-project-plan-and-blueprint.md](02-project-plan-and-blueprint.md)
 **Level:** High-level / logical-to-physical. Component internals are in [04-conceptual-design.md](04-conceptual-design.md).
 **Baselined:** 2026-08-09 · **Revised:** 2026-10-17 — rewritten to the system as built at the end of
-R1.0, with a module-design review (§12) and the R1.1.0 target (§13)
+R1.0, with a module-design review (§12) and the R1.1.0 data architecture as delivered (§13)
 
 This page describes what runs today. Where the 2026-08-09 baseline chose something that was never
 built, the choice is gone from the tables and named once in §5.4. The binding constraints on any
@@ -57,7 +57,7 @@ graph TB
 
     FPL --> PIPE
     ARC --> PIPE
-    FDC -.->|"prospective harness only;<br/>adapter in R1.1.0"| PIPE
+    FDC -.->|"prospective harness only<br/>(sources.LiveFeed)"| PIPE
     BLK -.->|"off by default (scrapers);<br/>odds degrade without a key"| PIPE
     PIPE --> ART
     ART --> APP
@@ -72,10 +72,10 @@ design (DL-08, NFR-11). The official API now carries the expected-goals signals 
 | Source | Adapter | State |
 | --- | --- | --- |
 | FPL API | `sources/fpl` | Essential. Failure stops the run; the last good publication stays live |
-| FPL archive | `sources/fplarchive` | Off by default; enabled for the backtest (`config/ci-backtest.yaml`, DL-68) |
+| FPL archive | `sources/fplarchive` | Off by default; `config/ci-backtest.yaml` enables it for the weekly backtest and the prospective job in `pipeline.yml` (DL-68) |
 | Understat, FBref | `sources/understat`, `sources/fbref` | Blocked upstream (`robots.txt`, Cloudflare 403) — D-23. Off by default; no workflow enables them. The adapters stay, dormant, so retained bronze still replays (PIPE-09) |
 | The Odds API | `sources/oddsapi` | Off by default (PIPE-09); degrades cleanly without `ODDS_API_KEY`, which no workflow passes. Free-tier credit cap, no history — D-20; not used by the model (DL-59, DL-60) |
-| football-data.co.uk | `sources/fdcouk` | Off in the pipeline run. The prospective harness reads upcoming odds through it (`sources.LiveFeed`, REM-07); past seasons' match files are conformed into silver by permanent club code and fetched once each (PIPE-03, PIPE-04) |
+| football-data.co.uk | `sources/fdcouk` | Off by default, and no workflow enables it. The prospective harness reads upcoming odds and its hash-pinned past seasons through it (`sources.LiveFeed`, REM-07); when enabled, it conforms past seasons' match files into silver by permanent club code, each fetched once (PIPE-03, PIPE-04) |
 
 ---
 
@@ -118,10 +118,11 @@ graph TB
 ```
 
 The pipeline is one CLI, `fpl-dof`, whose stages are registered in `pipeline.py` and run in order by
-`run_stages`; CI runs the same commands a developer does (NFR-09). Beside the main run sit three
-off-path stages: `backtest` (walk-forward regression and the model card verdict, DL-21), the
-`prospective` harness (pre-registered model comparison, frozen before each deadline), and `shadow`
-(the challenger model, published beside the champion but never acted on — DP-08).
+`run_stages`; CI runs the same commands a developer does (NFR-09). Beside the main run sit the
+`backtest` stage (walk-forward regression and the model card verdict, DL-21) and the `prospective`
+harness (pre-registered model comparison, frozen before each deadline). The challenger model (C1,
+`shadow/`) runs inside the `week` stage and is published beside the champion but never acted on
+(DP-08).
 
 ### Container responsibilities
 
@@ -166,7 +167,7 @@ degrading the product.
 | HTTP | `httpx` behind `sources/fetch.py` | Timeouts and transport hooks; `respx` for recorded tests |
 | Dataframes and storage | `pandas` + `pyarrow`; Parquet for silver, gzipped JSON for bronze, JSON for the web contract | Columnar and typed where it matters, plain JSON at the browser |
 | Validation | Pandera (silver), `jsonschema` (contract), `pydantic` (config) | Each layer validated in its own idiom |
-| Models | Hand-built component chain (M1–M8) over numpy/pandas; scikit-learn only for the shadow monolith (DL-53) | Arguable formulations (DP-10); scikit-learn because it is pure-wheel everywhere CI runs |
+| Models | Hand-built component chain (M1–M8) over numpy/pandas; scikit-learn only for the backtest's monolith benchmark (DL-53) and the C1 challenger (`shadow/c1.py`) | Arguable formulations (DP-10); scikit-learn because it is pure-wheel everywhere CI runs |
 | Optimisation | PuLP with **HiGHS** for the multi-gameweek horizon (DL-15); CBC for the single-gameweek squad and transfer models | Open-source, no licence. PuLP capped below 4 (DL-71) |
 | Logging | stdlib `logging` with a JSON formatter (`obs/logging.py`) plus the run manifest | No extra dependency |
 | Testing | pytest, Hypothesis, `respx`, pytest-cov (100% on rules — NFR-08), mypy, ruff | Property tests for optimiser legality; recordings for adapters |
@@ -238,7 +239,7 @@ sequenceDiagram
     CRON->>G: is a run due? (fpl-dof-schedule)
     G->>ING: run_id assigned
     ING->>BRZ: immutable snapshot + lineage sidecar
-    TRF->>BRZ: read latest snapshots
+    TRF->>BRZ: bronze verify --quarantine, then read latest snapshots
     TRF->>QG: conformed silver tables
     alt blocking gate fails
         QG-->>CRON: stop, alert; last good publication stays live
@@ -261,8 +262,8 @@ visibly stale on the health page, rather than serving something wrong (Invariant
 
 | Layer | Content | Format | Persisted between CI runs? |
 | --- | --- | --- | --- |
-| **Bronze** | Verbatim source responses with a `.meta.json` lineage sidecar (URL, time, SHA-256, validators, immutability) | Gzipped JSON/HTML | Partly — the rolling window on `data`, plus immutable prior-season snapshots whatever their age (PIPE-03); one permanent tarball per closed gameweek on `snapshots`, first written when R1.1.0 reaches `main` (PIPE-14) |
-| **Silver** | Conformed canonical tables (`silver/tables.py`), validated on read and write; advanced metrics keyed by `as_of_gameweek` and stamped `observed_at` (DL-83) | Parquet, by season | Partly — rebuilt from bronze each run, except `price_history`, which is persisted on `data` and rebuilt from bronze by `silver replay-prices` (PIPE-06). A table from an older schema stops transform until `silver rebuild` (REM-10) |
+| **Bronze** | Verbatim source responses with a `.meta.json` lineage sidecar (URL, time, SHA-256, validators, immutability) | Gzipped JSON, CSV or HTML | Partly — the rolling window on `data`, plus immutable prior-season snapshots whatever their age (PIPE-03); one permanent tarball per closed gameweek on `snapshots` (PIPE-14) |
+| **Silver** | Conformed canonical tables (`silver/tables.py`), validated on read and write; advanced metrics keyed by `as_of_gameweek` and stamped `observed_at` (DL-83) | Parquet, by season | Partly — rebuilt from bronze each run, except the accumulating tables (`APPENDED` in `stages/transform.py`: `price_history`, `player_gameweek`, `player_advanced`, `player_metric`), which are appended to. Of those, only `price_history` is persisted on `data`; `silver replay-prices` rebuilds it from bronze (PIPE-06). An accumulating table from an older schema stops transform until `silver rebuild` (REM-10) |
 | **Gold** | Forecasts, plans, decisions, model and backtest cards; `player_career_history` and `team_match_odds`, built by `transform` (PIPE-02, PIPE-05) | Parquet + JSON + Markdown | **No**, except advice on `ledger`. The published contract survives as a 14-day artefact and on Pages |
 | **Web contract** | The narrow, versioned slice the browser may read | JSON, `/data/v1/` | Replaced per publish |
 
@@ -309,7 +310,7 @@ every clone. That is why R-13 is rated High and why the stores have different me
 | Store | Mechanism | Rationale |
 | --- | --- | --- |
 | **`data`** — rolling bronze | Orphan branch, rebuilt from the retained window (`retention.bronze_days`) and the immutable prior-season snapshots by `pipeline/scripts/retention.py`, with the accumulated `price_history`. The script first folds in what the branch holds and force-pushes with a lease on it, so concurrent workflows never drop each other's pushes | History is truncated, not accumulated; these snapshots debug the recent past |
-| **`snapshots`** — permanent bronze | Append-only; `bronze-full/<season>/gwNN.tar.gz` holds the bronze dated after the previous deadline day up to the gameweek's own, written once the day after its deadline, and `index.json` lists the gameweeks archived, partial and lost (PIPE-14, DL-81). First written when R1.1.0 reaches `main` | The NFR-06 evidence trail, small enough to keep forever |
+| **`snapshots`** — permanent bronze | Append-only; `bronze-full/<season>/gwNN.tar.gz` holds the bronze dated after the previous deadline day up to the gameweek's own, written once the day after its deadline, and `index.json` lists the gameweeks archived, partial and lost (PIPE-14, DL-81). Gameweeks that closed before it first ran on `main` are listed as lost (DL-85) | The NFR-06 evidence trail, small enough to keep forever |
 | **`ledger`** — advice and prospective records | Append-only; `advice/gwNN.json` written before each deadline, `prospective/gw*.tgz` frozen with it | What was advised, provably before the event (DL-69) |
 | **Published contract** | Actions artefact `web-data-contract` (14 days) → Pages | Serving surface, not an archive |
 
@@ -342,7 +343,7 @@ manually dispatchable.
 | `ci.yml` | Push to `main`, `pre-release`, `dev/**`; every pull request | Lint, type-check, unit, property and contract tests; `scripts/docs.py check` |
 | `ingest-fast.yml` | Hourly; a guard (`fpl-dof-schedule --decide fast`) decides whether to fetch | `bootstrap-static` and `fixtures` — prices, status, ownership. Rebuilds `data` |
 | `ingest-slow.yml` | Daily, with a fallback slot; dispatch | Full ingest including per-player summaries; updates `data`; archives each newly closed gameweek's bronze to `snapshots`, once, and fails if bronze has no gameweek schedule |
-| `pipeline.yml` | Nightly with a fallback; a deadline guard several times an hour; after `Ingest (slow)`; dispatch | `guard` → `prospective` (frozen harness, appended to `ledger`) → `run` (`fpl-dof run --only transform…publish`, advice appended to `ledger`, contract uploaded) |
+| `pipeline.yml` | Nightly with a fallback; a deadline guard several times an hour; after `Ingest (slow)`; dispatch | `guard` → `prospective` (frozen harness, appended to `ledger`) → `run` (`fpl-dof bronze verify --quarantine`, then `fpl-dof run --only transform…publish`; advice appended to `ledger`, contract uploaded, `data` rebuilt with the new price history) |
 | `day-before.yml` | Every 20 minutes in a nightly UTC window | On the day before a deadline, dispatches `ingest-slow`; Pipeline and Deploy follow by `workflow_run` |
 | `deploy.yml` | Push to `main`; after Pipeline completes | Builds the SPA, downloads the latest contract, deploys to Pages |
 | `backtest.yml` | Weekly; dispatch | Archive ingest under `config/ci-backtest.yaml` (DL-68), then the walk-forward regression |
@@ -411,7 +412,7 @@ No paid tooling exists in a £0 budget, so observability is built from artefacts
 | --- | --- | --- |
 | FPL API | Public JSON, unauthenticated | Honest user agent, conservative rate limiting, cache aggressively |
 | FPL archive, football-data.co.uk | Public files | Cache permanently once a season is complete (PIPE-03, PIPE-04); attribute in the UI |
-| Understat, FBref | Scraped HTML | Both now refuse automated access; `robots.txt` is honoured, so they stay off rather than working around it |
+| Understat, FBref | Scraped HTML | Both refuse automated access; `robots.txt` is honoured, so they stay off rather than working around it |
 | The Odds API | Documented API | Stay inside the free-tier terms and credit cap |
 
 ---
@@ -434,12 +435,13 @@ fpl_dof2/
 │  │  ├─ sources/              # ADAPTERS — the only code that knows a source exists (DP-01)
 │  │  │  ├─ base.py registry.py fetch.py bronze.py robots.py
 │  │  │  ├─ resolve.py precedence.py enrich.py catalogue.py
-│  │  │  └─ fpl/ fplarchive/ understat/ fbref/ oddsapi/
+│  │  │  └─ fpl/ fplarchive/ fdcouk/ understat/ fbref/ oddsapi/
 │  │  ├─ silver/               # canonical tables, Pandera schemas, Parquet store
 │  │  ├─ quality/              # gates as data; run_gates
 │  │  ├─ rules/                # FPL rules from the API + config: scoring, legality (pure, 100% covered)
-│  │  ├─ forecast/             # features, M1–M8, xp_v0/xp_v1, backtest, baselines, monolith, model card
+│  │  ├─ forecast/             # features, M1–M8, fit_as_of, horizon, xp_v0/xp_v1, backtest, baselines, monolith, model card
 │  │  ├─ optimise/             # squad, transfer and horizon MILPs, chips, captain, risk, explain
+│  │  ├─ decision/             # the historical chip replay through the decision engine (DL-28)
 │  │  ├─ squad/                # current squad state; XI and bench selection
 │  │  ├─ week/                 # deadlines, alerts, ledger, reconciliation, hindsight oracle, schedule
 │  │  ├─ shadow/               # the challenger model (C1)
@@ -517,7 +519,7 @@ imports nothing from `forecast` (DP-02, PIPE-13).
 
 | # | Finding | Evidence | Deepening |
 | --- | --- | --- | --- |
-| **P1** | **Partly closed by PIPE-13:** live, backtest and the chip replay fit through `fit_as_of`, and `optimise` reads the forecast's `captain_score`; the C1 challenger still fits on its own. **The forecast fit is assembled in four places, two of them in the decision layer** (DP-02). Fold → training rows → `fit_components` → features recurs; `optimise/replay.py` carries its own `_team_matches` that has drifted from `xp_v1`'s (no xG). B0 is fitted inside `optimise/captain.py`; the C1 challenger has its own features and fit outside the `Predictor` protocol | `forecast/live.py:131-246`, `forecast/backtest.py:392-604`, `forecast/xp_v1.py:527-530`, `optimise/replay.py:280-438,591`, `optimise/captain.py:17`, `shadow/c1.py:63` | One interface in `forecast/`: `fit_as_of(history, deadline, config, rules) → FittedModel` with `.predict(window)`. live, backtest, replay and C1 call it. B0's captain score becomes a forecast column that `optimise` reads |
+| **P1** | **Closed by PIPE-13 except for C1:** live, backtest and the chip replay (`decision/replay.py`) fit through `fit_as_of`, and `optimise` reads the forecast's `captain_score`. The C1 challenger still has its own features and fit outside the `Predictor` protocol (DP-02) | `forecast/fit.py`, `forecast/xp_v1.py:526-530`, `shadow/c1.py:63` | One interface in `forecast/`: `fit_as_of(history, deadline, config, rules) → FittedModel` with `.predict(window)`. live, backtest, replay and C1 call it. B0's captain score becomes a forecast column that `optimise` reads |
 | **P2** | **Three solver models each re-encode squad legality**; solver construction is repeated; `optimiser.solver` is never read — squad and transfer hard-code CBC | `optimise/squad.py:251,288-326,342`, `optimise/transfer.py:278-332,348`, `optimise/horizon.py:154,388-470`; formation tally at `squad.py:430`, `transfer.py:468`, `horizon.py:655` | `optimise/milp.py`: `add_squad_constraints(problem, select, start, rules, week=None)` and `solver_for(config)`. Each model keeps only its objective. Delete the dead field |
 | **P3** | **The stage edge holds domain logic and duplicated orchestration** (2,648 lines). Publish fits M2 and, through the season log, runs the hindsight oracle; six optional artefacts are handled inline with differing error handling; `week` and `decision` duplicate context loading and their `_write`; the gold season path is rebuilt ten times; ~410 lines of backtest-card Markdown live in the stage while core `model_card.py` writes files | `stages/publish.py:93-160,368-379`, `week/oracle.py:118`, `stages/week.py:64-112,280`, `stages/decision.py:38-84,144`, `stages/backtest.py:127-540`, `forecast/model_card.py:342` | `DataLayout.gold_for(season)` and one artefacts module owning file names; `load_decision_context(ctx) → DecisionContext | Skipped`; `optional_artefact(name, build)`; M2 ratings as a forecast output; card renderers return strings and stages write them |
 | **P4** | **Closed by PIPE-12:** one `as_of` per run, recorded in the manifest, and one gameweek predicate ([DL-84](../decisions/DL-84.md)). **The clock and "the next gameweek" are not coherent** (DP-11). `utcnow()` is read eight times across stages; three definitions of the next gameweek — first unfinished, first deadline after now, FPL's `is_next`. Between a deadline passing and the gameweek finishing, `xp_next` may describe GW N while the advice is for GW N+1 (inferred, not yet reproduced) | `forecast/live.py:84`, `forecast/xp_v0.py:332`, `week/cadence.py:130`, `stages/publish.py:383`, `stages/week.py:76,140`, `quality/rules.py:143` | Set `StageContext.as_of` once in `cli.py` and record it in the manifest; one `current_gameweek(gameweeks, as_of)` used by forecast, week and publish. A prerequisite for PIPE-01 and PIPE-10 |
@@ -550,35 +552,35 @@ imports nothing from `forecast` (DP-02, PIPE-13).
 
 ---
 
-## 13. R1.1.0 — target data architecture
+## 13. R1.1.0 — data architecture as delivered
 
-The open release, the data pipeline uplift, is planned in
-[`archive/R1.1.0/R1.1.0-data-pipeline-backlog.md`](archive/R1.1.0/R1.1.0-data-pipeline-backlog.md) (PIPE-01 … PIPE-14),
-remediated ([DL-81](../decisions/DL-81.md)) and tagged R1.1.0. Its stories and acceptance
-criteria live there; this section records what it changes in the architecture above, and where it
-depends on §12.
+R1.1.0, the data pipeline uplift (PIPE-01 … PIPE-14), was remediated ([DL-81](../decisions/DL-81.md))
+and delivered; its backlog is archived at
+[`archive/R1.1.0/R1.1.0-data-pipeline-backlog.md`](archive/R1.1.0/R1.1.0-data-pipeline-backlog.md).
+§2–§9 describe the result; this section indexes what it added.
 
-### 13.1 What changes
+### 13.1 What it added
 
-| Concern | Today (§2–§9) | After R1.1.0 | Items |
-| --- | --- | --- | --- |
-| Source set | Five adapters: the scrapers off by default and blocked; The Odds API on, capped and unused by the model | FPL API, FPL archive and a registered **`fdcouk`** adapter; Understat, FBref and The Odds API **off by default**, their adapters dormant so retained bronze still replays | PIPE-04, PIPE-09 |
-| Prior seasons | Archive re-fetched on TTL expiry, from an external mirror | **Frozen bronze tier**: completed seasons never touch the network unless re-acquisition is forced | PIPE-03 |
-| Transport | Unconditional GET on TTL expiry | **Conditional requests** (`ETag`, `Last-Modified`; 304 is a zero-byte fetch recorded in lineage) | PIPE-07 |
-| Ingest safety | Structural drift found in transform, after the slow sweep | A **drift canary** on `bootstrap-static` and `fixtures` halts ingest before per-player fetches, with a key diff in the manifest | PIPE-08 |
-| Bronze integrity | Torn or corrupt snapshots crash transform | `fpl-dof bronze verify` (checksums, gzip, orphans), run before transform in CI; `--quarantine` moves bad files to `data/quarantine/` and fails only on what it cannot move (REM-10) | PIPE-11 |
-| Silver persistence | Rebuilt each run; accumulating tables lose history on CI | Accumulating partitions (`price_history`) persisted on `data`; a deterministic replay rebuilds them from bronze | PIPE-06 |
-| Temporal grain | Scraped aggregates conformed as `scope="season"`, `gameweek=None` | Metrics keyed by `season` **and `as_of_gameweek`**; mid-season sources backfilled to deadline-aligned snapshots, never estimated backwards, with `observed_at` and the crosswalk's `ingress` as provenance ([DL-83](../decisions/DL-83.md)) | PIPE-01 |
-| Look-ahead guard | Invariant 5 enforced by tests and the backtester | Plus a **blocking temporal non-leakage gate** on silver's own columns (DL-83) | PIPE-10 |
-| Clock | Several clock reads; three definitions of the next gameweek | One `as_of` per run, in the manifest; one gameweek predicate ([DL-84](../decisions/DL-84.md)) | PIPE-12 |
-| Gold | Per-run outputs only | Two **unified gold datasets**, built by `transform`: `player_career_history` keyed on the permanent `player_code`, and `team_match_odds` with one de-vig formulation across seasons; clubs carry the permanent code from silver `team.code`, by each row's season. First read in R1.2 (DL-81) | PIPE-02, PIPE-05 |
+| Concern | As built | Items |
+| --- | --- | --- |
+| Source set | FPL API on. `fplarchive` and `fdcouk` registered, off by default; `config/ci-backtest.yaml` turns the archive on for the backtest and the prospective job (DL-68). Understat, FBref and The Odds API off, their adapters dormant so retained bronze still replays | PIPE-04, PIPE-09 |
+| Prior seasons | **Frozen bronze tier**: completed-season snapshots are marked `immutable`, kept by retention whatever their age, and re-fetched only when forced | PIPE-03 |
+| Transport | **Conditional requests** (`ETag`, `Last-Modified`); a 304 revalidates the held snapshot without a download | PIPE-07 |
+| Ingest safety | A **drift canary** on `bootstrap-static` and `fixtures` halts ingest before per-player fetches and logs a key diff | PIPE-08 |
+| Bronze integrity | `fpl-dof bronze verify` (checksums, gzip, orphans) before transform in CI; `--quarantine` moves bad files to `data/quarantine/` and fails only on what it cannot move (REM-10) | PIPE-11 |
+| Silver persistence | `price_history` persisted on `data` and rebuilt by `silver replay-prices`; one restore step, `retention.py restore`, in every workflow | PIPE-06 |
+| Temporal grain | Metrics keyed by `season` and `as_of_gameweek`, stamped `observed_at`; a source added mid-season is backdated to deadline-aligned snapshots, never estimated, with the crosswalk's `ingress` as provenance ([DL-83](../decisions/DL-83.md)) | PIPE-01 |
+| Look-ahead guard | A **blocking temporal non-leakage gate** on silver's own columns (04 §3.4) | PIPE-10 |
+| Clock | One `as_of` per run, in the manifest; the decided gameweek is the first deadline ahead ([DL-84](../decisions/DL-84.md)) | PIPE-12 |
+| Gold | `player_career_history` keyed on the permanent `player_code`, and `team_match_odds` with one de-vig formulation across seasons, built by `transform`; first read in R1.2 (DL-81) | PIPE-02, PIPE-05 |
+| Permanent archive | One tarball per closed gameweek on `snapshots` (§7.3) | PIPE-14 |
 
 ```mermaid
 graph LR
     subgraph src["sources/"]
-        FPL2["fpl"] 
+        FPL2["fpl"]
         ARC2["fplarchive<br/>frozen tier"]
-        FDC2["fdcouk<br/>new"]
+        FDC2["fdcouk<br/>off by default"]
     end
     FETCH["Fetcher<br/>conditional GET"] --> BRZ2[("bronze<br/>+ verify")]
     src --> FETCH
@@ -589,21 +591,19 @@ graph LR
     GLD2 --> FC2["forecast · backtest · prospective"]
 ```
 
-### 13.2 How R1.1.0 meets the design review
+### 13.2 The design-review fixes it absorbed
 
-The backlog was written before the review. Four places where building it on the current structure
-would deepen a §12 problem rather than remove it — all four now in R1.1.0 ([DL-79](../decisions/DL-79.md)):
+Four §12 findings were built into R1.1.0 because its items depended on them ([DL-79](../decisions/DL-79.md)):
 
 | Backlog item | Depends on | Why |
 | --- | --- | --- |
-| PIPE-01, PIPE-10 | **P4** — one `as_of` per run, one `current_gameweek` — now PIPE-12 | A gate that tests "observed before the GW *N* deadline" needs a single definition of *now* and of *N*; today there are three |
-| PIPE-02, PIPE-05 | **P1** — `fit_as_of` in `forecast/` — now PIPE-13 | Unified gold is only worth having if live, backtest, replay and the challenger read it through one interface rather than four fitting paths |
-| PIPE-04 | **P5** | The `fdcouk` adapter is the fix for the source handled outside `sources/`; the prospective harness should read it through silver, and `scripts/prospective_ci.py` should stop fetching |
-| PIPE-06 | **O3, O4** | Persisting silver adds a sixth branch-restore; do it once, in one place |
+| PIPE-01, PIPE-10 | **P4** — one `as_of` per run, one `current_gameweek` — built as PIPE-12 | A gate that tests "observed before the GW *N* deadline" needs a single definition of *now* and of *N* |
+| PIPE-02, PIPE-05 | **P1** — `fit_as_of` in `forecast/` — built as PIPE-13 | Unified gold is only worth having if live, backtest, replay and the challenger read it through one interface rather than four fitting paths |
+| PIPE-04 | **P5** | The `fdcouk` adapter ended the fetch outside `sources/`; the operational scripts read it through `sources.LiveFeed` (REM-07) |
+| PIPE-06 | **O3, O4** | Persisting silver needed a branch restore in every workflow; it is one step, `retention.py restore` |
 
-The other §12 findings (P2, P3, P6–P10, W1–W6, O1, O2) are independent of R1.1.0. Whether to fold any
-into it is a planning decision for the [release register](epics/README.md). PIPE-09 is narrowed to
-turning The Odds API off by default; the scrapers are already off (DL-79).
+The other §12 findings (P2, P3, P6–P10, W1–W6, O1, O2) stand; their scheduling is in the
+[release register](epics/README.md).
 
 ---
 
