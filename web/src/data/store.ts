@@ -229,6 +229,22 @@ class DataStore {
 
   loadPublished(): Promise<PublishedData> {
     if (!this.publishedPromise) {
+      // Every other published strategy's week and plan start as soon as the registry resolves, in
+      // parallel with the fixed artefacts; one that fails to load simply has none.
+      const others = this.registry().then(async (registry) => {
+        const weeks: Record<string, Week> = {};
+        const plans: Record<string, Plan> = {};
+        await Promise.all(
+          registry.entries
+            .filter((e) => e.published && e.id !== registry.champion)
+            .map(async (e) => {
+              const [w, p] = await Promise.all([this.strategyFile("week", e.id), this.strategyFile("plan", e.id)]);
+              if (w) weeks[e.id] = w;
+              if (p) plans[e.id] = p;
+            }),
+        );
+        return { weeks, plans };
+      });
       this.publishedPromise = Promise.all([
         this.registry(),
         this.get("meta"),
@@ -238,22 +254,13 @@ class DataStore {
         this.get("week"),
         this.get("plan"),
         this.get("models"),
+        others,
       ])
-        .then(async ([registry, meta, rules, players, squad, week, plan, models]) => {
-          const weeks: Record<string, Week> = {};
-          const plans: Record<string, Plan> = {};
+        .then(([registry, meta, rules, players, squad, week, plan, models, other]) => {
+          const weeks: Record<string, Week> = { ...other.weeks };
+          const plans: Record<string, Plan> = { ...other.plans };
           if (week) weeks[registry.champion] = week;
           if (plan) plans[registry.champion] = plan;
-          // Every other published strategy, in parallel; one that fails to load simply has none.
-          await Promise.all(
-            registry.entries
-              .filter((e) => e.published && e.id !== registry.champion)
-              .map(async (e) => {
-                const [w, p] = await Promise.all([this.strategyFile("week", e.id), this.strategyFile("plan", e.id)]);
-                if (w) weeks[e.id] = w;
-                if (p) plans[e.id] = p;
-              }),
-          );
           void this.warm();
           return {
             meta,
