@@ -10,7 +10,8 @@ first slice of the modular platform, is the open release. Each release and epic 
 
 | Release | Plan | Status |
 | --- | --- | --- |
-| **R1.2.0** — registry and five models live | [Modular platform backlog](R1.2.0-modular-platform-backlog.md) §2, MOD-01 … MOD-09; design in [05](../05-target-architecture.md), set by [DL-86](../../decisions/DL-86.md) | Open on `dev/R1.2.0`; not started |
+| **R1.2.0** — the registry slice | [Modular platform backlog](R1.2.0-modular-platform-backlog.md) §2, first drop: MOD-01 started, MOD-03, MOD-02, MOD-04, MOD-07; design in [05](../05-target-architecture.md), set by [DL-86](../../decisions/DL-86.md) and [DL-87](../../decisions/DL-87.md) | Open on `dev/R1.2.0`; not started |
+| **R1.2.1** — five models live | The same backlog §2, second drop: the archive and football-data.co.uk live, MOD-05, MOD-08, MOD-09, MOD-06; MOD-01 closed | Planned after R1.2.0 |
 | **R1.3.0** — gameweek orchestration | [Modular platform backlog](R1.2.0-modular-platform-backlog.md) §3, ORC-01 … ORC-06, epic level | Planned after R1.2.0 |
 | **R1.4.0** — independent web | [Modular platform backlog](R1.2.0-modular-platform-backlog.md) §4, WEB-01 … WEB-06, epic level | Planned after R1.3.0 |
 | Ongoing, every season | [E8 — ongoing in-season monitoring](E8-ongoing-in-season-monitoring.md): the season state and decision points (rewritten each gameweek), the weekly loop, the bar for changing the model mid-season | Live, GW1 → 30 May 2027; updated weekly |
