@@ -159,7 +159,7 @@ jobs:
             fi
             # The retired frozen harness's last record (DL-87): read-only, so the app keeps showing
             # the frozen history up to the switch gameweek. Nothing writes to it any more.
-            latest="$(ls /tmp/ledger-branch/prospective/gw*.tgz 2>/dev/null | sort | tail -n 1 || true)"
+            latest="$(ls /tmp/ledger-branch/prospective/gw[0-9][0-9].tgz 2>/dev/null | sort | tail -n 1 || true)"
             if [ -n "$latest" ]; then
               mkdir -p "$RUNNER_TEMP/prospective-record"
               tar -xzf "$latest" -C "$RUNNER_TEMP/prospective-record"

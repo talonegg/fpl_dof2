@@ -52,13 +52,6 @@ class SourceDescriptor:
     as_of: str | None = None
     """ISO date a fixed dataset is as of. Reference sources only."""
 
-    record_block: str | None = None
-    """For a live external source: the block of the prospective decision record that describes its
-    last fetch (``fetched_at`` and fixture counts)."""
-
-    record_check: str | None = None
-    """The frozen-harness input check (``status/GW{n}.json``) that verifies this source, if any."""
-
 
 def _registered(config: SourcesConfig, environ: Mapping[str, str] | None) -> list[SourceDescriptor]:
     out: list[SourceDescriptor] = []

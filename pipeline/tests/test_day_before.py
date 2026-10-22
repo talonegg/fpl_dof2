@@ -299,6 +299,8 @@ def test_workflows_wire_the_fail_closed_paths_and_the_frozen_harness_is_gone() -
     # MOD-06: the frozen harness is retired; the run job only reads its last record.
     for retired in ("frozen-2026-10-13", "prospective_ci", "--veto-plan", "fpl_prospective"):
         assert retired not in pipeline
+    # Only the decision records (gwNN.tgz), never a future gwNNz-state.tgz, are restored.
+    assert "prospective/gw[0-9][0-9].tgz" in pipeline and "prospective/gw*.tgz" not in pipeline
     assert "needs: [guard]" in pipeline and "prospective:\n" not in pipeline
     deploy = (wf / "deploy.yml").read_text()
     assert "contract_fresh.py" in deploy and "if: env.DAY_BEFORE != 'true'" in deploy

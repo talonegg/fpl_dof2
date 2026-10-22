@@ -109,36 +109,6 @@ def _ctx(**fields: Any) -> Any:
     return cast(Any, SimpleNamespace(**fields))
 
 
-def test_the_newest_decision_is_by_gameweek_number_not_by_file_name(tmp_path: Path) -> None:
-    for gw in (7, 9, 10):
-        (tmp_path / "decisions").mkdir(exist_ok=True)
-        (tmp_path / "decisions" / f"GW{gw}.json").write_text(json.dumps({"gw": gw}))
-    (tmp_path / "status").mkdir()
-    (tmp_path / "status" / "GW10.json").write_text(json.dumps({"gw": 10, "models": {}}))
-    ctx = _ctx(
-        config=SimpleNamespace(
-            publish=SimpleNamespace(models=SimpleNamespace(source_dir=str(tmp_path)))
-        )
-    )
-    record = publish_stage._record_evidence(ctx)
-    assert record is not None
-    assert record.decision == {"gw": 10}
-    assert record.status == {"gw": 10, "models": {}}
-
-
-def test_no_record_directory_means_no_record_evidence(tmp_path: Path) -> None:
-    unset = _ctx(
-        config=SimpleNamespace(publish=SimpleNamespace(models=SimpleNamespace(source_dir=None)))
-    )
-    assert publish_stage._record_evidence(unset) is None
-    empty = _ctx(
-        config=SimpleNamespace(
-            publish=SimpleNamespace(models=SimpleNamespace(source_dir=str(tmp_path)))
-        )
-    )
-    assert publish_stage._record_evidence(empty) is None
-
-
 def test_the_newest_snapshot_is_found_by_capture_stamp_not_by_mtime(tmp_path: Path) -> None:
     """T-001 F8: CI restores bronze with ``cp -r``, which scrambles modification times."""
     directory = tmp_path / "bronze" / "feed" / "resource" / "2026-10-17"
@@ -182,28 +152,11 @@ def _published_manifest() -> RunManifest:
 
 @pytest.fixture(scope="module")
 def published() -> list[dict[str, Any]]:
-    from fpl_dof.publish.health import RecordEvidence
-
-    decision = {
-        "gw": 7,
-        "odds": {
-            "fixtures_in_gw": 10,
-            "fixtures_with_odds": 10,
-            "kept": 10,
-            "fetched_at": "2026-10-16 22:18:13+00:00",
-        },
-    }
-    status = {
-        "gw": 7,
-        "assessed_at": "2026-10-16T22:24:30+00:00",
-        "models": {"A_odds": {"inputs": {"odds_history": None, "live_odds": None}}},
-    }
     return build_sources(
         manifest=_published_manifest(),
         observed={"fpl": NOW - dt.timedelta(hours=1)},
         generated_at=NOW,
         catalogue=list(_catalogue().values()),
-        record=RecordEvidence(decision=decision, status=status),
         stale_after_seconds=48 * 3600,
     )
 

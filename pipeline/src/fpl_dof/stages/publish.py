@@ -35,7 +35,7 @@ from fpl_dof.paths import find_repo_root
 from fpl_dof.pipeline import Output, StageContext, StageResult
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
 from fpl_dof.publish.fixtures import build_fixtures
-from fpl_dof.publish.health import RecordEvidence, build_health
+from fpl_dof.publish.health import build_health
 from fpl_dof.publish.history import build_history
 from fpl_dof.publish.league import build_league
 from fpl_dof.publish.models_compare import build_models
@@ -444,7 +444,6 @@ def _health(ctx: StageContext, gold: Path) -> dict[str, Any] | None:
         history_limit=limit,
         contract_version=CONTRACT_VERSION,
         catalogue=_source_catalogue(ctx),
-        record=_record_evidence(ctx),
         # The same limit the snapshot-freshness gate warns at, so the page and the gate agree on
         # what "stale" means rather than holding two opinions (DL-41).
         stale_after_seconds=ctx.config.quality.maximum_snapshot_age_hours * 3600,
@@ -464,41 +463,6 @@ def _source_catalogue(ctx: StageContext) -> list[Any]:
     except Exception as exc:
         log.warning("publish.health_catalogue_unavailable", extra={"error": repr(exc)})
         return []
-
-
-def _record_evidence(ctx: StageContext) -> RecordEvidence | None:
-    """The newest decision in the prospective record and its input status, or ``None``.
-
-    The same directory ``models.json`` is built from (``publish.models.source_dir``); nothing is
-    fetched for the page. Ordered by gameweek number, not by file name, so GW10 follows GW9.
-    Unreadable or absent → ``None``, which the page shows as not known rather than as fine.
-    """
-    source_dir = ctx.config.publish.models.source_dir
-    if not source_dir:
-        return None
-    root = Path(source_dir)
-
-    def _gameweek(path: Path) -> int:
-        digits = path.stem[2:]
-        return int(digits) if digits.isdigit() else -1
-
-    try:
-        decisions = sorted((root / "decisions").glob("GW*.json"), key=_gameweek)
-        if not decisions:
-            return None
-        newest = decisions[-1]
-        decision = json.loads(newest.read_text(encoding="utf-8"))
-        status_path = root / "status" / newest.name
-        status = (
-            json.loads(status_path.read_text(encoding="utf-8")) if status_path.exists() else None
-        )
-    except (OSError, ValueError) as exc:
-        log.warning("publish.health_record_unreadable", extra={"error": repr(exc)})
-        return None
-    return RecordEvidence(
-        decision=decision if isinstance(decision, dict) else None,
-        status=status if isinstance(status, dict) else None,
-    )
 
 
 def _gate_report(gold: Path) -> dict[str, Any] | None:
