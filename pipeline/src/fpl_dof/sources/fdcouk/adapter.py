@@ -172,6 +172,7 @@ class FdcoukAdapter(SourceAdapter):
             summary="Upcoming gameweek fixture odds (fixtures.csv)",
             cache_ttl_seconds=3600,
             fast_path=True,
+            retain=True,
         ),
         Resource(
             name="season_odds",
@@ -192,6 +193,7 @@ class FdcoukAdapter(SourceAdapter):
             resource=res.name,
             key="upcoming",
             cache_ttl_seconds=res.cache_ttl_seconds,
+            retain=res.retain,
             force_refresh=request.force_refresh,
             offline=request.offline,
             now=request.now,
@@ -204,9 +206,9 @@ class FdcoukAdapter(SourceAdapter):
     ) -> pd.DataFrame:
         """Parse a football-data CSV into conformed TeamMatchExpectation rows.
 
-        ``captured_at=None`` marks a completed season's file: each row is stamped with its kickoff,
-        the latest moment its pre-match prices can have been taken, and carries permanent club
-        codes, since its clubs are not the current season's.
+        ``captured_at=None`` marks a completed season's file: each row is stamped with the
+        collection time football-data documents (see :func:`_collection_time`), never its kickoff,
+        and carries permanent club codes, since its clubs are not the current season's.
         """
         cleaned = text.lstrip("\ufeff").replace("ï»¿", "", 1)
         try:
@@ -263,7 +265,7 @@ class FdcoukAdapter(SourceAdapter):
                 {
                     "season": season,
                     "source": self.name,
-                    "captured_at": kickoff if past else captured_at,
+                    "captured_at": _collection_time(kickoff) if past else captured_at,
                     "kickoff_time": kickoff,
                     "home_team": home,
                     "away_team": away,
@@ -361,6 +363,24 @@ class FdcoukAdapter(SourceAdapter):
             rebackfill=request.rebackfill,
         )
         return fetched.payload.decode("latin-1")
+
+
+#: football-data.co.uk collects pre-match prices on Friday afternoons for weekend games and on
+#: Tuesday for midweek ones (its notes); 18:00 London is the late end of either, so a backtest that
+#: treats the prices as known then never uses a price taken earlier than it could have been.
+_COLLECTION_HOUR = 18
+_WEEKEND_DAYS = (4, 5, 6, 0)  # Friday to Monday kickoffs share the Friday collection
+
+
+def _collection_time(kickoff: pd.Timestamp | NaTType) -> pd.Timestamp | NaTType:
+    """When a completed season's pre-match prices were taken, never at or after kickoff."""
+    if pd.isna(kickoff):
+        return kickoff
+    day = kickoff.tz_convert("Europe/London").normalize()
+    weekday = day.weekday()
+    back = (weekday - 4) % 7 if weekday in _WEEKEND_DAYS else (weekday - 1) % 7
+    collected = (day - pd.Timedelta(days=back)).replace(hour=_COLLECTION_HOUR).tz_convert("UTC")
+    return min(collected, kickoff)
 
 
 def _season_code(season: str) -> str:

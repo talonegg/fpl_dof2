@@ -83,14 +83,14 @@ def _bronze_paths(bronze_dir: Path) -> list[str]:
 
 
 def _immutable(bronze_dir: Path, paths: list[str]) -> frozenset[str]:
-    """Snapshots whose lineage says they can never change, with their sidecars."""
+    """Snapshots whose lineage says they never change or must be kept (`retain`), with sidecars."""
     keep: set[str] = set()
     for sidecar in (p for p in paths if p.endswith(META_SUFFIX)):
         try:
-            immutable = json.loads((bronze_dir / sidecar).read_text(encoding="utf-8"))["immutable"]
-        except OSError, ValueError, KeyError:
+            lineage = json.loads((bronze_dir / sidecar).read_text(encoding="utf-8"))
+        except OSError, ValueError:
             continue  # unreadable lineage proves nothing; the window decides
-        if immutable is True:
+        if lineage.get("immutable") is True or lineage.get("retain") is True:
             keep.update({sidecar, sidecar[: -len(META_SUFFIX)]})
     return frozenset(keep)
 

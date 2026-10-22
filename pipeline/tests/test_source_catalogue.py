@@ -107,8 +107,9 @@ def test_blocked_scrapers_are_switched_off_with_scribes_reason() -> None:
 
 
 def test_the_archive_is_reference_data_whether_or_not_this_config_enables_it() -> None:
-    """Off in the champion config, on in the decision/backtest config: reference either way."""
-    assert _catalogue()["fplarchive"].enabled is False
+    """On in the shipped config (DL-87) and in the backtest config: reference either way."""
+    assert _catalogue()["fplarchive"].enabled is True
+    assert _catalogue()["fdcouk"].enabled is True
     assert _catalogue(config_file="config/ci-backtest.yaml")["fplarchive"].enabled is True
     assert _catalogue()["fplarchive"].kind == "reference"
 
@@ -254,7 +255,7 @@ def test_the_published_run_shows_every_source_in_its_real_state(
     states = {entry["source"]: (entry["kind"], entry["status"]) for entry in published}
     assert states == {
         "fpl": ("live", "ok"),
-        "fdcouk": ("live", "disabled"),
+        "fdcouk": ("live", "unknown"),  # enabled (DL-87), not observed in this fixture
         "fdcouk_fixtures": ("live", "ok"),
         "oddsapi": ("live", "disabled"),
         "understat": ("live", "disabled"),

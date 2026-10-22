@@ -173,6 +173,7 @@ class Fetcher:
         suffix: str = SNAPSHOT_SUFFIX,
         redact_params: tuple[str, ...] = (),
         immutable: bool = False,
+        retain: bool = False,
         rebackfill: bool = False,
     ) -> Fetched:
         moment = now or utcnow()
@@ -255,6 +256,7 @@ class Fetcher:
             now=moment,
             suffix=suffix,
             immutable=immutable,
+            retain=retain,
             etag=response.headers.get("etag"),
             last_modified=response.headers.get("last-modified"),
         )

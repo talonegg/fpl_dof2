@@ -2,18 +2,9 @@
 # `.github/workflows/backtest.yml` and by the prospective job in `pipeline.yml`; the `run` job does
 # not read it, so the live pipeline's behaviour is unchanged by anything here.
 #
-# Nothing in this file is a secret: the community archive is a public GitHub repository and the
-# season labels are facts about the calendar. It is committed because the walk-forward backtest
-# cannot run without the archive enabled and the backfill seasons named, and a backtest that only a
-# gitignored workstation file can run is not a scheduled regression (DP-12).
-sources:
-  overrides:
-    fplarchive:
-      enabled: true
-  backfill_seasons:
-    - 2023/24
-    - 2024/25
-    - 2025/26
+# The archive and its backfill seasons are now the shipped defaults (DL-87), so only the backtest's
+# own training window is set here. Nothing in this file is a secret. It is committed because a
+# backtest that only a gitignored workstation file can run is not a scheduled regression (DP-12).
 backtest:
   training_seasons:
     - 2024/25

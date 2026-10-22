@@ -1,6 +1,17 @@
 # Which sources run by default. Most sources need no entry here at all — `enabled_by_default` on
 # the adapter class is the default, and this file exists only where the shipped default should
 # differ from that.
-# Understat, FBref and The Odds API are all off by default (PIPE-09, DL-79).
+# Understat, FBref and The Odds API are off by default (PIPE-09, DL-79). The community archive and
+# football-data.co.uk are on in the live run (DL-87): the archive supplies the prior seasons the
+# champion trains on and the backtest reads; every football-data capture is kept (`retain`).
+# `backfill_seasons` are the archive seasons the walk-forward backtest uses (DL-68).
 sources:
-  overrides: {}
+  overrides:
+    fplarchive:
+      enabled: true
+    fdcouk:
+      enabled: true
+  backfill_seasons:
+    - 2023/24
+    - 2024/25
+    - 2025/26
