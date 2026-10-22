@@ -1,0 +1,1021 @@
+{
+ "contract_version": 1,
+ "gameweeks_played": 0,
+ "observed_from": "2026-08-15",
+ "observed_to": "2026-08-15",
+ "players": [
+  {
+   "gameweeks": [],
+   "id": 1,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 31.0,
+     "price": 6.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 2,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.1,
+     "price": 5.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 3,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.1,
+     "price": 5.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 4,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 26.5,
+     "price": 8.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 5,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.5,
+     "price": 6.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 6,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.5,
+     "price": 6.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 12,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 10.7,
+     "price": 9.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 13,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 22.3,
+     "price": 7.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 19,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 1.5,
+     "price": 5.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 25,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 13.1,
+     "price": 7.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 26,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 3.8,
+     "price": 7.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 27,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.4,
+     "price": 6.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 28,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 4.8,
+     "price": 5.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 29,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.1,
+     "price": 4.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 30,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 1.4,
+     "price": 4.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 31,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 16.5,
+     "price": 4.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 32,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 7.8,
+     "price": 4.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 40,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 28.5,
+     "price": 7.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 45,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 2.7,
+     "price": 5.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 48,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.0,
+     "price": 5.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 54,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.3,
+     "price": 5.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 55,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 12.7,
+     "price": 8.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 56,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.1,
+     "price": 5.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 57,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 3.7,
+     "price": 4.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 58,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 3.1,
+     "price": 4.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 59,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.2,
+     "price": 4.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 60,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 1.2,
+     "price": 5.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 61,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 4.8,
+     "price": 5.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 62,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.2,
+     "price": 5.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 68,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 1.9,
+     "price": 6.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 69,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 1.6,
+     "price": 6.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 73,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.7,
+     "price": 5.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 79,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 2.0,
+     "price": 6.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 80,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.2,
+     "price": 5.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 81,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.3,
+     "price": 6.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 82,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 5.6,
+     "price": 5.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 83,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.1,
+     "price": 4.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 84,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 2.0,
+     "price": 5.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 85,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.7,
+     "price": 5.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 88,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 3.8,
+     "price": 4.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 94,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 2.1,
+     "price": 6.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 95,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 1.4,
+     "price": 6.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 102,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 1.5,
+     "price": 5.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 104,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.2,
+     "price": 5.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 106,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 16.1,
+     "price": 8.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 107,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.8,
+     "price": 4.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 108,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.4,
+     "price": 5.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 109,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 17.1,
+     "price": 4.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 110,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.9,
+     "price": 4.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 111,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 4.5,
+     "price": 4.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 113,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 2.9,
+     "price": 4.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 116,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.8,
+     "price": 4.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 122,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.7,
+     "price": 6.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 125,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.9,
+     "price": 5.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 127,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 1.9,
+     "price": 5.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 129,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.8,
+     "price": 5.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 136,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 2.6,
+     "price": 6.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 137,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.0,
+     "price": 5.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 138,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.3,
+     "price": 5.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 140,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 2.0,
+     "price": 5.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 141,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.1,
+     "price": 5.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 143,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 1.9,
+     "price": 5.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 144,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 1.1,
+     "price": 5.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 155,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 5.5,
+     "price": 7.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 159,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 4.0,
+     "price": 5.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 165,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 55.1,
+     "price": 7.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 167,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.5,
+     "price": 5.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 171,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 2.6,
+     "price": 4.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 172,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.6,
+     "price": 4.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 173,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 8.7,
+     "price": 4.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 174,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.5,
+     "price": 4.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 175,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 15.8,
+     "price": 4.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 183,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.3,
+     "price": 5.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 184,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.2,
+     "price": 5.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 193,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 1.8,
+     "price": 5.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 194,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.9,
+     "price": 5.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 195,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.6,
+     "price": 5.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 198,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 3.1,
+     "price": 5.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 199,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.1,
+     "price": 4.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 200,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 11.7,
+     "price": 6.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 201,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 11.5,
+     "price": 5.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 202,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.8,
+     "price": 5.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 204,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 6.8,
+     "price": 4.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 208,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 8.7,
+     "price": 6.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 210,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.3,
+     "price": 5.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 211,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.2,
+     "price": 5.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 222,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.6,
+     "price": 6.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 223,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 6.7,
+     "price": 6.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 224,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.5,
+     "price": 5.5
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 328,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.5,
+     "price": 5.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 555,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 1.7,
+     "price": 4.0
+    }
+   ]
+  },
+  {
+   "gameweeks": [],
+   "id": 560,
+   "prices": [
+    {
+     "on": "2026-08-15",
+     "owned": 0.1,
+     "price": 4.5
+    }
+   ]
+  }
+ ],
+ "season": "2026/27"
+}
