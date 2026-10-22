@@ -18,7 +18,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "digest"],
-      "description": "The registered strategy that produced this advice: its id in the strategy registry (strategies.json) and the digest of its registry entry (MOD-03).",
+      "description": "The registered strategy that produced this advice: its id in the strategy registry (strategies.json) and its digest (MOD-03): sha256 over the registry entry, the source that decides its advice and the run config it reads.",
       "properties": {
         "id": { "type": "string" },
         "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }

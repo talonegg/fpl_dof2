@@ -180,9 +180,10 @@ export interface Week {
   model?: {
     id: string;
     label: string;
-    role: "champion" | "challenger";
+    /** The strategy's registry role, as strategies.json lists it. */
+    role: "champion" | "challenger" | "experiment" | "retired";
   };
-  /** The registered strategy that produced this advice: its id in the strategy registry (strategies.json) and the digest of its registry entry (MOD-03). */
+  /** The registered strategy that produced this advice: its id in the strategy registry (strategies.json) and its digest (MOD-03): sha256 over the registry entry, the source that decides its advice and the run config it reads. */
   strategy?: {
     id: string;
     digest: string;
@@ -445,7 +446,7 @@ export interface Plan {
   /** True when no squad could be established, or when no legal plan exists. Both are normal states before the season starts (DL-20) and neither is a failure. */
   skipped: boolean;
   skipped_reason?: string;
-  /** The registered strategy that produced this advice: its id in the strategy registry (strategies.json) and the digest of its registry entry (MOD-03). */
+  /** The registered strategy that produced this advice: its id in the strategy registry (strategies.json) and its digest (MOD-03): sha256 over the registry entry, the source that decides its advice and the run config it reads. */
   strategy?: {
     id: string;
     digest: string;
@@ -1131,7 +1132,7 @@ export interface Strategy {
   published: boolean;
   /** Legacy ids that mean this strategy: the frozen harness's key and the app's old model ids. */
   aliases: string[];
-  /** sha256 of the registry entry as canonical JSON. */
+  /** sha256 over the registry entry and the run config sections it reads, as canonical JSON, and the source that decides its advice: it changes whenever any of the three does. */
   digest: string;
   /** Whether the strategy gets the multi-gameweek plan and chips. */
   plan: boolean;

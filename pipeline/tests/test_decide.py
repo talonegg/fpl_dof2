@@ -4,13 +4,16 @@
 and hits, XI and bench, captain and vice, and — unless the policy says ``plan: false`` — the
 multi-gameweek plan with its chips. Pinned here at that seam: the champion's week is what the
 pre-MOD-04 week stage chose on the same fixture, champion and C1 differ only through their registry
-entries, and a failing challenger costs its own advice and nothing else (NFR-15).
+entries, and a failing challenger costs its own advice and nothing else (NFR-15). The champion's
+week and its ledger entry are on disk before its plan or any challenger runs: neither can cost it.
 """
 
 from __future__ import annotations
 
 import dataclasses
-from typing import Any
+import json
+from pathlib import Path
+from typing import Any, get_args
 
 import pandas as pd
 import pytest
@@ -18,10 +21,11 @@ import pytest
 from decisions import OPTIMISER, decision, fixture_table, forecast, pool, state
 from fpl_dof.config.loader import load_config
 from fpl_dof.config.models import Config, ForecastConfig
-from fpl_dof.decision import Decision, decide
+from fpl_dof.decision import Decision, decide, engine
 from fpl_dof.factory.registry import (
     Forecast,
     ForecastInputs,
+    Role,
     Strategy,
     champion,
     load_strategy,
@@ -29,11 +33,14 @@ from fpl_dof.factory.registry import (
 )
 from fpl_dof.frames import as_float, as_int
 from fpl_dof.optimise.captain import PricePositionLine
+from fpl_dof.optimise.frame import ForecastFrameError
+from fpl_dof.paths import DataLayout
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
 from fpl_dof.publish.strategies import artefact_paths
 from fpl_dof.rules.models import GameRules
 from fpl_dof.stages import week
 from fpl_dof.week.deadline import DeadlineView, next_deadline
+from fpl_dof.week.ledger import advice_path, read_advice
 
 LINE = PricePositionLine(
     intercept_by_position={"GKP": 1.0, "DEF": 1.5, "MID": 2.0, "FWD": 2.5},
@@ -220,9 +227,13 @@ def _snapshot(rules: GameRules) -> tuple[ForecastInputs, Forecast]:
     return inputs, Forecast(frame=frame, model="xp_v1", fallback_reason=None, captain_line=LINE)
 
 
+def _forecast_config() -> Config:
+    return _config().model_copy(update={"forecast": ForecastConfig()})
+
+
 def _c1(rules: GameRules) -> tuple[ForecastInputs, Forecast, Forecast]:
     inputs, champ = _snapshot(rules)
-    c1 = load_strategy("c1").forecast(inputs, rules, ForecastConfig(), variance_from=champ)
+    c1 = load_strategy("c1").forecast(inputs, rules, _forecast_config(), variance_from=champ)
     return inputs, champ, c1
 
 
@@ -243,7 +254,7 @@ def test_c1_without_the_champions_forecast_to_borrow_from_is_refused(
 ) -> None:
     inputs, _ = _snapshot(game_rules)
     with pytest.raises(ValueError, match="variance"):
-        load_strategy("c1").forecast(inputs, game_rules, ForecastConfig())
+        load_strategy("c1").forecast(inputs, game_rules, _forecast_config())
 
 
 def test_champion_and_c1_produce_full_weeks_and_plans_through_one_function(
@@ -258,9 +269,10 @@ def test_champion_and_c1_produce_full_weeks_and_plans_through_one_function(
     }
     got: dict[str, Decision] = {}
     for s, fc in ((champion(), champ), (load_strategy("c1"), c1)):
-        got[s.id] = decide(
-            fc.frame, held, game_rules, s.decision_policy(cfg, fc.captain_line), **calendar
-        )
+        # Plan on for both at the policy level: production C1 runs `plan: false` until MOD-05 gives
+        # it means of its own beyond the next gameweek, but the one function plans for either.
+        policy = dataclasses.replace(s.decision_policy(cfg, fc.captain_line), plan=True)
+        got[s.id] = decide(fc.frame, held, game_rules, policy, **calendar)
         assert len(got[s.id].selection.starting) == 11
         assert got[s.id].selection.captain in got[s.id].selection.starting
         assert got[s.id].plan is not None, s.id
@@ -298,8 +310,22 @@ def _orchestration(rules: GameRules) -> week.Snapshot:
     )
 
 
-def test_every_published_strategy_gets_a_valid_week_and_plan(game_rules: GameRules) -> None:
-    advice = week.advise_all(_orchestration(game_rules), published_strategies())
+def _advise_all(
+    rules: GameRules, tmp_path: Path, strategies: tuple[Strategy, ...] | None = None
+) -> dict[str, week.Advice]:
+    advice, _ = week.advise_all(
+        _orchestration(rules),
+        published_strategies() if strategies is None else strategies,
+        gold=tmp_path / "gold",
+        layout=DataLayout(root=tmp_path),
+    )
+    return advice
+
+
+def test_every_published_strategy_gets_a_valid_week_and_plan(
+    game_rules: GameRules, tmp_path: Path
+) -> None:
+    advice = _advise_all(game_rules, tmp_path)
     contract = Contract(root=find_contracts_root())
     assert set(advice) == {s.id for s in published_strategies()}
     for s in published_strategies():
@@ -307,7 +333,7 @@ def test_every_published_strategy_gets_a_valid_week_and_plan(game_rules: GameRul
         assert week_payload["strategy"]["id"] == s.id and not week_payload["skipped"]
         contract.validate("week", week_payload | {"contract_version": CONTRACT_VERSION})
         assert (plan_payload is not None) is s.policy.plan
-        assert artefact_paths(s)["plan"] is not None
+        assert (artefact_paths(s)["plan"] is not None) is s.policy.plan
         if plan_payload is not None:
             assert plan_payload["strategy"]["id"] == s.id and not plan_payload["skipped"]
             contract.validate("plan", plan_payload | {"contract_version": CONTRACT_VERSION})
@@ -325,15 +351,15 @@ def _fail_c1(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def test_a_failing_challenger_records_no_advice_and_stops_nothing_else(
-    game_rules: GameRules, monkeypatch: pytest.MonkeyPatch
+    game_rules: GameRules, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _fail_c1(monkeypatch)
-    advice = week.advise_all(_orchestration(game_rules), published_strategies())
+    advice = _advise_all(game_rules, tmp_path)
 
     c1_week, c1_plan = advice["c1"]
     assert c1_week["skipped"] and "c1 fit exploded" in c1_week["skipped_reason"]
     assert c1_week["strategy"]["id"] == "c1"
-    assert c1_plan is not None and c1_plan["skipped"]
+    assert (c1_plan is not None) is load_strategy("c1").policy.plan
     Contract(root=find_contracts_root()).validate(
         "week", c1_week | {"contract_version": CONTRACT_VERSION}
     )
@@ -346,19 +372,62 @@ def test_a_failing_challenger_records_no_advice_and_stops_nothing_else(
 
 
 def test_a_failing_champion_fails_the_run(
-    game_rules: GameRules, monkeypatch: pytest.MonkeyPatch
+    game_rules: GameRules, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     def broken(*_: Any, **__: Any) -> Decision:
         raise RuntimeError("the engine fell over")
 
     monkeypatch.setattr(week, "decide", broken)
     with pytest.raises(RuntimeError, match="engine fell over"):
-        week.advise_all(_orchestration(game_rules), published_strategies())
+        _advise_all(game_rules, tmp_path)
 
 
-def test_the_ledger_carries_every_published_strategy(game_rules: GameRules) -> None:
-    advice = week.advise_all(_orchestration(game_rules), published_strategies())
-    models = week.ledger_models(advice, published_strategies())
+def test_a_champion_plan_that_raises_leaves_this_weeks_advice_written(
+    game_rules: GameRules, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    # Before MOD-04 the week was on disk before the decision stage planned; so it is again. A plan
+    # failure of any kind, not only an infeasible horizon, costs the plan and nothing else (NFR-15).
+    gold, layout = tmp_path / "gold", DataLayout(root=tmp_path)
+    on_disk: list[tuple[bool, bool]] = []
+
+    def failing(**_: Any) -> Any:
+        on_disk.append(((gold / "week.json").exists(), advice_path(layout, HORIZON[0]).exists()))
+        raise ForecastFrameError("the plan's frame is short a column")
+
+    monkeypatch.setattr(engine, "build_plan", failing)
+    advice, _ = week.advise_all(
+        _orchestration(game_rules), published_strategies(), gold=gold, layout=layout
+    )
+
+    assert on_disk and on_disk[0] == (True, True)  # written before the plan was attempted
+    written = json.loads((gold / "week.json").read_text(encoding="utf-8"))
+    assert not written["skipped"] and written["strategy"]["id"] == champion().id
+    plan = json.loads((gold / "plan.json").read_text(encoding="utf-8"))
+    assert plan["skipped"] and plan["skipped_reason"].startswith("no plan: ForecastFrameError")
+    recorded = read_advice(layout, HORIZON[0])
+    assert recorded is not None and recorded["advised"] == written["advised"]
+    assert recorded["models"][champion().id]["advised"] == written["advised"]
+    assert set(recorded["models"]) == {s.id for s in published_strategies()}
+    assert advice[champion().id][0] == written
+
+
+def test_the_champion_is_the_registrys_whatever_order_the_strategies_arrive_in(
+    game_rules: GameRules, tmp_path: Path
+) -> None:
+    advice = _advise_all(game_rules, tmp_path, tuple(reversed(published_strategies())))
+    recorded = read_advice(DataLayout(root=tmp_path), HORIZON[0])
+    assert recorded is not None
+    assert recorded["advised"] == advice[champion().id][0]["advised"]
+    written = json.loads((tmp_path / "gold" / "week.json").read_text(encoding="utf-8"))
+    assert written["strategy"]["id"] == champion().id
+
+
+def test_the_ledger_carries_every_published_strategy(game_rules: GameRules, tmp_path: Path) -> None:
+    advice = _advise_all(game_rules, tmp_path)
+    recorded = read_advice(DataLayout(root=tmp_path), HORIZON[0])
+    assert recorded is not None
+    models = recorded["models"]
+    assert models == week.ledger_models(advice, published_strategies())
     assert set(models) == {s.id for s in published_strategies()}
     for s in published_strategies():
         entry = models[s.id]
@@ -367,13 +436,24 @@ def test_the_ledger_carries_every_published_strategy(game_rules: GameRules) -> N
         assert entry["transfers"] == advice[s.id][0]["recommendation"]["transfers"]
 
 
-def test_the_week_schema_knows_every_role_a_published_strategy_has() -> None:
+def test_the_week_schema_knows_every_registry_role() -> None:
     schema = Contract(root=find_contracts_root()).schema("week")
     roles = schema["properties"]["model"]["properties"]["role"]["enum"]
-    assert {s.role for s in published_strategies()} <= set(roles)
+    assert roles == list(get_args(Role))
+
+
+def test_an_experiment_strategys_week_validates() -> None:
+    cfg = _config()
+    strategy = load_strategy("c1").model_copy(update={"role": "experiment"})
+    payload, _ = week._no_advice("run-mod04", _deadline(), strategy, "no advice: test", cfg)
+    assert payload["model"]["role"] == "experiment"
+    Contract(root=find_contracts_root()).validate(
+        "week", payload | {"contract_version": CONTRACT_VERSION}
+    )
 
 
 def test_each_strategy_has_its_own_week_and_plan_file() -> None:
     assert artefact_paths(champion()) == {"week": "week.json", "plan": "plan.json"}
-    assert artefact_paths(load_strategy("c1")) == {"week": "week_c1.json", "plan": "plan_c1.json"}
+    # C1 plans only once MOD-05 gives it its own means beyond the next gameweek.
+    assert artefact_paths(load_strategy("c1")) == {"week": "week_c1.json", "plan": None}
     assert artefact_paths(load_strategy("a")) == {"week": None, "plan": None}  # unpublished

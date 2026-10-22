@@ -98,24 +98,15 @@ def decide(
     plan: DecisionPlan | None = None
     reason: str | None = None
     if policy.plan:
-        try:
-            plan = build_plan(
-                players=frame,
-                state=squad_state,
-                rules=rules,
-                decision=policy.decision,
-                optimiser=policy.optimiser,
-                fixtures=fixtures,
-                chips=chips,
-                last_gameweek=last_gameweek,
-                # The most-captained player id is published upstream but the silver gameweek
-                # table does not carry it yet (D-15). None rather than guessed: DL-24's callout
-                # says what it knows, and "not available" is one of the things it can know.
-                most_captained_id=None,
-            )
-        except InfeasibleError as exc:
-            log.warning("decide.plan_infeasible", extra={"reason": str(exc)})
-            reason = str(exc)
+        plan, reason = solve_plan(
+            frame,
+            squad_state,
+            rules,
+            policy,
+            fixtures=fixtures,
+            chips=chips,
+            last_gameweek=last_gameweek,
+        )
     return Decision(
         recommendation=recommendation,
         selection=selection,
@@ -123,6 +114,41 @@ def decide(
         plan=plan,
         plan_skipped_reason=reason,
     )
+
+
+def solve_plan(
+    frame: pd.DataFrame,
+    squad_state: SquadState,
+    rules: GameRules,
+    policy: DecisionPolicy,
+    *,
+    fixtures: pd.DataFrame | None = None,
+    chips: pd.DataFrame | None = None,
+    last_gameweek: int | None = None,
+) -> tuple[DecisionPlan | None, str | None]:
+    """The plan step of :func:`decide` on its own: the plan, or ``None`` and why it is infeasible.
+
+    The week does not depend on it, so an orchestrator may publish the week before planning.
+    """
+    try:
+        plan = build_plan(
+            players=frame.assign(start_floor=policy.start_probability_floor),
+            state=squad_state,
+            rules=rules,
+            decision=policy.decision,
+            optimiser=policy.optimiser,
+            fixtures=fixtures,
+            chips=chips,
+            last_gameweek=last_gameweek,
+            # The most-captained player id is published upstream but the silver gameweek table
+            # does not carry it yet (D-15). None rather than guessed: DL-24's callout says what it
+            # knows, and "not available" is one of the things it can know.
+            most_captained_id=None,
+        )
+    except InfeasibleError as exc:
+        log.warning("decide.plan_infeasible", extra={"reason": str(exc)})
+        return None, str(exc)
+    return plan, None
 
 
 def _select(
@@ -171,4 +197,4 @@ def _select(
         )
 
 
-__all__ = ["Decision", "DecisionPolicy", "decide"]
+__all__ = ["Decision", "DecisionPolicy", "decide", "solve_plan"]

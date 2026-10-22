@@ -80,7 +80,9 @@ def run(ctx: StageContext) -> StageResult:
         Output(path=contract.write("fixtures", fixtures, destination), rows=len(fixtures["teams"])),
         Output(
             path=contract.write(
-                "strategies", build_strategies(contract_version=CONTRACT_VERSION), destination
+                "strategies",
+                build_strategies(ctx.config, contract_version=CONTRACT_VERSION),
+                destination,
             )
         ),
     ]
@@ -162,6 +164,9 @@ def run(ctx: StageContext) -> StageResult:
                 removed.append(filename)
                 continue
             outputs.append(Output(path=path))
+    # And every week or plan file no published strategy writes now: the pre-MOD-04
+    # week_challenger.json, an unpublished or deregistered strategy's pair, a plan switched off.
+    removed += stale_strategy_files(destination)
 
     for name in removed:
         (destination / name).unlink(missing_ok=True)
@@ -185,7 +190,7 @@ def run(ctx: StageContext) -> StageResult:
             for output in list(outputs):
                 if output.path.suffix == ".json":
                     shutil.copy2(output.path, public / output.path.name)
-            for name in removed:
+            for name in [*removed, *stale_strategy_files(public)]:
                 (public / name).unlink(missing_ok=True)
             log.info("publish.copied_to_app", extra={"destination": str(public)})
 
@@ -211,6 +216,19 @@ def run(ctx: StageContext) -> StageResult:
         },
         outputs=outputs,
     )
+
+
+_STRATEGY_FILE = re.compile(r"^(week|plan)(_[a-z0-9_]+)?\.json$")
+
+
+def stale_strategy_files(directory: Path) -> list[str]:
+    """Week and plan files in ``directory`` that no published strategy writes now (MOD-04)."""
+    current = {n for s in published_strategies() for n in artefact_paths(s).values() if n}
+    return [
+        p.name
+        for p in directory.glob("*.json")
+        if _STRATEGY_FILE.match(p.name) and p.name not in current
+    ]
 
 
 def _is_repo_data_root(ctx: StageContext, root: Path) -> bool:

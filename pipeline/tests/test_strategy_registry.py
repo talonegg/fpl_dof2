@@ -10,7 +10,7 @@ from typing import Any, get_args
 import pytest
 import yaml
 
-from fpl_dof.config.models import OptimiserConfig
+from fpl_dof.config.models import Config, OptimiserConfig
 from fpl_dof.factory import registry
 from fpl_dof.factory.registry import (
     STRATEGIES_DIR,
@@ -26,7 +26,7 @@ from fpl_dof.factory.registry import (
 )
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
 from fpl_dof.publish.strategies import build_strategies
-from fpl_dof.stages import week
+from fpl_dof.stages import publish, week
 
 SRC = Path(registry.__file__).resolve().parents[1]
 CONTRACTS = SRC.parents[2] / "contracts"
@@ -38,7 +38,7 @@ def _entry(sid: str, **over: Any) -> dict[str, Any]:
         "label": f"Label {sid}",
         "description": f"Description {sid}",
         "role": "challenger",
-        "published": False,
+        "published": over.get("role") == "champion",
         "aliases": [],
         "forecaster": {"type": "recipe", "model": "xp_v1", "training_window": "w"},
         "policy": {"captain_rule": "price_position", "plan": False},
@@ -76,28 +76,57 @@ def test_aliases_resolve_legacy_keys_to_registry_ids() -> None:
     assert resolve_alias("mystery") is None
 
 
-def test_digest_is_stable_and_changes_with_the_entry() -> None:
+def test_digest_is_stable_and_changes_with_the_entry(config: Config) -> None:
     c3 = load_strategy("c3")
-    assert digest(c3) == digest(load_strategy("c3"))
-    assert len(digest(c3)) == 64
-    assert digest(c3) != digest(c3.model_copy(update={"label": "x"}))
+    assert digest(c3, config) == digest(load_strategy("c3"), config)
+    assert len(digest(c3, config)) == 64
+    assert digest(c3, config) != digest(c3.model_copy(update={"label": "x"}), config)
+
+
+def test_digest_changes_with_the_effective_config_a_strategy_runs_on(config: Config) -> None:
+    # What decides the advice is the entry, the code and the run's config: a changed transfer
+    # default or a flipped minutes model is a different strategy run (NFR-06, DP-11).
+    c3 = load_strategy("c3")
+    transfers = config.transfers.model_copy(
+        update={"max_transfers": config.transfers.max_transfers + 1}
+    )
+    flags = config.forecast.discrimination
+    forecast = config.forecast.model_copy(
+        update={"discrimination": flags.model_copy(update={"minutes_v2": not flags.minutes_v2})}
+    )
+    base = digest(c3, config)
+    assert digest(c3, config.model_copy(update={"transfers": transfers})) != base
+    assert digest(c3, config.model_copy(update={"forecast": forecast})) != base
+    assert digest(c3, config.model_copy()) == base
+
+
+#: Every package whose source decides a strategy's advice (05 §4).
+_DECIDING = ("forecast", "shadow", "factory", "optimise", "decision", "squad", "config")
 
 
 def _tree(root: Path, text: bytes) -> Path:
-    for pkg in ("forecast", "shadow", "factory", "optimise", "decision"):
+    for pkg in _DECIDING:
         (root / pkg).mkdir(parents=True, exist_ok=True)
         (root / pkg / "m.py").write_bytes(text)
     return root
 
 
-def test_digest_covers_the_code_a_strategy_runs(tmp_path: Path) -> None:
+def test_digest_covers_the_code_a_strategy_runs(tmp_path: Path, config: Config) -> None:
     c3 = load_strategy("c3")
     a = registry.code_hash(_tree(tmp_path / "a", b"x = 1\n"))
     b = registry.code_hash(_tree(tmp_path / "b", b"x = 2\n"))
     assert a != b
-    assert digest(c3, a) != digest(c3, b)
-    assert digest(c3, a) != digest(c3.model_copy(update={"label": "x"}), a)
-    assert digest(c3) == digest(c3, registry.code_hash())
+    assert digest(c3, config, a) != digest(c3, config, b)
+    assert digest(c3, config, a) != digest(c3.model_copy(update={"label": "x"}), config, a)
+    assert digest(c3, config) == digest(c3, config, registry.code_hash())
+
+
+@pytest.mark.parametrize("package", _DECIDING)
+def test_code_hash_covers_every_package_that_decides_advice(tmp_path: Path, package: str) -> None:
+    before = registry.code_hash(_tree(tmp_path / "a", b"x = 1\n"))
+    after = _tree(tmp_path / "b", b"x = 1\n")
+    (after / package / "m.py").write_bytes(b"x = 2\n")
+    assert registry.code_hash(after) != before, package
 
 
 def test_code_hash_ignores_line_endings(tmp_path: Path) -> None:
@@ -148,6 +177,35 @@ def test_published_strategy_needs_a_model_that_exists(tmp_path: Path) -> None:
         load_registry(_write(tmp_path, _entry("x", role="champion"), bad))
 
 
+def test_an_unpublished_champion_is_refused(tmp_path: Path) -> None:
+    d = _write(tmp_path, _entry("x", role="champion", published=False))
+    with pytest.raises(RegistryError, match="champion"):
+        load_registry(d)
+
+
+@pytest.mark.parametrize(
+    "forecaster",
+    [
+        {"type": "frozen", "model": "xp_v1", "training_window": "w"},
+        {
+            "type": "recipe",
+            "model": "xp_v1",
+            "config": {"discrimination": {"minutes_v2": False}},
+            "training_window": "w",
+        },
+    ],
+    ids=["frozen", "config-overrides"],
+)
+def test_a_published_strategy_must_be_one_strategy_forecast_can_run(
+    tmp_path: Path, forecaster: dict[str, Any]
+) -> None:
+    # Published means it runs every refresh; a recipe the factory cannot run yet (MOD-05) would
+    # otherwise fail at forecast time, every week, as "no advice".
+    bad = _entry("y", published=True, forecaster=forecaster)
+    with pytest.raises(RegistryError, match="cannot run"):
+        load_registry(_write(tmp_path, _entry("x", role="champion"), bad))
+
+
 def test_unpublished_strategy_may_name_a_model_not_yet_ported(tmp_path: Path) -> None:
     later = _entry("y")
     later["forecaster"] = later["forecaster"] | {"type": "frozen", "model": "not_ported"}
@@ -173,8 +231,8 @@ def test_champion_entry_matches_the_shipped_config_it_describes() -> None:
     assert not {"shadow_c1", "publish_challenger"} & set(OptimiserConfig.model_fields)
 
 
-def test_strategies_json_validates_and_lists_every_registry_file() -> None:
-    payload = build_strategies(contract_version=CONTRACT_VERSION)
+def test_strategies_json_validates_and_lists_every_registry_file(config: Config) -> None:
+    payload = build_strategies(config, contract_version=CONTRACT_VERSION)
     contract = Contract(root=find_contracts_root())
     contract.validate("strategies", payload)
     roles = contract.schema("strategies")["$defs"]["strategy"]["properties"]["role"]["enum"]
@@ -182,20 +240,30 @@ def test_strategies_json_validates_and_lists_every_registry_file() -> None:
     listed = {s["id"]: s for s in payload["strategies"]}
     assert set(listed) == {p.stem for p in STRATEGIES_DIR.glob("*.yaml")}
     assert payload["champion"] == "c3"
-    assert listed["c3"]["digest"] == digest(load_strategy("c3"))
-    assert listed["c3"]["plan"] is True and listed["c1"]["plan"] is True
+    assert listed["c3"]["digest"] == digest(load_strategy("c3"), config)
+    # C1's means beyond its next gameweek are the champion's until MOD-05: no plan of its own.
+    assert listed["c3"]["plan"] is True and listed["c1"]["plan"] is False
     # The app reads each strategy's week and plan from here, never from a name it builds (MOD-07).
     assert listed["c3"]["artefacts"] == {"week": "week.json", "plan": "plan.json"}
-    assert listed["c1"]["artefacts"] == {"week": "week_c1.json", "plan": "plan_c1.json"}
+    assert listed["c1"]["artefacts"] == {"week": "week_c1.json", "plan": None}
     unpublished = [s for s in payload["strategies"] if not s["published"]]
     assert all(s["artefacts"] == {"week": None, "plan": None} for s in unpublished)
 
 
-def test_week_json_names_the_champion_by_registry_id_and_digest() -> None:
-    fields = week._stamp(champion())
+def test_week_json_names_the_champion_by_registry_id_and_digest(config: Config) -> None:
+    fields = week._stamp(champion(), config)
     assert fields["model"]["id"] == "c3"
     assert fields["model"]["role"] == "champion"
-    assert fields["strategy"] == {"id": "c3", "digest": digest(load_strategy("c3"))}
+    assert fields["strategy"] == {"id": "c3", "digest": digest(load_strategy("c3"), config)}
+
+
+def test_publish_finds_strategy_files_nothing_writes_any_more(tmp_path: Path) -> None:
+    # The pre-MOD-04 challenger file, an unpublished strategy's pair, one no longer registered, and
+    # C1's plan now that its policy does not plan: each a false statement about the present.
+    stale = ["week_challenger.json", "week_a.json", "plan_a.json", "week_gone.json", "plan_c1.json"]
+    for name in ["week.json", "plan.json", "week_c1.json", "players.json", *stale]:
+        (tmp_path / name).write_text("{}", encoding="utf-8")
+    assert sorted(publish.stale_strategy_files(tmp_path)) == sorted(stale)
 
 
 # --- one home: no model id or label is defined outside the registry -------------------------

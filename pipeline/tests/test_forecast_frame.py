@@ -19,7 +19,7 @@ import pytest
 
 from conftest import before_next_deadline
 from decisions import OPTIMISER, decision, fixture_table, forecast, pool, state
-from fpl_dof.config.models import TransferConfig
+from fpl_dof.config.models import Config, TransferConfig
 from fpl_dof.factory.registry import champion, digest, load_strategy
 from fpl_dof.forecast import Forecast, ForecastInputs, publishable
 from fpl_dof.forecast.xp_v0 import MODEL_NAME as XP_V0
@@ -113,18 +113,23 @@ def test_nothing_played_means_no_captain_line(game_rules: GameRules) -> None:
 
 
 def test_the_champion_strategy_stamps_a_valid_frame_that_survives_parquet(
-    game_rules: GameRules, tmp_path: Path
+    game_rules: GameRules, tmp_path: Path, config: Config
 ) -> None:
-    result = champion().forecast(_snapshot(8), game_rules, CONFIG)
+    run_config = config.model_copy(update={"forecast": CONFIG})
+    result = champion().forecast(_snapshot(8), game_rules, run_config)
     result.frame.to_parquet(tmp_path / "xp.parquet", index=False)
     frame = validate_forecast_frame(pd.read_parquet(tmp_path / "xp.parquet"))
     assert set(frame["strategy"]) == {champion().id}
-    assert set(frame["strategy_digest"]) == {digest(champion())}
+    assert set(frame["strategy_digest"]) == {digest(champion(), run_config)}
 
 
-def test_a_strategy_without_a_live_forecaster_says_so(game_rules: GameRules) -> None:
+def test_a_strategy_without_a_live_forecaster_says_so(
+    game_rules: GameRules, config: Config
+) -> None:
     with pytest.raises(NotImplementedError, match="a"):
-        load_strategy("a").forecast(_snapshot(8), game_rules, CONFIG)
+        load_strategy("a").forecast(
+            _snapshot(8), game_rules, config.model_copy(update={"forecast": CONFIG})
+        )
 
 
 def test_the_captain_line_refuses_an_unknown_position_or_a_non_finite_number() -> None:

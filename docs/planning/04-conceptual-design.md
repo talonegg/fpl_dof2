@@ -459,7 +459,10 @@ infeasible plan is a stated reason beside a week that stands. The policy arrives
 (`DecisionPolicy`: plan, B0's line or none, and the transfer, optimiser and decision config) from
 `Strategy.decision_policy`; `decide` reads no file and no config (DP-03). The week stage calls it
 once per published strategy on one input snapshot, so two strategies differ only by the forecaster
-and policy their registry entries name.
+and policy their registry entries name. The registry's champion goes first, and its week (decided
+with the plan off) is written and recorded in the ledger before anything that could fail or take
+long: then its plan, through `decision.solve_plan` (the plan step of `decide`), where a failure of
+any kind is "no plan" with its reason beside the week; then each challenger, isolated (NFR-15).
 
 Each re-encodes legality, solver construction is repeated, and `optimiser.solver` is never read (03
 §12 P2).
@@ -817,7 +820,11 @@ single home of its id, label, description and role (MOD-03):
 
 Registered ([DL-87](../decisions/DL-87.md)): `c3`, the champion, and `c1`, published; `engine`, `a`
 and `a_odds`, challengers unpublished until they are ported live. A strategy's digest is the sha256
-of its entry as canonical JSON; `week.json` and `plan.json` (the champion's) and every other
+of (entry, code, effective config): its entry and the run config sections it reads (`forecast`,
+`transfers`, `optimiser`, `decision`) as canonical JSON, and the source of the packages that
+decide its advice (`forecast`, `shadow`, `factory`, `optimise`, `decision`, `squad`, `config`)
+with line endings normalised. A published strategy must be one `Strategy.forecast` can run
+(a live recipe without config overrides, until MOD-05), and the champion must be published; `week.json` and `plan.json` (the champion's) and every other
 published strategy's `week_<id>.json` and `plan_<id>.json` carry `strategy: {id, digest}`, and the published `strategies.json` lists every entry with its aliases and the paths of its week and plan (`artefacts`), which are the only place the app learns a file name. Every builder that
 names a model — `models.json`, the model history, xP accuracy, the paired accuracy tests — reads the
 registry and resolves the harness's keys through the aliases. The forecast stage runs the
@@ -834,8 +841,9 @@ Four mechanisms, none promoting automatically:
 - **Flagged variants** in the chain, each graded per flag in the backtest (DL-47).
 - **The challenger, `c1`** (`shadow/c1.py`, reached through `Strategy.forecast`): its own
   gradient-boosted P(plays) and points models for the next gameweek, decided by the same `decide`
-  as the champion and published as `week_c1.json` and `plan_c1.json`. A failure records "no
-  advice" with its reason in both and in the ledger, and stops nothing else (NFR-15). It borrows
+  as the champion and published as `week_c1.json`, with `plan: false` until MOD-05 gives it a
+  horizon of its own. A failure records "no advice" with its reason there and in the ledger,
+  and stops nothing else (NFR-15). It borrows
   the champion's sd columns, its per-gameweek means beyond the next gameweek and B0's line until
   MOD-05 gives it its own, and builds its features outside the forecast seam (03 §12 P1).
 - **The monolith**, backtest only (DL-53).

@@ -45,7 +45,7 @@ def run(ctx: StageContext) -> StageResult:
         as_of=ctx.as_of,
     )
 
-    result = champion().forecast(inputs, rules, ctx.config.forecast)
+    result = champion().forecast(inputs, rules, ctx.config)
     forecast = result.frame
     regression = regress_xp_on_price(forecast)
 
