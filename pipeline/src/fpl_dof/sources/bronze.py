@@ -62,6 +62,7 @@ class SnapshotMeta(BaseModel):
     content_encoding: str | None = None
     run_id: str | None = None
     immutable: bool = False
+    retain: bool = False
     etag: str | None = None
     last_modified: str | None = None
 
@@ -144,6 +145,7 @@ class BronzeStore:
         now: dt.datetime | None = None,
         suffix: str = SNAPSHOT_SUFFIX,
         immutable: bool = False,
+        retain: bool = False,
         etag: str | None = None,
         last_modified: str | None = None,
     ) -> Snapshot:
@@ -177,6 +179,7 @@ class BronzeStore:
             content_encoding=content_encoding,
             run_id=run_id,
             immutable=immutable,
+            retain=retain,
             etag=etag,
             last_modified=last_modified,
         )

@@ -456,6 +456,32 @@ def test_immutable_prior_season_bronze_outlives_the_window(tmp_path: Path) -> No
     assert counts["pruned"] == 2
 
 
+def test_retained_captures_outlive_the_window_and_unretained_ones_do_not(tmp_path: Path) -> None:
+    """DL-87: every fdcouk capture is kept whatever its age; an old non-retained one is pruned."""
+    rebuild_rolling_branch = _scripts_retention().rebuild_rolling_branch
+    day = tmp_path / "data" / "bronze" / "fdcouk" / "fixtures" / "2026-07-01"
+    day.mkdir(parents=True)
+    for name, retain in (("kept__x.csv.gz", True), ("pruned__x.csv.gz", False)):
+        (day / name).write_bytes(b"payload")
+        (day / f"{name}.meta.json").write_text(
+            json.dumps({"immutable": False, "retain": retain}), encoding="utf-8"
+        )
+    staging = tmp_path / "staging"
+    rebuild_rolling_branch(
+        bronze_dir=tmp_path / "data" / "bronze",
+        staging_dir=staging,
+        remote="dummy",
+        window_days=30,
+        today=dt.date(2026, 10, 20),
+        dry_run=True,
+    )
+    staged = staging / "bronze" / "fdcouk" / "fixtures" / "2026-07-01"
+    assert sorted(p.name for p in staged.iterdir()) == [
+        "kept__x.csv.gz",
+        "kept__x.csv.gz.meta.json",
+    ]
+
+
 def test_the_rolling_window_is_read_from_configuration(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

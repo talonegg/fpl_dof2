@@ -56,6 +56,9 @@ def build_log(
     optimiser_config: OptimiserConfig | None = None,
 ) -> dict[str, Any]:
     """The whole ``log.json`` payload. One row per gameweek the game has recorded picks for."""
+    if player_gameweek is not None and not player_gameweek.empty:
+        # The silver table also holds backfilled seasons, whose gameweek numbers repeat this one's.
+        player_gameweek = player_gameweek[player_gameweek["season"] == season]
     scored = _scores_by_gameweek(entry_gameweeks)
     chip_by_gameweek = _chips_by_gameweek(chips)
 

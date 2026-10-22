@@ -123,8 +123,8 @@ in the adapter. No history (D-20), so not backtestable; the M2 market blend is u
 #### S5 — Historical archive *(build-time)*
 
 `fplarchive` reads prior-season per-gameweek data from the community mirror, because the API has none
-(DL-19). Off by default; `config/ci-backtest.yaml` enables it for the weekly backtest and the
-prospective job's silver refresh (DL-68). Its bronze is immutable: never re-fetched unless
+(DL-19). On in the live run (DL-87), backfilling 2023/24 to 2025/26, as it is for the weekly backtest
+and the prospective job's silver refresh (DL-68). Its bronze is immutable: never re-fetched unless
 `--rebackfill` or `--force-refresh`, and kept on `data` beyond the rolling window (PIPE-03). Identity
 across seasons is FPL's stable `code` for players and clubs (DL-52).
 
