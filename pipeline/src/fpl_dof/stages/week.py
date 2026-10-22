@@ -126,7 +126,7 @@ def run(ctx: StageContext) -> StageResult:
             transfers=read_table_optional(silver, season, Table.ENTRY_TRANSFER),
             entry=read_table_optional(silver, season, Table.ENTRY),
             chips=read_table_optional(silver, season, Table.ENTRY_CHIP),
-            gameweek_prices=gameweek_price_index(player_gameweek),
+            gameweek_prices=gameweek_price_index(player_gameweek, season),
         )
     except SquadStateError as exc:
         # Degrade rather than break (DP-15). The forecast is still good; there is simply no squad

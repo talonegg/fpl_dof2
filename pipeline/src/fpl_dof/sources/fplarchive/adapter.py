@@ -165,12 +165,12 @@ class ArchiveAdapter(SourceAdapter):
     health_kind: ClassVar[str] = "reference"
     health_label: ClassVar[str] = "Past seasons archive (community FPL archive)"
     health_description: ClassVar[str] = (
-        "Gameweek-by-gameweek Fantasy data from earlier seasons. It's used on decision runs and in "
-        "backtests."
+        "Gameweek-by-gameweek Fantasy data from earlier seasons. It trains the forecast and feeds "
+        "the weekly backtests."
     )
     health_note: ClassVar[str] = (
-        "Fixed past seasons. It's used on decision runs and in weekly backtests, not in the main "
-        "forecast run."
+        "Fixed past seasons, fetched once and kept. It trains the forecast and feeds the weekly "
+        "backtests."
     )
     resources: ClassVar[tuple[Resource, ...]] = (
         Resource(

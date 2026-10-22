@@ -11,6 +11,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 
@@ -265,6 +266,7 @@ def test_hindsight_is_populated_and_validates_against_contract(
         )
         gw_perf_rows.append(
             {
+                "season": "2026/27",
                 "gameweek": 2,
                 "player_id": pid,
                 "web_name": f"P{pid}",
@@ -274,18 +276,24 @@ def test_hindsight_is_populated_and_validates_against_contract(
             }
         )
 
-    log = build_log(
-        entry_id=7,
-        season="2026/27",
-        picks=pd.concat([_picks(1), _picks(2, captain=1)], ignore_index=True),
-        entry_gameweeks=_scores(1, 2),
-        chips=None,
-        advice=read_all_advice(layout),
-        contract_version=CONTRACT_VERSION,
-        player_gameweek=pd.DataFrame(gw_perf_rows),
-        player_pool=pd.DataFrame(pool_rows),
-        rules=game_rules,
-    )
+    def build(gameweek_rows: list[dict[str, Any]]) -> dict[str, Any]:
+        return build_log(
+            entry_id=7,
+            season="2026/27",
+            picks=pd.concat([_picks(1), _picks(2, captain=1)], ignore_index=True),
+            entry_gameweeks=_scores(1, 2),
+            chips=None,
+            advice=read_all_advice(layout),
+            contract_version=CONTRACT_VERSION,
+            player_gameweek=pd.DataFrame(gameweek_rows),
+            player_pool=pd.DataFrame(pool_rows),
+            rules=game_rules,
+        )
+
+    log = build(gw_perf_rows)
+    # A backfilled season reuses ids and gameweek numbers with other points: nothing may change.
+    prior = [{**row, "season": "2025/26", "total_points": 0} for row in gw_perf_rows]
+    assert build(prior + gw_perf_rows) == log
 
     gw2 = log["gameweeks"][1]
     assert gw2["hindsight"] is not None

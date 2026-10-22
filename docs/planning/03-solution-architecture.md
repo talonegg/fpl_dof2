@@ -73,7 +73,7 @@ design (DL-08, NFR-11). The official API now carries the expected-goals signals 
 | Source | Adapter | State |
 | --- | --- | --- |
 | FPL API | `sources/fpl` | Essential. Failure stops the run; the last good publication stays live |
-| FPL archive | `sources/fplarchive` | Off by default; `config/ci-backtest.yaml` enables it for the weekly backtest and the prospective job in `pipeline.yml` (DL-68) |
+| FPL archive | `sources/fplarchive` | On in the live run and the backtests, with the 2023/24 to 2025/26 seasons backfilled (DL-87) |
 | Understat, FBref | `sources/understat`, `sources/fbref` | Blocked upstream (`robots.txt`, Cloudflare 403) — D-23. Off by default; no workflow enables them. The adapters stay, dormant, so retained bronze still replays (PIPE-09) |
 | The Odds API | `sources/oddsapi` | Off by default (PIPE-09); degrades cleanly without `ODDS_API_KEY`, which no workflow passes. Free-tier credit cap, no history — D-20; not used by the model (DL-59, DL-60) |
 | football-data.co.uk | `sources/fdcouk` | Off by default, and no workflow enables it. The prospective harness reads upcoming odds and its hash-pinned past seasons through it (`sources.LiveFeed`, REM-07); when enabled, it conforms past seasons' match files into silver by permanent club code, each fetched once (PIPE-03, PIPE-04) |
@@ -321,7 +321,7 @@ flowchart LR
 
 | Layer | Content | Format | Persisted between CI runs? |
 | --- | --- | --- | --- |
-| **Bronze** | Verbatim source responses with a `.meta.json` lineage sidecar (URL, time, SHA-256, validators, immutability) | Gzipped JSON, CSV or HTML | Partly — the rolling window on `data`, plus immutable prior-season snapshots whatever their age (PIPE-03); one permanent tarball per closed gameweek on `snapshots` (PIPE-14) |
+| **Bronze** | Verbatim source responses with a `.meta.json` lineage sidecar (URL, time, SHA-256, validators, immutability) | Gzipped JSON, CSV or HTML | Partly — the rolling window on `data`, plus immutable prior-season snapshots and every `retain`ed capture (football-data.co.uk odds, DL-89) whatever their age (PIPE-03); one permanent tarball per closed gameweek on `snapshots` (PIPE-14) |
 | **Silver** | Conformed canonical tables (`silver/tables.py`), validated on read and write; advanced metrics keyed by `as_of_gameweek` and stamped `observed_at` (DL-83) | Parquet, by season | Partly — rebuilt from bronze each run, except the accumulating tables (`APPENDED` in `stages/transform.py`: `price_history`, `player_gameweek`, `player_advanced`, `player_metric`), which are appended to. Of those, only `price_history` is persisted on `data`; `silver replay-prices` rebuilds it from bronze (PIPE-06). An accumulating table from an older schema stops transform until `silver rebuild` (REM-10) |
 | **Gold** | Forecasts, plans, decisions, model and backtest cards; `player_career_history` and `team_match_odds`, built by `transform` (PIPE-02, PIPE-05) | Parquet + JSON + Markdown | **No**, except advice on `ledger`. The published contract survives as a 14-day artefact and on Pages |
 | **Web contract** | The narrow, versioned slice the browser may read | JSON, `/data/v1/` | Replaced per publish |
@@ -649,7 +649,7 @@ and delivered; its backlog is archived at
 
 | Concern | As built | Items |
 | --- | --- | --- |
-| Source set | FPL API on. `fplarchive` and `fdcouk` registered, off by default; `config/ci-backtest.yaml` turns the archive on for the backtest and the prospective job (DL-68). Understat, FBref and The Odds API off, their adapters dormant so retained bronze still replays | PIPE-04, PIPE-09 |
+| Source set | FPL API on. `fplarchive` and `fdcouk` on, with the archive seasons 2023/24 to 2025/26 backfilled (DL-87, DL-89); `config/ci-backtest.yaml` now sets only the backtest's training seasons (DL-68). Understat, FBref and The Odds API off, their adapters dormant so retained bronze still replays | PIPE-04, PIPE-09 |
 | Prior seasons | **Frozen bronze tier**: completed-season snapshots are marked `immutable`, kept by retention whatever their age, and re-fetched only when forced | PIPE-03 |
 | Transport | **Conditional requests** (`ETag`, `Last-Modified`); a 304 revalidates the held snapshot without a download | PIPE-07 |
 | Ingest safety | A **drift canary** on `bootstrap-static` and `fixtures` halts ingest before per-player fetches and logs a key diff | PIPE-08 |

@@ -136,4 +136,5 @@ by hand.
 | [DL-86](DL-86.md) | 2026-10-22 | Accepted | Downstream of the data pipeline, the platform becomes three modules around a strategy registry |
 | [DL-87](DL-87.md) | 2026-10-23 | Accepted | R1.2.0 ships in two drops; the archive and football-data.co.uk run live; no parity gameweek |
 | [DL-88](DL-88.md) | 2026-10-23 | Accepted | A hotfix takes R1.2.1; the second modular-platform drop becomes R1.2.2 |
+| [DL-89](DL-89.md) | 2026-10-23 | Accepted | football-data.co.uk captures are retained by a flag of their own, not marked immutable |
 <!-- index:end -->
