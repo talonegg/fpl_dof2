@@ -12,7 +12,6 @@ from fpl_dof.week.cadence import (
     GateDecision,
     gate,
     marker,
-    veto_plan,
 )
 from fpl_dof.week.cadence import (
     find_next_deadline_event as next_deadline,
@@ -26,5 +25,4 @@ __all__ = [
     "gate",
     "marker",
     "next_deadline",
-    "veto_plan",
 ]

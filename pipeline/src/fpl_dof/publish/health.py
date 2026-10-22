@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import datetime as dt
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
 from typing import Any
 
 from fpl_dof.obs.manifest import RunManifest, StageRecord
@@ -134,19 +133,6 @@ def _resources(manifest: RunManifest, label: str) -> dict[str, int]:
     return resources
 
 
-@dataclass(frozen=True)
-class RecordEvidence:
-    """What the prospective record says about the sources the frozen harness reads itself.
-
-    Built by the publish stage from the record it already receives for ``models.json``: the newest
-    decision and that decision's input status. Only the blocks a descriptor names are ever read
-    out of them, so nothing else in a decision file (the owner's squad, the picks) reaches here.
-    """
-
-    decision: Mapping[str, Any] | None = None
-    status: Mapping[str, Any] | None = None
-
-
 #: Live rows first; within them, rows the run depends on, then not set up, then switched off.
 _GROUP_ORDER = {
     "ok": 0,
@@ -214,76 +200,8 @@ def _entry(
     }
 
 
-def _status_check(
-    record: RecordEvidence | None, name: str | None
-) -> tuple[str | None, str | None, dt.datetime | None]:
-    """``(pass|fail|None, first problem, assessed_at)`` for one frozen-harness input check.
-
-    The status file records each check per model; a source is verified only if every model that
-    needs the check passed it, and the first recorded problem is its reason.
-    """
-    if name is None or record is None or not record.status:
-        return None, None, None
-    models = record.status.get("models") or {}
-    results = [
-        (model.get("inputs") or {})[name]
-        for model in models.values()
-        if isinstance(model, Mapping) and name in (model.get("inputs") or {})
-    ]
-    if not results:
-        return None, None, None
-    problems = [str(problem) for problem in results if problem]
-    assessed = _parse_time(record.status.get("assessed_at"))
-    return ("fail" if problems else "pass"), (problems[0] if problems else None), assessed
-
-
-def _record_entry(
-    descriptor: SourceDescriptor, record: RecordEvidence | None, generated_at: dt.datetime
-) -> dict[str, Any]:
-    """A live external source, read from the newest decision's block for it."""
-    decision = record.decision if record is not None else None
-    block = (decision or {}).get(descriptor.record_block or "") if decision else None
-    if not isinstance(block, Mapping):
-        return _entry(
-            descriptor.key,
-            "unknown",
-            "No decision record was published with this run, so when this source was last "
-            "fetched isn't known.",
-            generated_at=generated_at,
-            descriptor=descriptor,
-        )
-
-    gameweek = decision.get("gw") if decision else None
-    where = f"GW{gameweek} decision" if gameweek is not None else "Latest decision"
-    in_gw = _as_int(block.get("fixtures_in_gw")) or 0
-    priced = _as_int(block.get("fixtures_with_odds")) or 0
-    kept = _as_int(block.get("kept")) or 0
-    resources = {"fixtures_in_gameweek": in_gw, "fixtures_priced": priced, "fixtures_kept": kept}
-    moment = _parse_time(block.get("fetched_at"))
-    verdict, problem, _ = _status_check(record, descriptor.record_check)
-
-    if verdict == "fail":
-        status, detail = "degraded", f"{where}: {problem}."
-    elif in_gw == 0 or kept == 0:
-        status, detail = "degraded", f"{where}: no usable odds were fetched."
-    elif kept < in_gw:
-        status, detail = "degraded", f"{where}: odds for only {kept} of {in_gw} fixtures."
-    else:
-        status, detail = "ok", f"Fetched for the {where}: odds for all {in_gw} fixtures."
-    return _entry(
-        descriptor.key,
-        status,
-        detail,
-        generated_at=generated_at,
-        descriptor=descriptor,
-        moment=moment,
-        resources=resources,
-    )
-
-
 def _reference_entry(
     descriptor: SourceDescriptor,
-    record: RecordEvidence | None,
     degradation: tuple[str, str] | None,
     generated_at: dt.datetime,
 ) -> dict[str, Any]:
@@ -292,11 +210,8 @@ def _reference_entry(
     ``status`` is ``ok`` unless something is known to be wrong with it (a failed file check, or a
     stage that recorded it degraded). The page shows such a row as *Reference*, not as *OK*.
     """
-    check, problem, checked_at = _status_check(record, descriptor.record_check)
     status, detail, stage = "ok", descriptor.note, None
-    if check == "fail":
-        status, detail = "degraded", problem
-    elif degradation is not None:
+    if degradation is not None:
         status, stage, detail = "degraded", degradation[0], degradation[1]
     return _entry(
         descriptor.key,
@@ -305,8 +220,6 @@ def _reference_entry(
         generated_at=generated_at,
         descriptor=descriptor,
         stage=stage,
-        check=check,
-        checked_at=checked_at,
     )
 
 
@@ -316,7 +229,6 @@ def build_sources(
     observed: Mapping[str, dt.datetime],
     generated_at: dt.datetime,
     catalogue: Sequence[SourceDescriptor] = (),
-    record: RecordEvidence | None = None,
     stale_after_seconds: float | None = None,
 ) -> list[dict[str, Any]]:
     """Per-source status and freshness, for every catalogued source and anything else seen.
@@ -335,7 +247,6 @@ def build_sources(
       come from a scheduled ingest. A snapshot is only written after a successful fetch, so this is
       evidence of a working feed even when the publishing run did not fetch (the published run has
       no ingest stage; fetching is the ingest workflows' job). Older than that → ``stale``;
-    * a live external source → its newest decision-record block;
     * otherwise ``unknown``.
 
     A run that made zero requests and read nothing from cache has done nothing, so 0/0 is never
@@ -358,7 +269,7 @@ def build_sources(
         moment = observed.get(label)
 
         if descriptor is not None and descriptor.kind == REFERENCE:
-            entries.append(_reference_entry(descriptor, record, degradation, generated_at))
+            entries.append(_reference_entry(descriptor, degradation, generated_at))
             continue
         if descriptor is not None and not descriptor.enabled:
             status, detail, stage = "disabled", descriptor.disabled_reason, None
@@ -383,9 +294,6 @@ def build_sources(
                     "Fetched by a scheduled ingest. This run used that saved data rather than "
                     "fetching it again."
                 )
-        elif descriptor is not None and descriptor.record_block:
-            entries.append(_record_entry(descriptor, record, generated_at))
-            continue
         else:
             status, stage, detail = "unknown", None, NO_ACTIVITY
 
@@ -563,7 +471,6 @@ def build_health(
     history_limit: int,
     contract_version: int,
     catalogue: Sequence[SourceDescriptor] = (),
-    record: RecordEvidence | None = None,
     stale_after_seconds: float | None = None,
 ) -> dict[str, Any]:
     """The whole ``health.json`` payload. Pure (DP-03)."""
@@ -576,7 +483,6 @@ def build_health(
             observed=observed,
             generated_at=generated_at,
             catalogue=catalogue,
-            record=record,
             stale_after_seconds=stale_after_seconds,
         ),
         "gates": build_gates(gate_report),
@@ -586,7 +492,6 @@ def build_health(
 
 __all__ = [
     "MANIFEST_SERIES",
-    "RecordEvidence",
     "build_gates",
     "build_health",
     "build_metrics_history",

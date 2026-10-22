@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import csv
 import datetime as dt
+import hashlib
 import io
 from collections.abc import Callable, Mapping
 from pathlib import Path
@@ -22,7 +23,6 @@ if TYPE_CHECKING:
 
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.obs.manifest import utcnow
-from fpl_dof.prospective.bundle import sha256_bytes, sha256_file
 from fpl_dof.silver.tables import Table, columns_for
 from fpl_dof.sources.base import (
     Conformed,
@@ -126,7 +126,7 @@ def fetch_history(
             out[rel] = "no frozen hash recorded"
             continue
         dest = frozen_root / rel
-        if sha256_file(dest) == want:
+        if dest.is_file() and hashlib.sha256(dest.read_bytes()).hexdigest() == want:
             out[rel] = None
             continue
         try:
@@ -134,7 +134,7 @@ def fetch_history(
         except Exception as exc:
             out[rel] = f"download failed ({type(exc).__name__})"
             continue
-        if sha256_bytes(data) != want:
+        if hashlib.sha256(data).hexdigest() != want:
             out[rel] = "upstream file differs from the frozen copy"
             continue
         dest.parent.mkdir(parents=True, exist_ok=True)

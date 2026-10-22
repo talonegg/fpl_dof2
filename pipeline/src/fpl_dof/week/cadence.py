@@ -25,7 +25,6 @@ SYDNEY = ZoneInfo(SYDNEY_ZONE)
 #: Day-before refresh schedule constants
 LOCAL_HOUR = 7
 CRON = "7,27,47 19-22 * * *"
-VETO_REASON = "day-before refresh: never writes a prospective decision (14 h window)"
 
 
 def zone(name: str) -> ZoneInfo:
@@ -319,23 +318,12 @@ def gate(
     )
 
 
-def veto_plan(plan: Mapping[str, Any]) -> dict[str, Any]:
-    """The prospective plan with ``decide`` forced off; scoring and everything else unchanged."""
-    out = dict(plan)
-    if out.get("decide"):
-        out["decide_vetoed"] = out.get("decide_reason", "planned")
-    out["decide"] = False
-    out["decide_reason"] = VETO_REASON
-    return out
-
-
 __all__ = [
     "CRON",
     "LOCAL_HOUR",
     "SYDNEY",
     "SYDNEY_ZONE",
     "UK_ZONE",
-    "VETO_REASON",
     "DeadlineView",
     "GateDecision",
     "NoDeadlineError",
@@ -350,6 +338,5 @@ __all__ = [
     "start_of_utc_day",
     "succeeded_since",
     "to_contract",
-    "veto_plan",
     "zone",
 ]

@@ -290,10 +290,6 @@ def test_publish_finds_strategy_files_nothing_writes_any_more(tmp_path: Path) ->
 
 # --- one home: no model id or label is defined outside the registry -------------------------
 
-#: The frozen harness keeps its own keys until MOD-06 switches it off (DL-87): its input check
-#: names each frozen model's needs by harness key, and the bundle is a byte-frozen copy.
-FROZEN_HARNESS = {SRC / "prospective" / "freshness.py"}
-
 
 def _names() -> set[str]:
     out: set[str] = set()
@@ -322,11 +318,7 @@ def _all_strings(path: Path) -> set[str]:
 
 
 def _python() -> list[Path]:
-    return [
-        p
-        for p in SRC.rglob("*.py")
-        if "factory" not in p.relative_to(SRC).parts and p not in FROZEN_HARNESS
-    ]
+    return [p for p in SRC.rglob("*.py") if "factory" not in p.relative_to(SRC).parts]
 
 
 def test_no_python_module_defines_a_strategy_id_or_alias() -> None:

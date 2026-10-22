@@ -121,7 +121,7 @@ graph TB
 The pipeline is one CLI, `fpl-dof`, whose stages are registered in `pipeline.py` and run in order by
 `run_stages`; CI runs the same commands a developer does (NFR-09). Beside the main run sit the
 `backtest` stage (walk-forward regression and the model card verdict, DL-21) and the `prospective`
-harness (pre-registered model comparison, frozen before each deadline). The `week` stage runs every
+harness, retired at the switch (DL-87). The `week` stage runs every
 published strategy of the registry through `forecast` → `decide` on one snapshot (MOD-04); the
 challenger's (C1's) week and plan are published beside the champion's but never acted on (DP-08).
 
@@ -234,10 +234,6 @@ flowchart TB
         BRZ["bronze snapshot<br/>+ .meta.json sidecar"]
     end
 
-    subgraph prosp["pipeline.yml · prospective job"]
-        PRO["frozen harness<br/>decide before the deadline,<br/>score after"]
-    end
-
     subgraph run["pipeline.yml · run job"]
         VER["bronze verify<br/>--quarantine"]
         TRF["transform<br/>conform, resolve, append"]
@@ -259,13 +255,11 @@ flowchart TB
     CAN -.->|"drift"| HALT
     BRZ -->|"retention.py rolling"| DATA
     DATA -->|"retention.py archive,<br/>each closed gameweek once"| SNAP
-    FPL & ODDS & ARC --> PRO
-    PRO -->|"prospective/gwNN.tgz"| LED
     DATA -->|"retention.py restore"| VER --> TRF --> QG
     QG -->|"pass"| FC --> DEC --> PUB
     QG -.->|"blocking failure:<br/>alert issue opened"| STOP
     DEC -->|"advice/gwNN.json, every strategy,<br/>before the deadline"| LED
-    PRO -->|"prospective record"| PUB
+    LED -->|"frozen record up to the switch,<br/>read-only (DL-87)"| PUB
     TRF -->|"new price history"| DATA
     PUB -->|"web-data-contract → deploy.yml"| PAGES
 ```
@@ -406,7 +400,7 @@ manually dispatchable.
 | `ci.yml` | Push to `main`, `pre-release`, `dev/**`; every pull request | Lint, type-check, unit, property and contract tests; `scripts/docs.py check` |
 | `ingest-fast.yml` | Hourly; a guard (`fpl-dof-schedule --decide fast`) decides whether to fetch | `bootstrap-static` and `fixtures` — prices, status, ownership. Rebuilds `data` |
 | `ingest-slow.yml` | Daily, with a fallback slot; dispatch | Full ingest including per-player summaries; updates `data`; archives each newly closed gameweek's bronze to `snapshots`, once, and fails if bronze has no gameweek schedule |
-| `pipeline.yml` | Nightly with a fallback; a deadline guard several times an hour; after `Ingest (slow)`; dispatch | `guard` → `prospective` (frozen harness, appended to `ledger`) → `run` (`fpl-dof bronze verify --quarantine`, then `fpl-dof run --only transform…publish`; advice appended to `ledger` — the champion's as soon as its week exists, before its plan and the challengers run — contract uploaded, `data` rebuilt with the new price history) |
+| `pipeline.yml` | Nightly with a fallback; a deadline guard several times an hour; after `Ingest (slow)`; dispatch | `guard` → `run` (restores the retired frozen harness's last record from `ledger`, read-only, so `models.json` keeps its history up to the switch; `fpl-dof bronze verify --quarantine`, then `fpl-dof run --only transform…publish`; advice appended to `ledger` — the champion's as soon as its week exists, before its plan and the challengers run — contract uploaded, `data` rebuilt with the new price history) |
 | `day-before.yml` | Every 20 minutes in a nightly UTC window | On the day before a deadline, dispatches `ingest-slow`; Pipeline and Deploy follow by `workflow_run` |
 | `deploy.yml` | Push to `main`; after Pipeline completes | Builds the SPA, downloads the latest contract, deploys to Pages |
 | `backtest.yml` | Weekly; dispatch | Archive ingest under `config/ci-backtest.yaml` (DL-68), then the walk-forward regression |
@@ -635,7 +629,7 @@ before they ship.
 | **F2** | **The `snapshot_freshness` gate cannot fire in CI** (Invariant 7). It ages bronze by each sidecar's file modification time, which `retention.py restore` resets to the restore time, so every snapshot looks fresh; it also reads the file system's clock rather than the sidecar's | `stages/quality.py:110-122`, `scripts/retention.py:6-9` | Age each snapshot by `SnapshotMeta.fetched_at` |
 | **F3** | **The graded model is not the shipped model.** The backtest pools every `backtest.training_seasons` season into each fold's training rows; live, the chain trains on the current season's `player_gameweek` only. The verdict on the model card grades a model trained on more data than the one that ranks players | `stages/backtest.py:55`, `forecast/fit.py:68-80`, `stages/forecast.py:55-66` | Decide which training window is right (a `DL-nn`), then make one path follow the other |
 | **F4** | **M2's time-decay half-life is a hard-coded tunable** (DP-06), with no waiver | `forecast/models.py:324` | Move it into `ForecastConfig` with a description and its justification |
-| **F5** | **Stale text in code.** The model card's `BACKTESTED_WEAKNESS` says `minutes_v2` is flagged off, and `forecast.yaml` says every discrimination flag is off; it has been on since DL-76. `sources/external.py` says no adapter fetches the frozen-bundle files, but `sources.LiveFeed` reads them through `fdcouk` | `forecast/model_card.py:55-63`, `config/defaults/forecast.yaml:94`, `sources/external.py:3-4` | Rewrite the three texts to the current truth |
+| **F5** | **Stale text in code.** The model card's `BACKTESTED_WEAKNESS` says `minutes_v2` is flagged off, and `forecast.yaml` says every discrimination flag is off; it has been on since DL-76. `sources/external.py` said no adapter fetches the frozen-bundle files (deleted with the bundle, MOD-06) | `forecast/model_card.py:55-63`, `config/defaults/forecast.yaml:94` | Rewrite the two texts to the current truth |
 
 ---
 

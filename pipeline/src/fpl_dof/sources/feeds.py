@@ -22,10 +22,6 @@ from fpl_dof.sources.fdcouk.adapter import FdcoukAdapter, fetch_history
 from fpl_dof.sources.fetch import Fetcher
 from fpl_dof.sources.fpl.adapter import FplApiAdapter
 
-#: Where the frozen prospective harness reads a decision's upcoming odds, relative to its root.
-#: Its contract, frozen with it; the bytes are the odds snapshot exactly as fetched.
-UPCOMING_ODDS_RECORD = "data/bronze/fdcouk"
-
 
 class LiveFeed:
     """One script run's live reads, each fetched fresh and kept in ``<data_dir>/bronze``."""
@@ -92,4 +88,4 @@ class LiveFeed:
         return fetch_history(frozen_root, expected, get)
 
 
-__all__ = ["UPCOMING_ODDS_RECORD", "LiveFeed"]
+__all__ = ["LiveFeed"]
