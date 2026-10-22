@@ -1,0 +1,23 @@
+{
+ "contract_version": 1,
+ "deadline": {
+  "deadline_utc": "2026-08-21T17:30:00Z",
+  "decide_by_utc": "2026-08-21T05:30:00Z",
+  "gameweek": 1,
+  "local_zone": "Australia/Sydney",
+  "name": "Gameweek 1",
+  "uk_zone": "Europe/London"
+ },
+ "model": {
+  "id": "c3",
+  "label": "Champion (C3)",
+  "role": "champion"
+ },
+ "run_id": "<masked>",
+ "skipped": true,
+ "skipped_reason": "no published picks are available, and no squad is declared in configuration. Set entry.declared_squad (player_id and purchase_price for all 15) in config/local.yaml \u2014 before the first gameweek is scored there is no endpoint that can answer this (DL-20).",
+ "strategy": {
+  "digest": "<masked>",
+  "id": "c3"
+ }
+}

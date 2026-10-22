@@ -1,0 +1,423 @@
+{
+ "contract_version": 1,
+ "gates": {
+  "blocking": [],
+  "counts": {
+   "failed": 0,
+   "passed": 15,
+   "skipped": 3
+  },
+  "passed": true,
+  "results": [
+   {
+    "class": "freshness_and_volume",
+    "gate": "player_volume",
+    "message": "92 players, at least 50 expected",
+    "outcome": "passed",
+    "requirement": "FR-08",
+    "severity": "error"
+   },
+   {
+    "class": "freshness_and_volume",
+    "gate": "player_volume_stability",
+    "message": "no previous run to compare against",
+    "outcome": "passed",
+    "requirement": "FR-08",
+    "severity": "error"
+   },
+   {
+    "class": "freshness_and_volume",
+    "gate": "team_count",
+    "message": "8 teams, exactly 8 expected",
+    "outcome": "passed",
+    "requirement": "FR-08",
+    "severity": "error"
+   },
+   {
+    "class": "freshness_and_volume",
+    "gate": "fixture_count",
+    "message": "12 fixtures, exactly 12 expected",
+    "outcome": "passed",
+    "requirement": "FR-08",
+    "severity": "warn"
+   },
+   {
+    "class": "freshness_and_volume",
+    "gate": "snapshot_freshness",
+    "message": "newest snapshot is -1642.6h old, limit is 48h",
+    "outcome": "passed",
+    "requirement": "NFR-07",
+    "severity": "warn"
+   },
+   {
+    "class": "freshness_and_volume",
+    "gate": "deadlines_ahead",
+    "message": "8 deadline(s) still ahead",
+    "outcome": "passed",
+    "requirement": "FR-26",
+    "severity": "warn"
+   },
+   {
+    "class": "range",
+    "gate": "price_range",
+    "message": "prices span \u00a34.0m-\u00a39.5m, expected within \u00a33.0m-\u00a320.0m",
+    "outcome": "passed",
+    "requirement": "FR-08",
+    "severity": "error"
+   },
+   {
+    "class": "range",
+    "gate": "ownership_range",
+    "message": "ownership spans 0.0%-55.1%",
+    "outcome": "passed",
+    "requirement": "FR-09",
+    "severity": "warn"
+   },
+   {
+    "class": "range",
+    "gate": "fixture_difficulty_range",
+    "message": "fixture difficulty spans 2-5, expected 1-5",
+    "outcome": "passed",
+    "requirement": "FR-11",
+    "severity": "error"
+   },
+   {
+    "class": "range",
+    "gate": "temporal_monotonicity_and_containment",
+    "message": "timestamps respect gameweek deadlines and price history is monotonic",
+    "outcome": "passed",
+    "requirement": "NFR-06",
+    "severity": "error"
+   },
+   {
+    "class": "referential",
+    "gate": "player_team_reference",
+    "message": "0 player team_id(s) point at no team: []",
+    "outcome": "passed",
+    "requirement": "FR-08",
+    "severity": "error"
+   },
+   {
+    "class": "referential",
+    "gate": "fixture_team_reference",
+    "message": "0 fixture team reference(s) point at no team: []",
+    "outcome": "passed",
+    "requirement": "FR-08",
+    "severity": "error"
+   },
+   {
+    "class": "referential",
+    "gate": "history_player_reference",
+    "message": "0 history row(s) reference an unknown player: []",
+    "outcome": "passed",
+    "requirement": "FR-06",
+    "severity": "warn"
+   },
+   {
+    "class": "referential",
+    "gate": "crosswalk_unmatched_rate",
+    "message": "table 'player_crosswalk' is not present",
+    "outcome": "skipped",
+    "requirement": "FR-07",
+    "severity": "error"
+   },
+   {
+    "class": "referential",
+    "gate": "crosswalk_identity_uniqueness",
+    "message": "table 'player_crosswalk' is not present",
+    "outcome": "skipped",
+    "requirement": "FR-07",
+    "severity": "error"
+   },
+   {
+    "class": "referential",
+    "gate": "crosswalk_season",
+    "message": "table 'player_crosswalk' is not present",
+    "outcome": "skipped",
+    "requirement": "FR-07",
+    "severity": "error"
+   },
+   {
+    "class": "schema",
+    "gate": "player_position_present",
+    "message": "0 player(s) have no position",
+    "outcome": "passed",
+    "requirement": "FR-08",
+    "severity": "error"
+   },
+   {
+    "class": "schema",
+    "gate": "player_price_present",
+    "message": "0 player(s) have no price",
+    "outcome": "passed",
+    "requirement": "FR-08",
+    "severity": "error"
+   }
+  ]
+ },
+ "generated_at": "<masked>",
+ "metrics_history": {
+  "derived_from": "run-manifests",
+  "runs": [
+   {
+    "duration_seconds": "<masked>",
+    "finished_at": null,
+    "gates_failed": 0,
+    "r_squared_on_price": 0.3705,
+    "rows": {
+     "chip": 8,
+     "fixture": 12,
+     "gameweek": 8,
+     "gold.player_career_history": 0,
+     "gold.team_match_odds": 0,
+     "player": 92,
+     "player_season_history": 220,
+     "price_history": 92,
+     "set_piece_note": 3,
+     "team": 8
+    },
+    "rows_total": 443,
+    "run_id": "<masked>",
+    "solve_seconds": "<masked>",
+    "status": null
+   }
+  ]
+ },
+ "run": {
+  "duration_seconds": "<masked>",
+  "finished_at": null,
+  "git_dirty": true,
+  "git_sha": "3b8c4c8fd91bce87df2798abffe2a7bdce00b7ea",
+  "run_id": "<masked>",
+  "stages": [
+   {
+    "duration_seconds": "<masked>",
+    "error": null,
+    "finished_at": "2026-08-15T12:00:00Z",
+    "name": "ingest",
+    "started_at": "2026-08-15T12:00:00Z",
+    "status": "succeeded"
+   },
+   {
+    "duration_seconds": "<masked>",
+    "error": null,
+    "finished_at": "2026-08-15T12:00:00Z",
+    "name": "transform",
+    "started_at": "2026-08-15T12:00:00Z",
+    "status": "succeeded"
+   },
+   {
+    "duration_seconds": "<masked>",
+    "error": null,
+    "finished_at": "2026-08-15T12:00:00Z",
+    "name": "quality",
+    "started_at": "2026-08-15T12:00:00Z",
+    "status": "succeeded"
+   },
+   {
+    "duration_seconds": "<masked>",
+    "error": null,
+    "finished_at": "2026-08-15T12:00:00Z",
+    "name": "forecast",
+    "started_at": "2026-08-15T12:00:00Z",
+    "status": "succeeded"
+   },
+   {
+    "duration_seconds": "<masked>",
+    "error": null,
+    "finished_at": "2026-08-15T12:00:00Z",
+    "name": "optimise",
+    "started_at": "2026-08-15T12:00:00Z",
+    "status": "succeeded"
+   },
+   {
+    "duration_seconds": "<masked>",
+    "error": null,
+    "finished_at": "2026-08-15T12:00:00Z",
+    "name": "week",
+    "started_at": "2026-08-15T12:00:00Z",
+    "status": "succeeded"
+   }
+  ],
+  "started_at": "2026-08-15T12:00:00Z",
+  "status": null
+ },
+ "sources": [
+  {
+   "age_seconds": 0.0,
+   "as_of": null,
+   "cache_hits": 0,
+   "check": null,
+   "checked_at": null,
+   "degraded_at_stage": null,
+   "description": "Player, team and gameweek data from the official Fantasy Premier League game. It's the core feed that everything else builds on.",
+   "detail": null,
+   "kind": "live",
+   "label": "Official FPL data",
+   "network_calls": 95,
+   "observed_at": "2026-08-15T12:00:00Z",
+   "resources": {
+    "bootstrap_static": 1,
+    "element_summary": 92,
+    "event_live": 0,
+    "fixtures": 1,
+    "set_piece_notes": 1
+   },
+   "source": "fpl",
+   "status": "ok"
+  },
+  {
+   "age_seconds": null,
+   "as_of": null,
+   "cache_hits": null,
+   "check": null,
+   "checked_at": null,
+   "degraded_at_stage": null,
+   "description": "Bookmaker odds for this gameweek's fixtures, fetched before the deadline. These are the odds the odds-based model (A+odds) decides with.",
+   "detail": "No decision record was published with this run, so when this source was last fetched isn't known.",
+   "kind": "live",
+   "label": "Upcoming match odds (football-data.co.uk)",
+   "network_calls": null,
+   "observed_at": null,
+   "resources": {},
+   "source": "fdcouk_fixtures",
+   "status": "unknown"
+  },
+  {
+   "age_seconds": null,
+   "as_of": null,
+   "cache_hits": null,
+   "check": null,
+   "checked_at": null,
+   "degraded_at_stage": null,
+   "description": "Counts of progressive play, chance creation, touches in the box and defensive actions.",
+   "detail": "The site blocks automated access, so this source isn't used.",
+   "kind": "live",
+   "label": "Advanced player stats (FBref)",
+   "network_calls": null,
+   "observed_at": null,
+   "resources": {},
+   "source": "fbref",
+   "status": "disabled"
+  },
+  {
+   "age_seconds": null,
+   "as_of": null,
+   "cache_hits": null,
+   "check": null,
+   "checked_at": null,
+   "degraded_at_stage": null,
+   "description": "Bookmaker odds for upcoming fixtures, de-vigged into team goal expectations.",
+   "detail": "Off in the pipeline run. The prospective harness fetches upcoming odds through it in the hours before each deadline, and those are shown under Upcoming match odds.",
+   "kind": "live",
+   "label": "Match odds in the pipeline run (football-data.co.uk)",
+   "network_calls": null,
+   "observed_at": null,
+   "resources": {},
+   "source": "fdcouk",
+   "status": "disabled"
+  },
+  {
+   "age_seconds": null,
+   "as_of": null,
+   "cache_hits": null,
+   "check": null,
+   "checked_at": null,
+   "degraded_at_stage": null,
+   "description": "Bookmaker odds on match results and total goals, with the bookmaker's margin taken out.",
+   "detail": "Switched off by configuration; match odds come from football-data.co.uk.",
+   "kind": "live",
+   "label": "Match odds (The Odds API)",
+   "network_calls": null,
+   "observed_at": null,
+   "resources": {},
+   "source": "oddsapi",
+   "status": "disabled"
+  },
+  {
+   "age_seconds": null,
+   "as_of": null,
+   "cache_hits": null,
+   "check": null,
+   "checked_at": null,
+   "degraded_at_stage": null,
+   "description": "Expected goals and assists for each player and season, from a shot model.",
+   "detail": "The site doesn't allow automated access, so this source isn't used.",
+   "kind": "live",
+   "label": "Expected goals (Understat)",
+   "network_calls": null,
+   "observed_at": null,
+   "resources": {},
+   "source": "understat",
+   "status": "disabled"
+  },
+  {
+   "age_seconds": null,
+   "as_of": null,
+   "cache_hits": null,
+   "check": null,
+   "checked_at": null,
+   "degraded_at_stage": null,
+   "description": "Gameweek-by-gameweek Fantasy data from earlier seasons. It's used on decision runs and in backtests.",
+   "detail": "Fixed past seasons. It's used on decision runs and in weekly backtests, not in the main forecast run.",
+   "kind": "reference",
+   "label": "Past seasons archive (community FPL archive)",
+   "network_calls": null,
+   "observed_at": null,
+   "resources": {},
+   "source": "fplarchive",
+   "status": "ok"
+  },
+  {
+   "age_seconds": null,
+   "as_of": "2026-10-13",
+   "cache_hits": null,
+   "check": null,
+   "checked_at": null,
+   "degraded_at_stage": null,
+   "description": "Premier League match odds from past seasons that the odds-based model learns from. Each run checks the files against pinned copies.",
+   "detail": "Fixed seasons. Each run checks the files against their pinned copies.",
+   "kind": "reference",
+   "label": "Past match odds, 2023/24\u20132025/26 (football-data.co.uk)",
+   "network_calls": null,
+   "observed_at": null,
+   "resources": {},
+   "source": "fdcouk_history",
+   "status": "ok"
+  },
+  {
+   "age_seconds": null,
+   "as_of": "2026-10-17",
+   "cache_hits": null,
+   "check": null,
+   "checked_at": null,
+   "degraded_at_stage": null,
+   "description": "Odds for this season's opening gameweeks, saved once on 17 Oct 2026. They're used only to replay the model's GW1\u20136 record, not for live picks.",
+   "detail": "Saved once on 17 Oct 2026 and never updated. Covers GW1\u20136.",
+   "kind": "reference",
+   "label": "Early-season odds, 2026/27 (football-data.co.uk)",
+   "network_calls": null,
+   "observed_at": null,
+   "resources": {},
+   "source": "fdcouk_backfill_2627",
+   "status": "ok"
+  },
+  {
+   "age_seconds": null,
+   "as_of": "2026-05-24",
+   "cache_hits": null,
+   "check": null,
+   "checked_at": null,
+   "degraded_at_stage": null,
+   "description": "Saved copies of the official game data from past deadlines, used to rebuild last season's model history. The archive ends at 2025/26 gameweek 38.",
+   "detail": "Fixed archive that ends at 2025/26 gameweek 38. It's used for replays and backtests only.",
+   "kind": "reference",
+   "label": "Archived FPL snapshots (fplcache)",
+   "network_calls": null,
+   "observed_at": null,
+   "resources": {},
+   "source": "fplcache",
+   "status": "ok"
+  }
+ ]
+}

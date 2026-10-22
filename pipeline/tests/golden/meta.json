@@ -1,0 +1,19 @@
+{
+ "contract_version": 1,
+ "counts": {
+  "players": 92,
+  "teams": 8
+ },
+ "deadline_utc": "2026-08-21T17:30:00Z",
+ "generated_at": "<masked>",
+ "git_sha": "3b8c4c8fd91bce87df2798abffe2a7bdce00b7ea",
+ "horizon_gameweeks": 6,
+ "model": {
+  "name": "xp_v0",
+  "price_dependence": "informative",
+  "r_squared_on_price": 0.3705
+ },
+ "next_gameweek": 1,
+ "run_id": "<masked>",
+ "season": "2026/27"
+}
