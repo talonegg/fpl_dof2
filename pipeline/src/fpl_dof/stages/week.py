@@ -16,6 +16,7 @@ worth publishing.
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
@@ -26,8 +27,8 @@ from fpl_dof.forecast.form import form_by_player_id, trailing_form
 from fpl_dof.frames import as_float, as_int
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.optimise.captain import (
+    PricePositionLine,
     apply_price_position_captain,
-    price_position_scores,
     relabel_selection,
 )
 from fpl_dof.optimise.transfer import TransferRecommendation, recommend_transfers
@@ -43,7 +44,7 @@ from fpl_dof.squad.state import (
     gameweek_price_index,
     load_squad_state,
 )
-from fpl_dof.stages.forecast import XP_FILENAME
+from fpl_dof.stages.forecast import CAPTAIN_LINE_FILENAME, XP_FILENAME
 from fpl_dof.stages.transform import read_rules
 from fpl_dof.week.alerts import Alert, collect_alerts
 from fpl_dof.week.deadline import DeadlineView, describe_deadline, next_deadline, to_contract
@@ -112,15 +113,12 @@ def run(ctx: StageContext) -> StageResult:
         forecast, state, rules, ctx.config.transfers, ctx.config.optimiser
     )
     history_all = read_table_optional(silver, season, Table.PLAYER_GAMEWEEK)
-    scores: dict[int, float] | None = None
-    if ctx.config.optimiser.captain_rule == "price_position":
-        scores = price_position_scores(forecast, history_all)
-        if scores is None:
-            log.warning("week.captain_rule_fallback", extra={"reason": "no history to fit B0"})
-        else:
-            recommendation = apply_price_position_captain(
-                recommendation, forecast, scores, ctx.config.optimiser.captain_multiplier
-            )
+    captain_line = _read_captain_line(gold)
+    scores = _captain_scores(champion(), captain_line, forecast)
+    if scores is not None:
+        recommendation = apply_price_position_captain(
+            recommendation, forecast, scores, ctx.config.optimiser.captain_multiplier
+        )
     alerts = collect_alerts(
         state=state,
         players=players,
@@ -175,7 +173,11 @@ def run(ctx: StageContext) -> StageResult:
         }
         challenger: Challenger | BaseException
         try:
-            challenger = fit_challenger(gameweek=deadline.gameweek, **c1_inputs)
+            challenger = fit_challenger(
+                gameweek=deadline.gameweek,
+                captain_scores=_captain_scores(load_strategy("c1"), captain_line, forecast),
+                **c1_inputs,
+            )
         except Exception as exc:
             challenger = exc
         if ctx.config.optimiser.publish_challenger and isinstance(challenger, Challenger):
@@ -269,6 +271,33 @@ def _write_challenger_safely(
         return None
 
 
+def _read_captain_line(gold: Path) -> PricePositionLine | None:
+    """The price-and-position line the forecast stage fitted, validated; ``None`` if none was."""
+    path = gold / CAPTAIN_LINE_FILENAME
+    if not path.exists():
+        return None
+    return PricePositionLine.model_validate_json(path.read_text(encoding="utf-8"))
+
+
+def _captain_scores(
+    strategy: Strategy, line: PricePositionLine | None, forecast: pd.DataFrame
+) -> dict[int, float] | None:
+    """The scores the strategy's captain policy picks by, or ``None`` for the solver's own captain.
+
+    A ``price_position`` policy with no line to apply (nothing played yet to fit B0 on) falls back
+    to the solver's captain, and says so.
+    """
+    if strategy.policy.captain_rule != "price_position":
+        return None
+    if line is None:
+        log.warning(
+            "week.captain_rule_fallback",
+            extra={"strategy": strategy.id, "reason": "no history to fit B0"},
+        )
+        return None
+    return line.scores(forecast)
+
+
 def _stamp(strategy: Strategy) -> dict[str, Any]:
     """Which strategy produced a week payload: its label for the app, its registry id and digest."""
     return {
@@ -350,7 +379,7 @@ def _payload(
     deadline: DeadlineView,
     reconciliation: Reconciliation | None,
     form: dict[int, tuple[float | None, int | None]] | None = None,
-    captain_scores: dict[int, float] | None = None,
+    captain_scores: Mapping[int, float] | None = None,
 ) -> dict[str, object]:
     chosen = recommendation.recommended
     lookup = forecast.set_index("player_id")

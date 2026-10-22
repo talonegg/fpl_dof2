@@ -50,6 +50,8 @@ def make_pool(
                     "price": price,
                     "xp_next": float(rng.uniform(0.5, 6.0)),
                     "xp_horizon": float(rng.uniform(3.0, 30.0)),
+                    "xp_next_sd": 1.0,
+                    "xp_horizon_sd": 3.0,
                     "start_probability": float(rng.uniform(0.2, 1.0)),
                 }
             )
@@ -204,7 +206,7 @@ def test_an_unaffordable_pool_says_so(game_rules: GameRules) -> None:
 
 def test_a_missing_column_is_rejected_early(game_rules: GameRules) -> None:
     pool = make_pool().drop(columns=["xp_horizon"])
-    with pytest.raises(ValueError, match="missing columns"):
+    with pytest.raises(ValueError, match="missing column xp_horizon"):
         optimise_squad(pool, game_rules, config())
 
 

@@ -393,10 +393,12 @@ spread, binomial over the other players. Prior-season bonus comes from a differe
 - **Horizon:** `forecast/horizon.py` scores each horizon gameweek's real fixtures — a blank scores
   zero, a double sums means and variances — into `xp_gw_<n>` and `xp_gw_<n>_sd`, plus a discounted
   `xp_horizon`.
-- **Output:** `expected_points.parquet` — per-gameweek μ and σ, minutes probabilities,
-  `start_probability`, `component_*` for the next gameweek, a confidence tier, B0's
-  `captain_score` (read by the captain rule, DL-76), and the `model` per row. Variance travels with
-  every mean (Invariant 6).
+- **Output:** `expected_points.parquet`, a forecast frame (§6) — per-gameweek μ and σ, minutes
+  probabilities, `start_probability`, `component_*` for the next gameweek, a confidence tier, the
+  `model` per row, and the producing strategy's `strategy` and `strategy_digest`. Variance travels
+  with every mean (Invariant 6). Beside it, `captain_line.json`: B0's per-position price line,
+  fitted on the model's own training window — the captain policy's input, not a forecast column
+  (§6.5).
 
 ### Cold start (FR-14)
 
@@ -450,6 +452,17 @@ Three solver models, all reading the forecast and nothing source-specific (DP-02
 
 Each re-encodes legality, solver construction is repeated, and `optimiser.solver` is never read (03
 §12 P2).
+
+**What the engine reads** is the forecast frame, version `FORECAST_FRAME_VERSION` in
+`optimise/frame.py` (MOD-02). Every entry point — `optimise_squad`, `recommend_transfers`,
+`build_plan` and C1's `fit_challenger` — validates it first and refuses a frame that breaks it, with
+every failing column named; nothing is coerced. Required: `player_id` (unique), `position`,
+`team_id`, `price`, `xp_next`, `xp_horizon` and their `_sd`, and `start_probability` in [0, 1]. Every
+`xp_gw_<n>` must come with `xp_gw_<n>_sd` and the reverse. Every sd is a float, never negative, never
+missing (Invariant 6). Optional, checked when present: `player_code`, `start_floor`, the
+`p_*_appearance` minutes probabilities, `expected_minutes`, `component_*`, `strategy` and
+`strategy_digest`. Other columns (names, status, ownership) pass through unread by the contract.
+The hindsight oracle feeds realised points through the same engine with an sd of zero.
 
 ### 6.1 Candidate selection
 
@@ -565,10 +578,14 @@ an unidentified reason (DL-28, D-21); the plan carries that caveat.
 
 ### 6.5 Captaincy
 
-Under `optimiser.captain_rule: price_position` (the default), the weekly captain and vice are the two
-starters with the highest B0 score, fitted on this season's history at run time, because the
-backtest's B0 captain beats the chain's own pick; if B0 cannot be fitted the solver's captain stands.
-The horizon plan keeps the MILP's captain. B0 is fitted inside `optimise/captain.py` (03 §12 P1).
+Captaincy is policy (DL-76, MOD-02). Under a strategy's `policy.captain_rule: price_position` — the
+champion's and C1's — the weekly captain and vice are the two starters with the highest B0 score,
+because the backtest's B0 captain beats the chain's own pick; under `model` the solver's captain
+stands, as it does when nothing has been played to fit B0 on. The horizon plan keeps the MILP's
+captain. B0 is fitted by the forecaster on its own training window and handed over as a
+`PricePositionLine` (`optimise/captain.py`: an intercept and slope per position and a fallback mean,
+validated on its own), written beside the frame as `captain_line.json`; the rule applies it to the
+frame's price and position.
 
 ---
 
@@ -771,7 +788,6 @@ Every tunable is named, defaulted and described where declared (DP-06). Two do n
 | `forecast.discrimination.opponent_adjusted_rates` | Off | DL-58 |
 | `forecast.features.prior_season.enabled` | Off | DL-31, DL-63 |
 | `decision.simulation.enabled` | On | DL-28 |
-| `optimiser.captain_rule` | `price_position` | DL-76 (§6.5) |
 
 **Strategies** — the unit published, compared and promoted is a strategy, a forecaster paired with
 a decision policy ([DL-86](../decisions/DL-86.md)). Each is one file in
@@ -785,7 +801,7 @@ single home of its id, label, description and role (MOD-03):
 | `published` | Runs every refresh and appears in the app; needs a forecaster model with live code |
 | `aliases` | Legacy ids that mean this strategy — the frozen harness's key, the app's old model id — unique, never another id |
 | `forecaster` | `type` (`recipe` or `frozen`), `model`, `config` overrides, `training_window` |
-| `policy` | `captain_rule`, `plan` (whether the multi-gameweek plan and chips are solved) |
+| `policy` | `captain_rule` (`price_position` or `model`, §6.5), `plan` (whether the multi-gameweek plan and chips are solved) |
 | `requires` | The silver tables the strategy reads |
 
 Registered ([DL-87](../decisions/DL-87.md)): `c3`, the champion, and `c1`, published; `engine`, `a`
@@ -793,9 +809,10 @@ and `a_odds`, challengers unpublished until they are ported live. A strategy's d
 of its entry as canonical JSON; `week.json`, `week_challenger.json` and `plan.json` carry
 `strategy: {id, digest}`, and the published `strategies.json` lists every entry with its aliases and the paths of its week and plan (`artefacts`), which are the only place the app learns a file name. Every builder that
 names a model — `models.json`, the model history, xP accuracy, the paired accuracy tests — reads the
-registry and resolves the harness's keys through the aliases. The optimiser config still decides
-what the stages run until the policy is read from the registry (MOD-02, MOD-04); a test keeps the
-champion's entry equal to it.
+registry and resolves the harness's keys through the aliases. The week stage reads each
+strategy's `captain_rule` from the registry (MOD-02), and the forecast stage runs the champion
+through `Strategy.forecast`, which stamps the frame with the strategy's id and digest; `plan` and
+publishing C1 are still decided by the stages and the optimiser config until MOD-04.
 
 **Shadow mode** — publishing a candidate for comparison without letting it decide — is how a model
 changes mid-season; promotion needs the

@@ -140,8 +140,8 @@ packages, or per-module versions, waits until these rules prove insufficient (§
 | Seam | From → to | Form | Versioning |
 | --- | --- | --- | --- |
 | **Upstream data** | Data platform → everything | Silver and gold schemas (`silver/tables.py`), each row knowable at `as_of` (Invariant 5, DL-83) | Schema change → `silver rebuild` |
-| **Strategy registry** | Factory → orchestrator, web | `pipeline/src/fpl_dof/config/strategies/*.yaml`; `load_strategy(id) → Strategy` with `forecast(inputs, as_of)` and `decide(frame, squad_state, rules)`; a digest per strategy | Digest of code, config and training window |
-| **Forecast frame** | Forecaster → decision engine | A schema-validated frame: per-gameweek mean and sd, minutes probabilities, `start_probability`, components where the forecaster has them (Invariant 6) | `forecast_frame` schema version |
+| **Strategy registry** | Factory → orchestrator, web | Built ([04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)), with `Strategy.forecast` for the `xp_v1` recipe. Still target: `decide(frame, squad_state, rules)` (MOD-04) and `forecast` for every forecaster (MOD-05) | Digest of code, config and training window |
+| **Forecast frame** | Forecaster → decision engine | Built: [04 §6](04-conceptual-design.md#6-decision-engine) (MOD-02) | `FORECAST_FRAME_VERSION` |
 | **Decision output** | Decision engine → orchestrator, web | The `week` and `plan` schemas, one per strategy | Web contract |
 | **Ledger records** | Orchestrator, factory → evaluation, web | `advice/gwNN.json` (advice of record per strategy), `evaluation/gwNN.json`, `experiments/<id>/…`, each stamped with strategy digest and `as_of` | Record schema version |
 | **Web contract and registries** | Publish → web | `contracts/v1/*.schema.json`, plus published `strategies` and `artefacts` registries and `ui` flags | `contract_version` major, `contract_minor` (§7.3) |
@@ -162,14 +162,13 @@ The decision engine is a pure library in `core`; a strategy only parameterises i
 built: one file per strategy, its fields and its digest are in
 [04 §13](04-conceptual-design.md#13-configuration-and-feature-flags). Still target:
 
-- **`forecast` and `decide` on a `Strategy`**, so the orchestrator runs any registered strategy
-  without naming its code (MOD-02, MOD-04); until then the registry labels what the stages run.
+- **`decide` on a `Strategy`**, and `forecast` for every forecaster, so the orchestrator runs any
+  registered strategy without naming its code (MOD-04, MOD-05); `forecast` exists for the `xp_v1`
+  recipe only, and C1 still runs inside the week stage.
 - **Recipe forecasters** are the default: code version, config, feature set and training window,
   refitted by the orchestrator through `fit_as_of` on fresh data and recorded by digest (DP-11).
 - **Frozen forecasters** carry fitted parameters trained offline by the factory, for heavier models;
   they sit behind the same interface.
-- **Captaincy is policy.** The price-and-position rule (B0's `captain_score`) moves out of the
-  forecast frame into the policy (DL-76).
 - **Every forecaster carries its own variance** and builds its features through `FeatureSpec` with
   declared knowability, checked by `assert_no_look_ahead` (Invariants 5 and 6).
 - **`requires` is enforced**: a strategy whose required data is missing records a fail-closed

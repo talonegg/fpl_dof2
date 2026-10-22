@@ -15,7 +15,7 @@ import pytest
 
 from conftest import before_next_deadline
 from fpl_dof.config.models import ForecastConfig
-from fpl_dof.forecast import live
+from fpl_dof.forecast import live, publishable
 from fpl_dof.forecast.features import build_features
 from fpl_dof.forecast.horizon import (
     fixture_index_from_fixtures,
@@ -28,9 +28,8 @@ from fpl_dof.forecast.xp_v0 import MODEL_NAME as XP_V0
 from fpl_dof.forecast.xp_v1 import MODEL_NAME as XP_V1
 from fpl_dof.forecast.xp_v1 import ComponentPredictor, team_matches
 from fpl_dof.frames import as_float, as_int
-from fpl_dof.optimise.squad import REQUIRED_COLUMNS
+from fpl_dof.optimise.frame import validate_forecast_frame
 from fpl_dof.rules.models import GameRules
-from fpl_dof.stages import forecast as forecast_stage
 
 CONFIG = ForecastConfig()
 SEASON = "2026/27"
@@ -338,7 +337,7 @@ def test_xp_v1_is_the_model_the_pipeline_publishes(
     inputs: ForecastInputs, game_rules: GameRules
 ) -> None:
     """E9-S1's acceptance criterion: the app's ranking is produced by xp_v1 (DL-46)."""
-    result = forecast_stage.build(inputs, game_rules, CONFIG)
+    result = publishable(inputs, game_rules, CONFIG)
     assert result.model == XP_V1
     assert result.fallback_reason is None
     assert set(result.frame["model"]) == {XP_V1}
@@ -363,7 +362,7 @@ def test_the_fitted_component_chain_reaches_the_model_card(
     assert team_strength["home_advantage_source"] in {"fitted", "prior"}
     assert "market_fixtures" in team_strength
 
-    result = forecast_stage.build(inputs, game_rules, CONFIG)
+    result = publishable(inputs, game_rules, CONFIG)
     assert result.component_description is not None
     assert "M2_team_strength" in result.component_description
 
@@ -373,7 +372,7 @@ def test_the_published_frame_carries_everything_the_optimiser_requires(
 ) -> None:
     """The swap is only safe if the frame's shape is unchanged; the solver reads it by name."""
     frame = live.build_forecast(inputs, game_rules, CONFIG)
-    assert set(REQUIRED_COLUMNS) <= set(frame.columns)
+    validate_forecast_frame(frame)
     for column in ("web_name", "full_name", "status", "news", "selected_by_percent", "confidence"):
         assert column in frame.columns
     assert set(frame["confidence"]) <= {"high", "medium", "low", "none"}
@@ -491,7 +490,7 @@ def test_too_little_history_falls_back_to_xp_v0_with_a_stated_reason(
     gameweeks = _gameweeks()
     gameweeks["finished"] = gameweeks["gameweek"] < minimum
 
-    result = forecast_stage.build(
+    result = publishable(
         ForecastInputs(
             players=inputs.players,
             teams=inputs.teams,
@@ -514,7 +513,7 @@ def test_no_per_gameweek_table_at_all_falls_back(
     inputs: ForecastInputs, game_rules: GameRules
 ) -> None:
     """Preseason. There is no current-season history because the season has not happened."""
-    result = forecast_stage.build(
+    result = publishable(
         ForecastInputs(
             players=inputs.players,
             teams=inputs.teams,

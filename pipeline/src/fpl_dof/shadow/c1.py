@@ -4,7 +4,7 @@ Port of ``backtest/vector_models.py`` (kind ``xg2``), the candidate that scored 
 XI pts/GW over the engine in the walk-forward backtest, concentrated in 2025/26 and with 24 hits.
 That is not yet a reason to ship it, so it runs as a **shadow**: every week stage fits it on
 history strictly before the upcoming gameweek, lets the real transfer engine choose from its
-numbers (captain by the price+position rule), and logs the XI, captain and transfers beside the
+numbers (captain by its policy's rule), and logs the XI, captain and transfers beside the
 engine's own to ``shadow_c1.json``. Nothing it produces reaches ``week.json``, and any exception
 it raises is caught by :func:`run_shadow_safely` so the live run cannot fail on its account.
 """
@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import traceback
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -23,7 +24,8 @@ import pandas as pd
 from fpl_dof.config.models import OptimiserConfig, TransferConfig
 from fpl_dof.frames import as_int
 from fpl_dof.obs.logging import get_logger
-from fpl_dof.optimise.captain import apply_price_position_captain, price_position_scores
+from fpl_dof.optimise.captain import apply_price_position_captain
+from fpl_dof.optimise.frame import validate_forecast_frame
 from fpl_dof.optimise.transfer import TransferOption, TransferRecommendation, recommend_transfers
 from fpl_dof.rules.models import GameRules
 from fpl_dof.squad.state import SquadState
@@ -213,11 +215,11 @@ def _option(option: TransferOption) -> dict[str, object]:
 @dataclass(frozen=True)
 class Challenger:
     """C1's full weekly answer: the recommendation, the xPts frame it was chosen from, and the
-    price+position captain scores (None when there was no history to fit them)."""
+    price+position captain scores its policy chose by (None: the solver's own captain)."""
 
     recommendation: TransferRecommendation
     forecast: pd.DataFrame
-    captain_scores: dict[int, float] | None
+    captain_scores: Mapping[int, float] | None
 
 
 def fit_challenger(
@@ -231,18 +233,26 @@ def fit_challenger(
     transfer_config: TransferConfig,
     optimiser_config: OptimiserConfig,
     gameweek: int,
+    captain_scores: Mapping[int, float] | None,
 ) -> Challenger:
-    """Fit C1 on history strictly before ``gameweek`` and run the real transfer engine on it."""
+    """Fit C1 on history strictly before ``gameweek`` and run the real transfer engine on it.
+
+    ``forecast`` is the champion's validated frame: C1 still borrows its variance (MOD-05).
+    ``captain_scores``: the price-and-position scores when C1's policy asks for them, else
+    ``None`` for the solver's own captain (DL-76).
+    """
+    validate_forecast_frame(forecast)
     xp_by_code = predict_next(history, players, fixtures, rules.season, gameweek)
     code_of = dict(zip(players["player_id"].astype(int), players["code"].astype(int), strict=True))
     frame = forecast.copy()
     frame["xp_next"] = [xp_by_code.get(code_of.get(as_int(i), -1), 0.0) for i in frame["player_id"]]
     frame["xp_horizon"] = frame["xp_next"]
     rec = recommend_transfers(frame, state, rules, transfer_config, optimiser_config)
-    scores = price_position_scores(frame, history)
-    if scores is not None:
-        rec = apply_price_position_captain(rec, frame, scores, optimiser_config.captain_multiplier)
-    return Challenger(recommendation=rec, forecast=frame, captain_scores=scores)
+    if captain_scores is not None:
+        rec = apply_price_position_captain(
+            rec, frame, captain_scores, optimiser_config.captain_multiplier
+        )
+    return Challenger(recommendation=rec, forecast=frame, captain_scores=captain_scores)
 
 
 def run_shadow(**kwargs: Any) -> TransferRecommendation:
