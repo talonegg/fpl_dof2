@@ -12,5 +12,7 @@ forecaster:
   training_window: knowable_at_deadline
 policy:
   captain_rule: price_position
-  plan: true # beyond its next gameweek the plan reads the champion's means, borrowed until MOD-05
+  # Off until MOD-05: its means beyond the next gameweek are the champion's, borrowed, so a plan
+  # of its own would be the champion's horizon under C1's name. MOD-05 gives it its own horizon.
+  plan: false
 requires: [player_gameweek, fixture]

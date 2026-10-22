@@ -23,9 +23,9 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from fpl_dof.config.models import CaptainRule, Config, ForecastConfig
+from fpl_dof.config.models import CaptainRule, Config
 from fpl_dof.decision import DecisionPolicy
-from fpl_dof.forecast import xp_v0, xp_v1
+from fpl_dof.forecast import xp_v1
 from fpl_dof.forecast.entry import Forecast, publishable
 from fpl_dof.forecast.inputs import ForecastInputs
 from fpl_dof.obs.logging import get_logger
@@ -39,8 +39,9 @@ log = get_logger(__name__)
 
 STRATEGIES_DIR = Path(__file__).resolve().parents[1] / "config" / "strategies"
 
-#: Forecaster models with live code. A published strategy must name one of these.
-LIVE_MODELS: frozenset[str] = frozenset({xp_v1.MODEL_NAME, xp_v0.MODEL_NAME, c1.MODEL_NAME})
+#: Forecaster models :meth:`Strategy.forecast` runs as a refitted recipe (``xp_v0`` is ``xp_v1``'s
+#: cold-start fallback, not a strategy's model). A published strategy must name one of these.
+LIVE_MODELS: frozenset[str] = frozenset({xp_v1.MODEL_NAME, c1.MODEL_NAME})
 
 Role = Literal["champion", "challenger", "experiment", "retired"]
 _ROLE_ORDER: tuple[Role, ...] = ("champion", "challenger", "experiment", "retired")
@@ -94,7 +95,7 @@ class Strategy(_Entry):
         self,
         inputs: ForecastInputs,
         rules: GameRules,
-        config: ForecastConfig,
+        config: Config,
         *,
         variance_from: Forecast | None = None,
     ) -> Forecast:
@@ -104,24 +105,21 @@ class Strategy(_Entry):
         and C1, which borrows its variance, later gameweeks and captain line from
         ``variance_from`` — the champion's forecast — until MOD-05 gives it its own. Config
         overrides and the frozen ports arrive with MOD-05; asking for one is an error, never a
-        quiet substitute.
+        quiet substitute (and the registry refuses to publish one, :func:`unrunnable`).
         """
         recipe = self.forecaster
-        if recipe.type == "recipe" and recipe.model == c1.MODEL_NAME and not recipe.config:
+        if (problem := unrunnable(self)) is not None:
+            raise NotImplementedError(f"{self.id}: {problem}")
+        if recipe.model == c1.MODEL_NAME:
             if variance_from is None:
                 raise ValueError(
                     f"{self.id}: C1 borrows the champion's variance; pass its forecast"
                 )
-            result = c1.forecast(inputs, rules, config, variance_from)
-        elif recipe.type == "recipe" and recipe.model == xp_v1.MODEL_NAME and not recipe.config:
-            result = publishable(inputs, rules, config)
+            result = c1.forecast(inputs, rules, config.forecast, variance_from)
         else:
-            raise NotImplementedError(
-                f"{self.id}: no forecast entry point for {recipe.type} {recipe.model!r}"
-                f"{' with config overrides' if recipe.config else ''} yet (MOD-05)"
-            )
+            result = publishable(inputs, rules, config.forecast)
         result.frame[STRATEGY_COLUMN] = self.id
-        result.frame[STRATEGY_DIGEST_COLUMN] = digest(self)
+        result.frame[STRATEGY_DIGEST_COLUMN] = digest(self, config)
         return result
 
     def decision_policy(
@@ -150,8 +148,23 @@ class Strategy(_Entry):
         )
 
 
-#: The packages whose source a strategy runs: its models and its decision code (05 §4).
-_CODE_PACKAGES = ("forecast", "shadow", "factory", "optimise", "decision")
+def unrunnable(strategy: Strategy) -> str | None:
+    """Why :meth:`Strategy.forecast` cannot run this entry yet, or ``None`` if it can (MOD-05)."""
+    recipe = strategy.forecaster
+    if recipe.type != "recipe":
+        return f"{recipe.type} forecaster {recipe.model!r} cannot run until MOD-05 ports it"
+    if recipe.config:
+        return f"forecaster config overrides {recipe.config} cannot run until MOD-05"
+    if recipe.model not in LIVE_MODELS:
+        return f"forecaster model {recipe.model!r} has no live code"
+    return None
+
+
+#: The packages whose source decides a strategy's advice: its models, its decision code, the squad
+#: it is decided on and the config models whose defaults it runs with (05 §4).
+_CODE_PACKAGES = ("forecast", "shadow", "factory", "optimise", "decision", "squad", "config")
+#: The run's config sections a strategy reads: ``forecast`` and ``decision_policy`` between them.
+_CONFIG_SECTIONS = frozenset({"forecast", "transfers", "optimiser", "decision"})
 _PACKAGE_ROOT = Path(__file__).resolve().parents[1]
 
 
@@ -171,11 +184,18 @@ def _shipped_code_hash() -> str:
     return code_hash()
 
 
-def digest(strategy: Strategy, code: str | None = None) -> str:
-    """sha256 of the entry as canonical JSON plus the code it runs: changes whenever anything in
-    its file or in the model and decision source does. ``code`` is for tests."""
-    canonical = json.dumps(strategy.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(f"{canonical}\0{code or _shipped_code_hash()}".encode()).hexdigest()
+def _canonical(value: Any) -> str:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"))
+
+
+def digest(strategy: Strategy, config: Config, code: str | None = None) -> str:
+    """sha256 of (entry, code, effective config): the registry entry and the config sections it
+    reads, as canonical JSON, plus the source that decides its advice. Changes whenever any of the
+    three does (NFR-06, DP-11). ``code`` is for tests."""
+    entry = _canonical(strategy.model_dump(mode="json"))
+    effective = _canonical(config.model_dump(mode="json", include=set(_CONFIG_SECTIONS)))
+    parts = (entry, effective, code or _shipped_code_hash())
+    return hashlib.sha256("\0".join(parts).encode()).hexdigest()
 
 
 def load_registry(directory: Path = STRATEGIES_DIR) -> tuple[Strategy, ...]:
@@ -194,19 +214,19 @@ def load_registry(directory: Path = STRATEGIES_DIR) -> tuple[Strategy, ...]:
 
 
 def _validate(entries: list[Strategy]) -> None:
-    champions = [s.id for s in entries if s.role == "champion"]
+    champions = [s for s in entries if s.role == "champion"]
     if len(champions) != 1:
-        raise RegistryError(f"exactly one champion is required, found {champions}")
+        raise RegistryError(f"exactly one champion is required, found {[s.id for s in champions]}")
+    if not champions[0].published:
+        raise RegistryError(f"{champions[0].id}: the champion is the live advice; publish it")
     ids = {s.id for s in entries}
     counts = Counter(a for s in entries for a in s.aliases)
     for s in entries:
         for alias in s.aliases:
             if alias in ids or counts[alias] > 1:
                 raise RegistryError(f"{s.id}: alias {alias!r} is another id or used twice")
-        if s.published and s.forecaster.model not in LIVE_MODELS:
-            raise RegistryError(
-                f"{s.id}: published, but forecaster model {s.forecaster.model!r} has no live code"
-            )
+        if s.published and (problem := unrunnable(s)) is not None:
+            raise RegistryError(f"{s.id}: published, but {problem}")
 
 
 @functools.cache
@@ -238,9 +258,9 @@ def resolve_alias(name: str) -> str | None:
     return None
 
 
-def stamp(strategy: Strategy) -> dict[str, str]:
+def stamp(strategy: Strategy, config: Config) -> dict[str, str]:
     """The ``strategy`` field every per-strategy artefact carries: registry id and digest."""
-    return {"id": strategy.id, "digest": digest(strategy)}
+    return {"id": strategy.id, "digest": digest(strategy, config)}
 
 
 __all__ = [
@@ -260,4 +280,5 @@ __all__ = [
     "resolve_alias",
     "stamp",
     "strategies",
+    "unrunnable",
 ]

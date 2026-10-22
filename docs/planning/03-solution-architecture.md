@@ -243,7 +243,7 @@ flowchart TB
         TRF["transform<br/>conform, resolve, append"]
         QG{"quality gates<br/>incl. temporal"}
         FC["forecast<br/>fit_as_of → μ, σ per gameweek"]
-        DEC["optimise · week<br/>every published strategy: forecast → decide —<br/>transfers, captain, chips, plan"]
+        DEC["optimise · week<br/>every published strategy: forecast → decide —<br/>transfers, captain, chips, plan;<br/>champion's week and ledger first"]
         PUB["publish<br/>validated against contracts/v1"]
     end
 
@@ -335,8 +335,9 @@ The single most important seam in the system: the boundary between DL-04's two l
   artefact before writing it**. `publish/typescript.py` generates `web/src/contract/types.ts` from the
   same registry.
 - **Artefacts:** `meta` (run, freshness, `contract_version`), `rules`, `players`, `fixtures`, `squad`,
-  `plan` and `week` (the champion's; every other published strategy writes `week_<id>` and
-  `plan_<id>` in the same schemas, at the paths `strategies.json` names), `history`, `models`,
+  `plan` and `week` (the champion's; every other published strategy writes `week_<id>` and,
+  if its policy plans, `plan_<id>` in the same schemas, at the paths `strategies.json` names;
+  publish removes any week or plan file no published strategy writes now), `history`, `models`,
   `health`, `league`, `log`,
   `strategies` (the strategy registry, [04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)),
   and the static `models_history` and `xp_accuracy` series. All JSON: ~700 rows needs no query engine.
@@ -405,7 +406,7 @@ manually dispatchable.
 | `ci.yml` | Push to `main`, `pre-release`, `dev/**`; every pull request | Lint, type-check, unit, property and contract tests; `scripts/docs.py check` |
 | `ingest-fast.yml` | Hourly; a guard (`fpl-dof-schedule --decide fast`) decides whether to fetch | `bootstrap-static` and `fixtures` — prices, status, ownership. Rebuilds `data` |
 | `ingest-slow.yml` | Daily, with a fallback slot; dispatch | Full ingest including per-player summaries; updates `data`; archives each newly closed gameweek's bronze to `snapshots`, once, and fails if bronze has no gameweek schedule |
-| `pipeline.yml` | Nightly with a fallback; a deadline guard several times an hour; after `Ingest (slow)`; dispatch | `guard` → `prospective` (frozen harness, appended to `ledger`) → `run` (`fpl-dof bronze verify --quarantine`, then `fpl-dof run --only transform…publish`; advice appended to `ledger`, contract uploaded, `data` rebuilt with the new price history) |
+| `pipeline.yml` | Nightly with a fallback; a deadline guard several times an hour; after `Ingest (slow)`; dispatch | `guard` → `prospective` (frozen harness, appended to `ledger`) → `run` (`fpl-dof bronze verify --quarantine`, then `fpl-dof run --only transform…publish`; advice appended to `ledger` — the champion's as soon as its week exists, before its plan and the challengers run — contract uploaded, `data` rebuilt with the new price history) |
 | `day-before.yml` | Every 20 minutes in a nightly UTC window | On the day before a deadline, dispatches `ingest-slow`; Pipeline and Deploy follow by `workflow_run` |
 | `deploy.yml` | Push to `main`; after Pipeline completes | Builds the SPA, downloads the latest contract, deploys to Pages |
 | `backtest.yml` | Weekly; dispatch | Archive ingest under `config/ci-backtest.yaml` (DL-68), then the walk-forward regression |
@@ -458,7 +459,7 @@ No paid tooling exists in a £0 budget, so observability is built from artefacts
 | The FPL API fails | The run stops; the last good publication stays live; an issue is opened |
 | A blocking quality gate fails | Publication blocked; last good publication stays live; issue opened |
 | The solver fails or times out | Greedy fallback; the result is flagged as fallback-quality |
-| A challenger strategy fails | Its week, plan and ledger entry say "no advice" with the reason; every other strategy publishes (`stages.week.advise_all`, NFR-15). A champion failure fails the run |
+| A challenger strategy fails | Its week, plan and ledger entry say "no advice" with the reason; every other strategy publishes (`stages.week.advise_all`, NFR-15). The champion's week is written and ledgered before its plan or any challenger runs: a champion plan failure of any kind is "no plan" with its reason and the week stands; a champion week failure fails the run |
 | A deploy fails | The previous site stays live; static hosting makes this the default |
 
 ### 10.4 Security and privacy

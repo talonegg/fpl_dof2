@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from fpl_dof.config.models import Config
 from fpl_dof.factory.registry import Strategy, champion, digest, strategies
 
 
@@ -23,7 +24,7 @@ def artefact_paths(s: Strategy) -> dict[str, str | None]:
     return {"week": f"week{suffix}.json", "plan": f"plan{suffix}.json" if s.policy.plan else None}
 
 
-def build_strategies(*, contract_version: int) -> dict[str, Any]:
+def build_strategies(config: Config, *, contract_version: int) -> dict[str, Any]:
     return {
         "contract_version": contract_version,
         "champion": champion().id,
@@ -35,7 +36,7 @@ def build_strategies(*, contract_version: int) -> dict[str, Any]:
                 "role": s.role,
                 "published": s.published,
                 "aliases": list(s.aliases),
-                "digest": digest(s),
+                "digest": digest(s, config),
                 "plan": s.policy.plan,
                 "artefacts": artefact_paths(s),
             }

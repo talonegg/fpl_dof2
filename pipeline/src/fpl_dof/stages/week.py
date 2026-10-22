@@ -11,9 +11,12 @@ The success test for E1 is not accuracy, it is **elapsed attention**: "it is Thu
 "I know what I am doing and why" in under fifteen minutes. So this stage writes one week artefact
 per strategy that answers the whole question rather than several that each answer part of it.
 
-A challenger that fails costs its own advice and nothing else: it records "no advice" with the
-reason, in its artefacts and the ledger (NFR-15). A champion failure fails the run, as it always
-has.
+The champion's week is written, and recorded in the ledger, the moment its week decision exists:
+before its plan is solved and before any challenger runs, so neither can lose or delay this week's
+advice. A champion plan that fails, for any reason, is "no plan" with its reason and the week
+stands. A challenger that fails costs its own advice and nothing else: it records "no advice" with
+the reason, in its artefacts and the ledger (NFR-15). A champion week failure fails the run, as it
+always has.
 
 It is skipped, with a reason, when no squad can be established. That is the normal preseason state
 (DL-20) and must not fail a run that is otherwise fine — the forecast and the E0 squad are still
@@ -22,6 +25,7 @@ worth publishing.
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -31,19 +35,21 @@ from typing import Any
 import pandas as pd
 
 from fpl_dof.config.models import Config
-from fpl_dof.decision import Decision, decide
+from fpl_dof.decision import Decision, DecisionPolicy, decide, solve_plan
 from fpl_dof.factory import form_by_player_id, trailing_form
 from fpl_dof.factory.registry import (
     Forecast,
     ForecastInputs,
     Strategy,
+    champion,
     published_strategies,
     stamp,
 )
 from fpl_dof.frames import as_float
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.optimise.captain import PricePositionLine
-from fpl_dof.optimise.plan import as_dict
+from fpl_dof.optimise.plan import DecisionPlan, as_dict
+from fpl_dof.paths import DataLayout
 from fpl_dof.pipeline import Output, StageContext, StageResult
 from fpl_dof.publish.strategies import artefact_paths
 from fpl_dof.rules.models import GameRules
@@ -126,7 +132,9 @@ def run(ctx: StageContext) -> StageResult:
         # Degrade rather than break (DP-15). The forecast is still good; there is simply no squad
         # to advise on yet.
         log.warning("week.skipped", extra={"reason": str(exc)})
-        skipped = {s.id: _no_advice(ctx.run_id, deadline, s, str(exc)) for s in published}
+        skipped = {
+            s.id: _no_advice(ctx.run_id, deadline, s, str(exc), ctx.config) for s in published
+        }
         return StageResult(
             metrics={"status": "skipped", SKIPPED_REASON_KEY: str(exc)},
             outputs=_write_all(gold, skipped, published),
@@ -177,12 +185,8 @@ def run(ctx: StageContext) -> StageResult:
         ),
     )
 
-    advice = advise_all(snapshot, published)
-    week_payload, plan_payload = advice[published[0].id]  # the champion is listed first
-    outputs = _write_all(gold, advice, published)
-    record_advice(
-        ctx.layout, week_payload | {"models": ledger_models(advice, published)}, as_of=ctx.as_of
-    )
+    advice, outputs = advise_all(snapshot, published, gold=gold, layout=ctx.layout)
+    week_payload, plan_payload = advice[champion().id]
 
     recommendation = week_payload["recommendation"]
     for line in [
@@ -213,34 +217,89 @@ def run(ctx: StageContext) -> StageResult:
     )
 
 
-def advise_all(snapshot: Snapshot, strategies: Sequence[Strategy]) -> dict[str, Advice]:
-    """Every strategy through ``forecast`` → ``decide`` on the one snapshot, each isolated.
+def advise_all(
+    snapshot: Snapshot, strategies: Sequence[Strategy], *, gold: Path, layout: DataLayout
+) -> tuple[dict[str, Advice], list[Output]]:
+    """Every strategy through ``forecast`` → ``decide`` on the one snapshot, each isolated, written.
 
-    A challenger that raises gets "no advice" with the reason and the next strategy runs (NFR-15);
-    the champion's failure propagates, because a run without the live advice has failed.
+    The registry's champion goes first, and its week is written and ledgered before anything that
+    could fail or take long: its plan, then each challenger. A champion week failure propagates,
+    because a run without the live advice has failed; a champion plan failure is "no plan" and the
+    week stands; a challenger that raises gets "no advice" with the reason (NFR-15).
     """
-    advice: dict[str, Advice] = {}
-    for strategy in strategies:
+    lead = champion()
+    policy = lead.decision_policy(snapshot.config, snapshot.champion.captain_line)
+    week = _week(snapshot, lead, snapshot.champion, dataclasses.replace(policy, plan=False))
+    _write_all(gold, {lead.id: (week, None)}, [lead])
+    _record(snapshot, layout, {lead.id: (week, None)}, [lead])
+
+    advice: dict[str, Advice] = {lead.id: (week, _champion_plan(snapshot, lead, policy))}
+    outputs = _write_all(gold, advice, [lead])
+    challengers = [s for s in strategies if s.id != lead.id]
+    for strategy in challengers:
         try:
             advice[strategy.id] = _advise(snapshot, strategy)
         except Exception as exc:
-            if strategy.role == "champion":
-                raise
             reason = f"no advice: {type(exc).__name__}: {exc}"
             log.warning("week.no_advice", extra={"strategy": strategy.id, "reason": reason})
-            advice[strategy.id] = _no_advice(snapshot.run_id, snapshot.deadline, strategy, reason)
-    return advice
+            advice[strategy.id] = _no_advice(
+                snapshot.run_id, snapshot.deadline, strategy, reason, snapshot.config
+            )
+    outputs += _write_all(gold, advice, challengers)
+    _record(snapshot, layout, advice, [lead, *challengers])
+    return advice, outputs
+
+
+def _record(
+    snapshot: Snapshot, layout: DataLayout, advice: dict[str, Advice], strategies: list[Strategy]
+) -> None:
+    """The champion's advice to the ledger, with every strategy's so far under ``models``."""
+    week, _ = advice[strategies[0].id]
+    models = ledger_models(advice, strategies)
+    record_advice(layout, week | {"models": models}, as_of=snapshot.inputs.as_of)
+
+
+def _week(
+    snapshot: Snapshot, strategy: Strategy, forecast: Forecast, policy: DecisionPolicy
+) -> dict[str, Any]:
+    decision = decide(
+        forecast.frame,
+        snapshot.state,
+        snapshot.rules,
+        policy,
+        fixtures=snapshot.fixtures,
+        chips=snapshot.chips,
+        last_gameweek=snapshot.last_gameweek,
+    )
+    return _payload(snapshot, forecast.frame, decision) | _stamp(strategy, snapshot.config)
+
+
+def _champion_plan(
+    snapshot: Snapshot, strategy: Strategy, policy: DecisionPolicy
+) -> dict[str, Any] | None:
+    """The champion's plan, solved after its week is on disk; any failure is "no plan" (DP-15)."""
+    if not strategy.policy.plan:
+        return None
+    try:
+        plan, reason = solve_plan(
+            snapshot.champion.frame,
+            snapshot.state,
+            snapshot.rules,
+            policy,
+            fixtures=snapshot.fixtures,
+            chips=snapshot.chips,
+            last_gameweek=snapshot.last_gameweek,
+        )
+    except Exception as exc:
+        plan, reason = None, f"no plan: {type(exc).__name__}: {exc}"
+        log.warning("week.no_plan", extra={"strategy": strategy.id, "reason": reason})
+    return _plan_payload(snapshot, strategy, plan, reason)
 
 
 def _advise(snapshot: Snapshot, strategy: Strategy) -> Advice:
-    forecast = snapshot.champion
-    if strategy.role != "champion":
-        forecast = strategy.forecast(
-            snapshot.inputs,
-            snapshot.rules,
-            snapshot.config.forecast,
-            variance_from=snapshot.champion,
-        )
+    forecast = strategy.forecast(
+        snapshot.inputs, snapshot.rules, snapshot.config, variance_from=snapshot.champion
+    )
     decision = decide(
         forecast.frame,
         snapshot.state,
@@ -250,26 +309,34 @@ def _advise(snapshot: Snapshot, strategy: Strategy) -> Advice:
         chips=snapshot.chips,
         last_gameweek=snapshot.last_gameweek,
     )
-    week = _payload(snapshot, forecast.frame, decision) | _stamp(strategy)
+    week = _payload(snapshot, forecast.frame, decision) | _stamp(strategy, snapshot.config)
     if not strategy.policy.plan:
         return week, None
+    return week, _plan_payload(snapshot, strategy, decision.plan, decision.plan_skipped_reason)
+
+
+def _plan_payload(
+    snapshot: Snapshot, strategy: Strategy, plan: DecisionPlan | None, reason: str | None
+) -> dict[str, Any]:
     deadline = to_contract(snapshot.deadline)
-    if decision.plan is None:
-        plan = _skipped(snapshot.run_id, deadline, decision.plan_skipped_reason or "no plan")
+    if plan is None:
+        payload = _skipped(snapshot.run_id, deadline, reason or "no plan")
     else:
-        plan = {"run_id": snapshot.run_id, "skipped": False, "deadline": deadline}
-        plan |= as_dict(decision.plan)
-    return week, plan | {"strategy": stamp(strategy)}
+        payload = {"run_id": snapshot.run_id, "skipped": False, "deadline": deadline}
+        payload |= as_dict(plan)
+    return payload | {"strategy": stamp(strategy, snapshot.config)}
 
 
 def _skipped(run_id: str, deadline: dict[str, Any], reason: str) -> dict[str, Any]:
     return {"run_id": run_id, "skipped": True, SKIPPED_REASON_KEY: reason, "deadline": deadline}
 
 
-def _no_advice(run_id: str, deadline: DeadlineView, strategy: Strategy, reason: str) -> Advice:
+def _no_advice(
+    run_id: str, deadline: DeadlineView, strategy: Strategy, reason: str, config: Config
+) -> Advice:
     payload = _skipped(run_id, to_contract(deadline), reason)
-    plan = payload | {"strategy": stamp(strategy)} if strategy.policy.plan else None
-    return payload | _stamp(strategy), plan
+    plan = payload | {"strategy": stamp(strategy, config)} if strategy.policy.plan else None
+    return payload | _stamp(strategy, config), plan
 
 
 def ledger_models(advice: dict[str, Advice], strategies: Sequence[Strategy]) -> dict[str, Any]:
@@ -281,7 +348,7 @@ def ledger_models(advice: dict[str, Advice], strategies: Sequence[Strategy]) -> 
     models: dict[str, Any] = {}
     for strategy in strategies:
         week, _ = advice[strategy.id]
-        entry: dict[str, Any] = {"role": strategy.role, "strategy": stamp(strategy)}
+        entry: dict[str, Any] = {"role": strategy.role, "strategy": week["strategy"]}
         if week["skipped"]:
             entry["no_advice"] = week[SKIPPED_REASON_KEY]
         else:
@@ -318,11 +385,11 @@ def _read_captain_line(gold: Path) -> PricePositionLine | None:
     return PricePositionLine.model_validate_json(path.read_text(encoding="utf-8"))
 
 
-def _stamp(strategy: Strategy) -> dict[str, Any]:
+def _stamp(strategy: Strategy, config: Config) -> dict[str, Any]:
     """Which strategy produced a week payload: its label for the app, its registry id and digest."""
     return {
         "model": {"id": strategy.id, "label": strategy.label, "role": strategy.role},
-        "strategy": stamp(strategy),
+        "strategy": stamp(strategy, config),
     }
 
 
