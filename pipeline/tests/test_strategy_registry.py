@@ -83,6 +83,29 @@ def test_digest_is_stable_and_changes_with_the_entry() -> None:
     assert digest(c3) != digest(c3.model_copy(update={"label": "x"}))
 
 
+def _tree(root: Path, text: bytes) -> Path:
+    for pkg in ("forecast", "shadow", "factory", "optimise", "decision"):
+        (root / pkg).mkdir(parents=True, exist_ok=True)
+        (root / pkg / "m.py").write_bytes(text)
+    return root
+
+
+def test_digest_covers_the_code_a_strategy_runs(tmp_path: Path) -> None:
+    c3 = load_strategy("c3")
+    a = registry.code_hash(_tree(tmp_path / "a", b"x = 1\n"))
+    b = registry.code_hash(_tree(tmp_path / "b", b"x = 2\n"))
+    assert a != b
+    assert digest(c3, a) != digest(c3, b)
+    assert digest(c3, a) != digest(c3.model_copy(update={"label": "x"}), a)
+    assert digest(c3) == digest(c3, registry.code_hash())
+
+
+def test_code_hash_ignores_line_endings(tmp_path: Path) -> None:
+    lf = registry.code_hash(_tree(tmp_path / "lf", b"x = 1\ny = 2\n"))
+    crlf = registry.code_hash(_tree(tmp_path / "crlf", b"x = 1\r\ny = 2\r\n"))
+    assert lf == crlf
+
+
 def test_unknown_strategy_is_refused() -> None:
     with pytest.raises(KeyError):
         load_strategy("nope")
