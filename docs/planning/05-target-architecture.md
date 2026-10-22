@@ -86,7 +86,7 @@ flowchart TB
         SC["realised-points scorer"]
     end
     subgraph M2["2 · Model factory"]
-        REG[("strategies/*.yaml<br/>strategy registry")]
+        REG[("config/strategies/*.yaml<br/>strategy registry")]
         FC["forecasters<br/>recipe · frozen artefact"]
         BT["standing backtest ·<br/>experiments"]
     end
@@ -140,7 +140,7 @@ packages, or per-module versions, waits until these rules prove insufficient (§
 | Seam | From → to | Form | Versioning |
 | --- | --- | --- | --- |
 | **Upstream data** | Data platform → everything | Silver and gold schemas (`silver/tables.py`), each row knowable at `as_of` (Invariant 5, DL-83) | Schema change → `silver rebuild` |
-| **Strategy registry** | Factory → orchestrator, web | `strategies/*.yaml`; `load_strategy(id) → Strategy` with `forecast(inputs, as_of)` and `decide(frame, squad_state, rules)`; a digest per strategy | Digest of code, config and training window |
+| **Strategy registry** | Factory → orchestrator, web | `pipeline/src/fpl_dof/config/strategies/*.yaml`; `load_strategy(id) → Strategy` with `forecast(inputs, as_of)` and `decide(frame, squad_state, rules)`; a digest per strategy | Digest of code, config and training window |
 | **Forecast frame** | Forecaster → decision engine | A schema-validated frame: per-gameweek mean and sd, minutes probabilities, `start_probability`, components where the forecaster has them (Invariant 6) | `forecast_frame` schema version |
 | **Decision output** | Decision engine → orchestrator, web | The `week` and `plan` schemas, one per strategy | Web contract |
 | **Ledger records** | Orchestrator, factory → evaluation, web | `advice/gwNN.json` (advice of record per strategy), `evaluation/gwNN.json`, `experiments/<id>/…`, each stamped with strategy digest and `as_of` | Record schema version |
@@ -161,7 +161,7 @@ are on the policy (hits, captaincy, chips, risk), and those must be as comparabl
 The decision engine is a pure library in `core`; a strategy only parameterises it.
 
 ```yaml
-# strategies/c3.yaml — illustrative shape, fixed in R1.2.0
+# config/strategies/c3.yaml — illustrative shape, fixed in R1.2.0
 id: c3                     # stable; never reused, never a role name
 label: Champion (C3)
 role: champion             # champion | challenger | experiment | retired — exactly one champion
@@ -190,9 +190,11 @@ requires: [fpl]            # data the strategy needs; missing data is a fail-clo
 
 The five models compared today become registered live strategies: `engine` (minutes_v2 off), `c3`
 (today's champion), `c1` (the gradient-boosted challenger, rebuilt behind the frame contract), `a`
-and `a_odds` (ported from the frozen bundle). The pre-registered C1-versus-C3 study is retired; the
-frozen harness runs one gameweek beside the ported five as a parity check and is then switched off.
-Its records stay on `ledger` as each strategy's history up to the switch.
+and `a_odds` (ported from the frozen bundle; they train on prior seasons and A_odds reads odds, so
+the live run enables the archive and football-data.co.uk). The pre-registered C1-versus-C3 study is
+retired. The frozen harness is switched off when the ports go live, with no parity check; its
+records stay on `ledger` as each strategy's history up to the switch, which the app marks
+([DL-87](../decisions/DL-87.md)).
 
 ### 5.3 Experiments and promotion
 
@@ -321,7 +323,7 @@ flowchart LR
 
 | Knob | Home |
 | --- | --- |
-| Which strategies exist, their roles, forecaster and policy | `strategies/*.yaml` (the registry) |
+| Which strategies exist, their roles, forecaster and policy | `pipeline/src/fpl_dof/config/strategies/*.yaml` (the registry) |
 | A forecaster's tunables, including hyperparameters now hard-coded (C1, M2's half-life) | The forecaster's config in the registry, validated by `ForecastConfig` (DP-06) |
 | An experiment | A declared experiment file in the factory |
 | Cadence, freeze guard, material-change thresholds | `schedule` config |
@@ -340,7 +342,6 @@ flowchart LR
 | Forecast frame | Every registered forecaster's frame validates on a fixture snapshot, and carries variance |
 | Decision engine | One engine for every strategy; a strategy differs from another only by its registry entry |
 | Scorer | One conformance corpus, including auto-substitutions, read by every caller |
-| Port fidelity | The parity gameweek: the five ported strategies against the frozen harness |
 | Web | The registry renders a fixture strategy the TypeScript has never named; the runtime refuses a contract major it does not support |
 
 ---
@@ -351,7 +352,7 @@ Each release is a vertical slice that leaves the weekly advice working ([DP-07](
 
 | Release | Slice | Absorbs |
 | --- | --- | --- |
-| **R1.2.0 — Registry and five models live** | Boundaries and `core`; the forecast-frame contract; the registry; all five strategies through one engine with full recommendations; parity check, then the frozen harness retired; N-way comparison UI from the registry; the standing multi-strategy backtest and the experiments store; the first two experiments (card rates, training window) | 03 §12 P1, P3, P6, P9, P10; F1, F3 as experiments; F4, F5 |
+| **R1.2.0 and R1.2.1 — Registry and five models live**, two drops (DL-87) | Boundaries and `core` (a ratchet); the forecast-frame contract; the registry; all five strategies through one engine with full recommendations; the archive and football-data.co.uk live; the frozen harness retired, the switch marked; N-way comparison UI from the registry; the standing multi-strategy backtest and the experiments store; the first two experiments (card rates, training window) | 03 §12 P1, P3, P6, P9, P10; F1, F3 as experiments; F4, F5 |
 | **R1.3.0 — Gameweek orchestration** | State machine; change manifest and typed dispatch; refresh-all-together; advice of record; the evaluation step; the one scorer; season log from evaluations; reproducible models history | O1, O2; F2 |
 | **R1.4.0 — Independent web** | Decoupled app and data deploys; `contract_minor` and the runtime check; types in the web build; the artefact registry; UI flags; `experiment.yml` and experiments in the app | W1, W2, W3, W5 |
 
