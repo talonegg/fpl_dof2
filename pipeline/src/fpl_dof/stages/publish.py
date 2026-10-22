@@ -35,7 +35,7 @@ from fpl_dof.paths import find_repo_root
 from fpl_dof.pipeline import Output, StageContext, StageResult
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
 from fpl_dof.publish.fixtures import build_fixtures
-from fpl_dof.publish.health import RecordEvidence, build_health
+from fpl_dof.publish.health import build_health
 from fpl_dof.publish.history import build_history
 from fpl_dof.publish.league import build_league
 from fpl_dof.publish.models_compare import build_models
@@ -47,6 +47,7 @@ from fpl_dof.silver.store import read_table, read_table_optional
 from fpl_dof.silver.tables import Table
 from fpl_dof.week.cadence import current_gameweek
 from fpl_dof.week.ledger import read_all_advice
+from fpl_dof.week.score_advice import performances as performances_of
 
 log = get_logger(__name__)
 
@@ -443,7 +444,6 @@ def _health(ctx: StageContext, gold: Path) -> dict[str, Any] | None:
         history_limit=limit,
         contract_version=CONTRACT_VERSION,
         catalogue=_source_catalogue(ctx),
-        record=_record_evidence(ctx),
         # The same limit the snapshot-freshness gate warns at, so the page and the gate agree on
         # what "stale" means rather than holding two opinions (DL-41).
         stale_after_seconds=ctx.config.quality.maximum_snapshot_age_hours * 3600,
@@ -463,41 +463,6 @@ def _source_catalogue(ctx: StageContext) -> list[Any]:
     except Exception as exc:
         log.warning("publish.health_catalogue_unavailable", extra={"error": repr(exc)})
         return []
-
-
-def _record_evidence(ctx: StageContext) -> RecordEvidence | None:
-    """The newest decision in the prospective record and its input status, or ``None``.
-
-    The same directory ``models.json`` is built from (``publish.models.source_dir``); nothing is
-    fetched for the page. Ordered by gameweek number, not by file name, so GW10 follows GW9.
-    Unreadable or absent → ``None``, which the page shows as not known rather than as fine.
-    """
-    source_dir = ctx.config.publish.models.source_dir
-    if not source_dir:
-        return None
-    root = Path(source_dir)
-
-    def _gameweek(path: Path) -> int:
-        digits = path.stem[2:]
-        return int(digits) if digits.isdigit() else -1
-
-    try:
-        decisions = sorted((root / "decisions").glob("GW*.json"), key=_gameweek)
-        if not decisions:
-            return None
-        newest = decisions[-1]
-        decision = json.loads(newest.read_text(encoding="utf-8"))
-        status_path = root / "status" / newest.name
-        status = (
-            json.loads(status_path.read_text(encoding="utf-8")) if status_path.exists() else None
-        )
-    except (OSError, ValueError) as exc:
-        log.warning("publish.health_record_unreadable", extra={"error": repr(exc)})
-        return None
-    return RecordEvidence(
-        decision=decision if isinstance(decision, dict) else None,
-        status=status if isinstance(status, dict) else None,
-    )
 
 
 def _gate_report(gold: Path) -> dict[str, Any] | None:
@@ -657,42 +622,58 @@ def _season_log(
 
 
 def _models(ctx: StageContext, season: str) -> dict[str, Any] | None:
-    """models.json from the prospective harness's record, or ``None`` when there is none.
+    """models.json: the retired harness's record up to the switch, the live ledger from it.
 
-    A malformed record is logged and skipped: the comparison is optional and must never fail the
-    publish of the champion's artefacts.
+    The frozen record is optional (no ``source_dir`` means the live ledger alone). A malformed
+    input is logged and skipped: the comparison is optional and must never fail the publish of
+    the champion's artefacts.
     """
     cfg = ctx.config.publish.models
-    if not cfg.source_dir:
-        return None
-    root = Path(cfg.source_dir)
     try:
-        decisions = [
-            json.loads(p.read_text(encoding="utf-8"))
-            for p in sorted((root / "decisions").glob("GW*.json"))
-        ]
-        scores_path = root / "scores.csv"
-        scores = (
-            [{str(k): v for k, v in r.items()} for r in pd.read_csv(scores_path).to_dict("records")]
-            if scores_path.exists()
-            else []
-        )
-        statuses = {}
-        for p in sorted((root / "status").glob("GW*.json")):
-            doc = json.loads(p.read_text(encoding="utf-8"))
-            statuses[int(p.stem[2:])] = doc
-        previews = [
-            json.loads(p.read_text(encoding="utf-8"))
-            for p in sorted((root / "preview").glob("GW*.json"))
-        ]
+        decisions: list[dict[str, Any]] = []
+        scores: list[dict[str, Any]] = []
+        statuses: dict[int, Any] = {}
+        if cfg.source_dir:
+            root = Path(cfg.source_dir)
+            decisions = [
+                json.loads(p.read_text(encoding="utf-8"))
+                for p in sorted((root / "decisions").glob("GW*.json"))
+            ]
+            scores_path = root / "scores.csv"
+            if scores_path.exists():
+                scores = [
+                    {str(k): v for k, v in r.items()}
+                    for r in pd.read_csv(scores_path).to_dict("records")
+                ]
+            for p in sorted((root / "status").glob("GW*.json")):
+                statuses[int(p.stem[2:])] = json.loads(p.read_text(encoding="utf-8"))
+        silver = ctx.layout.silver
+        player_gameweek = read_table_optional(silver, season, Table.PLAYER_GAMEWEEK)
+        players = read_table_optional(silver, season, Table.PLAYER)
+        performances = {}
+        if player_gameweek is not None and not player_gameweek.empty:
+            weeks = read_table(silver, season, Table.GAMEWEEK)
+            finished = {as_int(g) for g in weeks.loc[weeks["finished"], "gameweek"]}
+            current = player_gameweek[player_gameweek["season"] == season]
+            performances = {
+                as_int(g): performances_of(rows)
+                for g, rows in current.groupby("gameweek")
+                if as_int(g) in finished
+            }
+        ledger = read_all_advice(ctx.layout)
         return build_models(
-            previews=previews,
             season=season,
             decisions=decisions,
             scores=scores,
             frozen_tag=cfg.frozen_tag,
             contract_version=CONTRACT_VERSION,
             statuses=statuses,
+            ledger=ledger,
+            performances=performances,
+            rules=read_rules(ctx, season) if ledger else None,
+            names={}
+            if players is None
+            else {as_int(r.player_id): str(r.web_name) for r in players.itertuples()},
         )
     except Exception as exc:
         log.warning("publish.models_dropped", extra={"error": repr(exc)})

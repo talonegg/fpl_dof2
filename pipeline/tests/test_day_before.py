@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 
 from fpl_dof.week.ci_runs import active_or_succeeded, start_of_utc_day, succeeded_since
-from fpl_dof.week.day_before import CRON, SYDNEY, gate, marker, veto_plan
+from fpl_dof.week.day_before import CRON, SYDNEY, gate, marker
 
 REPO = Path(__file__).resolve().parents[2]
 UTC = dt.UTC
@@ -293,29 +293,15 @@ def test_every_passing_day_before_run_is_outside_the_14h_decision_window() -> No
                     assert deadline - fire > window
 
 
-def test_veto_forces_decide_false_and_keeps_the_rest() -> None:
-    plan = {"gw": 7, "decide": True, "decide_reason": "odds ready (10/10 fixtures)", "score": True}
-    v = veto_plan(plan)
-    assert v["decide"] is False and v["score"] is True and v["gw"] == 7
-    assert v["decide_vetoed"] == "odds ready (10/10 fixtures)"
-    assert "day-before" in v["decide_reason"]
-    assert veto_plan({"decide": False})["decide"] is False
-
-
-def test_veto_cli_rewrites_plan_json(tmp_path: Path) -> None:
-    mod = _script("day_before_gate")
-    plan = tmp_path / "ci" / "plan.json"
-    plan.parent.mkdir()
-    plan.write_text(json.dumps({"gw": 7, "decide": True, "score": False}))
-    assert mod.main(["--veto-plan", str(plan)]) == 0
-    assert json.loads(plan.read_text())["decide"] is False
-
-
-def test_workflows_wire_the_veto_and_fail_closed_paths() -> None:
+def test_workflows_wire_the_fail_closed_paths_and_the_frozen_harness_is_gone() -> None:
     wf = REPO / ".github" / "workflows"
     pipeline = (wf / "pipeline.yml").read_text()
-    assert "--veto-plan" in pipeline
-    assert "steps.plan.outputs.decide == 'true'" not in pipeline  # every decide step uses the veto
+    # MOD-06: the frozen harness is retired; the run job only reads its last record.
+    for retired in ("frozen-2026-10-13", "prospective_ci", "--veto-plan", "fpl_prospective"):
+        assert retired not in pipeline
+    # Only the decision records (gwNN.tgz), never a future gwNNz-state.tgz, are restored.
+    assert "prospective/gw[0-9][0-9].tgz" in pipeline and "prospective/gw*.tgz" not in pipeline
+    assert "needs: [guard]" in pipeline and "prospective:\n" not in pipeline
     deploy = (wf / "deploy.yml").read_text()
     assert "contract_fresh.py" in deploy and "if: env.DAY_BEFORE != 'true'" in deploy
     day = (wf / "day-before.yml").read_text()

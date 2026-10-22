@@ -123,17 +123,9 @@ in the adapter. No history (D-20), so not backtestable; the M2 market blend is u
 #### S5 — Historical archive *(build-time)*
 
 `fplarchive` reads prior-season per-gameweek data from the community mirror, because the API has none
-(DL-19). On in the live run (DL-87), backfilling 2023/24 to 2025/26, as it is for the weekly backtest
-and the prospective job's silver refresh (DL-68). Its bronze is immutable: never re-fetched unless
+(DL-19). On in the live run (DL-87), backfilling 2023/24 to 2025/26, as it is for the weekly backtest. Its bronze is immutable: never re-fetched unless
 `--rebackfill` or `--force-refresh`, and kept on `data` beyond the rolling window (PIPE-03). Identity
 across seasons is FPL's stable `code` for players and clubs (DL-52).
-
-#### Frozen reference data *(prospective harness, outside the registry)*
-
-The frozen prospective bundle reads data no ingest run produces: football-data.co.uk's 2023/24 to
-2025/26 match files, pinned by hash; a dated 2026/27 GW1–6 odds copy, used only to replay that
-record; and the fplcache archive of FPL snapshots, ending at 2025/26 GW38. `sources/external.py`
-declares them for `/health`.
 
 #### Future sources *(OD-04)*
 
@@ -853,8 +845,10 @@ Four mechanisms, none promoting automatically:
   half-lives and the seed are `forecast.c1` (DP-06). A failure records "no advice" with its reason
   there and in the ledger, and stops nothing else (NFR-15).
 - **The monolith**, backtest only (DL-53).
-- **The prospective harness**: five models frozen before each deadline, scored after, published in
-  `models.json` under their registry ids and compared on `/models`
+- **The retired prospective harness**: five models frozen before each deadline until the switch
+  gameweek (DL-87). Its record still publishes in `models.json` under the registry ids for the
+  gameweeks before the switch; from it, `models.json` is each strategy's live advice scored on the
+  owner's real squad (DL-89), and every record carries `record: frozen | live`
   ([`prospective/`](../../prospective/README.md)).
 
 ---
@@ -884,7 +878,7 @@ The owner's requirement (DL-05). A step outside a recipe means its abstraction h
 6. Run. Bronze, silver, gates, lineage and `/health` work already.
 
 No change to models, optimiser or UI. A new table needs a schema in `silver/tables.py`; a new field
-needs model work to exploit. The operational scripts (day-before gate, prospective harness, xP
+needs model work to exploit. The operational scripts (day-before gate, xP
 scorer) read through `sources.LiveFeed` rather than the ingest stage (REM-06, REM-07).
 
 ### 14.2 Adding a model component

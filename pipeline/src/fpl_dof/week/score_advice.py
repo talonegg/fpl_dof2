@@ -14,6 +14,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+import pandas as pd
+
+from fpl_dof.frames import as_int
 from fpl_dof.rules.models import GameRules, Position
 
 
@@ -200,3 +203,40 @@ def score_model_recommendations(
         ranked.append(ModelRankScore(model_name=name, rank=rank_idx, score=sc))
 
     return ranked
+
+
+def performances(gameweek_rows: pd.DataFrame) -> dict[int, PlayerPerformance]:
+    """One gameweek's ``player_gameweek`` rows as the scorer's per-player performances."""
+    perfs: dict[int, PlayerPerformance] = {}
+    for r in gameweek_rows.itertuples():
+        try:
+            position = Position(str(getattr(r, "position", "MID")))
+        except ValueError:
+            position = Position.MID
+        perfs[as_int(r.player_id)] = PlayerPerformance(
+            player_id=as_int(r.player_id),
+            position=position,
+            minutes=as_int(getattr(r, "minutes", 0)),
+            points=as_int(getattr(r, "total_points", 0)),
+        )
+    return perfs
+
+
+def lineup_from_advice(
+    advised: Mapping[str, Any], *, transfers_made: int, free_transfers: int
+) -> AdvisedLineup | None:
+    """A ledger ``advised`` block as a scorable lineup, or ``None`` when it names no XI."""
+    starting = tuple(advised.get("starting") or ())
+    if not starting:
+        return None
+    captain = advised.get("captain") or starting[0]
+    return AdvisedLineup(
+        starting=starting,
+        bench_order=tuple(advised.get("bench_order") or ()),
+        bench_gkp=advised.get("reserve_goalkeeper"),
+        captain=captain,
+        vice_captain=advised.get("vice_captain") or captain,
+        transfers_made=transfers_made,
+        free_transfers=free_transfers,
+        expected_points=float(advised.get("expected_points") or 0.0),
+    )

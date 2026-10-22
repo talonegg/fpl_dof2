@@ -10,6 +10,7 @@
     "contract_version": { "type": "integer", "const": 1 },
     "season": { "type": "string" },
     "champion": { "type": "string", "description": "The model id whose advice is live." },
+    "switch_gameweek": { "type": ["integer", "null"], "description": "The first gameweek recorded live. Earlier gameweeks are the retired frozen harness's virtual seasons; later ones are each strategy's advice on the owner's real squad (DL-87, DL-89). Null when the frozen record decided nothing. Absent means null." },
     "frozen": {
       "type": "object",
       "additionalProperties": false,
@@ -111,6 +112,7 @@
           "description": "Null until the gameweek is finished and scored.",
           "additionalProperties": { "$ref": "#/$defs/model_actual" }
         },
+        "record": { "enum": ["frozen", "live"], "description": "Where this gameweek's advice and points come from: the retired frozen harness, or the live ledger scored on the owner's real squad. Absent means frozen." },
         "provisional": { "type": "boolean", "description": "A dry-run preview of current advice, published before the frozen decision exists and replaced by it at the decision window. Never scored. Absent means false." }
       }
     },
