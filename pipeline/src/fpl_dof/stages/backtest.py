@@ -13,17 +13,15 @@ from __future__ import annotations
 
 import json
 
+from fpl_dof.artefacts import BACKTEST_PREDICTIONS_FILENAME, BACKTEST_REPORT_FILENAME, read_rules
 from fpl_dof.forecast.backtest import BacktestResult, walk_forward
 from fpl_dof.forecast.xp_v1 import ComponentPredictor
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.pipeline import Output, StageContext, StageResult
 from fpl_dof.silver.store import read_table_optional
 from fpl_dof.silver.tables import Table
-from fpl_dof.stages.transform import read_rules
 
 log = get_logger(__name__)
-
-REPORT_FILENAME = "backtest.json"
 
 
 class NoHistoryError(RuntimeError):
@@ -56,12 +54,12 @@ def run(ctx: StageContext) -> StageResult:
         metrics=metrics,
     )
 
-    directory = ctx.layout.gold / f"season={season.replace('/', '-')}"
+    directory = ctx.layout.gold_for(season)
     directory.mkdir(parents=True, exist_ok=True)
-    report_path = directory / REPORT_FILENAME
+    report_path = directory / BACKTEST_REPORT_FILENAME
     report_path.write_text(json.dumps(result.as_dict(), indent=2), encoding="utf-8")
 
-    predictions_path = directory / "backtest-predictions.parquet"
+    predictions_path = directory / BACKTEST_PREDICTIONS_FILENAME
     result.predictions.to_parquet(predictions_path, index=False, compression="snappy")
 
     card_path = directory / "backtest-card.md"

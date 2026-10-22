@@ -34,6 +34,7 @@ from typing import Any
 
 import pandas as pd
 
+from fpl_dof.artefacts import CAPTAIN_LINE_FILENAME, XP_FILENAME, read_rules
 from fpl_dof.config.models import Config
 from fpl_dof.decision import Decision, DecisionPolicy, decide, solve_plan
 from fpl_dof.factory import form_by_player_id, trailing_form
@@ -61,8 +62,6 @@ from fpl_dof.squad.state import (
     gameweek_price_index,
     load_squad_state,
 )
-from fpl_dof.stages.forecast import CAPTAIN_LINE_FILENAME, XP_FILENAME
-from fpl_dof.stages.transform import read_rules
 from fpl_dof.week.alerts import Alert, collect_alerts
 from fpl_dof.week.deadline import DeadlineView, describe_deadline, next_deadline, to_contract
 from fpl_dof.week.ledger import read_advice, record_advice
@@ -101,7 +100,7 @@ def run(ctx: StageContext) -> StageResult:
     rules = read_rules(ctx, ctx.config.rules.season)
     season = rules.season
     silver = ctx.layout.silver
-    gold = ctx.layout.gold / f"season={season.replace('/', '-')}"
+    gold = ctx.layout.gold_for(season)
     published = published_strategies()
 
     gameweeks = read_table(silver, season, Table.GAMEWEEK)

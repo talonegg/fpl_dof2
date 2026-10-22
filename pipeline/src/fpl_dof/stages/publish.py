@@ -19,8 +19,15 @@ from typing import Any
 
 import pandas as pd
 
+from fpl_dof.artefacts import QUALITY_REPORT_FILENAME, SQUAD_FILENAME, XP_FILENAME, read_rules
+from fpl_dof.factory import (
+    TeamStrengthModel,
+    form_by_player_id,
+    regress_xp_on_price,
+    team_matches,
+    trailing_form,
+)
 from fpl_dof.factory.registry import published_strategies
-from fpl_dof.forecast.form import form_by_player_id, trailing_form
 from fpl_dof.frames import as_float, as_int
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.obs.manifest import RunManifest, git_sha, read_manifest
@@ -38,9 +45,6 @@ from fpl_dof.publish.typescript import write_types
 from fpl_dof.rules.models import GameRules
 from fpl_dof.silver.store import read_table, read_table_optional
 from fpl_dof.silver.tables import Table
-from fpl_dof.stages.forecast import XP_FILENAME
-from fpl_dof.stages.optimise import SQUAD_FILENAME
-from fpl_dof.stages.transform import read_rules
 from fpl_dof.week.cadence import current_gameweek
 from fpl_dof.week.ledger import read_all_advice
 
@@ -53,7 +57,7 @@ WEB_PUBLIC_PATH = ("web", "public", "data", f"v{CONTRACT_VERSION}")
 def run(ctx: StageContext) -> StageResult:
     rules = read_rules(ctx, ctx.config.rules.season)
     season = rules.season
-    gold = ctx.layout.gold / f"season={season.replace('/', '-')}"
+    gold = ctx.layout.gold_for(season)
 
     forecast = pd.read_parquet(gold / XP_FILENAME)
     squad = json.loads((gold / SQUAD_FILENAME).read_text(encoding="utf-8"))
@@ -253,8 +257,6 @@ def _meta(
         stamp = pd.Timestamp(row.iloc[0]["deadline_time"])
         deadline = stamp.tz_convert("UTC").to_pydatetime().isoformat().replace("+00:00", "Z")
 
-    from fpl_dof.forecast.diagnostics import regress_xp_on_price
-
     regression = regress_xp_on_price(forecast)
     return {
         "contract_version": CONTRACT_VERSION,
@@ -385,9 +387,6 @@ def _fixtures(
     model therefore has no ratings, every fixture scores neutral, and ``teams_rated`` says so.
     """
     silver = ctx.layout.silver
-    from fpl_dof.forecast.models import TeamStrengthModel
-    from fpl_dof.forecast.xp_v1 import team_matches
-
     history = read_table_optional(silver, season, Table.PLAYER_GAMEWEEK)
     current = (
         history[history["season"] == season]
@@ -508,9 +507,7 @@ def _gate_report(gold: Path) -> dict[str, Any] | None:
     then no gate report belongs to this run at all. Reading an older one and presenting it as this
     run's would be worse than showing none — a stale pass is indistinguishable from a real one.
     """
-    from fpl_dof.stages.quality import REPORT_FILENAME
-
-    path = gold / REPORT_FILENAME
+    path = gold / QUALITY_REPORT_FILENAME
     if not path.exists():
         return None
     try:
