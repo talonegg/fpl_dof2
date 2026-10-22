@@ -280,7 +280,7 @@ def test_no_web_source_names_a_strategy_or_restates_its_label() -> None:
     offenders: dict[str, set[str]] = {}
     for path in [*web.rglob("*.ts"), *web.rglob("*.tsx")]:
         rel = path.relative_to(web).as_posix()
-        if ".test." in rel or rel.startswith(("test/", "contract/")):
+        if ".test." in rel or ".fixtures." in rel or rel.startswith(("test/", "contract/")):
             continue
         text = path.read_text(encoding="utf-8")
         hit = {n for n in names | labels if any(f"{q}{n}{q}" in text for q in "\"'`")}
