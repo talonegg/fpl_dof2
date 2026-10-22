@@ -202,8 +202,8 @@ def test_every_engine_entry_point_refuses_a_frame_without_variance(
 
 
 def test_the_week_reads_the_captain_line_the_forecast_stage_wrote(tmp_path: Path) -> None:
+    from fpl_dof.artefacts import CAPTAIN_LINE_FILENAME
     from fpl_dof.stages import week
-    from fpl_dof.stages.forecast import CAPTAIN_LINE_FILENAME
 
     line = PricePositionLine(
         intercept_by_position={"MID": 1.0}, slope_by_position={"MID": 2.0}, fallback=0.5

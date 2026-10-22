@@ -10,12 +10,12 @@ time (DP-11).
 
 from __future__ import annotations
 
-import json
 from collections.abc import Sequence
 from pathlib import Path
 
 import pandas as pd
 
+from fpl_dof.artefacts import NoBronzeError, rules_path
 from fpl_dof.gold import build_player_career_history, build_team_match_odds
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.pipeline import Output, StageContext, StageResult
@@ -34,8 +34,6 @@ from fpl_dof.sources import (
 )
 
 log = get_logger(__name__)
-
-RULES_FILENAME = "rules.json"
 
 #: Tables where a later source must not silently overwrite an earlier one's row.
 KEYS: dict[Table, list[str]] = {
@@ -73,10 +71,6 @@ KEYS: dict[Table, list[str]] = {
 APPENDED: frozenset[Table] = frozenset(
     {Table.PRICE_HISTORY, Table.PLAYER_GAMEWEEK, Table.PLAYER_ADVANCED, Table.PLAYER_METRIC}
 )
-
-
-class NoBronzeError(RuntimeError):
-    """Transform was asked to run before anything was ingested."""
 
 
 def run(ctx: StageContext) -> StageResult:
@@ -164,7 +158,7 @@ def run(ctx: StageContext) -> StageResult:
     gw_frame = merged_tables.get(Table.GAMEWEEK.value)
     as_of_gw = None
     if gw_frame is not None and not gw_frame.empty:
-        from fpl_dof.week.cadence import gameweek_ahead
+        from fpl_dof.gameweek import gameweek_ahead
 
         # Null after the season's last deadline: such a capture is knowable for no gameweek (DL-83).
         as_of_gw = gameweek_ahead(gw_frame, ctx.as_of)
@@ -222,7 +216,7 @@ def _build_gold(ctx: StageContext, season: str, result: StageResult) -> None:
     Nothing reads them until R1.2 (DL-81), so a failure here costs the datasets and is reported,
     never the run (DP-15).
     """
-    gold = ctx.layout.gold / f"season={season.replace('/', '-')}"
+    gold = ctx.layout.gold_for(season)
     try:
         career = build_player_career_history(ctx.layout.silver, gold, seasons=[season])
         odds = build_team_match_odds(ctx.layout.silver, gold, seasons=[season])
@@ -244,19 +238,8 @@ def _attributions(adapters: Sequence[SourceAdapter]) -> dict[str, str]:
     return {adapter.name: adapter.attribution for adapter in adapters if adapter.attribution}
 
 
-def rules_path(ctx: StageContext, season: str) -> Path:
-    return ctx.layout.silver / f"season={season.replace('/', '-')}" / RULES_FILENAME
-
-
 def _write_rules(ctx: StageContext, rules: GameRules, season: str) -> Path:
     path = rules_path(ctx, season)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(rules.model_dump_json(indent=2), encoding="utf-8")
     return path
-
-
-def read_rules(ctx: StageContext, season: str) -> GameRules:
-    path = rules_path(ctx, season)
-    if not path.exists():
-        raise NoBronzeError(f"{path} is missing; run `fpl-dof transform` first")
-    return GameRules.model_validate(json.loads(path.read_text(encoding="utf-8")))

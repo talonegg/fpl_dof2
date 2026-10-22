@@ -43,9 +43,9 @@ from fpl_dof.forecast import baselines
 from fpl_dof.forecast.features import TARGET
 from fpl_dof.forecast.inputs import ForecastInputs
 from fpl_dof.frames import as_int, gameweek_column, gameweek_sd_column
+from fpl_dof.gameweek import current_gameweek
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.rules.models import GameRules, Position
-from fpl_dof.week.cadence import current_gameweek
 
 log = get_logger(__name__)
 

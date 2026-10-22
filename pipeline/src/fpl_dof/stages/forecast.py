@@ -10,20 +10,26 @@ from __future__ import annotations
 
 import json
 
+from fpl_dof.artefacts import (
+    BACKTEST_REPORT_FILENAME,
+    CAPTAIN_LINE_FILENAME,
+    XP_FILENAME,
+    read_rules,
+)
+from fpl_dof.factory import (
+    ForecastInputs,
+    PriceDependence,
+    regress_xp_on_price,
+    write_model_card,
+)
 from fpl_dof.factory.registry import champion
-from fpl_dof.forecast.diagnostics import PriceDependence, regress_xp_on_price
-from fpl_dof.forecast.inputs import ForecastInputs
-from fpl_dof.forecast.model_card import write_model_card
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.pipeline import Output, StageContext, StageResult
 from fpl_dof.silver.store import read_table, read_table_optional
 from fpl_dof.silver.tables import Table
-from fpl_dof.stages.transform import read_rules
 
 log = get_logger(__name__)
 
-XP_FILENAME = "expected_points.parquet"
-CAPTAIN_LINE_FILENAME = "captain_line.json"
 MODEL_CARD_FILENAME = "model-card.md"
 
 
@@ -56,7 +62,7 @@ def run(ctx: StageContext) -> StageResult:
     elif regression.verdict is PriceDependence.THIN:
         log.warning("forecast.thin_signal", extra={"detail": regression.message})
 
-    xp_path = ctx.layout.gold / f"season={season.replace('/', '-')}" / XP_FILENAME
+    xp_path = ctx.layout.gold_for(season) / XP_FILENAME
     xp_path.parent.mkdir(parents=True, exist_ok=True)
     forecast.to_parquet(xp_path, index=False, compression="snappy")
     line_path = xp_path.parent / CAPTAIN_LINE_FILENAME
@@ -108,9 +114,7 @@ def _previous_backtest(ctx: StageContext, season: str) -> dict[str, object] | No
     deadline. A stale verdict is still the last thing that was actually measured; no verdict at all
     is how an unvalidated model gets presented as a validated one.
     """
-    from fpl_dof.stages.backtest import REPORT_FILENAME
-
-    path = ctx.layout.gold / f"season={season.replace('/', '-')}" / REPORT_FILENAME
+    path = ctx.layout.gold_for(season) / BACKTEST_REPORT_FILENAME
     if not path.exists():
         return None
     try:
