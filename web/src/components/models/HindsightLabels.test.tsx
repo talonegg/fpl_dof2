@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { buildRegistry } from "../../data/registry";
 import { strategiesFixture } from "../../test/fixtures";
-import { mockLog, mockPlayers } from "./HindsightSection.test";
+import { mockLog, mockPlayers } from "./HindsightSection.fixtures";
 
 vi.mock("../../data/DataProvider", () => ({ useRegistry: () => buildRegistry(strategiesFixture) }));
 const { HindsightSection } = await import("./HindsightSection");
