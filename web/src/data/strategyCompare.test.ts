@@ -104,6 +104,15 @@ describe("compareStrategies", () => {
     expect(c.missing).toEqual(["b"]);
   });
 
+  it("treats a skipped week as missing, with its reason, not as a roll", () => {
+    const skipped = { skipped: true, skipped_reason: "no advice: solve failed" } as unknown as Week;
+    const c = compareStrategies("a", ["a", "b"], { a: base, b: skipped }, {}, players);
+    expect(c.advice.map((a) => a.id)).toEqual(["a"]);
+    expect(c.missing).toEqual(["b"]);
+    expect(c.skippedReasons).toEqual({ b: "no advice: solve failed" });
+    expect(c.disagreements).toEqual([]);
+  });
+
   it("takes the first strategy as baseline when the named one has no week", () => {
     const c = compareStrategies("z", ["a", "b"], { a: base, b: base }, {}, players);
     expect(c.baseline).toBe("a");

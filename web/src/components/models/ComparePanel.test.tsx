@@ -48,6 +48,15 @@ describe("/models comparison", () => {
     expect(screen.getByTestId(`compare-player-${dropped}-zeta_2`).textContent).toContain("Not in XI");
   });
 
+  it("lists a strategy whose week is skipped as not compared, with the reason, and no fake diff", async () => {
+    const skipped = { ...novel.weeks["week_zeta_3"], skipped: true, skipped_reason: "no advice: solver failed" };
+    installFetchStub({ bodies: { ...bodies, week_zeta_3: skipped } });
+    renderApp("/models");
+    await screen.findByTestId("compare-advice");
+    expect(col("zeta_3")).toBeNull();
+    expect(screen.getByTestId("compare-missing").textContent).toContain("no advice: solver failed");
+  });
+
   it("compares any two to five: deselecting removes a column, fewer than two explains itself", async () => {
     installFetchStub({ bodies });
     renderApp("/models");

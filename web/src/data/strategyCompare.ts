@@ -51,8 +51,10 @@ export interface Comparison {
   /** Against the baseline, for every strategy but the baseline. */
   diffs: Record<string, StrategyDiff>;
   disagreements: Disagreement[];
-  /** Asked for but with no week to compare. */
+  /** Asked for but with no advice to compare: no week, or a skipped one. */
   missing: string[];
+  /** Why a skipped week has no advice, keyed by strategy id. */
+  skippedReasons: Record<string, string>;
 }
 
 function adviceOf(id: string, week: Week, plan: Plan | undefined): StrategyAdvice {
@@ -88,7 +90,11 @@ export function compareStrategies(
   plans: Record<string, Plan | undefined>,
   players: Players,
 ): Comparison {
-  const present = ids.filter((id) => weeks[id]);
+  const hasAdvice = (id: string) => !!weeks[id] && !weeks[id]!.skipped;
+  const present = ids.filter(hasAdvice);
+  const skippedReasons = Object.fromEntries(
+    ids.filter((id) => weeks[id]?.skipped).map((id) => [id, weeks[id]!.skipped_reason ?? "no advice this gameweek"]),
+  );
   const advice = present.map((id) => adviceOf(id, weeks[id]!, plans[id]));
   const baseline = present.includes(baselineId) ? baselineId : (present[0] ?? baselineId);
   const base = advice.find((a) => a.id === baseline);
@@ -133,5 +139,5 @@ export function compareStrategies(
     disagreements.push({ player: asPlayer(id), inXI, captainOf, xp });
   }
 
-  return { baseline, advice, diffs, disagreements, missing: ids.filter((id) => !weeks[id]) };
+  return { baseline, advice, diffs, disagreements, missing: ids.filter((id) => !hasAdvice(id)), skippedReasons };
 }

@@ -95,7 +95,9 @@ export function ComparePanel({ data, history }: { data: PublishedData; history: 
               data-testid={`compare-pick-${e.id}`}
             />{" "}
             {e.label}
-            {!available.has(e.id) && <span className="history-sub"> (no week published)</span>}
+            {!available.has(e.id) && (
+              <span className="history-sub"> ({weeks[e.id]?.skipped ? "no advice" : "no week published"})</span>
+            )}
           </label>
         ))}
       </fieldset>
@@ -160,7 +162,13 @@ export function ComparePanel({ data, history }: { data: PublishedData; history: 
             </table>
           </div>
           {comparison.missing.length > 0 && (
-            <p className="models-note">Not compared, no week published: {comparison.missing.map(label).join(", ")}.</p>
+            <p className="models-note" data-testid="compare-missing">
+              Not compared, no advice:{" "}
+              {comparison.missing
+                .map((id) => `${label(id)}${comparison.skippedReasons[id] ? ` (${comparison.skippedReasons[id]})` : ""}`)
+                .join("; ")}
+              .
+            </p>
           )}
 
           <h3 id="compare-players-heading">Players they disagree on</h3>

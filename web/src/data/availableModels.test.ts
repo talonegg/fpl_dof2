@@ -23,6 +23,11 @@ describe("availableModels", () => {
     expect(availableModels(data())).toEqual(["c3", "c1"]);
   });
 
+  it("never offers a strategy whose week is skipped", () => {
+    const skipped = { ...challengerWeek, skipped: true, skipped_reason: "no advice: x" };
+    expect(availableModels(data({ weeks: { c3: week, c1: skipped } }))).toEqual(["c3"]);
+  });
+
   it("never offers a strategy whose inputs failed the freshness check", () => {
     const models = {
       ...modelsFixture,

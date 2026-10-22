@@ -147,7 +147,7 @@ export function availableModels(data: PublishedData): ModelChoice[] {
   );
   return data.registry.entries
     .filter(
-      (e) => e.id === data.registry.champion || (e.published && data.weeks[e.id] !== undefined && !stale.has(e.id)),
+      (e) => e.id === data.registry.champion || (e.published && data.weeks[e.id] !== undefined && !data.weeks[e.id].skipped && !stale.has(e.id)),
     )
     .map((e) => e.id);
 }
