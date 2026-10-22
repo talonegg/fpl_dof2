@@ -1,5 +1,6 @@
 """Module boundaries (MOD-01, DL-87): contracts hold; a new forbidden import fails."""
 
+import os
 import shutil
 import subprocess
 import sys
@@ -14,6 +15,9 @@ def _lint(cwd: Path) -> subprocess.CompletedProcess[str]:
         cwd=cwd,
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        # import-linter prints non-ASCII; a Windows console code page would make the child crash.
+        env={**os.environ, "PYTHONUTF8": "1"},
         check=False,
     )
 
