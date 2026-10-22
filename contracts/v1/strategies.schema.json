@@ -19,7 +19,7 @@
     "strategy": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "label", "description", "role", "published", "aliases", "digest", "plan"],
+      "required": ["id", "label", "description", "role", "published", "aliases", "digest", "plan", "artefacts"],
       "properties": {
         "id": { "type": "string", "description": "Stable; never reused, never a role name." },
         "label": { "type": "string" },
@@ -32,7 +32,17 @@
           "description": "Legacy ids that mean this strategy: the frozen harness's key and the app's old model ids."
         },
         "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "sha256 of the registry entry as canonical JSON." },
-        "plan": { "type": "boolean", "description": "Whether the strategy gets the multi-gameweek plan and chips." }
+        "plan": { "type": "boolean", "description": "Whether the strategy gets the multi-gameweek plan and chips." },
+        "artefacts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["week", "plan"],
+          "description": "Where the app finds this strategy's published week and plan, relative to the data directory; null where it publishes none. The app reads these paths and never builds one.",
+          "properties": {
+            "week": { "type": ["string", "null"] },
+            "plan": { "type": ["string", "null"] }
+          }
+        }
       }
     }
   }

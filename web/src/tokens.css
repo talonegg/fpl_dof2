@@ -82,6 +82,13 @@
 
   --row-selected-bg: #d9ece3;
 
+  /* Chart series, by a strategy's position in the registry (MOD-07); each also has its own dash. */
+  --series-1: #2f5fd0;
+  --series-2: #b45309;
+  --series-3: #4b5563;
+  --series-4: #15803d;
+  --series-5: #a21caf;
+
   --value-positive: #0f6b3f;
   --value-negative: #a8452a;
 
@@ -147,6 +154,12 @@
 
     --row-selected-bg: #24413a;
 
+    --series-1: #7aa7ff;
+    --series-2: #f0a04b;
+    --series-3: #aab4c0;
+    --series-4: #4ade80;
+    --series-5: #e879f9;
+
     --value-positive: #7fe6ac;
     --value-negative: #e69d7f;
 
@@ -206,6 +219,12 @@
   --badge-vice-fg: #052030;
 
   --row-selected-bg: #24413a;
+
+  --series-1: #7aa7ff;
+  --series-2: #f0a04b;
+  --series-3: #aab4c0;
+  --series-4: #4ade80;
+  --series-5: #e879f9;
 
   --value-positive: #7fe6ac;
   --value-negative: #e69d7f;

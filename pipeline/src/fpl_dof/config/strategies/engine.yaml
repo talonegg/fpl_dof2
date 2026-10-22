@@ -1,7 +1,7 @@
 # See c3.yaml for what this file is.
 id: engine
 label: Engine
-description: Original engine, engine captain
+description: The original engine with the engine captain, kept as a baseline.
 role: challenger
 published: false # joins live in R1.2.1 (MOD-05)
 aliases: []

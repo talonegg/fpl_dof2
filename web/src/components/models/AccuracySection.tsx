@@ -1,6 +1,5 @@
-import { MODEL_CHOICES, MODEL_LABELS } from "../../data/model";
-import type { ModelChoice } from "../../data/model";
-import { COLOURS, DASHES } from "./modelStyle";
+import { useRegistry } from "../../data/DataProvider";
+import { modelLabel, orderIds, seriesStyle } from "../../data/registry";
 import type { XpAccuracy, XpAccuracySeason } from "./accuracy";
 
 const KIND_NOTE: Record<XpAccuracySeason["kind"], string> = {
@@ -10,7 +9,9 @@ const KIND_NOTE: Record<XpAccuracySeason["kind"], string> = {
 };
 
 function MaeChart({ s }: { s: XpAccuracySeason }) {
-  const ids = MODEL_CHOICES.filter((m) => m in s.pooled_mae);
+  const registry = useRegistry();
+  const sty = (id: string) => seriesStyle(registry, id);
+  const ids = orderIds(registry, Object.keys(s.pooled_mae));
   const gws = s.gameweeks;
   if (gws.length === 0 || ids.length === 0) return null;
   const vals = gws.flatMap((g) => ids.map((m) => g.mae[m]).filter((v): v is number => v !== undefined));
@@ -51,9 +52,9 @@ function MaeChart({ s }: { s: XpAccuracySeason }) {
             .filter(Boolean)
             .join(" ")}
           fill="none"
-          stroke={COLOURS[m]}
+          stroke={sty(m).colour}
           strokeWidth={2}
-          strokeDasharray={DASHES[m]}
+          strokeDasharray={sty(m).dash}
         />
       ))}
     </svg>
@@ -62,6 +63,8 @@ function MaeChart({ s }: { s: XpAccuracySeason }) {
 
 /** (c) Forecast accuracy: all-player xP MAE per GW for each season played. */
 export function AccuracySection({ accuracy, status }: { accuracy: XpAccuracy | null; status: "loading" | "ready" }) {
+  const registry = useRegistry();
+  const sty = (id: string) => seriesStyle(registry, id);
   return (
     <section className="models-page-section" id="models-accuracy" data-testid="models-accuracy" aria-labelledby="models-accuracy-heading">
       <h2 id="models-accuracy-heading">Forecast accuracy (xP vs actual)</h2>
@@ -77,7 +80,7 @@ export function AccuracySection({ accuracy, status }: { accuracy: XpAccuracy | n
             {accuracy.metric}. Population: every player all models priced, including those who did not play.
           </p>
           {accuracy.seasons.map((s) => {
-            const ids = MODEL_CHOICES.filter((m) => m in s.pooled_mae);
+            const ids = orderIds(registry, Object.keys(s.pooled_mae));
             return (
               <div key={`${s.season}-${s.kind}`} className="accuracy-season" data-testid={`accuracy-${s.season}`}>
                 <h3>
@@ -86,17 +89,17 @@ export function AccuracySection({ accuracy, status }: { accuracy: XpAccuracy | n
                 <p className="models-note">{KIND_NOTE[s.kind]}. GW{s.gameweeks[0]?.gameweek}–{s.gameweeks[s.gameweeks.length - 1]?.gameweek}.</p>
                 <MaeChart s={s} />
                 <ul className="models-legend accuracy-legend">
-                  {ids.map((m: ModelChoice) => (
+                  {ids.map((m) => (
                     <li key={m} className="models-legend-item">
                       <svg width="24" height="8" aria-hidden="true">
-                        <line x1="0" y1="4" x2="24" y2="4" stroke={COLOURS[m]} strokeWidth="3" strokeDasharray={DASHES[m]} />
+                        <line x1="0" y1="4" x2="24" y2="4" stroke={sty(m).colour} strokeWidth="3" strokeDasharray={sty(m).dash} />
                       </svg>
-                      {MODEL_LABELS[m]} <strong data-testid={`accuracy-${s.season}-${m}`}>{s.pooled_mae[m].toFixed(3)}</strong>
+                      {modelLabel(registry, m)} <strong data-testid={`accuracy-${s.season}-${m}`}>{s.pooled_mae[m].toFixed(3)}</strong>
                     </li>
                   ))}
                   {Object.entries(s.missing_models).map(([m, why]) => (
                     <li key={m} className="models-legend-item is-missing">
-                      {MODEL_LABELS[m as ModelChoice] ?? m}: {why}
+                      {modelLabel(registry, m)}: {why}
                     </li>
                   ))}
                 </ul>

@@ -1,22 +1,26 @@
-import type { Models } from "../../contract/types";
+import type { ModelAdvice, Models } from "../../contract/types";
 import { formatPoints } from "../../format";
-import { MODEL_LABELS, parseModel } from "../../data/model";
-import type { ModelChoice } from "../../data/model";
+import { useRegistry } from "../../data/DataProvider";
+import { modelLabel, orderIds, seriesStyle } from "../../data/registry";
 import { ModelBadge } from "./ModelBadge";
-import { transfersText } from "./ModelAdviceCard";
-import { COLOURS, DASHES } from "./modelStyle";
 import "./models.css";
 
 
 /** Actual FPL points are whole numbers; xPts keep their decimals. */
 const pts = (v: number) => String(Math.round(v));
 
-function ids(models: Models): ModelChoice[] {
-  return models.models.map((m) => parseModel(m.id)).filter((m): m is ModelChoice => m !== null);
+export function transfersText(advice: ModelAdvice): string {
+  const moves =
+    advice.transfers.length > 0
+      ? advice.transfers.map((t) => `${t.out_name} → ${t.in_name}`).join(", ")
+      : "Roll (no transfer)";
+  return advice.hit_points !== 0 ? `${moves} (${advice.hit_points} hit)` : moves;
 }
 
 /** Cumulative points per model as a line chart. Dash patterns as well as colour, for colour-blind readers. */
 function CumulativeChart({ models }: { models: Models }) {
+  const registry = useRegistry();
+  const sty = (id: string) => seriesStyle(registry, id);
   const series = models.season_to_date.filter((s) => s.per_gameweek.length > 0);
   if (series.length === 0) return null;
   const gws = [...new Set(series.flatMap((s) => s.per_gameweek.map((p) => p.gameweek)))].sort(
@@ -30,7 +34,7 @@ function CumulativeChart({ models }: { models: Models }) {
     gws.length === 1 ? W / 2 : pad + ((W - 2 * pad) * gws.indexOf(gw)) / (gws.length - 1);
   const y = (v: number) => H - pad - ((H - 2 * pad) * v) / max;
   const summary = series
-    .map((s) => `${MODEL_LABELS[parseModel(s.model) ?? "champion"]} ${pts(s.total)}`)
+    .map((s) => `${modelLabel(registry, s.model)} ${pts(s.total)}`)
     .join(", ");
   return (
     <figure className="models-chart" data-testid="models-chart">
@@ -42,19 +46,19 @@ function CumulativeChart({ models }: { models: Models }) {
           </text>
         ))}
         {series.map((s) => {
-          const m = parseModel(s.model) ?? "champion";
+          const m = s.model;
           const pts = s.per_gameweek.map((p) => `${x(p.gameweek)},${y(p.cumulative)}`).join(" ");
           return (
             <g key={s.model}>
               <polyline
                 points={pts}
                 fill="none"
-                stroke={COLOURS[m]}
-                strokeWidth={m === "champion" ? 3 : 2}
-                strokeDasharray={DASHES[m]}
+                stroke={sty(m).colour}
+                strokeWidth={m === registry.champion ? 3 : 2}
+                strokeDasharray={sty(m).dash}
               />
               {s.per_gameweek.map((p) => (
-                <circle key={p.gameweek} cx={x(p.gameweek)} cy={y(p.cumulative)} r="3" fill={COLOURS[m]} />
+                <circle key={p.gameweek} cx={x(p.gameweek)} cy={y(p.cumulative)} r="3" fill={sty(m).colour} />
               ))}
             </g>
           );
@@ -62,13 +66,13 @@ function CumulativeChart({ models }: { models: Models }) {
       </svg>
       <figcaption className="models-legend">
         {series.map((s) => {
-          const m = parseModel(s.model) ?? "champion";
+          const m = s.model;
           return (
             <span key={s.model} className="models-legend-item">
               <svg width="24" height="8" aria-hidden="true">
-                <line x1="0" y1="4" x2="24" y2="4" stroke={COLOURS[m]} strokeWidth="3" strokeDasharray={DASHES[m]} />
+                <line x1="0" y1="4" x2="24" y2="4" stroke={sty(m).colour} strokeWidth="3" strokeDasharray={sty(m).dash} />
               </svg>
-              {MODEL_LABELS[m]}
+              {modelLabel(registry, m)}
             </span>
           );
         })}
@@ -79,6 +83,7 @@ function CumulativeChart({ models }: { models: Models }) {
 
 /** Season to date across all frozen models: totals, a per-GW table, a chart, and the latest advice. */
 export function ModelsSeasonView({ models }: { models: Models | null }) {
+  const registry = useRegistry();
   if (!models) {
     return (
       <section className="models-season" data-testid="models-season-empty">
@@ -90,7 +95,7 @@ export function ModelsSeasonView({ models }: { models: Models | null }) {
       </section>
     );
   }
-  const order = ids(models);
+  const order = orderIds(registry, models.models.map((m) => m.id));
   const scored = models.gameweeks.filter((g) => g.actual);
   const latest = models.gameweeks[models.gameweeks.length - 1];
   const totals = new Map(models.season_to_date.map((s) => [s.model, s]));
@@ -110,7 +115,7 @@ export function ModelsSeasonView({ models }: { models: Models | null }) {
               <th scope="col">GW</th>
               {order.map((m) => (
                 <th scope="col" key={m}>
-                  {MODEL_LABELS[m]}
+                  {modelLabel(registry, m)}
                 </th>
               ))}
             </tr>

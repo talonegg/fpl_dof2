@@ -5,9 +5,7 @@
 .model-toggle-button:disabled { opacity: 0.45; cursor: not-allowed; }
 .model-toggle-note { opacity: 0.8; }
 .model-toggle-diff { color: inherit; text-decoration: underline; }
-.model-badge { display: inline-block; font-size: 0.72rem; font-weight: 600; padding: 0.1rem 0.5rem; border-radius: 999px; vertical-align: middle; margin-left: 0.4rem; }
-.model-badge-champion { background: #dbe7ff; color: #1b3f8f; }
-.model-badge-challenger { background: #ffe6c7; color: #8a4b00; }
+.model-badge { border: 2px solid var(--border-strong); background: var(--bg-panel-alt); color: var(--text); display: inline-block; font-size: 0.72rem; font-weight: 600; padding: 0.1rem 0.5rem; border-radius: 999px; vertical-align: middle; margin-left: 0.4rem; }
 .model-diff-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 @media (max-width: 640px) { .model-diff-grid { grid-template-columns: 1fr; } }
 .model-diff-col { border: 1px solid rgba(127,127,127,0.35); border-radius: 8px; padding: 0.75rem; }
@@ -31,9 +29,6 @@
   .model-toggle { width: 100%; }
 }
 .model-badge-tag { font-weight: 400; }
-.model-badge-engine { background: #e5e7eb; color: #374151; }
-.model-badge-a { background: #d1fae5; color: #065f46; }
-.model-badge-a_odds { background: #f5d0fe; color: #701a75; }
 .model-comparison-banner { border-left: 4px solid #d9822b; padding: 0.4rem 0.6rem; background: rgba(217, 130, 43, 0.12); font-weight: 600; }
 .model-advice-grid { display: grid; grid-template-columns: max-content 1fr; gap: 0.3rem 0.75rem; margin: 0; }
 .model-advice-grid dt { font-weight: 600; }
@@ -72,3 +67,6 @@
 }
 .provisional-dot { color: #b7791f; font-weight: 600; }
 .models-provisional-note { margin: 0.25rem 0 0.75rem; }
+td.differs { background: rgba(255, 196, 0, 0.25); }
+.compare-pick { border: 1px solid var(--border-strong); border-radius: 8px; margin: 0 0 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem 1.25rem; }
+.compare-pick-item { min-height: 44px; display: inline-flex; align-items: center; gap: 0.4rem; }

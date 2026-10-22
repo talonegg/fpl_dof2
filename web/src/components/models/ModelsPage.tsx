@@ -1,10 +1,8 @@
 import { useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import type { Models, ModelsHistory } from "../../contract/types";
-import { useDataState } from "../../data/DataProvider";
+import { useDataState, useRegistry } from "../../data/DataProvider";
 import { useArtefact } from "../../data/store";
-import { MODEL_CHOICES, MODEL_DESCRIPTIONS, MODEL_LABELS } from "../../data/model";
-import type { ModelChoice } from "../../data/model";
 import { ModelHistoryView } from "../history/ModelHistoryView";
 import { SeasonView } from "../history/SeasonView";
 import "../history/history.css";
@@ -13,47 +11,14 @@ import { AccuracySection } from "./AccuracySection";
 import type { XpAccuracy } from "./accuracy";
 import { HindsightSection } from "./HindsightSection";
 import { ModelBadge } from "./ModelBadge";
-import { ModelDiffView } from "./ModelDiffView";
+import { ComparePanel } from "./ComparePanel";
 import { ModelsSeasonView } from "./ModelsSeasonView";
 import { ProvisionalBadge } from "./ProvisionalBadge";
 import "./models.css";
 import "./modelsPage.css";
 
-/** Harness key, role and standing caveat per model. The one place these words live. */
-export const MODEL_FACTS: Record<ModelChoice, { key: string; role: string; caveat: string; detail: string }> = {
-  champion: {
-    key: "C3",
-    role: "Champion — live advice",
-    caveat: "The only model whose advice is live.",
-    detail: "Engine forecasts with the minutes_v2 model; captain by price/position (B0).",
-  },
-  challenger: {
-    key: "C1",
-    role: "Challenger",
-    caveat: "Pre-registered against C3: all-player xP MAE, no look before GW10.",
-    detail: "Boosted xG + minutes model; captain by price/position (B0).",
-  },
-  engine: {
-    key: "engine",
-    role: "Comparison (baseline)",
-    caveat: "The original engine, kept as a baseline.",
-    detail: "Baseline engine forecasts; engine captain and vice.",
-  },
-  a: {
-    key: "A",
-    role: "Comparison",
-    caveat: "Comparison only.",
-    detail: "Component xPts model (goals, assists, clean sheets, bonus, appearance).",
-  },
-  a_odds: {
-    key: "A_odds",
-    role: "Comparison",
-    caveat: "Currently duplicates A: identical until odds rows flow. No saved backtest xP.",
-    detail: "Model A with the bookmaker-odds team layer.",
-  },
-};
-
 const SECTIONS = [
+  ["compare", "Compare"],
   ["summary", "Summary"],
   ["details", "Details"],
   ["accuracy", "Accuracy"],
@@ -62,7 +27,7 @@ const SECTIONS = [
 ] as const;
 
 
-function unavailableNow(models: Models | null, m: ModelChoice): string | null {
+function unavailableNow(models: Models | null, m: string): string | null {
   const last = models?.gameweeks[models.gameweeks.length - 1];
   const a = last?.availability?.[m];
   return a && a.available === false ? `Unavailable for GW${last?.gameweek}${a.reason ? `: ${a.reason}` : ""}` : null;
@@ -70,6 +35,7 @@ function unavailableNow(models: Models | null, m: ModelChoice): string | null {
 
 /** (a) One row per model. */
 function SummaryTable({ history, accuracy, models }: { history: ModelsHistory | null; accuracy: XpAccuracy | null; models: Models | null }) {
+  const registry = useRegistry();
   const back = new Map(history?.summary.map((s) => [s.model, s]) ?? []);
   const acc = (season: string) => accuracy?.seasons.find((s) => s.season === season);
   const a2526 = acc("2025/26");
@@ -95,7 +61,7 @@ function SummaryTable({ history, accuracy, models }: { history: ModelsHistory | 
           </tr>
         </thead>
         <tbody>
-          {MODEL_CHOICES.map((m) => {
+          {registry.entries.map(({ id: m, description, role, published }) => {
             const b = back.get(m);
             const now = unavailableNow(models, m);
             const last = models?.gameweeks[models.gameweeks.length - 1];
@@ -103,7 +69,7 @@ function SummaryTable({ history, accuracy, models }: { history: ModelsHistory | 
             return (
               <tr key={m} data-testid={`models-summary-${m}`}>
                 <th scope="row">
-                  <ModelBadge model={m} /> <span className="history-sub">{MODEL_FACTS[m].key}</span>
+                  <ModelBadge model={m} />
                   {prov && (
                     <>
                       {" "}
@@ -111,12 +77,12 @@ function SummaryTable({ history, accuracy, models }: { history: ModelsHistory | 
                     </>
                   )}
                 </th>
-                <td className="models-what">{MODEL_DESCRIPTIONS[m]}</td>
+                <td className="models-what">{description}</td>
                 <td data-testid={`summary-xi-${m}`}>{f(b?.mean_per_gameweek, 2)}</td>
                 <td data-testid={`summary-mae-${m}`}>{f(a2526?.pooled_mae[m], 3)}</td>
                 <td>{f(a2627?.pooled_mae[m], 3)}</td>
                 <td className="models-what">
-                  <strong>{MODEL_FACTS[m].role}.</strong> {MODEL_FACTS[m].caveat}
+                  <strong>{role === "champion" ? "Champion — live advice" : published ? "Comparison" : "Comparison, not yet live"}.</strong>
                   {now ? <span className="models-unavailable"> {now}.</span> : null}
                 </td>
               </tr>
@@ -147,6 +113,7 @@ export function ModelsPage() {
     if (section && allLoaded) document.getElementById(`models-${section}`)?.scrollIntoView?.({ block: "start" });
   }, [section, allLoaded]);
   const models = data?.models ?? null;
+  const registry = useRegistry();
 
   return (
     <div className="models-page" data-testid="models-page">
@@ -158,6 +125,8 @@ export function ModelsPage() {
           </a>
         ))}
       </nav>
+
+      {data && <ComparePanel data={data} history={history.data} />}
 
       <section className="models-page-section" id="models-summary" aria-labelledby="models-summary-heading">
         <h2 id="models-summary-heading">Summary</h2>
@@ -178,42 +147,36 @@ export function ModelsPage() {
       <section className="models-page-section" id="models-details" aria-labelledby="models-details-heading">
         <h2 id="models-details-heading">Details</h2>
         <div className="models-detail-grid" data-testid="models-details">
-          {MODEL_CHOICES.map((m) => {
-            const b = history.data?.summary.find((s) => s.model === m);
+          {registry.entries.map((e) => {
+            const b = history.data?.summary.find((x) => x.model === e.id);
             return (
-              <article key={m} className="models-detail-card" data-testid={`models-detail-${m}`}>
+              <article key={e.id} className="models-detail-card" data-testid={`models-detail-${e.id}`}>
                 <h3>
-                  {MODEL_LABELS[m]} <span className="history-sub">({MODEL_FACTS[m].key})</span>
+                  {e.label} <span className="history-sub">({e.id})</span>
                 </h3>
-                <p>{MODEL_FACTS[m].detail}</p>
+                <p>{e.description}</p>
                 <dl>
                   <div>
                     <dt>Role</dt>
-                    <dd>{MODEL_FACTS[m].role}</dd>
+                    <dd>
+                      {e.role}
+                      {e.published ? ", published" : ", not yet published"}
+                    </dd>
                   </div>
                   {b && (
                     <div>
                       <dt>2025/26 backtest</dt>
                       <dd>
-                        {Math.round(b.total)} pts, rank {b.final_rank} of 5
+                        {Math.round(b.total)} pts, rank {b.final_rank} of {history.data?.summary.length}
                       </dd>
                     </div>
                   )}
-                  <div>
-                    <dt>Caveat</dt>
-                    <dd>{MODEL_FACTS[m].caveat}</dd>
-                  </div>
                 </dl>
               </article>
             );
           })}
         </div>
-        {data && (
-          <>
-            <ModelsSeasonView models={data.models} />
-            <ModelDiffView champion={data.week} challenger={data.challenger} players={data.players} />
-          </>
-        )}
+        {data && <ModelsSeasonView models={data.models} />}
       </section>
 
       <AccuracySection accuracy={accuracy.data} status={accuracy.status === "loading" ? "loading" : "ready"} />

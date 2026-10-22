@@ -62,10 +62,6 @@ export function fetchLog(): Promise<Log | null> {
   return dataStore.get("log");
 }
 
-export function fetchChallengerWeek(): Promise<Week | null> {
-  return dataStore.get("week_challenger");
-}
-
 export function fetchModels(): Promise<Models | null> {
   return dataStore.get("models");
 }
