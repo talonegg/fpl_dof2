@@ -3,7 +3,7 @@ id: a
 label: Model A
 description: Component xPts model (goals, assists, clean sheets, bonus, appearance). Comparison only.
 role: challenger
-published: false # lives only in the frozen bundle until MOD-05 ports it (R1.2.1)
+published: false # lives only in the frozen bundle until MOD-05 ports it (R1.2.2)
 aliases: [A]
 forecaster:
   type: frozen

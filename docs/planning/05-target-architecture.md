@@ -177,7 +177,7 @@ built: one file per strategy, its fields and its digest are in
 ### 5.2 The registered strategies
 
 The five ids are registered ([04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)).
-Still target: `engine`, `a` and `a_odds` go live in R1.2.1 — `c1` rebuilt behind the frame
+Still target: `engine`, `a` and `a_odds` go live in R1.2.2 — `c1` rebuilt behind the frame
 contract, `a` and `a_odds` ported from the frozen bundle (they train on prior seasons and A_odds
 reads odds, so the live run enables the archive and football-data.co.uk). The frozen harness is
 switched off when the ports go live, with no parity check; its records stay on `ledger` as each
@@ -341,7 +341,7 @@ Each release is a vertical slice that leaves the weekly advice working ([DP-07](
 
 | Release | Slice | Absorbs |
 | --- | --- | --- |
-| **R1.2.0 and R1.2.1 — Registry and five models live**, two drops (DL-87) | Boundaries and `core` (a ratchet); the forecast-frame contract; the registry; all five strategies through one engine with full recommendations; the archive and football-data.co.uk live; the frozen harness retired, the switch marked; N-way comparison UI from the registry; the standing multi-strategy backtest and the experiments store; the first two experiments (card rates, training window) | 03 §12 P1, P3, P6, P9, P10; F1, F3 as experiments; F4, F5 |
+| **R1.2.0 and R1.2.2 — Registry and five models live**, two drops (DL-87) | Boundaries and `core` (a ratchet); the forecast-frame contract; the registry; all five strategies through one engine with full recommendations; the archive and football-data.co.uk live; the frozen harness retired, the switch marked; N-way comparison UI from the registry; the standing multi-strategy backtest and the experiments store; the first two experiments (card rates, training window) | 03 §12 P1, P3, P6, P9, P10; F1, F3 as experiments; F4, F5 |
 | **R1.3.0 — Gameweek orchestration** | State machine; change manifest and typed dispatch; refresh-all-together; advice of record; the evaluation step; the one scorer; season log from evaluations; reproducible models history | O1, O2; F2 |
 | **R1.4.0 — Independent web** | Decoupled app and data deploys; `contract_minor` and the runtime check; types in the web build; the artefact registry; UI flags; `experiment.yml` and experiments in the app | W1, W2, W3, W5 |
 
