@@ -23,8 +23,18 @@ pytestmark = pytest.mark.usefixtures("recorded_fpl_api")
 
 GOLDEN = Path(__file__).parent / "golden"
 #: Keys whose values are run ids, wall-clock durations, times or a hash of source code.
-MASKED = {"run_id", "generated_at", "digest", "duration_seconds", "solve_seconds"}
+MASKED = {
+    "run_id",
+    "generated_at",
+    "digest",
+    "duration_seconds",
+    "solve_seconds",
+    "git_sha",
+    "git_dirty",
+}
 _RUN_ID = re.compile(r"\d{8}T\d{6}Z-[0-9a-f]+")
+# The snapshot is fetched at wall-clock time but the run is pinned to FPL_DOF_AS_OF: its age drifts.
+_AGE = re.compile(r"-?\d+(\.\d+)?h old")
 
 
 def normalise(value: Any) -> Any:
@@ -34,6 +44,8 @@ def normalise(value: Any) -> Any:
         return [normalise(v) for v in value]
     if isinstance(value, str) and _RUN_ID.fullmatch(value):
         return "<masked>"
+    if isinstance(value, str):
+        return _AGE.sub("<age> old", value)
     return value
 
 

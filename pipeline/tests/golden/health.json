@@ -44,7 +44,7 @@
    {
     "class": "freshness_and_volume",
     "gate": "snapshot_freshness",
-    "message": "newest snapshot is -1642.6h old, limit is 48h",
+    "message": "newest snapshot is <age> old, limit is 48h",
     "outcome": "passed",
     "requirement": "NFR-07",
     "severity": "warn"
@@ -186,8 +186,8 @@
  "run": {
   "duration_seconds": "<masked>",
   "finished_at": null,
-  "git_dirty": true,
-  "git_sha": "3b8c4c8fd91bce87df2798abffe2a7bdce00b7ea",
+  "git_dirty": "<masked>",
+  "git_sha": "<masked>",
   "run_id": "<masked>",
   "stages": [
    {
