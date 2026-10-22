@@ -28,6 +28,7 @@ import datetime as dt
 import pandas as pd
 
 from fpl_dof.config.models import ForecastConfig
+from fpl_dof.forecast.baselines import FittedBaseline
 from fpl_dof.forecast.fit import (
     ColdStartError,
     fit_as_of,
@@ -100,27 +101,36 @@ def next_deadline(
     return next_gameweek, cutoff.tz_convert("UTC"), horizon
 
 
-def build_forecast(
+def build(
     inputs: ForecastInputs, rules: GameRules, config: ForecastConfig
-) -> pd.DataFrame:
-    """Produce the expected-points table from the component chain.
+) -> tuple[pd.DataFrame, FittedBaseline]:
+    """Produce the expected-points table from the component chain, and B0 fitted beside it.
 
-    Returns exactly the shape :func:`fpl_dof.forecast.xp_v0.build_forecast` returns — one row per
-    player, per-gameweek expectations, a horizon total, a component decomposition, a standard
-    deviation on every mean (Invariant 6), a confidence tier, and a B0 captain score — so the
-    optimiser, the weekly decision and the publisher need no knowledge of which model produced it.
+    The frame has exactly the shape :func:`fpl_dof.forecast.xp_v0.build_forecast` returns — one row
+    per player, per-gameweek expectations, a horizon total, a component decomposition, a standard
+    deviation on every mean (Invariant 6) and a confidence tier — so the optimiser, the weekly
+    decision and the publisher need no knowledge of which model produced it. B0 is returned beside
+    it, not in it: it is the captain policy's input (DL-76, MOD-02).
     """
     history = inputs.player_gameweek
     _next_gameweek, deadline, horizon = next_deadline(inputs.gameweeks, config, as_of=inputs.as_of)
     fitted = fit_as_of(history, deadline, config, rules)
     frame: pd.DataFrame = fitted.predict(horizon, inputs=inputs)
-    return frame
+    return frame, fitted.b0
+
+
+def build_forecast(
+    inputs: ForecastInputs, rules: GameRules, config: ForecastConfig
+) -> pd.DataFrame:
+    """The frame alone; see :func:`build`."""
+    return build(inputs, rules, config)[0]
 
 
 __all__ = [
     "IDENTITY_COLUMNS",
     "MODEL_NAME",
     "ColdStartError",
+    "build",
     "build_forecast",
     "completed_gameweeks",
     "next_deadline",

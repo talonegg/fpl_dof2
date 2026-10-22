@@ -144,9 +144,9 @@ def test_requires_names_silver_tables(tmp_path: Path) -> None:
 
 
 def test_champion_entry_matches_the_shipped_config_it_describes() -> None:
-    # Until MOD-02/MOD-04 read the policy from the registry, the shipped optimiser config is what
-    # actually runs; a drift between the two would mislabel the published champion.
-    assert champion().policy.captain_rule == OptimiserConfig().captain_rule
+    # The captain rule is read from the registry policy (MOD-02); a second copy in the optimiser
+    # config would be a second home that could drift. Publishing C1 is still config until MOD-04.
+    assert "captain_rule" not in OptimiserConfig.model_fields
     assert load_strategy("c1").published == OptimiserConfig().publish_challenger
 
 

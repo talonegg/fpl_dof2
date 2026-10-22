@@ -20,7 +20,6 @@ from typing import Any
 import pandas as pd
 
 from fpl_dof.forecast.form import form_by_player_id, trailing_form
-from fpl_dof.forecast.xp_v0 import MODEL_NAME as XP_V0_NAME
 from fpl_dof.frames import as_float, as_int
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.obs.manifest import RunManifest, git_sha, read_manifest
@@ -267,11 +266,11 @@ def _meta(
 def _model_name(forecast: pd.DataFrame) -> str:
     """Which model produced this frame, from the frame's own provenance column.
 
-    Falls back to the cold-start model's name for a forecast written before that column existed,
-    which is what it would in fact have been (DP-15).
+    Every frame the factory writes carries it (MOD-02); one that does not is said to be unrecorded
+    rather than credited to a model by guesswork (DP-15).
     """
     if "model" not in forecast.columns or forecast.empty:
-        return XP_V0_NAME
+        return "unrecorded"
     return str(forecast["model"].iloc[0])
 
 

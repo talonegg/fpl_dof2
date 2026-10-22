@@ -6,7 +6,8 @@ A strategy is a forecaster paired with a decision policy (05 §5.1). Its file un
 it from here. Legacy keys (the frozen harness's ``C3``, the web's old ``champion``) are aliases,
 resolved once by :func:`resolve_alias`.
 
-The ``forecast`` and ``decide`` methods arrive with MOD-02 and MOD-04.
+``Strategy.forecast`` is the orchestrator's way to a forecast frame (MOD-02); ``decide`` arrives
+with MOD-04.
 """
 
 from __future__ import annotations
@@ -21,8 +22,12 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from fpl_dof.config.models import CaptainRule
+from fpl_dof.config.models import CaptainRule, ForecastConfig
 from fpl_dof.forecast import xp_v0, xp_v1
+from fpl_dof.forecast.entry import Forecast, publishable
+from fpl_dof.forecast.inputs import ForecastInputs
+from fpl_dof.optimise.frame import STRATEGY_COLUMN, STRATEGY_DIGEST_COLUMN
+from fpl_dof.rules.models import GameRules
 from fpl_dof.shadow import c1
 from fpl_dof.silver.tables import Table
 
@@ -55,7 +60,16 @@ class Forecaster(_Entry):
 
 
 class Policy(_Entry):
-    captain_rule: CaptainRule
+    captain_rule: CaptainRule = Field(
+        description=(
+            "How captain and vice are picked inside the chosen XI. `price_position`: the highest "
+            "B0 (per-position price line) score, then the second highest for vice; B0 is fitted "
+            "by the forecaster on its training window and reaches the rule as its own input, "
+            "never as a forecast column (DL-76, MOD-02). `model`: the solver's own "
+            "xp-maximising captain. DL-76: the champion returns to `model` once the model card "
+            "shows the model's top-20 precision above B0's."
+        )
+    )
     plan: bool = Field(description="Whether the multi-gameweek plan and chips are solved")
 
 
@@ -69,6 +83,26 @@ class Strategy(_Entry):
     forecaster: Forecaster
     policy: Policy
     requires: tuple[Table, ...] = Field(description="Silver tables the strategy reads")
+
+    def forecast(
+        self, inputs: ForecastInputs, rules: GameRules, config: ForecastConfig
+    ) -> Forecast:
+        """This strategy's forecast frame, validated and stamped with its id and digest.
+
+        Only the shipped ``xp_v1`` recipe (with its ``xp_v0`` cold-start fallback) has a live entry
+        point; C1's runs inside the week stage until MOD-04, and config overrides and the frozen
+        ports arrive with MOD-05. Asking for one of those is an error, never a quiet substitute.
+        """
+        recipe = self.forecaster
+        if recipe.type != "recipe" or recipe.model != xp_v1.MODEL_NAME or recipe.config:
+            raise NotImplementedError(
+                f"{self.id}: no forecast entry point for {recipe.type} {recipe.model!r}"
+                f"{' with config overrides' if recipe.config else ''} yet (MOD-04, MOD-05)"
+            )
+        result = publishable(inputs, rules, config)
+        result.frame[STRATEGY_COLUMN] = self.id
+        result.frame[STRATEGY_DIGEST_COLUMN] = digest(self)
+        return result
 
 
 def digest(strategy: Strategy) -> str:

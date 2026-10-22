@@ -41,7 +41,8 @@ import pulp
 from fpl_dof.config.models import OptimiserConfig, TransferConfig
 from fpl_dof.frames import as_float, as_int
 from fpl_dof.obs.logging import get_logger
-from fpl_dof.optimise.squad import REQUIRED_COLUMNS, InfeasibleError, _start_floor
+from fpl_dof.optimise.frame import validate_forecast_frame
+from fpl_dof.optimise.squad import InfeasibleError, _start_floor
 from fpl_dof.rules.legality import Squad, SquadPlayer, ViolationCode, validate_squad
 from fpl_dof.rules.models import GameRules, Position
 from fpl_dof.squad.state import SquadState
@@ -131,9 +132,7 @@ def recommend_transfers(
     optimiser_config: OptimiserConfig,
 ) -> TransferRecommendation:
     """Rank doing nothing against every affordable transfer, and say which wins and why."""
-    missing = [column for column in REQUIRED_COLUMNS if column not in players.columns]
-    if missing:
-        raise ValueError(f"player frame is missing columns: {', '.join(missing)}")
+    validate_forecast_frame(players)
 
     pool = players.reset_index(drop=True)
     held = state.player_ids()

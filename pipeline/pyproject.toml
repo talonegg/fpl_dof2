@@ -166,15 +166,12 @@ ignore_imports = [
     "fpl_dof.publish.fixtures -> fpl_dof.forecast.models",  # MOD-01 by R1.2.1: fitting M2 moves out of publish
     "fpl_dof.stages.backtest -> fpl_dof.forecast.backtest",  # MOD-08: the standing backtest runs strategies through the registry
     "fpl_dof.stages.backtest -> fpl_dof.forecast.xp_v1",  # MOD-08: the standing backtest runs strategies through the registry
-    "fpl_dof.stages.forecast -> fpl_dof.forecast.diagnostics",  # MOD-02: the stage only calls the factory's forecast entry point
-    "fpl_dof.stages.forecast -> fpl_dof.forecast.inputs",  # MOD-02: the stage only calls the factory's forecast entry point
-    "fpl_dof.stages.forecast -> fpl_dof.forecast.live",  # MOD-02: the stage only calls the factory's forecast entry point
-    "fpl_dof.stages.forecast -> fpl_dof.forecast.model_card",  # MOD-02: the stage only calls the factory's forecast entry point
-    "fpl_dof.stages.forecast -> fpl_dof.forecast.xp_v0",  # MOD-02: the stage only calls the factory's forecast entry point
+    "fpl_dof.stages.forecast -> fpl_dof.forecast.diagnostics",  # MOD-01 by R1.2.1: the model card and its inputs reach the stage through the factory interface
+    "fpl_dof.stages.forecast -> fpl_dof.forecast.inputs",  # MOD-01 by R1.2.1: the model card and its inputs reach the stage through the factory interface
+    "fpl_dof.stages.forecast -> fpl_dof.forecast.model_card",  # MOD-01 by R1.2.1: the model card and its inputs reach the stage through the factory interface
     "fpl_dof.stages.publish -> fpl_dof.forecast.diagnostics",  # MOD-01 by R1.2.1: domain logic moves out of the publish stage
     "fpl_dof.stages.publish -> fpl_dof.forecast.form",  # MOD-01 by R1.2.1: domain logic moves out of the publish stage
     "fpl_dof.stages.publish -> fpl_dof.forecast.models",  # MOD-01 by R1.2.1: domain logic moves out of the publish stage
-    "fpl_dof.stages.publish -> fpl_dof.forecast.xp_v0",  # MOD-02: the published model name comes from the forecast frame
     "fpl_dof.stages.publish -> fpl_dof.forecast.xp_v1",  # MOD-01 by R1.2.1: domain logic moves out of the publish stage
     "fpl_dof.stages.week -> fpl_dof.forecast.form",  # MOD-04: the week is built by the one decision path
     "fpl_dof.stages.week -> fpl_dof.shadow.c1",  # MOD-04: C1 runs through the one decision path, not a stage special case

@@ -27,6 +27,7 @@ from fpl_dof.forecast.model_card import write_model_card
 from fpl_dof.forecast.xp_v0 import (
     MODEL_NAME,
     build_forecast,
+    fit_captain_line,
     poisson_survival,
     summarise_history,
 )
@@ -751,12 +752,13 @@ def test_forecast_uses_as_of_to_determine_next_gameweek(
     assert (result["xp_next"] == result["xp_gw_2"]).all()
 
 
-def test_captain_score_is_fitted_only_on_gameweeks_played_before_as_of(
+def test_captain_line_is_fitted_only_on_gameweeks_played_before_as_of(
     inputs: ForecastInputs, game_rules: GameRules
 ) -> None:
-    """REM-08: xp_v0 writes ``captain_score`` too, and a gameweek kicking off after ``as_of``
-    never reaches it (Invariant 5)."""
-    assert build_forecast(inputs, game_rules, CONFIG)["captain_score"].isna().all()
+    """REM-08: xp_v0 fits the captain policy's B0 line too, and a gameweek kicking off after
+    ``as_of`` never reaches it (Invariant 5). The line is not a forecast column (MOD-02)."""
+    assert "captain_score" not in build_forecast(inputs, game_rules, CONFIG).columns
+    assert fit_captain_line(inputs) is None
 
     kicked_off = inputs.as_of - pd.Timedelta(days=7)
     later = inputs.as_of + pd.Timedelta(hours=2)
@@ -770,9 +772,7 @@ def test_captain_score_is_fitted_only_on_gameweeks_played_before_as_of(
             ]
         ]
     )
-    result = build_forecast(replace(inputs, player_gameweek=played), game_rules, CONFIG).set_index(
-        "player_id"
-    )
-    forwards = result[result["position"] == "FWD"]
-    assert list(forwards.loc[forwards["price"] == 8.0, "captain_score"]) == pytest.approx([8.0] * 3)
-    assert list(forwards.loc[forwards["price"] == 5.5, "captain_score"]) == pytest.approx([2.0])
+    line = fit_captain_line(replace(inputs, player_gameweek=played))
+    assert line is not None
+    forwards = pd.DataFrame({"position": ["FWD", "FWD"], "price": [8.0, 5.5]})
+    assert list(line.predict(forwards)) == pytest.approx([8.0, 2.0])

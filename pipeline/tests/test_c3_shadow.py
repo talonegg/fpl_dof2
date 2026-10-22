@@ -117,8 +117,9 @@ def test_price_position_captain_moves_only_the_armband(game_rules: GameRules) ->
 
 def test_captain_rule_flag_defaults_on_and_minutes_v2_on_in_production() -> None:
     from fpl_dof.config import load_config
+    from fpl_dof.factory.registry import champion
 
-    assert OptimiserConfig().captain_rule == "price_position"
+    assert champion().policy.captain_rule == "price_position"
     assert OptimiserConfig().shadow_c1 is True
     cfg, _ = load_config(environ={})
     assert cfg.forecast.discrimination.minutes_v2 is True
