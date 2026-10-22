@@ -13,6 +13,7 @@ import pytest
 
 from fpl_dof.config.loader import load_config
 from fpl_dof.config.models import OptimiserConfig, TransferConfig
+from fpl_dof.factory.registry import champion
 from fpl_dof.optimise.transfer import recommend_transfers
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
 from fpl_dof.rules.models import GameRules
@@ -90,7 +91,8 @@ def test_challenger_is_written_in_the_week_schema_with_a_model_label(
     path = _write(game_rules, tmp_path, challenger, state)
     assert path is not None and path.name == week.CHALLENGER_FILENAME
     payload = json.loads(path.read_text())
-    assert payload["model"] == week.CHALLENGER_MODEL
+    assert payload["model"]["id"] == payload["strategy"]["id"] == "c1"
+    assert payload["model"]["role"] == "challenger"
     advised = payload["advised"]
     assert len(advised["starting"]) == 11
     assert advised["captain"] in advised["starting"]
@@ -107,7 +109,7 @@ def test_champion_model_label_validates() -> None:
         "champion",
         "challenger",
     ]
-    assert week.CHAMPION_MODEL["role"] == "champion"
+    assert champion().role in schema["properties"]["model"]["properties"]["role"]["enum"]
 
 
 def test_a_challenger_that_cannot_be_rendered_is_dropped_not_raised(

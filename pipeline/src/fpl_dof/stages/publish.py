@@ -33,6 +33,7 @@ from fpl_dof.publish.history import build_history
 from fpl_dof.publish.league import build_league
 from fpl_dof.publish.models_compare import build_models
 from fpl_dof.publish.season_log import build_log
+from fpl_dof.publish.strategies import build_strategies
 from fpl_dof.publish.typescript import write_types
 from fpl_dof.rules.models import GameRules
 from fpl_dof.silver.store import read_table, read_table_optional
@@ -79,6 +80,11 @@ def run(ctx: StageContext) -> StageResult:
         Output(path=contract.write("squad", squad_payload, destination)),
         Output(path=contract.write("history", history, destination), rows=len(history["players"])),
         Output(path=contract.write("fixtures", fixtures, destination), rows=len(fixtures["teams"])),
+        Output(
+            path=contract.write(
+                "strategies", build_strategies(contract_version=CONTRACT_VERSION), destination
+            )
+        ),
     ]
 
     # The mini-league, when one is configured (E6-S10). Configuring a league is the whole trigger:

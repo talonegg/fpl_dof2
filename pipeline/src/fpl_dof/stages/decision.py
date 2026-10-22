@@ -17,6 +17,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from fpl_dof.factory.registry import champion, stamp
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.optimise.plan import as_dict, build_plan
 from fpl_dof.optimise.squad import InfeasibleError
@@ -120,6 +121,7 @@ def run(ctx: StageContext) -> StageResult:
         "run_id": ctx.run_id,
         "skipped": False,
         "deadline": to_contract(deadline),
+        "strategy": stamp(champion()),
         **as_dict(plan),
     }
     path = _write(gold, payload)

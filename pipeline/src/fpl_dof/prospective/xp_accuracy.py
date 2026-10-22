@@ -20,7 +20,8 @@ from typing import Any
 import numpy as np
 import pandas as pd
 
-MODELS: tuple[str, ...] = ("engine", "C3", "C1", "A", "A_odds")
+from fpl_dof.factory.registry import champion, resolve_alias, strategies
+
 SUBSETS: tuple[str, ...] = ("all", "top50_union", "avail_prior")
 TOP_K = 50
 AVAIL_PRIOR_MIN = 0.75
@@ -32,9 +33,6 @@ PAIRED_FIELDS: tuple[str, ...] = (
     "season", "subset", "metric", "model", "comparator", "family", "n_gw", "mean_delta", "sd_delta",
     "p_signflip", "p_holm",
 )  # fmt: skip
-#: Pre-registered (prospective/PREREG_C1_vs_C3.md). Primary: C1 vs C3 on all-player MAE.
-PRIMARY = ("C1", "C3")
-SECONDARY = (("engine", "C3"), ("A", "C1"), ("A_odds", "C1"))
 CAL_BINS: tuple[float, ...] = (-np.inf, 0.5, 1, 2, 3, 4, 5, 6, 8, np.inf)
 
 
@@ -153,32 +151,34 @@ def holm(ps: Sequence[float]) -> list[float]:
 
 
 def paired(scores: pd.DataFrame, metric: str = "mae", draws: int = 20000) -> list[dict[str, Any]]:
-    """Per-GW paired differences (model - comparator) on one metric, sign-flip test over GWs.
+    """Per-GW paired differences (strategy - champion) on one metric, sign-flip test over GWs.
 
-    Holm is applied within each (season, subset) across the pre-registered primary + secondary
-    comparisons; the primary is also reported alone as its own family.
+    Every registered strategy is compared with the champion (05 §5.3; the pre-registered C1-vs-C3
+    family retired with its study, DL-86). The scores' harness keys are resolved to registry ids
+    and keys the registry does not know are dropped. Holm is applied within each (season, subset).
     """
     out: list[dict[str, Any]] = []
+    champ = champion().id
+    ids = scores["model"].map(resolve_alias)
+    scores = scores.assign(model=ids)[ids.notna()]
     for (season, subset), g in scores.groupby(["season", "subset"], sort=True):
         w = g.pivot_table(index="gw", columns="model", values=metric, aggfunc="first")
         fam: list[dict[str, Any]] = []
-        for kind, pairs in (("primary", (PRIMARY,)), ("secondary", SECONDARY)):
-            for m, c in pairs:
-                if m not in w or c not in w:
-                    continue
-                d = (w[m] - w[c]).dropna().to_numpy()
-                fam.append(
-                    {
-                        "season": season, "subset": subset, "metric": metric, "model": m,
-                        "comparator": c, "family": kind, "n_gw": len(d),
-                        "mean_delta": float(d.mean()) if len(d) else float("nan"),
-                        "sd_delta": float(d.std(ddof=1)) if len(d) > 1 else float("nan"),
-                        "p_signflip": signflip_p(d, draws),
-                    }
-                )  # fmt: skip
-        adj = holm([r["p_signflip"] for r in fam])
-        for r, p in zip(fam, adj, strict=True):
-            r["p_holm"] = r["p_signflip"] if r["family"] == "primary" else p
+        for m in (s.id for s in strategies() if s.id != champ):
+            if m not in w or champ not in w:
+                continue
+            d = (w[m] - w[champ]).dropna().to_numpy()
+            fam.append(
+                {
+                    "season": season, "subset": subset, "metric": metric, "model": m,
+                    "comparator": champ, "family": "vs_champion", "n_gw": len(d),
+                    "mean_delta": float(d.mean()) if len(d) else float("nan"),
+                    "sd_delta": float(d.std(ddof=1)) if len(d) > 1 else float("nan"),
+                    "p_signflip": signflip_p(d, draws),
+                }
+            )  # fmt: skip
+        for r, p in zip(fam, holm([r["p_signflip"] for r in fam]), strict=True):
+            r["p_holm"] = p
         out += fam
     return out
 

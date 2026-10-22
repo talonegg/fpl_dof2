@@ -21,6 +21,7 @@ from typing import Any
 
 import pandas as pd
 
+from fpl_dof.factory.registry import Strategy, champion, load_strategy, stamp
 from fpl_dof.forecast.form import form_by_player_id, trailing_form
 from fpl_dof.frames import as_float, as_int
 from fpl_dof.obs.logging import get_logger
@@ -32,7 +33,6 @@ from fpl_dof.optimise.captain import (
 from fpl_dof.optimise.transfer import TransferRecommendation, recommend_transfers
 from fpl_dof.pipeline import Output, StageContext, StageResult
 from fpl_dof.rules.models import GameRules, Position
-from fpl_dof.shadow.c1 import MODEL_NAME as C1_MODEL_NAME
 from fpl_dof.shadow.c1 import Challenger, fit_challenger, run_shadow_safely
 from fpl_dof.silver.store import read_table, read_table_optional
 from fpl_dof.silver.tables import Table
@@ -54,8 +54,6 @@ log = get_logger(__name__)
 
 WEEK_FILENAME = "week.json"
 CHALLENGER_FILENAME = "week_challenger.json"
-CHAMPION_MODEL = {"id": "engine", "label": "Champion", "role": "champion"}
-CHALLENGER_MODEL = {"id": C1_MODEL_NAME, "label": "Challenger (C1)", "role": "challenger"}
 SKIPPED_REASON_KEY = "skipped_reason"
 
 
@@ -152,7 +150,7 @@ def run(ctx: StageContext) -> StageResult:
         form=form,
         captain_scores=scores,
     )
-    payload["model"] = CHAMPION_MODEL
+    payload |= _stamp(champion())
     path = _write(gold, payload)
     record_advice(ctx.layout, payload, as_of=ctx.as_of)
 
@@ -261,7 +259,7 @@ def _write_challenger_safely(
             form=form,
             captain_scores=challenger.captain_scores,
         )
-        payload["model"] = CHALLENGER_MODEL
+        payload |= _stamp(load_strategy("c1"))  # MOD-04 replaces this special case
         path = gold / CHALLENGER_FILENAME
         path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
         return path
@@ -269,6 +267,14 @@ def _write_challenger_safely(
         log.warning("week.challenger_failed", extra={"error": repr(exc)})
         (gold / CHALLENGER_FILENAME).unlink(missing_ok=True)
         return None
+
+
+def _stamp(strategy: Strategy) -> dict[str, Any]:
+    """Which strategy produced a week payload: its label for the app, its registry id and digest."""
+    return {
+        "model": {"id": strategy.id, "label": strategy.label, "role": strategy.role},
+        "strategy": stamp(strategy),
+    }
 
 
 def _read_fixtures(silver: Path, season: str) -> pd.DataFrame:

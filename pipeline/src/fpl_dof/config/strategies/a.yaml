@@ -1,0 +1,16 @@
+# See c3.yaml for what this file is.
+id: a
+label: Model A
+description: Component xPts model
+role: challenger
+published: false # lives only in the frozen bundle until MOD-05 ports it (R1.2.1)
+aliases: [A]
+forecaster:
+  type: frozen
+  model: comp_A # the frozen bundle's factory
+  config: {}
+  training_window: prior_seasons_and_current
+policy:
+  captain_rule: price_position
+  plan: false
+requires: [player_gameweek, fixture]

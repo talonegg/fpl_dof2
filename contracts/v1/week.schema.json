@@ -25,6 +25,16 @@
         "role": { "type": "string", "enum": ["champion", "challenger"] }
       }
     },
+    "strategy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "digest"],
+      "description": "The registered strategy that produced this advice: its id in the strategy registry (strategies.json) and the digest of its registry entry (MOD-03).",
+      "properties": {
+        "id": { "type": "string" },
+        "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
     "deadline": {
       "type": "object",
       "additionalProperties": false,

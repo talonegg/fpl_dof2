@@ -773,19 +773,44 @@ Every tunable is named, defaulted and described where declared (DP-06). Two do n
 | `decision.simulation.enabled` | On | DL-28 |
 | `optimiser.captain_rule` | `price_position` | DL-76 (§6.5) |
 
+**Strategies** — the unit published, compared and promoted is a strategy, a forecaster paired with
+a decision policy ([DL-86](../decisions/DL-86.md)). Each is one file in
+`pipeline/src/fpl_dof/config/strategies/`, validated by `fpl_dof.factory.registry`, which is the
+single home of its id, label, description and role (MOD-03):
+
+| Field | Meaning |
+| --- | --- |
+| `id` | Stable; never reused, never a role name; equals the file name |
+| `role` | `champion` (exactly one), `challenger`, `experiment` or `retired`. Changing the champion is a role change plus a `DL-nn` |
+| `published` | Runs every refresh and appears in the app; needs a forecaster model with live code |
+| `aliases` | Legacy ids that mean this strategy — the frozen harness's key, the app's old model id — unique, never another id |
+| `forecaster` | `type` (`recipe` or `frozen`), `model`, `config` overrides, `training_window` |
+| `policy` | `captain_rule`, `plan` (whether the multi-gameweek plan and chips are solved) |
+| `requires` | The silver tables the strategy reads |
+
+Registered ([DL-87](../decisions/DL-87.md)): `c3`, the champion, and `c1`, published; `engine`, `a`
+and `a_odds`, challengers unpublished until they are ported live. A strategy's digest is the sha256
+of its entry as canonical JSON; `week.json`, `week_challenger.json` and `plan.json` carry
+`strategy: {id, digest}`, and the published `strategies.json` lists every entry. Every builder that
+names a model — `models.json`, the model history, xP accuracy, the paired accuracy tests — reads the
+registry and resolves the harness's keys through the aliases. The optimiser config still decides
+what the stages run until the policy is read from the registry (MOD-02, MOD-04); a test keeps the
+champion's entry equal to it.
+
 **Shadow mode** — publishing a candidate for comparison without letting it decide — is how a model
 changes mid-season; promotion needs the
 [E8 §5](epics/E8-ongoing-in-season-monitoring.md#5-the-bar-for-changing-the-model-mid-season) bar.
 Four mechanisms, none promoting automatically:
 
 - **Flagged variants** in the chain, each graded per flag in the backtest (DL-47).
-- **The challenger, C1** (`shadow/c1.py`): its own gradient-boosted P(plays) and points models feeding
-  the real transfer MILP, published as `week_challenger.json` beside the champion's
+- **The challenger, `c1`** (`shadow/c1.py`): its own gradient-boosted P(plays) and points models
+  feeding the real transfer MILP, published as `week_challenger.json` beside the champion's
   (`optimiser.shadow_c1`, `publish_challenger`). `run_shadow_safely` means it never stops the run. No
   variance, no horizon, its own features outside the forecast seam (03 §12 P1).
 - **The monolith**, backtest only (DL-53).
-- **The prospective harness**: five models frozen before each deadline, scored after, compared on
-  `/models` ([`prospective/`](../../prospective/README.md)).
+- **The prospective harness**: five models frozen before each deadline, scored after, published in
+  `models.json` under their registry ids and compared on `/models`
+  ([`prospective/`](../../prospective/README.md)).
 
 ---
 

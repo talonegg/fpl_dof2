@@ -1,0 +1,16 @@
+# See c3.yaml for what this file is.
+id: c1
+label: Challenger (C1)
+description: Boosted xG + minutes model
+role: challenger
+published: true
+aliases: [C1, challenger] # the frozen harness's key and the web's old id
+forecaster:
+  type: recipe
+  model: c1_gbm_xg_minutes # shadow/c1.py; its hyperparameters move into config in MOD-05
+  config: {}
+  training_window: knowable_at_deadline
+policy:
+  captain_rule: price_position
+  plan: false # one gameweek only until MOD-04 gives every strategy the plan
+requires: [player_gameweek, fixture]

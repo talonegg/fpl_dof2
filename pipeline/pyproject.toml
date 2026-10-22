@@ -100,14 +100,15 @@ source = ["src/fpl_dof"]
 
 # Module boundaries (MOD-01, DL-86, DL-87; target in docs/planning/05-target-architecture.md §3).
 # Logical modules: data platform = sources, silver, quality; core = rules, squad, optimise,
-# decision; model factory = forecast, shadow, prospective; orchestrator = stages, pipeline, cli,
-# week, publish, schedule_cli. config, obs, frames, paths, retention and gold are shared and
-# unconstrained. Data platform may import core (sources and silver read rules, as today); core
-# imports neither data platform, factory nor orchestrator; factory may import core but not the
-# orchestrator; nothing but pipeline and cli imports stages. The orchestrator reaching the factory
-# only through the registry interface lands with MOD-03. ignore_imports is the allow-list of
-# today's violations: it only shrinks (a ratchet), and is empty before R1.2.1 promotes. An entry
-# that no longer matches an import fails the run, so a fixed violation must be deleted here.
+# decision; model factory = factory, forecast, shadow, prospective; orchestrator = stages,
+# pipeline, cli, week, publish, schedule_cli. config, obs, frames, paths, retention and gold are
+# shared and unconstrained. Data platform may import core (sources and silver read rules, as
+# today); core imports neither data platform, factory nor orchestrator; factory may import core
+# but not the orchestrator; nothing but pipeline and cli imports stages; the orchestrator reaches
+# the factory only through fpl_dof.factory, the registry interface (MOD-03). ignore_imports is the
+# allow-list of today's violations, each naming the story that removes it: it only shrinks (a
+# ratchet), and is empty before R1.2.1 promotes. An entry that no longer matches an import fails
+# the run, so a fixed violation must be deleted here.
 [tool.importlinter]
 root_package = "fpl_dof"
 
@@ -117,7 +118,7 @@ type = "forbidden"
 source_modules = ["fpl_dof.rules", "fpl_dof.squad", "fpl_dof.optimise", "fpl_dof.decision"]
 forbidden_modules = [
     "fpl_dof.sources", "fpl_dof.silver", "fpl_dof.quality",
-    "fpl_dof.forecast", "fpl_dof.shadow", "fpl_dof.prospective",
+    "fpl_dof.factory", "fpl_dof.forecast", "fpl_dof.shadow", "fpl_dof.prospective",
     "fpl_dof.stages", "fpl_dof.pipeline", "fpl_dof.cli", "fpl_dof.week", "fpl_dof.publish",
     "fpl_dof.schedule_cli",
 ]
@@ -132,7 +133,7 @@ name = "The data platform knows no model and no orchestration"
 type = "forbidden"
 source_modules = ["fpl_dof.sources", "fpl_dof.silver", "fpl_dof.quality"]
 forbidden_modules = [
-    "fpl_dof.forecast", "fpl_dof.shadow", "fpl_dof.prospective",
+    "fpl_dof.factory", "fpl_dof.forecast", "fpl_dof.shadow", "fpl_dof.prospective",
     "fpl_dof.stages", "fpl_dof.pipeline", "fpl_dof.cli", "fpl_dof.week", "fpl_dof.publish",
     "fpl_dof.schedule_cli",
 ]
@@ -143,7 +144,7 @@ ignore_imports = [
 [[tool.importlinter.contracts]]
 name = "The model factory never imports the orchestrator"
 type = "forbidden"
-source_modules = ["fpl_dof.forecast", "fpl_dof.shadow", "fpl_dof.prospective"]
+source_modules = ["fpl_dof.factory", "fpl_dof.forecast", "fpl_dof.shadow", "fpl_dof.prospective"]
 forbidden_modules = [
     "fpl_dof.stages", "fpl_dof.pipeline", "fpl_dof.cli", "fpl_dof.week", "fpl_dof.publish",
     "fpl_dof.schedule_cli",
@@ -154,12 +155,38 @@ ignore_imports = [
 ]
 
 [[tool.importlinter.contracts]]
+name = "The orchestrator reaches the model factory only through fpl_dof.factory"
+type = "forbidden"
+source_modules = [
+    "fpl_dof.stages", "fpl_dof.week", "fpl_dof.publish", "fpl_dof.pipeline", "fpl_dof.cli",
+]
+forbidden_modules = ["fpl_dof.forecast", "fpl_dof.shadow", "fpl_dof.prospective"]
+allow_indirect_imports = true
+ignore_imports = [
+    "fpl_dof.publish.fixtures -> fpl_dof.forecast.models",  # MOD-01 by R1.2.1: fitting M2 moves out of publish
+    "fpl_dof.stages.backtest -> fpl_dof.forecast.backtest",  # MOD-08: the standing backtest runs strategies through the registry
+    "fpl_dof.stages.backtest -> fpl_dof.forecast.xp_v1",  # MOD-08: the standing backtest runs strategies through the registry
+    "fpl_dof.stages.forecast -> fpl_dof.forecast.diagnostics",  # MOD-02: the stage only calls the factory's forecast entry point
+    "fpl_dof.stages.forecast -> fpl_dof.forecast.inputs",  # MOD-02: the stage only calls the factory's forecast entry point
+    "fpl_dof.stages.forecast -> fpl_dof.forecast.live",  # MOD-02: the stage only calls the factory's forecast entry point
+    "fpl_dof.stages.forecast -> fpl_dof.forecast.model_card",  # MOD-02: the stage only calls the factory's forecast entry point
+    "fpl_dof.stages.forecast -> fpl_dof.forecast.xp_v0",  # MOD-02: the stage only calls the factory's forecast entry point
+    "fpl_dof.stages.publish -> fpl_dof.forecast.diagnostics",  # MOD-01 by R1.2.1: domain logic moves out of the publish stage
+    "fpl_dof.stages.publish -> fpl_dof.forecast.form",  # MOD-01 by R1.2.1: domain logic moves out of the publish stage
+    "fpl_dof.stages.publish -> fpl_dof.forecast.models",  # MOD-01 by R1.2.1: domain logic moves out of the publish stage
+    "fpl_dof.stages.publish -> fpl_dof.forecast.xp_v0",  # MOD-02: the published model name comes from the forecast frame
+    "fpl_dof.stages.publish -> fpl_dof.forecast.xp_v1",  # MOD-01 by R1.2.1: domain logic moves out of the publish stage
+    "fpl_dof.stages.week -> fpl_dof.forecast.form",  # MOD-04: the week is built by the one decision path
+    "fpl_dof.stages.week -> fpl_dof.shadow.c1",  # MOD-04: C1 runs through the one decision path, not a stage special case
+]
+
+[[tool.importlinter.contracts]]
 name = "Only pipeline and cli import stages"
 type = "forbidden"
 source_modules = [
     "fpl_dof.rules", "fpl_dof.squad", "fpl_dof.optimise", "fpl_dof.decision",
     "fpl_dof.sources", "fpl_dof.silver", "fpl_dof.quality",
-    "fpl_dof.forecast", "fpl_dof.shadow", "fpl_dof.prospective",
+    "fpl_dof.factory", "fpl_dof.forecast", "fpl_dof.shadow", "fpl_dof.prospective",
     "fpl_dof.week", "fpl_dof.publish", "fpl_dof.schedule_cli",
 ]
 forbidden_modules = ["fpl_dof.stages"]
