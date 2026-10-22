@@ -78,7 +78,7 @@ review in §12) and [conceptual design](planning/04-conceptual-design.md) (each 
 - **R1.1.0 — delivered 2026-10-21: data pipeline uplift.** Remediated before release
   ([DL-81](decisions/DL-81.md)); its backlog is archived in [`planning/archive/R1.1.0/`](planning/archive/README.md).
   **R1.1.1 — tagged 2026-10-22:** the permanent archive verified on `main` ([DL-85](decisions/DL-85.md)). Its effect on the architecture: [architecture §13](planning/03-solution-architecture.md#13-r110--data-architecture-as-delivered).
-- **R1.2.0 — built, ready to promote; R1.2.1, R1.3.0 and R1.4.0 follow: the modular platform.** Orchestrator, model factory and web as
+- **R1.2.0 — tagged 2026-10-23; R1.2.1 is a hotfix ([DL-88](decisions/DL-88.md)); R1.2.2, R1.3.0 and R1.4.0 follow: the modular platform.** Orchestrator, model factory and web as
   independent modules around a strategy registry ([DL-86](decisions/DL-86.md)); design in
   [`planning/05-target-architecture.md`](planning/05-target-architecture.md).
 - **The season — live.** [E8 — ongoing in-season monitoring](planning/epics/E8-ongoing-in-season-monitoring.md)
@@ -127,7 +127,7 @@ settled DL-11, DL-72 and OD-04 and recorded DL-76 to DL-79.
 | The target design: orchestrator, model factory and web as independent modules, the 2026-10-22 code review | [Target architecture](planning/05-target-architecture.md) |
 | Each component's design: sources, data layer, models, the strategy registry, optimiser, UX, testing, extensibility; open questions (`Q-nn`) | [Conceptual design](planning/04-conceptual-design.md) |
 | Releases (`Rx.y.z`): what is being built now, how to choose what next, and the branching and release model | [Release register](planning/epics/README.md); the procedure is the `release` skill |
-| R1.2.0, the open release, then R1.3.0 and R1.4.0: the modular platform's stories | [`planning/epics/R1.2.0-modular-platform-backlog.md`](planning/epics/R1.2.0-modular-platform-backlog.md) |
+| R1.2.0 (tagged), then R1.2.2, R1.3.0 and R1.4.0: the modular platform's stories | [`planning/epics/R1.2.0-modular-platform-backlog.md`](planning/epics/R1.2.0-modular-platform-backlog.md) |
 | Where the season stands (rewritten each gameweek), the weekly loop, and the bar for changing the model mid-season | [E8 — ongoing in-season monitoring](planning/epics/E8-ongoing-in-season-monitoring.md) |
 | Environment variables and secrets handling | [`environment.md`](environment.md) |
 | FPL scoring, prices, chips; the FPL API | The `fpl-rules` and `fpl-api` skills in `.claude/skills/` |
