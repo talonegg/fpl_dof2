@@ -3,7 +3,8 @@
 # differ from that.
 # Understat, FBref and The Odds API are off by default (PIPE-09, DL-79). The community archive and
 # football-data.co.uk are on in the live run (DL-87): the archive supplies the prior seasons the
-# champion trains on and the backtest reads; every football-data capture is kept (`retain`).
+# `all_seasons` strategies and the backtest train on (the champion trains on the current season
+# only, DL-89); every football-data capture is kept (`retain`).
 # `backfill_seasons` are the archive seasons the walk-forward backtest uses (DL-68).
 sources:
   overrides:
