@@ -22,6 +22,7 @@ from decisions import OPTIMISER, decision, fixture_table, forecast, pool, state
 from fpl_dof.config.loader import load_config
 from fpl_dof.config.models import Config, ForecastConfig
 from fpl_dof.decision import Decision, decide, engine
+from fpl_dof.factory import registry
 from fpl_dof.factory.registry import (
     Forecast,
     ForecastInputs,
@@ -31,13 +32,15 @@ from fpl_dof.factory.registry import (
     load_strategy,
     published_strategies,
 )
+from fpl_dof.forecast.entry import publishable
 from fpl_dof.frames import as_float, as_int
 from fpl_dof.optimise.captain import PricePositionLine
-from fpl_dof.optimise.frame import ForecastFrameError
+from fpl_dof.optimise.frame import STRATEGY_COLUMN, STRATEGY_DIGEST_COLUMN, ForecastFrameError
 from fpl_dof.paths import DataLayout
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
 from fpl_dof.publish.strategies import artefact_paths
 from fpl_dof.rules.models import GameRules
+from fpl_dof.silver.tables import Table
 from fpl_dof.stages import week
 from fpl_dof.week.deadline import DeadlineView, next_deadline
 from fpl_dof.week.ledger import advice_path, read_advice
@@ -179,6 +182,8 @@ def _history(players: pd.DataFrame, fixtures: pd.DataFrame, season: str) -> pd.D
                 rows.append(
                     {
                         "season": season,
+                        "kickoff_time": pd.Timestamp("2026-08-15T14:00:00Z")
+                        + pd.Timedelta(weeks=as_int(fx.gameweek) - 1),
                         "gameweek": as_int(fx.gameweek),
                         "player_id": as_int(p.player_id),
                         "player_code": as_int(p.code),
@@ -247,6 +252,70 @@ def test_c1_forecasts_through_the_registry_and_borrows_only_what_it_declares(
     for borrowed in ("xp_next_sd", "xp_horizon_sd", "xp_gw_5_sd", "xp_gw_6", "xp_gw_6_sd"):
         assert c1.frame[borrowed].equals(champ.frame[borrowed]), borrowed  # MOD-05 removes these
     assert c1.captain_line == champ.captain_line
+
+
+def test_engine_is_the_publishable_forecast_with_minutes_v2_off_and_the_solvers_captain(
+    game_rules: GameRules,
+) -> None:
+    inputs, champ = _snapshot(game_rules)
+    on = ForecastConfig().discrimination.model_copy(update={"minutes_v2": True})  # as shipped
+    cfg = _config().model_copy(update={"forecast": ForecastConfig(discrimination=on)})
+    got = load_strategy("engine").forecast(inputs, game_rules, cfg, variance_from=champ)
+    flags = cfg.forecast.discrimination.model_copy(update={"minutes_v2": False})
+    expected = publishable(
+        inputs, game_rules, cfg.forecast.model_copy(update={"discrimination": flags})
+    )
+    assert got.model == expected.model == "xp_v1"
+    stamps = [STRATEGY_COLUMN, STRATEGY_DIGEST_COLUMN]
+    pd.testing.assert_frame_equal(got.frame.drop(columns=stamps), expected.frame)
+    assert set(got.frame[STRATEGY_COLUMN]) == {"engine"}
+    policy = load_strategy("engine").decision_policy(cfg, got.captain_line)
+    assert policy.captain_line is None  # the solver's xp-maximising captain, not B0's line
+
+
+def _with_prior_season(inputs: ForecastInputs) -> ForecastInputs:
+    history = inputs.player_gameweek
+    assert history is not None
+    return dataclasses.replace(
+        inputs, player_gameweek=pd.concat([history.assign(season="2025-26"), history])
+    )
+
+
+@pytest.mark.parametrize(
+    ("strategy_id", "window", "seasons"),
+    [
+        ("c3", "current_season", 1),
+        ("engine", "current_season", 1),
+        ("c1", "current_season", 1),
+        ("c3", "all_seasons", 2),
+    ],
+)
+def test_training_window_decides_which_seasons_the_forecaster_is_fitted_on(
+    game_rules: GameRules,
+    monkeypatch: pytest.MonkeyPatch,
+    strategy_id: str,
+    window: str,
+    seasons: int,
+) -> None:
+    # The guard that stops enabling the archive from silently changing the champion's training set.
+    inputs, champ = _snapshot(game_rules)
+    seen: list[int] = []
+
+    def spy(i: ForecastInputs, *_: Any, **__: Any) -> Forecast:
+        assert i.player_gameweek is not None
+        seen.append(i.player_gameweek["season"].nunique())
+        return champ
+
+    monkeypatch.setattr(registry, "publishable", spy)
+    monkeypatch.setattr("fpl_dof.shadow.c1.forecast", spy)
+    strategy = load_strategy(strategy_id)
+    strategy = strategy.model_copy(
+        update={"forecaster": strategy.forecaster.model_copy(update={"training_window": window})}
+    )
+    strategy.forecast(
+        _with_prior_season(inputs), game_rules, _forecast_config(), variance_from=champ
+    )
+    assert seen == [seasons]
 
 
 def test_c1_without_the_champions_forecast_to_borrow_from_is_refused(
@@ -369,6 +438,28 @@ def test_a_failing_challenger_records_no_advice_and_stops_nothing_else(
     assert models["c1"]["no_advice"] == c1_week["skipped_reason"]
     assert models["c3"]["advised"] == advice["c3"][0]["advised"]
     assert models["c3"]["role"] == "champion"
+
+
+def test_a_strategy_missing_a_required_table_records_no_advice_and_the_others_run(
+    game_rules: GameRules, tmp_path: Path
+) -> None:
+    needy = load_strategy("engine").model_copy(update={"requires": (Table.PLAYER_METRIC,)})
+    advice = _advise_all(game_rules, tmp_path, (champion(), needy, load_strategy("c1")))
+    assert advice["engine"][0]["skipped"]
+    assert "player_metric" in advice["engine"][0]["skipped_reason"]
+    assert not advice["c3"][0]["skipped"] and not advice["c1"][0]["skipped"]
+
+
+def test_the_engine_strategy_writes_its_own_week_file(
+    game_rules: GameRules, tmp_path: Path
+) -> None:
+    advice = _advise_all(game_rules, tmp_path)
+    assert not advice["engine"][0]["skipped"] and advice["engine"][1] is None
+    written = json.loads((tmp_path / "gold" / "week_engine.json").read_text(encoding="utf-8"))
+    assert written["strategy"]["id"] == "engine"
+    Contract(root=find_contracts_root()).validate(
+        "week", written | {"contract_version": CONTRACT_VERSION}
+    )
 
 
 def test_a_failing_champion_fails_the_run(

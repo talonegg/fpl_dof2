@@ -38,6 +38,20 @@
    "role": "challenger"
   },
   {
+   "aliases": [],
+   "artefacts": {
+    "plan": null,
+    "week": "week_engine.json"
+   },
+   "description": "The original engine (minutes_v2 off) with the engine captain, kept as a baseline.",
+   "digest": "<masked>",
+   "id": "engine",
+   "label": "Engine",
+   "plan": false,
+   "published": true,
+   "role": "challenger"
+  },
+  {
    "aliases": [
     "A"
    ],
@@ -65,20 +79,6 @@
    "digest": "<masked>",
    "id": "a_odds",
    "label": "A + odds",
-   "plan": false,
-   "published": false,
-   "role": "challenger"
-  },
-  {
-   "aliases": [],
-   "artefacts": {
-    "plan": null,
-    "week": null
-   },
-   "description": "The original engine with the engine captain, kept as a baseline.",
-   "digest": "<masked>",
-   "id": "engine",
-   "label": "Engine",
    "plan": false,
    "published": false,
    "role": "challenger"

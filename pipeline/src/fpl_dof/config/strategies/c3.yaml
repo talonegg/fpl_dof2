@@ -10,8 +10,8 @@ forecaster:
   type: recipe
   model: xp_v1
   config: {} # the shipped forecast config as it stands (minutes_v2 on)
-  training_window: knowable_at_deadline
+  training_window: current_season # the current season only, so enabling the archive cannot change this training set
 policy:
   captain_rule: price_position
   plan: true
-requires: [player_gameweek, fixture]
+requires: [fixture] # player_gameweek is optional: with none played yet the recipe falls back (DL-46)
