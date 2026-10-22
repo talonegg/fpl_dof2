@@ -42,6 +42,10 @@ jobs:
         working-directory: pipeline
         run: python -m mypy
 
+      - name: import boundaries (MOD-01, DL-87)
+        working-directory: pipeline
+        run: lint-imports
+
   pipeline-test:
     runs-on: ubuntu-latest
     steps:

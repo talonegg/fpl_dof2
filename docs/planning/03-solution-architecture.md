@@ -557,8 +557,14 @@ says so in its first words. §12.6 adds the code findings of the 2026-10-22 docu
 | `quality` | `silver` |
 | `stages` | everything, plus 13 stage-to-stage imports |
 
-No cycles between packages; nothing outside `sources/` imports a source subpackage, and `optimise`
-imports nothing from `forecast` (DP-02, PIPE-13).
+The direction is enforced, not just described: `import-linter` contracts in `pipeline/pyproject.toml`
+(`lint-imports`, in the CI lint job and `tests/test_import_boundaries.py`) hold the target of
+[05 §3](05-target-architecture.md#3-module-map) — core imports nothing from the data platform, the
+model factory or the orchestrator; the data platform and the factory never import the orchestrator;
+only `pipeline` and `cli` import `stages`; stages do not import each other. Today's violations are an
+allow-list (`ignore_imports`, each entry naming the story that removes it) that only shrinks and is
+empty before R1.2.1 promotes (DL-87). Nothing outside `sources/` imports a source subpackage, and
+`optimise` imports nothing from `forecast` (DP-02, PIPE-13).
 
 ### 12.2 Where the design is deep — keep
 
