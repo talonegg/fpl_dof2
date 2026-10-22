@@ -183,9 +183,20 @@ config, `training_window` (`current_season` or `all_seasons`) filters the histor
 is enforced in `Strategy.forecast`. `c1` is rebuilt behind the frame contract (MOD-05): its own
 variance, `FeatureSpec` features checked by `assert_no_look_ahead`, hyperparameters and seed in
 `forecast.c1`, trained on `all_seasons` keyed by `player_code`, one gameweek with `plan: false`
-([04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)). Still target: `a` and
-`a_odds` go live in R1.2.2, ported from the frozen bundle (they train on prior seasons and A_odds
-reads odds, so the live run enables the archive and football-data.co.uk). The frozen harness is
+([04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)). `a` is ported from the
+frozen bundle's `comp_A` (MOD-05, [DL-89](../decisions/DL-89.md) item 7, `shadow/a.py`): on C1's
+features plus rolling goals, assists, saves and award, per-position HistGBMs give P(play), P(a full
+appearance | play), the Poisson rates of bonus, goals and assists (saves for goalkeepers) and
+P(defensive-contribution award); clean sheets and goals conceded come from C1's club xG; every
+event is priced by the rules config; its variance sums each event's (independent events) inside
+the two-state mixture; one gameweek, `plan: false`, `all_seasons`, tunables and seed in
+`forecast.a`. Its deviations from the frozen original: points from `GameRules`, not literals
+(goals conceded priced by position as the rules say, the award's threshold and points by
+position); the award gated on recorded defensive contributions, not on the 2025/26 label; tunables
+from config and every fit seeded; refitted every run, not every fourth gameweek, and stopping at
+the first unfinished gameweek; its own variance and availability-scaled P(play), where the frozen
+frame carried a mean; a constant where a component has nothing to learn. Still target: `a_odds`
+goes live in R1.2.2 (it reads odds, so the live run enables football-data.co.uk). The frozen harness is
 switched off when the ports go live, with no parity check; its records stay on `ledger` as each
 strategy's history up to the switch, which the app marks ([DL-87](../decisions/DL-87.md)).
 

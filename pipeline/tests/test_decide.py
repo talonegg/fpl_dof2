@@ -199,8 +199,14 @@ def _history(players: pd.DataFrame, fixtures: pd.DataFrame, season: str) -> pd.D
                         "expected_goals": 0.1 * (as_int(p.player_id) % 3),
                         "expected_assists": 0.05,
                         "expected_goals_conceded": 1.0,
-                        "bonus": 0,
+                        "bonus": (as_int(p.player_id) + as_int(fx.gameweek)) % 4 // 3,
                         "bps": 10,
+                        # The counts A models (shadow/a.py), in deterministic patterns.
+                        "goals_scored": int(minutes >= 60 and as_int(p.player_id) % 4 == 0),
+                        "assists": int(minutes > 0 and as_int(p.player_id) % 5 == 1),
+                        "saves": (as_int(p.player_id) + as_int(fx.gameweek)) % 5 if minutes else 0,
+                        "goals_conceded": as_int(fx.gameweek) % 3,
+                        "defensive_contribution": (as_int(p.player_id) * 7) % 15,
                     }
                 )
     return pd.DataFrame(rows)
@@ -547,4 +553,4 @@ def test_each_strategy_has_its_own_week_and_plan_file() -> None:
     assert artefact_paths(champion()) == {"week": "week.json", "plan": "plan.json"}
     # C1 plans only once MOD-05 gives it its own means beyond the next gameweek.
     assert artefact_paths(load_strategy("c1")) == {"week": "week_c1.json", "plan": None}
-    assert artefact_paths(load_strategy("a")) == {"week": None, "plan": None}  # unpublished
+    assert artefact_paths(load_strategy("a")) == {"week": "week_a.json", "plan": None}

@@ -819,13 +819,13 @@ single home of its id, label, description and role (MOD-03):
 | `policy` | `captain_rule` (`price_position` or `model`, §6.5), `plan` (whether the multi-gameweek plan and chips are solved) |
 | `requires` | The silver tables the strategy reads |
 
-Registered ([DL-87](../decisions/DL-87.md)): `c3`, the champion, and `c1`, published; `engine`, `a`
-and `a_odds`, challengers unpublished until they are ported live. A strategy's digest is the sha256
+Registered ([DL-87](../decisions/DL-87.md)): `c3`, the champion; `engine`, `c1` and `a`, published
+challengers; `a_odds`, a challenger unpublished until it is ported live. A strategy's digest is the sha256
 of (entry, code, effective config): its entry and the run config sections it reads (`forecast`,
 `transfers`, `optimiser`, `decision`) as canonical JSON, and the source of the packages that
 decide its advice (`forecast`, `shadow`, `factory`, `optimise`, `decision`, `squad`, `config`)
 with line endings normalised. A published strategy must be one `Strategy.forecast` can run
-(a live recipe without config overrides, until MOD-05), and the champion must be published; `week.json` and `plan.json` (the champion's) and every other
+(a live recipe), and the champion must be published; `week.json` and `plan.json` (the champion's) and every other
 published strategy's `week_<id>.json` and `plan_<id>.json` carry `strategy: {id, digest}`, and the published `strategies.json` lists every entry with its aliases and the paths of its week and plan (`artefacts`), which are the only place the app learns a file name. Every builder that
 names a model — `models.json`, the model history, xP accuracy, the paired accuracy tests — reads the
 registry and resolves the harness's keys through the aliases. The forecast stage runs the
@@ -852,6 +852,13 @@ Four mechanisms, none promoting automatically:
   keyed by `player_code`, with rolling features reset each season. Hyperparameters, windows,
   half-lives and the seed are `forecast.c1` (DP-06). A failure records "no advice" with its reason
   there and in the ledger, and stops nothing else (NFR-15).
+- **The component challenger, `a`** (`shadow/a.py`, as C1 is reached): C1's features plus rolling
+  counts, and per position P(play), P(a full appearance | play), bonus, goals and assists (saves
+  for goalkeepers) and the defensive-contribution award, each priced by the rules config; clean
+  sheets and goals conceded from the club xG; variance summed over independent events inside the
+  two-state mixture; C1's one-gameweek frame and B0 (`week_a.json`, `plan: false`). Tunables and
+  the seed are `forecast.a` (DP-06); its deviations from the frozen original are listed in
+  [05 §5.2](05-target-architecture.md#52-the-registered-strategies).
 - **The monolith**, backtest only (DL-53).
 - **The prospective harness**: five models frozen before each deadline, scored after, published in
   `models.json` under their registry ids and compared on `/models`

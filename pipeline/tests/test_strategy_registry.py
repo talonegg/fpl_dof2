@@ -63,7 +63,7 @@ def test_shipped_registry_has_exactly_one_champion_and_unique_ids() -> None:
 
 def test_shipped_registry_names_the_dl87_strategies() -> None:
     assert champion().id == "c3"
-    assert {s.id for s in published_strategies()} == {"c3", "c1", "engine"}
+    assert {s.id for s in published_strategies()} == {"c3", "c1", "engine", "a"}
     assert {s.id for s in strategies()} == {"c3", "c1", "engine", "a", "a_odds"}
 
 
@@ -280,9 +280,9 @@ def test_week_json_names_the_champion_by_registry_id_and_digest(config: Config) 
 
 
 def test_publish_finds_strategy_files_nothing_writes_any_more(tmp_path: Path) -> None:
-    # The pre-MOD-04 challenger file, an unpublished strategy's pair, one no longer registered, and
-    # C1's plan now that its policy does not plan: each a false statement about the present.
-    stale = ["week_challenger.json", "week_a.json", "plan_a.json", "week_gone.json", "plan_c1.json"]
+    # The pre-MOD-04 challenger file, one no longer registered, and the plans of strategies whose
+    # policy does not plan (A, C1): each a false statement about the present.
+    stale = ["week_challenger.json", "plan_a.json", "week_gone.json", "plan_c1.json"]
     for name in ["week.json", "plan.json", "week_c1.json", "players.json", *stale]:
         (tmp_path / name).write_text("{}", encoding="utf-8")
     assert sorted(publish.stale_strategy_files(tmp_path)) == sorted(stale)

@@ -18,7 +18,9 @@ import functools
 import hashlib
 import json
 from collections import Counter
+from collections.abc import Callable
 from pathlib import Path
+from types import ModuleType
 from typing import Any, Literal
 
 import pandas as pd
@@ -35,16 +37,19 @@ from fpl_dof.obs.logging import get_logger
 from fpl_dof.optimise.captain import PricePositionLine
 from fpl_dof.optimise.frame import STRATEGY_COLUMN, STRATEGY_DIGEST_COLUMN
 from fpl_dof.rules.models import GameRules
-from fpl_dof.shadow import c1
+from fpl_dof.shadow import a, c1
 from fpl_dof.silver.tables import Table
 
 log = get_logger(__name__)
 
 STRATEGIES_DIR = Path(__file__).resolve().parents[1] / "config" / "strategies"
 
+#: The challenger recipes beside ``xp_v1``, by model name: each module's ``forecast`` is looked up
+#: when it runs, so a test can replace it.
+_CHALLENGERS: dict[str, ModuleType] = {c1.MODEL_NAME: c1, a.MODEL_NAME: a}
 #: Forecaster models :meth:`Strategy.forecast` runs as a refitted recipe (``xp_v0`` is ``xp_v1``'s
 #: cold-start fallback, not a strategy's model). A published strategy must name one of these.
-LIVE_MODELS: frozenset[str] = frozenset({xp_v1.MODEL_NAME, c1.MODEL_NAME})
+LIVE_MODELS: frozenset[str] = frozenset({xp_v1.MODEL_NAME, *_CHALLENGERS})
 
 Role = Literal["champion", "challenger", "experiment", "retired"]
 _ROLE_ORDER: tuple[Role, ...] = ("champion", "challenger", "experiment", "retired")
@@ -114,10 +119,11 @@ class Strategy(_Entry):
     ) -> Forecast:
         """This strategy's forecast frame, validated and stamped with its id and digest.
 
-        Live entry points: the ``xp_v1`` recipe (with its ``xp_v0`` cold-start fallback) and C1,
-        each on the shipped forecast config with this entry's overrides, each with its own
-        variance and captain line. The frozen ports arrive with MOD-05; asking for one is an error,
-        never a quiet substitute (and the registry refuses to publish one, :func:`unrunnable`).
+        Live entry points: the ``xp_v1`` recipe (with its ``xp_v0`` cold-start fallback) and the
+        challengers in ``shadow/`` (C1, A), each on the shipped forecast config with this entry's
+        overrides, each with its own variance and captain line. A ``frozen`` forecaster has no
+        live code; asking for one is an error, never a quiet substitute (and the registry refuses
+        to publish one, :func:`unrunnable`).
         A required silver table that is absent or empty is an error naming it, so the stage
         records "no advice" rather than a forecast on missing data.
         """
@@ -133,8 +139,9 @@ class Strategy(_Entry):
                 inputs, player_gameweek=history[history["season"] == rules.season]
             )
         forecast_config = _forecast_config(config.forecast, recipe.config)
-        if recipe.model == c1.MODEL_NAME:
-            result = c1.forecast(inputs, rules, forecast_config)
+        if (module := _CHALLENGERS.get(recipe.model)) is not None:
+            run: Callable[[ForecastInputs, GameRules, ForecastConfig], Forecast] = module.forecast
+            result = run(inputs, rules, forecast_config)
         else:
             result = publishable(inputs, rules, forecast_config)
         result.frame[STRATEGY_COLUMN] = self.id
@@ -152,6 +159,8 @@ class Strategy(_Entry):
         forecast_config = _forecast_config(config.forecast, self.forecaster.config)
         if self.forecaster.model == c1.MODEL_NAME:
             return c1.C1Predictor(forecast_config, rules)
+        if self.forecaster.model == a.MODEL_NAME:
+            return a.APredictor(forecast_config, rules)
         return xp_v1.ComponentPredictor(forecast_config, rules)
 
     def decision_policy(
@@ -217,7 +226,9 @@ def unrunnable(strategy: Strategy) -> str | None:
     """Why :meth:`Strategy.forecast` cannot run this entry yet, or ``None`` if it can (MOD-05)."""
     recipe = strategy.forecaster
     if recipe.type != "recipe":
-        return f"{recipe.type} forecaster {recipe.model!r} cannot run until MOD-05 ports it"
+        return (
+            f"{recipe.type} forecaster {recipe.model!r} cannot run: no frozen-artefact loader yet"
+        )
     if recipe.model not in LIVE_MODELS:
         return f"forecaster model {recipe.model!r} has no live code"
     return None

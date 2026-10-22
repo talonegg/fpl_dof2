@@ -11,6 +11,7 @@ from __future__ import annotations
 import ast
 import dataclasses
 import inspect
+from types import ModuleType
 
 import numpy as np
 import pandas as pd
@@ -23,7 +24,7 @@ from fpl_dof.forecast.features import LeakageError
 from fpl_dof.forecast.xp_v1 import ComponentPredictor
 from fpl_dof.optimise.frame import ForecastFrameError
 from fpl_dof.rules.models import GameRules
-from fpl_dof.shadow import c1
+from fpl_dof.shadow import a, c1
 from test_decide import _forecast_config, _snapshot
 
 PRIOR = "2025/26"
@@ -168,11 +169,15 @@ _TUNED_CALLS = {
 }
 
 
-def test_no_hyperparameter_window_or_half_life_is_a_literal_in_c1() -> None:
-    """Every argument to a fit, a rolling window or a half-life comes from ``forecast.c1``: the
-    estimator keywords are config attributes, and no tuned call takes a number (``min_periods=1``,
-    use whatever history exists, is structural; flags such as ``ignore_na`` are not numbers)."""
-    tree = ast.parse(inspect.getsource(c1))
+@pytest.mark.parametrize("module", [c1, a], ids=lambda m: m.__name__.rsplit(".", 1)[-1])
+def test_no_hyperparameter_window_or_half_life_is_a_literal_in_a_challenger(
+    module: ModuleType,
+) -> None:
+    """Every argument to a fit, a rolling window or a half-life comes from the challenger's config
+    section (``forecast.c1``, ``forecast.a``): the estimator keywords are config attributes, and no
+    tuned call takes a number (``min_periods=1``, use whatever history exists, is structural; flags
+    such as ``ignore_na`` are not numbers)."""
+    tree = ast.parse(inspect.getsource(module))
     keywords = [
         node.value
         for node in ast.walk(tree)
@@ -204,8 +209,7 @@ def test_each_live_strategy_offers_the_harness_a_predictor(game_rules: GameRules
     assert engine.config.discrimination.minutes_v2 is False  # the entry's override applies
     assert isinstance(load_strategy("c3").predictor(game_rules, cfg), ComponentPredictor)
     assert isinstance(load_strategy("c1").predictor(game_rules, cfg), c1.C1Predictor)
-    with pytest.raises(NotImplementedError):
-        load_strategy("a").predictor(game_rules, cfg)
+    assert isinstance(load_strategy("a").predictor(game_rules, cfg), a.APredictor)
 
 
 def test_the_c1_predictor_scores_a_fold_as_the_harness_hands_it(game_rules: GameRules) -> None:

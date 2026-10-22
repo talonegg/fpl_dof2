@@ -125,10 +125,12 @@ def test_the_champion_strategy_stamps_a_valid_frame_that_survives_parquet(
 def test_a_strategy_without_a_live_forecaster_says_so(
     game_rules: GameRules, config: Config
 ) -> None:
-    with pytest.raises(NotImplementedError, match="a"):
-        load_strategy("a").forecast(
-            _snapshot(8), game_rules, config.model_copy(update={"forecast": CONFIG})
-        )
+    strategy = load_strategy("a")
+    frozen = strategy.model_copy(
+        update={"forecaster": strategy.forecaster.model_copy(update={"type": "frozen"})}
+    )
+    with pytest.raises(NotImplementedError, match="frozen"):
+        frozen.forecast(_snapshot(8), game_rules, config.model_copy(update={"forecast": CONFIG}))
 
 
 def test_the_captain_line_refuses_an_unknown_position_or_a_non_finite_number() -> None:
