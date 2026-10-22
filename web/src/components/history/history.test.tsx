@@ -4,6 +4,7 @@ import { installFetchStub, renderApp, resetAppState } from "../../test/render";
 import type { ModelHistoryEntry, ModelsHistory } from "../../contract/types";
 import { fetchModelsHistory, MODELS_HISTORY_URL } from "../../data/api";
 import { NAV_ITEMS } from "../../routes/nav";
+import { strategiesFixture } from "../../test/fixtures";
 
 const entry = (points: number, cumulative: number, rank: number, extra: Partial<ModelHistoryEntry> = {}): ModelHistoryEntry => ({
   points,
@@ -74,7 +75,8 @@ export const historyFixture: ModelsHistory = {
   ],
 };
 
-const bodies = { models_history_2526: historyFixture };
+// The checked-in file carries the old ids; the registry's aliases map them.
+const bodies = { models_history_2526: historyFixture, strategies: strategiesFixture };
 
 describe("model history page", () => {
   beforeEach(() => {
@@ -95,17 +97,17 @@ describe("model history page", () => {
     expect(within(page).getByTestId("history-caveat").textContent).toContain("Backtest, not real play");
     const rows = within(screen.getByTestId("history-summary")).getAllByRole("row").slice(1);
     expect(rows.map((r) => r.getAttribute("data-testid"))).toEqual([
-      "history-row-champion",
+      "history-row-c3",
       "history-row-a",
-      "history-row-challenger",
+      "history-row-c1",
       "history-row-engine",
     ]);
-    expect(screen.getByTestId("history-total-champion").textContent).toBe("120");
-    expect(screen.getByTestId("history-delta-champion").textContent).toBe("reference");
+    expect(screen.getByTestId("history-total-c3").textContent).toBe("120");
+    expect(screen.getByTestId("history-delta-c3").textContent).toBe("reference");
     const d = screen.getByTestId("history-delta-engine").textContent ?? "";
     expect(d).toContain("−15.00 [−20.00, −10.00]");
     expect(d).toContain("★");
-    expect(screen.getByTestId("history-delta-challenger").textContent).not.toContain("★");
+    expect(screen.getByTestId("history-delta-c1").textContent).not.toContain("★");
     expect(screen.getByTestId("history-unavailable").textContent).toContain("A + odds: unavailable — no realistic run");
   });
 
@@ -115,7 +117,7 @@ describe("model history page", () => {
     await screen.findByTestId("model-history");
     const chart = screen.getByTestId("history-chart");
     expect(chart.querySelectorAll("polyline")).toHaveLength(4);
-    expect(chart.querySelector("svg")?.getAttribute("aria-label")).toContain("Champion 120");
+    expect(chart.querySelector("svg")?.getAttribute("aria-label")).toContain("Champion (C3) 120");
     const table = screen.getByTestId("history-gw-table");
     expect(within(table).getAllByRole("row")).toHaveLength(4); // head, 2 GWs, total
     expect(within(table).getAllByText(/Haaland \(12\) \/ Salah/, { selector: "td" })).toHaveLength(2);
@@ -126,10 +128,10 @@ describe("model history page", () => {
     renderApp("/history");
     await screen.findByTestId("model-history");
     const group = screen.getByRole("radiogroup", { name: "Highlight model" });
-    expect(within(group).getAllByRole("radio")).toHaveLength(5);
-    expect((screen.getByTestId("history-model-a_odds") as HTMLButtonElement).disabled).toBe(true);
-    fireEvent.click(screen.getByTestId("history-model-challenger"));
-    expect(screen.getByTestId("history-row-challenger").className).toContain("is-highlight");
+    expect(within(group).getAllByRole("radio")).toHaveLength(4);
+    expect(screen.queryByTestId("history-model-a_odds")).toBeNull();
+    fireEvent.click(screen.getByTestId("history-model-c1"));
+    expect(screen.getByTestId("history-row-c1").className).toContain("is-highlight");
     expect(within(screen.getByTestId("history-gw-table")).getByText(/Palmer/)).toBeTruthy();
     expect(within(screen.getByTestId("history-gw-table")).getByText(/vice used/)).toBeTruthy();
     fireEvent.keyDown(screen.getByTestId("history-model-segmented"), { key: "ArrowRight" });
@@ -138,7 +140,7 @@ describe("model history page", () => {
     expect(screen.getByTestId("history-row-a").className).toContain("is-highlight");
     expect(screen.getByTestId("history-model-note").textContent).toContain("Model A: 110 pts, ranked 2 of 4");
     // The page's highlight is local: the global live-model choice stays the champion.
-    expect(screen.getByTestId("model-toggle-champion").getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByTestId("model-toggle-c3").getAttribute("aria-checked")).toBe("true");
   });
 
   it("says so when the file is missing", async () => {

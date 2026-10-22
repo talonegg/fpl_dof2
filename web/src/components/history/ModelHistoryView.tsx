@@ -1,10 +1,10 @@
 import { useState } from "react";
 import type { ModelsHistory } from "../../contract/types";
-import { MODEL_LABELS, parseModel } from "../../data/model";
+import { useRegistry } from "../../data/DataProvider";
+import { modelLabel, orderIds, seriesStyle } from "../../data/registry";
 import type { ModelChoice } from "../../data/model";
 import { ModelBadge } from "../models/ModelBadge";
 import { ModelSelector } from "../models/ModelSelector";
-import { COLOURS, DASHES } from "../models/modelStyle";
 import "../models/models.css";
 import "./history.css";
 
@@ -13,6 +13,8 @@ const signed = (v: number, dp = 2) => `${v > 0 ? "+" : v < 0 ? "−" : "±"}${Ma
 
 /** Cumulative points over the season, one line per model; the highlighted model is drawn on top. */
 function CumulativeChart({ history, ids, highlight }: { history: ModelsHistory; ids: ModelChoice[]; highlight: ModelChoice }) {
+  const registry = useRegistry();
+  const sty = (id: string) => seriesStyle(registry, id);
   const gws = history.gameweeks.map((g) => g.gameweek);
   if (gws.length === 0) return null;
   const max = Math.max(1, ...ids.map((m) => history.gameweeks[gws.length - 1].models[m]?.cumulative ?? 0));
@@ -27,7 +29,7 @@ function CumulativeChart({ history, ids, highlight }: { history: ModelsHistory; 
   const ticks = Array.from(new Set([0, 0.25, 0.5, 0.75, 1].map((f) => Math.round((max * f) / 100) * 100)));
   const order = [...ids.filter((m) => m !== highlight), highlight];
   const summary = ids
-    .map((m) => `${MODEL_LABELS[m]} ${pts(history.gameweeks[gws.length - 1].models[m]?.cumulative ?? 0)}`)
+    .map((m) => `${modelLabel(registry, m)} ${pts(history.gameweeks[gws.length - 1].models[m]?.cumulative ?? 0)}`)
     .join(", ");
   return (
     <figure className="history-chart" data-testid="history-chart">
@@ -53,9 +55,9 @@ function CumulativeChart({ history, ids, highlight }: { history: ModelsHistory; 
             data-model={m}
             points={history.gameweeks.map((g, i) => `${x(i)},${y(g.models[m]?.cumulative ?? 0)}`).join(" ")}
             fill="none"
-            stroke={COLOURS[m]}
+            stroke={sty(m).colour}
             strokeWidth={m === highlight ? 3.5 : 1.75}
-            strokeDasharray={DASHES[m]}
+            strokeDasharray={sty(m).dash}
             opacity={m === highlight ? 1 : 0.7}
           />
         ))}
@@ -64,9 +66,9 @@ function CumulativeChart({ history, ids, highlight }: { history: ModelsHistory; 
         {ids.map((m) => (
           <span key={m} className={`models-legend-item${m === highlight ? " is-highlight" : ""}`}>
             <svg width="24" height="8" aria-hidden="true">
-              <line x1="0" y1="4" x2="24" y2="4" stroke={COLOURS[m]} strokeWidth="3" strokeDasharray={DASHES[m]} />
+              <line x1="0" y1="4" x2="24" y2="4" stroke={sty(m).colour} strokeWidth="3" strokeDasharray={sty(m).dash} />
             </svg>
-            {MODEL_LABELS[m]}
+            {modelLabel(registry, m)}
           </span>
         ))}
         <span className="history-axis-note">x: gameweek · y: cumulative points</span>
@@ -77,12 +79,10 @@ function CumulativeChart({ history, ids, highlight }: { history: ModelsHistory; 
 
 /** `/history` — how the five frozen models would have played 2025/26 (a backtest). */
 export function ModelHistoryView({ history }: { history: ModelsHistory }) {
-  const ids = history.models
-    .filter((m) => m.available)
-    .map((m) => parseModel(m.id))
-    .filter((m): m is ModelChoice => m !== null);
+  const registry = useRegistry();
+  const ids = orderIds(registry, history.models.filter((m) => m.available).map((m) => m.id));
   const unavailable = history.models.filter((m) => !m.available);
-  const [highlight, setHighlight] = useState<ModelChoice>(ids.includes("champion") ? "champion" : ids[0]);
+  const [highlight, setHighlight] = useState<ModelChoice>(ids.includes(registry.champion) ? registry.champion : ids[0]);
   const summary = new Map(history.summary.map((s) => [s.model, s]));
   const ranked = [...history.summary].sort((a, b) => a.final_rank - b.final_rank);
   const sel = summary.get(highlight);
@@ -103,7 +103,7 @@ export function ModelHistoryView({ history }: { history: ModelsHistory }) {
         testId="history-model"
         note={
           sel
-            ? `${MODEL_LABELS[highlight]}: ${pts(sel.total)} pts, ranked ${sel.final_rank} of ${ids.length}.`
+            ? `${modelLabel(registry, highlight)}: ${pts(sel.total)} pts, ranked ${sel.final_rank} of ${ids.length}.`
             : undefined
         }
       />
@@ -124,7 +124,7 @@ export function ModelHistoryView({ history }: { history: ModelsHistory }) {
           </thead>
           <tbody>
             {ranked.map((s) => {
-              const m = parseModel(s.model) ?? "champion";
+              const m = s.model;
               const d = s.delta_vs_champion;
               return (
                 <tr key={s.model} className={m === highlight ? "is-highlight" : ""} data-testid={`history-row-${m}`}>
@@ -183,10 +183,10 @@ export function ModelHistoryView({ history }: { history: ModelsHistory }) {
               <th scope="col">GW</th>
               {ids.map((m) => (
                 <th scope="col" key={m} className={m === highlight ? "is-highlight" : ""}>
-                  {MODEL_LABELS[m]}
+                  {modelLabel(registry, m)}
                 </th>
               ))}
-              <th scope="col">{MODEL_LABELS[highlight]}: captain / vice</th>
+              <th scope="col">{modelLabel(registry, highlight)}: captain / vice</th>
               <th scope="col">Transfers</th>
             </tr>
           </thead>

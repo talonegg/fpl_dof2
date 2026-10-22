@@ -1135,6 +1135,11 @@ export interface Strategy {
   digest: string;
   /** Whether the strategy gets the multi-gameweek plan and chips. */
   plan: boolean;
+  /** Where the app finds this strategy's published week and plan, relative to the data directory; null where it publishes none. The app reads these paths and never builds one. */
+  artefacts: {
+    week: string | null;
+    plan: string | null;
+  };
 }
 
 /** The strategy registry as published (MOD-03, DL-86): every registered strategy — a forecaster paired with a decision policy — generated from the committed files under config/strategies/. Every per-strategy artefact names its strategy by the id and digest listed here. Additive in contract v1. */

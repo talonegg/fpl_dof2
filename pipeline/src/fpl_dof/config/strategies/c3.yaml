@@ -2,7 +2,7 @@
 # label, role and recipe. The field reference is fpl_dof.factory.registry.Strategy.
 id: c3
 label: Champion (C3)
-description: Engine + minutes_v2, price/position captain
+description: Engine forecasts with the minutes_v2 model; captain by price and position. The live advice.
 role: champion # promoted by DL-76; changing the champion is a role change plus a DL-nn
 published: true
 aliases: [C3, champion] # the frozen harness's key and the web's old id

@@ -93,15 +93,16 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
-            urlPattern: /\/data\/v1\/[^/]+\.json$/,
+            urlPattern: /\/data\/v1\/.+\.json$/,
             handler: "NetworkFirst",
             options: {
               cacheName: PUBLISHED_CACHE,
               // Long enough for a slow mobile connection to win, short enough that a reader with no
               // connection is not staring at a spinner before the cache answers.
               networkTimeoutSeconds: 4,
-              // Eight artefacts today; the headroom is for the contract growing, not for versions.
-              expiration: { maxEntries: 16 },
+              // Six fixed artefacts plus a week and a plan per published strategy (MOD-07); the headroom
+              // is for more strategies and a growing contract, not for versions.
+              expiration: { maxEntries: 40 },
               // A 404 is a real answer for `week.json` before the season starts (DL-20), but it is
               // not one worth keeping — caching it would outlive the publication that fixes it.
               cacheableResponse: { statuses: [200] },

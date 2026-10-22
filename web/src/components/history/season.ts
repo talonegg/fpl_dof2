@@ -1,6 +1,7 @@
 import type { Models } from "../../contract/types";
-import { MODEL_CHOICES } from "../../data/model";
 import type { ModelChoice } from "../../data/model";
+import { EMPTY_REGISTRY, orderIds } from "../../data/registry";
+import type { Registry } from "../../data/registry";
 
 /**
  * The current season, assembled from two sources that must never be confused:
@@ -46,14 +47,12 @@ export interface SeasonReplay {
   }[];
 }
 
-const isModel = (m: string): m is ModelChoice => (MODEL_CHOICES as readonly string[]).includes(m);
-
-export function buildSeason(replay: SeasonReplay | null, models: Models | null): Season {
+export function buildSeason(replay: SeasonReplay | null, models: Models | null, registry: Registry = EMPTY_REGISTRY): Season {
   const rows: SeasonRow[] = [];
   const replayLast = replay?.as_of_gameweek ?? 0;
   for (const g of replay?.gameweeks ?? []) {
     const points: SeasonRow["points"] = {};
-    for (const [m, e] of Object.entries(g.models)) if (isModel(m)) points[m] = e.points;
+    for (const [m, e] of Object.entries(g.models)) points[m] = e.points;
     rows.push({ gameweek: g.gameweek, phase: "replay", points, cumulative: {} });
   }
   const sameSeason = !replay || !models || models.season === replay.season;
@@ -61,13 +60,13 @@ export function buildSeason(replay: SeasonReplay | null, models: Models | null):
     for (const g of [...models.gameweeks].sort((a, b) => a.gameweek - b.gameweek)) {
       if (g.gameweek <= replayLast || !g.actual) continue;
       const points: SeasonRow["points"] = {};
-      for (const [m, a] of Object.entries(g.actual)) if (isModel(m) && a) points[m] = a.points;
+      for (const [m, a] of Object.entries(g.actual)) if (a) points[m] = a.points;
       if (Object.keys(points).length) rows.push({ gameweek: g.gameweek, phase: "prospective", points, cumulative: {} });
     }
   }
   const seen = new Set<ModelChoice>();
   rows.forEach((r) => Object.keys(r.points).forEach((m) => seen.add(m as ModelChoice)));
-  const ids = MODEL_CHOICES.filter((m) => seen.has(m));
+  const ids = orderIds(registry, seen);
   const totals: Season["totals"] = {};
   for (const m of ids) totals[m] = { replay: 0, prospective: 0, total: 0 };
   for (const r of rows) {

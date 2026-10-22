@@ -161,6 +161,11 @@ def test_strategies_json_validates_and_lists_every_registry_file() -> None:
     assert payload["champion"] == "c3"
     assert listed["c3"]["digest"] == digest(load_strategy("c3"))
     assert listed["c3"]["plan"] is True and listed["c1"]["plan"] is False
+    # The app reads each strategy's week and plan from here, never from a name it builds (MOD-07).
+    assert listed["c3"]["artefacts"] == {"week": "week.json", "plan": "plan.json"}
+    assert listed["c1"]["artefacts"] == {"week": "week_challenger.json", "plan": None}
+    unpublished = [s for s in payload["strategies"] if not s["published"]]
+    assert all(s["artefacts"] == {"week": None, "plan": None} for s in unpublished)
 
 
 def test_week_json_names_the_champion_by_registry_id_and_digest() -> None:

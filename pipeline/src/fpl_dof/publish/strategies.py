@@ -7,7 +7,20 @@ from __future__ import annotations
 
 from typing import Any
 
-from fpl_dof.factory.registry import champion, digest, strategies
+from fpl_dof.factory.registry import Strategy, champion, digest, strategies
+
+
+def _artefacts(s: Strategy) -> dict[str, str | None]:
+    """Where the app finds the strategy's week and plan, relative to the data directory.
+
+    The web reads these paths and never builds one; MOD-04 gives every strategy its own pair.
+    """
+    if not s.published:
+        return {"week": None, "plan": None}
+    if s.role == "champion":
+        return {"week": "week.json", "plan": "plan.json" if s.policy.plan else None}
+    # shortcut: one challenger file, until MOD-04 gives every strategy its own pair.
+    return {"week": "week_challenger.json", "plan": None}
 
 
 def build_strategies(*, contract_version: int) -> dict[str, Any]:
@@ -24,6 +37,7 @@ def build_strategies(*, contract_version: int) -> dict[str, Any]:
                 "aliases": list(s.aliases),
                 "digest": digest(s),
                 "plan": s.policy.plan,
+                "artefacts": _artefacts(s),
             }
             for s in strategies()
         ],

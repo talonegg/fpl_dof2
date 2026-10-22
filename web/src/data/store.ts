@@ -12,12 +12,21 @@ import type {
   Players,
   Rules,
   Squad,
+  Strategies,
   Week,
 } from "../contract/types";
 import { effectiveSquad } from "../components/squad/effective";
 import type { SeasonReplay } from "../components/history/season";
 import type { XpAccuracy } from "../contract/types";
-import { warmPublishedCache } from "./offline";
+import {
+  buildRegistry,
+  normaliseAccuracy,
+  normaliseHistory,
+  normaliseModels,
+  normaliseReplay,
+} from "./registry";
+import type { Registry } from "./registry";
+import { WARMED_ARTEFACTS, warmPublishedCache } from "./offline";
 import type { WarmOptions, WarmResult } from "./offline";
 
 /** Base for published data files. Never points outside this origin (Invariant 8). */
@@ -39,7 +48,7 @@ export interface ArtefactMap {
   squad: Squad;
   week: Week | null;
   plan: Plan | null;
-  week_challenger: Week | null;
+  strategies: Strategies | null;
   models: Models | null;
   history: History | null;
   fixtures: Fixtures | null;
@@ -61,11 +70,15 @@ export interface PublishedData {
   rules: Rules;
   players: Players;
   squad: Squad;
+  /** The champion's week and plan. */
   week: Week | null;
   plan: Plan | null;
-  challenger: Week | null;
   models: Models | null;
   publishedSquad: Squad;
+  registry: Registry;
+  /** Each published strategy's week and plan, by registry id, for those that publish one. */
+  weeks: Record<string, Week>;
+  plans: Record<string, Plan>;
 }
 
 export interface ArtefactState<T> {
@@ -76,28 +89,28 @@ export interface ArtefactState<T> {
   retry: () => void;
 }
 
-async function fetchRequired<T>(name: string): Promise<T> {
-  const res = await fetch(`${DATA_BASE}/${name}.json`);
+async function fetchRequired<T>(file: string): Promise<T> {
+  const res = await fetch(`${DATA_BASE}/${file}`);
   if (!res.ok) {
-    throw new Error(`Failed to load ${name}.json: ${res.status} ${res.statusText}`);
+    throw new Error(`Failed to load ${file}: ${res.status} ${res.statusText}`);
   }
   return (await res.json()) as T;
 }
 
-async function fetchNullable<T>(name: string): Promise<T | null> {
-  const res = await fetch(`${DATA_BASE}/${name}.json`);
+async function fetchNullable<T>(file: string): Promise<T | null> {
+  const res = await fetch(`${DATA_BASE}/${file}`);
   if (res.status === 404) return null;
   if (!res.ok) {
-    throw new Error(`Failed to load ${name}.json: ${res.status} ${res.statusText}`);
+    throw new Error(`Failed to load ${file}: ${res.status} ${res.statusText}`);
   }
   return (await res.json()) as T;
 }
 
-async function fetchLazy<T>(name: string): Promise<T | null> {
-  const res = await fetch(`${DATA_BASE}/${name}.json`);
+async function fetchLazy<T>(file: string): Promise<T | null> {
+  const res = await fetch(`${DATA_BASE}/${file}`);
   if (res.status === 404) return null;
   if (!res.ok) {
-    throw new Error(`Failed to load ${name}.json: ${res.status} ${res.statusText}`);
+    throw new Error(`Failed to load ${file}: ${res.status} ${res.statusText}`);
   }
   const contentType = res.headers.get("content-type") ?? "";
   if (contentType && !contentType.includes("json")) return null;
@@ -117,8 +130,16 @@ async function fetchStaticSafe<T>(url: string, validator: (body: unknown) => bod
   }
 }
 
-function isChallengerWeek(body: unknown): body is Week {
+function isWeek(body: unknown): body is Week {
   return typeof body === "object" && body !== null && "deadline" in body;
+}
+
+function isPlan(body: unknown): body is Plan {
+  return typeof body === "object" && body !== null && "deadline" in body;
+}
+
+function isStrategies(body: unknown): body is Strategies {
+  return typeof body === "object" && body !== null && Array.isArray((body as Strategies).strategies);
 }
 
 function isModels(body: unknown): body is Models {
@@ -154,7 +175,9 @@ class DataStore {
   readonly XP_ACCURACY_URL = XP_ACCURACY_URL;
 
   private cache = new Map<ArtefactKey, Promise<unknown>>();
+  private files = new Map<string, Promise<unknown>>();
   private publishedPromise: Promise<PublishedData> | null = null;
+  private registryPromise: Promise<Registry> | null = null;
 
   get<K extends ArtefactKey>(key: K): Promise<ArtefactMap[K]> {
     const existing = this.cache.get(key);
@@ -178,20 +201,60 @@ class DataStore {
     return promise as Promise<ArtefactMap[K]>;
   }
 
+  /** The strategy registry; a deployment without `strategies.json` gets the champion alone. */
+  registry(): Promise<Registry> {
+    this.registryPromise ??= this.get("strategies").then(buildRegistry);
+    return this.registryPromise;
+  }
+
+  /**
+   * One strategy's week or plan, at the path the registry publishes for it and nowhere else. A
+   * strategy that publishes none, or whose file is missing or unreadable, has none (DP-15).
+   */
+  async strategyFile<K extends "week" | "plan">(
+    kind: K,
+    id: string,
+  ): Promise<(K extends "week" ? Week : Plan) | null> {
+    const entry = (await this.registry()).entries.find((e) => e.id === id);
+    const path = entry?.artefacts[kind];
+    if (!path) return null;
+    const key = `${kind}:${path}`;
+    let promise = this.files.get(key);
+    if (!promise) {
+      promise = fetchStaticSafe(`${this.DATA_BASE}/${path}`, kind === "week" ? isWeek : isPlan);
+      this.files.set(key, promise);
+    }
+    return (await promise) as (K extends "week" ? Week : Plan) | null;
+  }
+
   loadPublished(): Promise<PublishedData> {
     if (!this.publishedPromise) {
       this.publishedPromise = Promise.all([
+        this.registry(),
         this.get("meta"),
         this.get("rules"),
         this.get("players"),
         this.get("squad"),
         this.get("week"),
         this.get("plan"),
-        this.get("week_challenger"),
         this.get("models"),
       ])
-        .then(([meta, rules, players, squad, week, plan, challenger, models]) => {
-          void warmPublishedCache({ dataBase: this.DATA_BASE });
+        .then(async ([registry, meta, rules, players, squad, week, plan, models]) => {
+          const weeks: Record<string, Week> = {};
+          const plans: Record<string, Plan> = {};
+          if (week) weeks[registry.champion] = week;
+          if (plan) plans[registry.champion] = plan;
+          // Every other published strategy, in parallel; one that fails to load simply has none.
+          await Promise.all(
+            registry.entries
+              .filter((e) => e.published && e.id !== registry.champion)
+              .map(async (e) => {
+                const [w, p] = await Promise.all([this.strategyFile("week", e.id), this.strategyFile("plan", e.id)]);
+                if (w) weeks[e.id] = w;
+                if (p) plans[e.id] = p;
+              }),
+          );
+          void this.warm();
           return {
             meta,
             rules,
@@ -199,9 +262,11 @@ class DataStore {
             squad: effectiveSquad(squad, week, players),
             week,
             plan,
-            challenger,
             models,
             publishedSquad: squad,
+            registry,
+            weeks,
+            plans,
           };
         })
         .catch((error: unknown) => {
@@ -214,7 +279,9 @@ class DataStore {
 
   reset(): void {
     this.cache.clear();
+    this.files.clear();
     this.publishedPromise = null;
+    this.registryPromise = null;
   }
 
   resetTrends(): void {
@@ -237,8 +304,12 @@ class DataStore {
     this.cache.delete(key);
   }
 
-  warm(options?: WarmOptions): Promise<WarmResult> {
-    return warmPublishedCache({ dataBase: this.DATA_BASE, ...options });
+  /** Warm the offline cache with the fixed artefacts and every file the registry publishes. */
+  async warm(options?: Partial<WarmOptions>): Promise<WarmResult> {
+    const registry = await this.registry();
+    const published = registry.entries.flatMap((e) => (e.published ? [e.artefacts.week, e.artefacts.plan] : []));
+    const names = [...WARMED_ARTEFACTS, ...published.filter((p): p is string => !!p).map((p) => p.replace(/\.json$/, ""))];
+    return warmPublishedCache({ dataBase: this.DATA_BASE, names, ...options });
   }
 
   private fetchArtefact(key: ArtefactKey): Promise<unknown> {
@@ -247,27 +318,36 @@ class DataStore {
       case "rules":
       case "players":
       case "squad":
-        return fetchRequired(key);
+        return fetchRequired(`${key}.json`);
       case "week":
       case "plan":
-        return fetchNullable(key);
-      case "week_challenger":
-        return fetchStaticSafe(`${this.DATA_BASE}/week_challenger.json`, isChallengerWeek);
+        // The champion's, at the path the registry publishes; nothing is published without one.
+        return this.registry().then((r) => {
+          const path = r.entries.find((e) => e.id === r.champion)?.artefacts[key];
+          return path ? fetchNullable(path) : null;
+        });
+      case "strategies":
+        return fetchStaticSafe(`${this.DATA_BASE}/strategies.json`, isStrategies);
       case "models":
-        return fetchStaticSafe(`${this.DATA_BASE}/models.json`, isModels);
+        return this.normalised(fetchStaticSafe(`${this.DATA_BASE}/models.json`, isModels), normaliseModels);
       case "history":
       case "fixtures":
       case "league":
       case "health":
       case "log":
-        return fetchLazy(key);
+        return fetchLazy(`${key}.json`);
       case "models_history_2526":
-        return fetchStaticSafe(this.MODELS_HISTORY_URL, isModelsHistory);
+        return this.normalised(fetchStaticSafe(this.MODELS_HISTORY_URL, isModelsHistory), normaliseHistory);
       case "models_history_2627_replay":
-        return fetchStaticSafe(this.SEASON_REPLAY_URL, isSeasonReplay);
+        return this.normalised(fetchStaticSafe(this.SEASON_REPLAY_URL, isSeasonReplay), normaliseReplay);
       case "xp_accuracy":
-        return fetchStaticSafe(this.XP_ACCURACY_URL, isXpAccuracy);
+        return this.normalised(fetchStaticSafe(this.XP_ACCURACY_URL, isXpAccuracy), normaliseAccuracy);
     }
+  }
+
+  private async normalised<T>(body: Promise<T | null>, fix: (registry: Registry, body: T) => T): Promise<T | null> {
+    const [loaded, registry] = await Promise.all([body, this.registry()]);
+    return loaded && fix(registry, loaded);
   }
 }
 
