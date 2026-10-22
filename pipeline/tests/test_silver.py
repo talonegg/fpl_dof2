@@ -15,6 +15,7 @@ import pandas as pd
 import pytest
 import respx
 
+from fpl_dof.artefacts import NoBronzeError, read_rules
 from fpl_dof.config import Config
 from fpl_dof.paths import DataLayout
 from fpl_dof.pipeline import StageContext
@@ -169,7 +170,7 @@ def test_reading_a_missing_table_says_what_to_do(tmp_path: Path) -> None:
 
 
 def test_transform_without_bronze_says_to_ingest_first(config: Config, layout: DataLayout) -> None:
-    with pytest.raises(transform.NoBronzeError, match="fpl-dof ingest"):
+    with pytest.raises(NoBronzeError, match="fpl-dof ingest"):
         transform.run(_ctx(config, layout))
 
 
@@ -294,15 +295,15 @@ def test_rules_are_written_alongside_the_tables(
     config: Config, populated_bronze: DataLayout
 ) -> None:
     transform.run(_ctx(config, populated_bronze))
-    rules = transform.read_rules(_ctx(config, populated_bronze), "2026/27")
+    rules = read_rules(_ctx(config, populated_bronze), "2026/27")
     assert isinstance(rules, GameRules)
     assert rules.squad.budget == 100.0
     assert rules.source_snapshot_sha256 is not None, "rules must be traceable to a snapshot"
 
 
 def test_reading_rules_before_transform_is_an_error(config: Config, layout: DataLayout) -> None:
-    with pytest.raises(transform.NoBronzeError, match="transform"):
-        transform.read_rules(_ctx(config, layout), "2026/27")
+    with pytest.raises(NoBronzeError, match="transform"):
+        read_rules(_ctx(config, layout), "2026/27")
 
 
 def test_replay_prices_reconstructs_price_history_deterministically(
