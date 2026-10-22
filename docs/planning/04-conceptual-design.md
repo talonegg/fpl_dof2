@@ -335,7 +335,8 @@ graph LR
 | M8 | Expected BPS ranked against a population distribution | Not ranked within the match |
 
 Live, the backtest and the chip replay fit through one interface, `fit_as_of` (`forecast/fit.py`);
-only the C1 challenger fits on its own (03 §12 P1). The published-model
+the C1 challenger has its own `fit_as_of` (`shadow/c1.py`) on its own features, and both reach the
+walk-forward harness through `Strategy.predictor` (§13). The published-model
 choice is implicit in the stage, and points arithmetic is duplicated across `rules/scoring.py`,
 `xp_v0` and `xp_v1` (03 §12 P6).
 
@@ -469,7 +470,7 @@ Each re-encodes legality, solver construction is repeated, and `optimiser.solver
 
 **What the engine reads** is the forecast frame, version `FORECAST_FRAME_VERSION` in
 `optimise/frame.py` (MOD-02). Every entry point — `optimise_squad`, `recommend_transfers`,
-`build_plan` and C1's forecaster (which checks the champion frame it borrows from) — validates it first and refuses a frame that breaks it, with
+`build_plan` and every forecaster's own output (`xp_v1`, `xp_v0`, C1) — validates it first and refuses a frame that breaks it, with
 every failing column named; nothing is coerced. Required: `player_id` (unique), `position`,
 `team_id`, `price`, `xp_next`, `xp_horizon` and their `_sd`, and `start_probability` in [0, 1]. Every
 `xp_gw_<n>` must come with `xp_gw_<n>_sd` and the reverse. Every sd is a float, never negative, never
@@ -781,7 +782,7 @@ models:
 | --- | --- |
 | Rules | `rules` — only what FPL does not publish (DL-17) |
 | Sources | `http`, `sources` (overrides, precedence, resolution, backfill), `retention` |
-| Models | `forecast` (priors, shrinkage, horizon, flags, published model, duty table), `backtest` |
+| Models | `forecast` (priors, shrinkage, horizon, flags, published model, duty table, `c1`'s hyperparameters and seed), `backtest` |
 | Decision | `optimiser`, `transfers`, `decision` (horizon, chips, risk, simulation, candidates, overrides), `alerts` |
 | Owner | `entry` — IDs by environment variable (DL-44), declared squad |
 | Running | `quality`, `publish`, `schedule`, `runtime` |
@@ -839,13 +840,18 @@ changes mid-season; promotion needs the
 Four mechanisms, none promoting automatically:
 
 - **Flagged variants** in the chain, each graded per flag in the backtest (DL-47).
-- **The challenger, `c1`** (`shadow/c1.py`, reached through `Strategy.forecast`): its own
-  gradient-boosted P(plays) and points models for the next gameweek, decided by the same `decide`
-  as the champion and published as `week_c1.json`, with `plan: false` until MOD-05 gives it a
-  horizon of its own. A failure records "no advice" with its reason there and in the ledger,
-  and stops nothing else (NFR-15). It borrows
-  the champion's sd columns, its per-gameweek means beyond the next gameweek and B0's line until
-  MOD-05 gives it its own, and builds its features outside the forecast seam (03 §12 P1).
+- **The challenger, `c1`** (`shadow/c1.py`, reached through `Strategy.forecast`, and through
+  `Strategy.predictor` for the walk-forward harness): per position, a gradient-boosted P(plays)
+  and points-if-plays model for the next gameweek, decided by the same `decide` as the champion
+  and published as `week_c1.json`. Its frame is its own (MOD-05): mean P(play) x points | play,
+  with P(play) scaled by availability news as the champion's is; sd from the two-state mixture
+  (the champion's `mixture_moments`) with points | play spread by the per-position residuals,
+  floored; B0 fitted on its own training rows. It forecasts one gameweek (`horizon_gameweeks` 1),
+  so it runs `plan: false`. Its features are declared as `FeatureSpec`s, stamped `as_of` and
+  checked by `assert_no_look_ahead`; it trains on every season silver holds (`all_seasons`),
+  keyed by `player_code`, with rolling features reset each season. Hyperparameters, windows,
+  half-lives and the seed are `forecast.c1` (DP-06). A failure records "no advice" with its reason
+  there and in the ledger, and stops nothing else (NFR-15).
 - **The monolith**, backtest only (DL-53).
 - **The prospective harness**: five models frozen before each deadline, scored after, published in
   `models.json` under their registry ids and compared on `/models`
@@ -894,7 +900,7 @@ scorer) read through `sources.LiveFeed` rather than the ingest stage (REM-06, RE
 5. Turn it on only past the E8 §5 bar, recording the decision.
 
 Live, the backtest and the chip replay all fit through `fit_as_of`, so a new input reaches them
-together; C1 fits on its own (03 §12 P1).
+together; C1 builds its own features and does not see it.
 
 ### 14.3 Adding an optimiser constraint
 

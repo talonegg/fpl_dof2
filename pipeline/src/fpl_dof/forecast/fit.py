@@ -81,16 +81,19 @@ def training_set(
     return training
 
 
+def availability(players: pd.DataFrame, config: ForecastConfig) -> pd.Series:
+    """Each player's availability this week: the stated chance of playing, else the status flag's
+    multiplier. What scales P(play) in every forecaster, so the news reaches each the same way."""
+    flagged = pd.to_numeric(players["status"].map(config.status_multiplier), errors="coerce")
+    stated = pd.to_numeric(players["chance_of_playing_next_round"], errors="coerce") / 100.0
+    return stated.where(stated.notna(), flagged.fillna(0.0)).astype(float).clip(0.0, 1.0)
+
+
 def _identity(players: pd.DataFrame, config: ForecastConfig) -> pd.DataFrame:
     """The published player record, indexed by ``player_code``, plus availability and confidence."""
     frame = players.copy()
     frame["player_code"] = frame["code"].map(as_int)
-
-    availability = pd.to_numeric(
-        frame["status"].map(config.status_multiplier), errors="coerce"
-    ).fillna(0.0)
-    stated = pd.to_numeric(frame["chance_of_playing_next_round"], errors="coerce") / 100.0
-    frame["availability"] = stated.where(stated.notna(), availability).astype(float).clip(0.0, 1.0)
+    frame["availability"] = availability(frame, config)
 
     columns = [column for column in IDENTITY_COLUMNS if column in frame.columns]
     identity = frame[["player_code", *columns, "availability"]].drop_duplicates("player_code")

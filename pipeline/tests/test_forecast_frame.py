@@ -21,7 +21,7 @@ from conftest import before_next_deadline
 from decisions import OPTIMISER, decision, fixture_table, forecast, pool, state
 from fpl_dof.config.models import Config, TransferConfig
 from fpl_dof.factory.registry import champion, digest, load_strategy
-from fpl_dof.forecast import Forecast, ForecastInputs, publishable
+from fpl_dof.forecast import ForecastInputs, publishable
 from fpl_dof.forecast.xp_v0 import MODEL_NAME as XP_V0
 from fpl_dof.forecast.xp_v1 import MODEL_NAME as XP_V1
 from fpl_dof.optimise.captain import PricePositionLine, pick_captains
@@ -30,7 +30,6 @@ from fpl_dof.optimise.plan import build_plan
 from fpl_dof.optimise.squad import optimise_squad
 from fpl_dof.optimise.transfer import recommend_transfers
 from fpl_dof.rules.models import GameRules
-from fpl_dof.shadow import c1
 from test_xp_v1_live import (
     CONFIG,
     TEAMS,
@@ -182,13 +181,10 @@ def _entry_points(rules: GameRules) -> dict[str, Callable[[pd.DataFrame], object
             optimiser=OPTIMISER,
             fixtures=fixture_table(squad, GAMEWEEKS),
         ),
-        "c1": lambda f: c1.forecast(
-            _snapshot(8), rules, CONFIG, Forecast(frame=f, model="xp_v1", fallback_reason=None)
-        ),
     }
 
 
-@pytest.mark.parametrize("entry", ["recommend_transfers", "optimise_squad", "build_plan", "c1"])
+@pytest.mark.parametrize("entry", ["recommend_transfers", "optimise_squad", "build_plan"])
 def test_every_engine_entry_point_refuses_a_frame_without_variance(
     game_rules: GameRules, entry: str
 ) -> None:

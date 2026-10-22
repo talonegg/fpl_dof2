@@ -7,12 +7,12 @@ published: true
 aliases: [C1, challenger] # the frozen harness's key and the web's old id
 forecaster:
   type: recipe
-  model: c1_gbm_xg_minutes # shadow/c1.py; its hyperparameters move into config in MOD-05
+  model: c1_gbm_xg_minutes # shadow/c1.py; hyperparameters and seed in forecast.c1
   config: {}
-  training_window: current_season # as the champion: the archive cannot change this training set
+  training_window: all_seasons # prior seasons from the archive plus the current, as its frozen original (DL-89)
 policy:
   captain_rule: price_position
-  # Off until MOD-05: its means beyond the next gameweek are the champion's, borrowed, so a plan
-  # of its own would be the champion's horizon under C1's name. MOD-05 gives it its own horizon.
+  # C1 forecasts the next gameweek only (a one-gameweek horizon), so a plan of its own would be
+  # that one gameweek and zeros beyond it.
   plan: false
-requires: [fixture] # player_gameweek is optional: with none played yet the recipe falls back (DL-46)
+requires: [player_gameweek, fixture] # no cold-start fallback: with no played history, no advice
