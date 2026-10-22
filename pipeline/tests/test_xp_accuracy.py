@@ -85,8 +85,8 @@ def test_paired_compares_every_strategy_with_the_champion() -> None:
     assert all(set(r) == set(PAIRED_FIELDS) for r in out)
     assert [(r["model"], r["comparator"]) for r in out] == [
         ("c1", "c3"),
-        ("a", "c3"),
         ("engine", "c3"),
+        ("a", "c3"),
     ]
     assert out[0]["mean_delta"] == pytest.approx(-0.1)
 

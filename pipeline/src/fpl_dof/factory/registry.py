@@ -13,6 +13,7 @@ resolved once by :func:`resolve_alias`.
 
 from __future__ import annotations
 
+import dataclasses
 import functools
 import hashlib
 import json
@@ -20,10 +21,11 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Literal
 
+import pandas as pd
 import yaml
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_validator
 
-from fpl_dof.config.models import CaptainRule, Config
+from fpl_dof.config.models import CaptainRule, Config, ForecastConfig
 from fpl_dof.decision import DecisionPolicy
 from fpl_dof.forecast import xp_v1
 from fpl_dof.forecast.entry import Forecast, publishable
@@ -63,7 +65,19 @@ class Forecaster(_Entry):
     config: dict[str, Any] = Field(
         default_factory=dict, description="Overrides on the shipped forecast config"
     )
-    training_window: str = Field(description="What the forecaster is fitted on")
+    training_window: Literal["current_season", "all_seasons"] = Field(
+        description=(
+            "Which seasons of player-gameweek history the forecaster is fitted on. "
+            "`current_season` keeps the champion's training set fixed when the archive is "
+            "enabled; `all_seasons` takes every season silver holds."
+        )
+    )
+
+    @field_validator("config")
+    @classmethod
+    def _config_overrides_the_shipped_forecast_config(cls, value: dict[str, Any]) -> dict[str, Any]:
+        _forecast_config(ForecastConfig(), value)  # unknown keys or bad values raise here
+        return value
 
 
 class Policy(_Entry):
@@ -101,23 +115,34 @@ class Strategy(_Entry):
     ) -> Forecast:
         """This strategy's forecast frame, validated and stamped with its id and digest.
 
-        Live entry points: the shipped ``xp_v1`` recipe (with its ``xp_v0`` cold-start fallback)
-        and C1, which borrows its variance, later gameweeks and captain line from
-        ``variance_from`` — the champion's forecast — until MOD-05 gives it its own. Config
-        overrides and the frozen ports arrive with MOD-05; asking for one is an error, never a
-        quiet substitute (and the registry refuses to publish one, :func:`unrunnable`).
+        Live entry points: the ``xp_v1`` recipe (with its ``xp_v0`` cold-start fallback) on the
+        shipped forecast config with this entry's overrides, and C1, which borrows its variance,
+        later gameweeks and captain line from ``variance_from`` — the champion's forecast — until
+        MOD-05 gives it its own. The frozen ports arrive with MOD-05; asking for one is an error,
+        never a quiet substitute (and the registry refuses to publish one, :func:`unrunnable`).
+        A required silver table that is absent or empty is an error naming it, so the stage
+        records "no advice" rather than a forecast on missing data.
         """
         recipe = self.forecaster
         if (problem := unrunnable(self)) is not None:
             raise NotImplementedError(f"{self.id}: {problem}")
+        missing = [t.value for t in self.requires if _is_empty(inputs, t)]
+        if missing:
+            raise ValueError(f"{self.id}: required silver table(s) absent or empty: {missing}")
+        if recipe.training_window == "current_season" and inputs.player_gameweek is not None:
+            history = inputs.player_gameweek
+            inputs = dataclasses.replace(
+                inputs, player_gameweek=history[history["season"] == rules.season]
+            )
+        forecast_config = _forecast_config(config.forecast, recipe.config)
         if recipe.model == c1.MODEL_NAME:
             if variance_from is None:
                 raise ValueError(
                     f"{self.id}: C1 borrows the champion's variance; pass its forecast"
                 )
-            result = c1.forecast(inputs, rules, config.forecast, variance_from)
+            result = c1.forecast(inputs, rules, forecast_config, variance_from)
         else:
-            result = publishable(inputs, rules, config.forecast)
+            result = publishable(inputs, rules, forecast_config)
         result.frame[STRATEGY_COLUMN] = self.id
         result.frame[STRATEGY_DIGEST_COLUMN] = digest(self, config)
         return result
@@ -148,13 +173,44 @@ class Strategy(_Entry):
         )
 
 
+def _deep_merge(base: dict[str, Any], over: dict[str, Any]) -> dict[str, Any]:
+    return {
+        k: _deep_merge(base[k], v) if isinstance(v, dict) and isinstance(base.get(k), dict) else v
+        for k, v in {**base, **over}.items()
+    }
+
+
+def _forecast_config(base: ForecastConfig, overrides: dict[str, Any]) -> ForecastConfig:
+    """``base`` with ``overrides`` deep-merged and re-validated: an unknown key is an error."""
+    if not overrides:
+        return base
+    return ForecastConfig.model_validate(_deep_merge(base.model_dump(), overrides))
+
+
+#: The silver tables the forecast inputs carry; a ``requires`` entry outside it cannot be checked
+#: here (``team_match_expectation`` arrives with ``a_odds``, MOD-05).
+_INPUT_OF_TABLE = {
+    Table.PLAYER_GAMEWEEK: "player_gameweek",
+    Table.FIXTURE: "fixtures",
+    Table.PLAYER: "players",
+    Table.TEAM: "teams",
+    Table.GAMEWEEK: "gameweeks",
+    Table.PLAYER_SEASON_HISTORY: "history",
+    Table.PLAYER_METRIC: "metrics",
+}
+
+
+def _is_empty(inputs: ForecastInputs, table: Table) -> bool:
+    name = _INPUT_OF_TABLE.get(table)
+    frame: pd.DataFrame | None = getattr(inputs, name) if name else None
+    return name is not None and (frame is None or frame.empty)
+
+
 def unrunnable(strategy: Strategy) -> str | None:
     """Why :meth:`Strategy.forecast` cannot run this entry yet, or ``None`` if it can (MOD-05)."""
     recipe = strategy.forecaster
     if recipe.type != "recipe":
         return f"{recipe.type} forecaster {recipe.model!r} cannot run until MOD-05 ports it"
-    if recipe.config:
-        return f"forecaster config overrides {recipe.config} cannot run until MOD-05"
     if recipe.model not in LIVE_MODELS:
         return f"forecaster model {recipe.model!r} has no live code"
     return None

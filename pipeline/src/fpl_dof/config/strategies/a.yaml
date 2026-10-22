@@ -9,7 +9,7 @@ forecaster:
   type: frozen
   model: comp_A # the frozen bundle's factory
   config: {}
-  training_window: prior_seasons_and_current
+  training_window: all_seasons # prior seasons from the archive plus the current
 policy:
   captain_rule: price_position
   plan: false

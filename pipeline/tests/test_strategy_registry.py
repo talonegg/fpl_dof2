@@ -40,7 +40,7 @@ def _entry(sid: str, **over: Any) -> dict[str, Any]:
         "role": "challenger",
         "published": over.get("role") == "champion",
         "aliases": [],
-        "forecaster": {"type": "recipe", "model": "xp_v1", "training_window": "w"},
+        "forecaster": {"type": "recipe", "model": "xp_v1", "training_window": "current_season"},
         "policy": {"captain_rule": "price_position", "plan": False},
         "requires": ["player_gameweek"],
     }
@@ -63,7 +63,7 @@ def test_shipped_registry_has_exactly_one_champion_and_unique_ids() -> None:
 
 def test_shipped_registry_names_the_dl87_strategies() -> None:
     assert champion().id == "c3"
-    assert {s.id for s in published_strategies()} == {"c3", "c1"}
+    assert {s.id for s in published_strategies()} == {"c3", "c1", "engine"}
     assert {s.id for s in strategies()} == {"c3", "c1", "engine", "a", "a_odds"}
 
 
@@ -186,15 +186,9 @@ def test_an_unpublished_champion_is_refused(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "forecaster",
     [
-        {"type": "frozen", "model": "xp_v1", "training_window": "w"},
-        {
-            "type": "recipe",
-            "model": "xp_v1",
-            "config": {"discrimination": {"minutes_v2": False}},
-            "training_window": "w",
-        },
+        {"type": "frozen", "model": "xp_v1", "training_window": "current_season"},
     ],
-    ids=["frozen", "config-overrides"],
+    ids=["frozen"],
 )
 def test_a_published_strategy_must_be_one_strategy_forecast_can_run(
     tmp_path: Path, forecaster: dict[str, Any]
@@ -210,6 +204,33 @@ def test_unpublished_strategy_may_name_a_model_not_yet_ported(tmp_path: Path) ->
     later = _entry("y")
     later["forecaster"] = later["forecaster"] | {"type": "frozen", "model": "not_ported"}
     assert len(load_registry(_write(tmp_path, _entry("x", role="champion"), later))) == 2
+
+
+def test_forecaster_config_overrides_are_validated_against_the_forecast_config(
+    tmp_path: Path,
+) -> None:
+    ok = _entry("y")
+    ok["forecaster"] = ok["forecaster"] | {"config": {"discrimination": {"minutes_v2": False}}}
+    assert len(load_registry(_write(tmp_path / "ok", _entry("x", role="champion"), ok))) == 2
+    bad = _entry("y")
+    bad["forecaster"] = bad["forecaster"] | {"config": {"discrimination": {"no_such_flag": 1}}}
+    with pytest.raises(RegistryError, match="no_such_flag"):
+        load_registry(_write(tmp_path / "bad", _entry("x", role="champion"), bad))
+
+
+def test_the_digest_covers_the_forecaster_config_overrides(config: Config) -> None:
+    engine = load_strategy("engine")
+    other = engine.model_copy(
+        update={"forecaster": engine.forecaster.model_copy(update={"config": {}})}
+    )
+    assert digest(engine, config) != digest(other, config)
+
+
+def test_an_unknown_training_window_is_refused(tmp_path: Path) -> None:
+    bad = _entry("x", role="champion")
+    bad["forecaster"] = bad["forecaster"] | {"training_window": "knowable_at_deadline"}
+    with pytest.raises(RegistryError, match="training_window"):
+        load_registry(_write(tmp_path, bad))
 
 
 def test_an_invalid_file_is_refused(tmp_path: Path) -> None:
@@ -246,6 +267,7 @@ def test_strategies_json_validates_and_lists_every_registry_file(config: Config)
     # The app reads each strategy's week and plan from here, never from a name it builds (MOD-07).
     assert listed["c3"]["artefacts"] == {"week": "week.json", "plan": "plan.json"}
     assert listed["c1"]["artefacts"] == {"week": "week_c1.json", "plan": None}
+    assert listed["engine"]["artefacts"] == {"week": "week_engine.json", "plan": None}
     unpublished = [s for s in payload["strategies"] if not s["published"]]
     assert all(s["artefacts"] == {"week": None, "plan": None} for s in unpublished)
 
