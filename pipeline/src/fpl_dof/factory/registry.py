@@ -28,6 +28,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from fpl_dof.config.models import CaptainRule, Config, ForecastConfig
 from fpl_dof.decision import DecisionPolicy
 from fpl_dof.forecast import xp_v1
+from fpl_dof.forecast.backtest import StrategyPredictor
 from fpl_dof.forecast.entry import Forecast, publishable
 from fpl_dof.forecast.inputs import ForecastInputs
 from fpl_dof.obs.logging import get_logger
@@ -110,15 +111,12 @@ class Strategy(_Entry):
         inputs: ForecastInputs,
         rules: GameRules,
         config: Config,
-        *,
-        variance_from: Forecast | None = None,
     ) -> Forecast:
         """This strategy's forecast frame, validated and stamped with its id and digest.
 
-        Live entry points: the ``xp_v1`` recipe (with its ``xp_v0`` cold-start fallback) on the
-        shipped forecast config with this entry's overrides, and C1, which borrows its variance,
-        later gameweeks and captain line from ``variance_from`` — the champion's forecast — until
-        MOD-05 gives it its own. The frozen ports arrive with MOD-05; asking for one is an error,
+        Live entry points: the ``xp_v1`` recipe (with its ``xp_v0`` cold-start fallback) and C1,
+        each on the shipped forecast config with this entry's overrides, each with its own
+        variance and captain line. The frozen ports arrive with MOD-05; asking for one is an error,
         never a quiet substitute (and the registry refuses to publish one, :func:`unrunnable`).
         A required silver table that is absent or empty is an error naming it, so the stage
         records "no advice" rather than a forecast on missing data.
@@ -136,16 +134,25 @@ class Strategy(_Entry):
             )
         forecast_config = _forecast_config(config.forecast, recipe.config)
         if recipe.model == c1.MODEL_NAME:
-            if variance_from is None:
-                raise ValueError(
-                    f"{self.id}: C1 borrows the champion's variance; pass its forecast"
-                )
-            result = c1.forecast(inputs, rules, forecast_config, variance_from)
+            result = c1.forecast(inputs, rules, forecast_config)
         else:
             result = publishable(inputs, rules, forecast_config)
         result.frame[STRATEGY_COLUMN] = self.id
         result.frame[STRATEGY_DIGEST_COLUMN] = digest(self, config)
         return result
+
+    def predictor(self, rules: GameRules, config: Config) -> StrategyPredictor:
+        """This strategy's forecaster behind the walk-forward harness's fit-and-predict interface,
+        on the shipped forecast config with this entry's overrides (MOD-05, for MOD-08).
+
+        Its training window is the caller's to apply: the harness hands it the history to fit on.
+        """
+        if (problem := unrunnable(self)) is not None:
+            raise NotImplementedError(f"{self.id}: {problem}")
+        forecast_config = _forecast_config(config.forecast, self.forecaster.config)
+        if self.forecaster.model == c1.MODEL_NAME:
+            return c1.C1Predictor(forecast_config, rules)
+        return xp_v1.ComponentPredictor(forecast_config, rules)
 
     def decision_policy(
         self, config: Config, captain_line: PricePositionLine | None

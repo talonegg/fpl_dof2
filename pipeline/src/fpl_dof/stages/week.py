@@ -87,7 +87,7 @@ class Snapshot:
     state: SquadState
     inputs: ForecastInputs
     champion: Forecast
-    """The forecast stage's frame and B0 line. C1 borrows from it (see ``Strategy.forecast``)."""
+    """The forecast stage's frame and B0 line: the champion's forecast, decided first."""
     fixtures: pd.DataFrame | None
     chips: pd.DataFrame | None
     last_gameweek: int
@@ -297,9 +297,7 @@ def _champion_plan(
 
 
 def _advise(snapshot: Snapshot, strategy: Strategy) -> Advice:
-    forecast = strategy.forecast(
-        snapshot.inputs, snapshot.rules, snapshot.config, variance_from=snapshot.champion
-    )
+    forecast = strategy.forecast(snapshot.inputs, snapshot.rules, snapshot.config)
     decision = decide(
         forecast.frame,
         snapshot.state,

@@ -60,7 +60,7 @@ def publishable(inputs: ForecastInputs, rules: GameRules, config: ForecastConfig
                 model=live.MODEL_NAME,
                 fallback_reason=None,
                 component_description=description if isinstance(description, dict) else None,
-                captain_line=_captain_line(b0),
+                captain_line=price_position_line(b0),
             )
 
     log.warning(
@@ -73,11 +73,12 @@ def publishable(inputs: ForecastInputs, rules: GameRules, config: ForecastConfig
         frame=validate_forecast_frame(frame),
         model=xp_v0.MODEL_NAME,
         fallback_reason=reason,
-        captain_line=_captain_line(xp_v0.fit_captain_line(inputs)),
+        captain_line=price_position_line(xp_v0.fit_captain_line(inputs)),
     )
 
 
-def _captain_line(b0: FittedBaseline | None) -> PricePositionLine | None:
+def price_position_line(b0: FittedBaseline | None) -> PricePositionLine | None:
+    """B0 as the price-and-position captain rule's input, or ``None`` with nothing to fit on."""
     if b0 is None:
         return None
     return PricePositionLine(
@@ -103,4 +104,4 @@ def _cold_start_reason(inputs: ForecastInputs, config: ForecastConfig) -> str | 
     )
 
 
-__all__ = ["Forecast", "publishable"]
+__all__ = ["Forecast", "price_position_line", "publishable"]

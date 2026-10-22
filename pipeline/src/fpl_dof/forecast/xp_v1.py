@@ -23,6 +23,7 @@ averaging conditional variances would do — throws away exactly the uncertainty
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 import pandas as pd
@@ -422,11 +423,7 @@ def forecast_player(
             minutes=minutes,
         )
 
-    expected = sum(probability * mean for probability, mean, _, _ in states)
-    second_moment = sum(
-        probability * (variance + mean**2) for probability, mean, variance, _ in states
-    )
-    variance = max(0.0, second_moment - expected**2)
+    expected, variance = mixture_moments([(p, mean, var) for p, mean, var, _ in states])
 
     blended = {
         name: float(sum(probability * parts[name] for probability, _, _, parts in states))
@@ -439,6 +436,20 @@ def forecast_player(
         components=blended,
         minutes=minutes,
     )
+
+
+def mixture_moments(states: Sequence[tuple[float, float, float]]) -> tuple[float, float]:
+    """Mean and variance of a mixture of ``(probability, mean, variance)`` states.
+
+    The module docstring's two formulas, in one place for every forecaster that writes its points
+    as a mixture over whether and how long a player plays (Invariant 6): the between-state term is
+    the one that matters, so it is never written twice.
+    """
+    expected = sum(probability * mean for probability, mean, _ in states)
+    second_moment = sum(
+        probability * (variance + mean**2) for probability, mean, variance in states
+    )
+    return expected, max(0.0, second_moment - expected**2)
 
 
 def score_player(
@@ -522,6 +533,23 @@ class ComponentPredictor:
             },
             index=features.index,
         )
+
+    def fit_as_of(
+        self,
+        history: pd.DataFrame,
+        deadline: pd.Timestamp,
+        *,
+        training: pd.DataFrame | None = None,
+        season: str,
+    ) -> None:
+        """Fit through the one interface live and the replay use, on the fold's own season
+        (PIPE-13, REM-08): what the harness does for this predictor (``StrategyPredictor``)."""
+        from fpl_dof.forecast.fit import fit_as_of as fit_chain  # fit imports this module
+
+        fitted = fit_chain(
+            history, deadline, self.config, self.rules, training=training, season=season
+        )
+        self.models = fitted.models
 
     def fit(self, training: pd.DataFrame) -> None:
         from fpl_dof.forecast.models import fit_components
@@ -681,6 +709,7 @@ __all__ = [
     "fixture_opposition",
     "forecast_player",
     "league_average_opposition",
+    "mixture_moments",
     "row_opposition",
     "score_player",
     "team_matches",

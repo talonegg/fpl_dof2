@@ -1122,6 +1122,73 @@ class FeatureConfig(_Section):
     prior_season: PriorSeasonConfig = PriorSeasonConfig()
 
 
+class C1Config(_Section):
+    """C1's tunables: the boosted xG-and-minutes challenger (``shadow/c1.py``, MOD-05, DP-06).
+
+    The model values are the frozen candidate's (``backtest/vector_models.py``, kind ``xg2``), the
+    configuration that scored +6.70 XI points per gameweek over the engine in the walk-forward
+    backtest; changing one is a model change, graded before it ships (E8 §5). ``seed`` and
+    ``early_stopping`` are new: the frozen fits were unseeded, so two fits on the same data could
+    differ.
+    """
+
+    max_iter: int = Field(
+        default=200,
+        gt=0,
+        description="Boosting stages per HistGBM, the graded candidate's. An upper bound while "
+        "early stopping is on.",
+    )
+    learning_rate: float = Field(
+        default=0.05,
+        gt=0,
+        le=1,
+        description="Shrinkage per stage. Low and slow: the target is a gameweek's noisy points.",
+    )
+    min_samples_leaf: int = Field(
+        default=50,
+        gt=0,
+        description="Rows per leaf, above the library's 20, so a leaf is not one player's hauls.",
+    )
+    early_stopping: bool = Field(
+        default=True,
+        description=(
+            "Stop boosting when a held-out slice stops improving. On because the graded candidate "
+            "trained on several seasons (over 10,000 rows), where the library's 'auto' turns it "
+            "on; the held-out slice is drawn from `seed`, so it is deterministic."
+        ),
+    )
+    seed: int = Field(
+        default=0,
+        ge=0,
+        description="random_state for every HistGBM fit: two fits on the same data agree (DP-11).",
+    )
+    rolling_windows: tuple[int, ...] = Field(
+        default=(3, 6),
+        min_length=1,
+        description="Trailing gameweek windows for the rolling means; each names its features "
+        "(`_l3`, `_l6`). The graded candidate's.",
+    )
+    player_halflife: float = Field(
+        default=4.0,
+        gt=0,
+        description="Half-life, in a player's gameweeks, of the exponentially weighted features.",
+    )
+    team_halflife: float = Field(
+        default=6.0,
+        gt=0,
+        description="Half-life, in a club's matches, of its rolling xG for and against.",
+    )
+    conditional_sd_floor: float = Field(
+        default=1.0,
+        gt=0,
+        description=(
+            "Lowest standard deviation of points given the player plays, per position. The sd is "
+            "the regressor's in-sample residual spread, which understates the out-of-sample one; "
+            "the floor stops a thin position reading as near-certain (Invariant 6)."
+        ),
+    )
+
+
 class PublishedModelConfig(_Section):
     """Which expected-points model reaches the app, and when it became the default (DL-46).
 
@@ -1230,6 +1297,7 @@ class ForecastConfig(_Section):
     nothing outside one package reads is a section that belongs to that package."""
 
     published: PublishedModelConfig = PublishedModelConfig()
+    c1: C1Config = C1Config()
 
 
 class ChipReplayConfig(_Section):
