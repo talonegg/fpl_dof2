@@ -46,7 +46,7 @@ ARTEFACTS: dict[str, str] = {
     # picks for it, so like `league` its absence is a normal published state. Fetched lazily by
     # `/log` alone.
     "log": "log.schema.json",
-    # The five-model comparison (generalises week_challenger.json). Written only when the
+    # The five-model comparison, from the frozen harness's records. Written only when the
     # prospective harness has recorded a decision, so its absence is a normal published state.
     "models": "models.schema.json",
     # The 2025/26 model history: a backtest, built offline and checked in as a static file under
@@ -56,6 +56,9 @@ ARTEFACTS: dict[str, str] = {
     # All-player next-GW xP MAE across seasons. Built from xp_scores CSVs and checked in / published
     # for the models page. Registered here for validation and generated TypeScript types.
     "xp_accuracy": "xp_accuracy.schema.json",
+    # The strategy registry as published (MOD-03): every strategy's id, label, role and digest,
+    # generated from config/strategies/. Additive, so contract v1 does not bump.
+    "strategies": "strategies.schema.json",
 }
 
 
@@ -93,11 +96,17 @@ class Contract:
                 f"{artefact}.json does not match {ARTEFACTS[artefact]}: {detail}"
             )
 
-    def write(self, artefact: str, payload: Any, destination: Path) -> Path:
-        """Validate, then write. Never the other way round."""
+    def write(
+        self, artefact: str, payload: Any, destination: Path, filename: str | None = None
+    ) -> Path:
+        """Validate, then write. Never the other way round.
+
+        ``filename`` names a second file in one artefact's schema — each strategy's own week and
+        plan (MOD-04); it defaults to ``<artefact>.json``.
+        """
         self.validate(artefact, payload)
         destination.mkdir(parents=True, exist_ok=True)
-        path = destination / f"{artefact}.json"
+        path = destination / (filename or f"{artefact}.json")
         path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
         return path
 

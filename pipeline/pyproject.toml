@@ -29,6 +29,7 @@ dependencies = [
 [project.optional-dependencies]
 dev = [
     "hypothesis>=6.120",
+    "import-linter==2.15",
     "mypy>=1.14",
     "pandas-stubs>=2.2",
     "pytest>=8.3",
@@ -96,3 +97,111 @@ filterwarnings = [
 [tool.coverage.run]
 branch = true
 source = ["src/fpl_dof"]
+
+# Module boundaries (MOD-01, DL-86, DL-87; target in docs/planning/05-target-architecture.md §3).
+# Logical modules: data platform = sources, silver, quality; core = rules, squad, optimise,
+# decision; model factory = factory, forecast, shadow, prospective; orchestrator = stages,
+# pipeline, cli, week, publish, schedule_cli. config, obs, frames, paths, retention and gold are
+# shared and unconstrained. Data platform may import core (sources and silver read rules, as
+# today); core imports neither data platform, factory nor orchestrator; factory may import core
+# but not the orchestrator; nothing but pipeline and cli imports stages; the orchestrator reaches
+# the factory only through fpl_dof.factory, the registry interface (MOD-03). ignore_imports is the
+# allow-list of today's violations, each naming the story that removes it: it only shrinks (a
+# ratchet), and is empty before R1.2.1 promotes. An entry that no longer matches an import fails
+# the run, so a fixed violation must be deleted here.
+[tool.importlinter]
+root_package = "fpl_dof"
+
+[[tool.importlinter.contracts]]
+name = "Core imports nothing from the data platform, the model factory or the orchestrator"
+type = "forbidden"
+source_modules = ["fpl_dof.rules", "fpl_dof.squad", "fpl_dof.optimise", "fpl_dof.decision"]
+forbidden_modules = [
+    "fpl_dof.sources", "fpl_dof.silver", "fpl_dof.quality",
+    "fpl_dof.factory", "fpl_dof.forecast", "fpl_dof.shadow", "fpl_dof.prospective",
+    "fpl_dof.stages", "fpl_dof.pipeline", "fpl_dof.cli", "fpl_dof.week", "fpl_dof.publish",
+    "fpl_dof.schedule_cli",
+]
+ignore_imports = []
+
+[[tool.importlinter.contracts]]
+name = "The data platform knows no model and no orchestration"
+type = "forbidden"
+source_modules = ["fpl_dof.sources", "fpl_dof.silver", "fpl_dof.quality"]
+forbidden_modules = [
+    "fpl_dof.factory", "fpl_dof.forecast", "fpl_dof.shadow", "fpl_dof.prospective",
+    "fpl_dof.stages", "fpl_dof.pipeline", "fpl_dof.cli", "fpl_dof.week", "fpl_dof.publish",
+    "fpl_dof.schedule_cli",
+]
+ignore_imports = [
+    "fpl_dof.sources.fdcouk.adapter -> fpl_dof.prospective.bundle",  # MOD-01 by R1.2.1: odds capture bundle moves out of the model factory
+]
+
+[[tool.importlinter.contracts]]
+name = "The model factory never imports the orchestrator"
+type = "forbidden"
+source_modules = ["fpl_dof.factory", "fpl_dof.forecast", "fpl_dof.shadow", "fpl_dof.prospective"]
+forbidden_modules = [
+    "fpl_dof.stages", "fpl_dof.pipeline", "fpl_dof.cli", "fpl_dof.week", "fpl_dof.publish",
+    "fpl_dof.schedule_cli",
+]
+ignore_imports = [
+    "fpl_dof.forecast.live -> fpl_dof.week.cadence",  # MOD-01 by R1.2.1: cadence moves to shared infrastructure
+    "fpl_dof.forecast.xp_v0 -> fpl_dof.week.cadence",  # MOD-01 by R1.2.1: cadence moves to shared infrastructure
+]
+
+[[tool.importlinter.contracts]]
+name = "The orchestrator reaches the model factory only through fpl_dof.factory"
+type = "forbidden"
+source_modules = [
+    "fpl_dof.stages", "fpl_dof.week", "fpl_dof.publish", "fpl_dof.pipeline", "fpl_dof.cli",
+]
+forbidden_modules = ["fpl_dof.forecast", "fpl_dof.shadow", "fpl_dof.prospective"]
+allow_indirect_imports = true
+ignore_imports = [
+    "fpl_dof.publish.fixtures -> fpl_dof.forecast.models",  # MOD-01 by R1.2.1: fitting M2 moves out of publish
+    "fpl_dof.stages.backtest -> fpl_dof.forecast.backtest",  # MOD-08: the standing backtest runs strategies through the registry
+    "fpl_dof.stages.backtest -> fpl_dof.forecast.xp_v1",  # MOD-08: the standing backtest runs strategies through the registry
+    "fpl_dof.stages.forecast -> fpl_dof.forecast.diagnostics",  # MOD-01 by R1.2.1: the model card and its inputs reach the stage through the factory interface
+    "fpl_dof.stages.forecast -> fpl_dof.forecast.inputs",  # MOD-01 by R1.2.1: the model card and its inputs reach the stage through the factory interface
+    "fpl_dof.stages.forecast -> fpl_dof.forecast.model_card",  # MOD-01 by R1.2.1: the model card and its inputs reach the stage through the factory interface
+    "fpl_dof.stages.publish -> fpl_dof.forecast.diagnostics",  # MOD-01 by R1.2.1: domain logic moves out of the publish stage
+    "fpl_dof.stages.publish -> fpl_dof.forecast.form",  # MOD-01 by R1.2.1: domain logic moves out of the publish stage
+    "fpl_dof.stages.publish -> fpl_dof.forecast.models",  # MOD-01 by R1.2.1: domain logic moves out of the publish stage
+    "fpl_dof.stages.publish -> fpl_dof.forecast.xp_v1",  # MOD-01 by R1.2.1: domain logic moves out of the publish stage
+]
+
+[[tool.importlinter.contracts]]
+name = "Only pipeline and cli import stages"
+type = "forbidden"
+source_modules = [
+    "fpl_dof.rules", "fpl_dof.squad", "fpl_dof.optimise", "fpl_dof.decision",
+    "fpl_dof.sources", "fpl_dof.silver", "fpl_dof.quality",
+    "fpl_dof.factory", "fpl_dof.forecast", "fpl_dof.shadow", "fpl_dof.prospective",
+    "fpl_dof.week", "fpl_dof.publish", "fpl_dof.schedule_cli",
+]
+forbidden_modules = ["fpl_dof.stages"]
+ignore_imports = []
+
+[[tool.importlinter.contracts]]
+name = "Stages do not import each other"
+type = "independence"
+modules = [
+    "fpl_dof.stages.backtest", "fpl_dof.stages.forecast",
+    "fpl_dof.stages.ingest", "fpl_dof.stages.optimise", "fpl_dof.stages.publish",
+    "fpl_dof.stages.quality", "fpl_dof.stages.transform", "fpl_dof.stages.week",
+]
+ignore_imports = [
+    "fpl_dof.stages.backtest -> fpl_dof.stages.transform",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
+    "fpl_dof.stages.forecast -> fpl_dof.stages.backtest",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
+    "fpl_dof.stages.forecast -> fpl_dof.stages.transform",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
+    "fpl_dof.stages.optimise -> fpl_dof.stages.forecast",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
+    "fpl_dof.stages.optimise -> fpl_dof.stages.transform",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
+    "fpl_dof.stages.publish -> fpl_dof.stages.forecast",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
+    "fpl_dof.stages.publish -> fpl_dof.stages.optimise",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
+    "fpl_dof.stages.publish -> fpl_dof.stages.quality",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
+    "fpl_dof.stages.publish -> fpl_dof.stages.transform",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
+    "fpl_dof.stages.quality -> fpl_dof.stages.transform",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
+    "fpl_dof.stages.week -> fpl_dof.stages.forecast",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
+    "fpl_dof.stages.week -> fpl_dof.stages.transform",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
+]

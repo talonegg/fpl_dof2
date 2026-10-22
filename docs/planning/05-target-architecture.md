@@ -86,7 +86,7 @@ flowchart TB
         SC["realised-points scorer"]
     end
     subgraph M2["2 · Model factory"]
-        REG[("strategies/*.yaml<br/>strategy registry")]
+        REG[("config/strategies/*.yaml<br/>strategy registry")]
         FC["forecasters<br/>recipe · frozen artefact"]
         BT["standing backtest ·<br/>experiments"]
     end
@@ -140,9 +140,9 @@ packages, or per-module versions, waits until these rules prove insufficient (§
 | Seam | From → to | Form | Versioning |
 | --- | --- | --- | --- |
 | **Upstream data** | Data platform → everything | Silver and gold schemas (`silver/tables.py`), each row knowable at `as_of` (Invariant 5, DL-83) | Schema change → `silver rebuild` |
-| **Strategy registry** | Factory → orchestrator, web | `strategies/*.yaml`; `load_strategy(id) → Strategy` with `forecast(inputs, as_of)` and `decide(frame, squad_state, rules)`; a digest per strategy | Digest of code, config and training window |
-| **Forecast frame** | Forecaster → decision engine | A schema-validated frame: per-gameweek mean and sd, minutes probabilities, `start_probability`, components where the forecaster has them (Invariant 6) | `forecast_frame` schema version |
-| **Decision output** | Decision engine → orchestrator, web | The `week` and `plan` schemas, one per strategy | Web contract |
+| **Strategy registry** | Factory → orchestrator, web | Built ([04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)), with `Strategy.forecast` for `xp_v1` and C1 and `Strategy.decision_policy` for `decide` ([04 §6](04-conceptual-design.md#6-decision-engine), MOD-04). Still target: `forecast` for every forecaster (MOD-05) | Digest of (entry, code, effective config): the entry with its training window, the source that decides advice, and the run config sections it reads |
+| **Forecast frame** | Forecaster → decision engine | Built: [04 §6](04-conceptual-design.md#6-decision-engine) (MOD-02) | `FORECAST_FRAME_VERSION` |
+| **Decision output** | Decision engine → orchestrator, web | Built (MOD-04): the `week` and `plan` schemas, one pair per published strategy | Web contract |
 | **Ledger records** | Orchestrator, factory → evaluation, web | `advice/gwNN.json` (advice of record per strategy), `evaluation/gwNN.json`, `experiments/<id>/…`, each stamped with strategy digest and `as_of` | Record schema version |
 | **Web contract and registries** | Publish → web | `contracts/v1/*.schema.json`, plus published `strategies` and `artefacts` registries and `ui` flags | `contract_version` major, `contract_minor` (§7.3) |
 
@@ -158,41 +158,30 @@ corpus read in both languages where both need it (DP-04, DP-13, DL-39).
 
 What is deployed, compared and promoted is a **strategy**, because most experiments worth running
 are on the policy (hits, captaincy, chips, risk), and those must be as comparable as a new forecast.
-The decision engine is a pure library in `core`; a strategy only parameterises it.
+The decision engine is a pure library in `core`; a strategy only parameterises it. The registry is
+built: one file per strategy, its fields and its digest are in
+[04 §13](04-conceptual-design.md#13-configuration-and-feature-flags). Still target:
 
-```yaml
-# strategies/c3.yaml — illustrative shape, fixed in R1.2.0
-id: c3                     # stable; never reused, never a role name
-label: Champion (C3)
-role: champion             # champion | challenger | experiment | retired — exactly one champion
-published: true            # runs every refresh and appears in the app
-forecaster:
-  type: recipe             # recipe (refitted every run) | frozen (fitted parameters, published by the factory)
-  model: xp_v1
-  config: {discrimination: {minutes_v2: true}}
-  training_window: current_season
-policy:
-  captain_rule: price_position
-  plan: true               # the multi-gameweek plan and chips; false where solve time matters
-requires: [fpl]            # data the strategy needs; missing data is a fail-closed "no advice"
-```
-
+- **`forecast` for every forecaster**, so the orchestrator runs any registered strategy without
+  naming its code (MOD-05); `forecast` exists for `xp_v1` and C1, and C1 still borrows the
+  champion's variance and later gameweeks through it. `decide` is built (MOD-04).
 - **Recipe forecasters** are the default: code version, config, feature set and training window,
   refitted by the orchestrator through `fit_as_of` on fresh data and recorded by digest (DP-11).
 - **Frozen forecasters** carry fitted parameters trained offline by the factory, for heavier models;
   they sit behind the same interface.
-- **Captaincy is policy.** The price-and-position rule (B0's `captain_score`) moves out of the
-  forecast frame into the policy (DL-76).
 - **Every forecaster carries its own variance** and builds its features through `FeatureSpec` with
   declared knowability, checked by `assert_no_look_ahead` (Invariants 5 and 6).
+- **`requires` is enforced**: a strategy whose required data is missing records a fail-closed
+  "no advice" (MOD-05).
 
 ### 5.2 The registered strategies
 
-The five models compared today become registered live strategies: `engine` (minutes_v2 off), `c3`
-(today's champion), `c1` (the gradient-boosted challenger, rebuilt behind the frame contract), `a`
-and `a_odds` (ported from the frozen bundle). The pre-registered C1-versus-C3 study is retired; the
-frozen harness runs one gameweek beside the ported five as a parity check and is then switched off.
-Its records stay on `ledger` as each strategy's history up to the switch.
+The five ids are registered ([04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)).
+Still target: `engine`, `a` and `a_odds` go live in R1.2.1 — `c1` rebuilt behind the frame
+contract, `a` and `a_odds` ported from the frozen bundle (they train on prior seasons and A_odds
+reads odds, so the live run enables the archive and football-data.co.uk). The frozen harness is
+switched off when the ports go live, with no parity check; its records stay on `ledger` as each
+strategy's history up to the switch, which the app marks ([DL-87](../decisions/DL-87.md)).
 
 ### 5.3 Experiments and promotion
 
@@ -226,24 +215,26 @@ stateDiagram-v2
 
 ### 6.2 Refresh
 
+Built in R1.2.0 (MOD-04, [04 §6](04-conceptual-design.md#6-decision-engine)): every published
+strategy gets the full recommendation from the one decision engine on one snapshot, and the ledger's
+advice file records each strategy's advice, or its "no advice" reason, under `models`. Still target:
+
 - **Triggers.** Ingest writes a change manifest — what moved since the last ingest: prices, status,
   odds, fixtures. A material change dispatches the orchestrator with typed `workflow_dispatch`
   inputs; a scheduled tick reads the state machine and the input digests. Nothing chains by workflow
   name or title.
-- **Every published strategy is refreshed together, on one input snapshot**, so any two strategies
-  on screen were computed from identical data. The change manifest and input digests decide whether
-  a run is needed, never which strategies run.
-- **Every strategy gets the full recommendation** from the one decision engine: transfers and hits,
-  XI and bench, captain and vice, chip, and the multi-gameweek plan unless its policy sets
-  `plan: false`.
+- **The change manifest and input digests decide whether a run is needed**, never which strategies
+  run: every published strategy is refreshed together, so any two on screen were computed from
+  identical data.
 - **The app shows the latest snapshot**, stamped with its `as_of` and what triggered it.
 
 ### 6.3 Advice of record
 
 The last successful recommendation before the deadline is each strategy's advice of record for that
 gameweek, written to `ledger`. A strategy that produced nothing records "no advice" with the reason,
-fail-closed, rather than carrying last week's forward. The scheduler's freeze guard
-(`schedule.freeze_minutes`) only stops a run starting too close to the deadline.
+fail-closed, rather than carrying last week's forward; within a run this is built (MOD-04), and the
+deadline rule is ORC-03. The scheduler's freeze guard (`schedule.freeze_minutes`) only stops a run
+starting too close to the deadline.
 
 ### 6.4 Evaluation
 
@@ -321,7 +312,7 @@ flowchart LR
 
 | Knob | Home |
 | --- | --- |
-| Which strategies exist, their roles, forecaster and policy | `strategies/*.yaml` (the registry) |
+| Which strategies exist, their roles, forecaster and policy | `pipeline/src/fpl_dof/config/strategies/*.yaml` (the registry) |
 | A forecaster's tunables, including hyperparameters now hard-coded (C1, M2's half-life) | The forecaster's config in the registry, validated by `ForecastConfig` (DP-06) |
 | An experiment | A declared experiment file in the factory |
 | Cadence, freeze guard, material-change thresholds | `schedule` config |
@@ -340,7 +331,6 @@ flowchart LR
 | Forecast frame | Every registered forecaster's frame validates on a fixture snapshot, and carries variance |
 | Decision engine | One engine for every strategy; a strategy differs from another only by its registry entry |
 | Scorer | One conformance corpus, including auto-substitutions, read by every caller |
-| Port fidelity | The parity gameweek: the five ported strategies against the frozen harness |
 | Web | The registry renders a fixture strategy the TypeScript has never named; the runtime refuses a contract major it does not support |
 
 ---
@@ -351,7 +341,7 @@ Each release is a vertical slice that leaves the weekly advice working ([DP-07](
 
 | Release | Slice | Absorbs |
 | --- | --- | --- |
-| **R1.2.0 — Registry and five models live** | Boundaries and `core`; the forecast-frame contract; the registry; all five strategies through one engine with full recommendations; parity check, then the frozen harness retired; N-way comparison UI from the registry; the standing multi-strategy backtest and the experiments store; the first two experiments (card rates, training window) | 03 §12 P1, P3, P6, P9, P10; F1, F3 as experiments; F4, F5 |
+| **R1.2.0 and R1.2.1 — Registry and five models live**, two drops (DL-87) | Boundaries and `core` (a ratchet); the forecast-frame contract; the registry; all five strategies through one engine with full recommendations; the archive and football-data.co.uk live; the frozen harness retired, the switch marked; N-way comparison UI from the registry; the standing multi-strategy backtest and the experiments store; the first two experiments (card rates, training window) | 03 §12 P1, P3, P6, P9, P10; F1, F3 as experiments; F4, F5 |
 | **R1.3.0 — Gameweek orchestration** | State machine; change manifest and typed dispatch; refresh-all-together; advice of record; the evaluation step; the one scorer; season log from evaluations; reproducible models history | O1, O2; F2 |
 | **R1.4.0 — Independent web** | Decoupled app and data deploys; `contract_minor` and the runtime check; types in the web build; the artefact registry; UI flags; `experiment.yml` and experiments in the app | W1, W2, W3, W5 |
 

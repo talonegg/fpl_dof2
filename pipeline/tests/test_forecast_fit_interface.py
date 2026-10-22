@@ -3,7 +3,7 @@
 Verifies:
 - optimise/ imports nothing from forecast/ (DP-02, 03 §12 P1)
 - fit_as_of fits component models and B0
-- FittedForecastModel.predict attaches B0 captain score
+- B0 stays on the fitted model, out of the forecast frame (captaincy is policy, MOD-02)
 - Live and backtest predict identically through the interface
 """
 
@@ -20,7 +20,6 @@ from conftest import before_next_deadline
 from fpl_dof.config.models import ForecastConfig
 from fpl_dof.forecast.fit import FittedForecastModel, fit_as_of
 from fpl_dof.forecast.inputs import ForecastInputs
-from fpl_dof.optimise.captain import price_position_scores
 from fpl_dof.rules.models import GameRules
 
 SRC_ROOT = Path(__file__).resolve().parents[1] / "src" / "fpl_dof"
@@ -116,7 +115,7 @@ def test_fit_as_of_and_predict_live_and_backtest(game_rules: GameRules) -> None:
     assert len(series) == 1
     assert series.iloc[0] > 0
 
-    # 2. Live horizon prediction attaches captain_score
+    # 2. Live horizon prediction carries no captain column: B0 is the captain policy's input
     players = pd.DataFrame(
         [
             {
@@ -180,15 +179,14 @@ def test_fit_as_of_and_predict_live_and_backtest(game_rules: GameRules) -> None:
     live_frame = fitted.predict([3], inputs=inputs)
     assert isinstance(live_frame, pd.DataFrame)
     assert "xp_next" in live_frame.columns
-    assert "captain_score" in live_frame.columns
+    assert "captain_score" not in live_frame.columns
     assert "start_probability" in live_frame.columns
     assert live_frame.attrs.get("component_description") is not None
 
-    # 3. Decision captain scores reads from captain_score column directly
-    scores = price_position_scores(live_frame)
-    assert scores is not None
-    assert 101 in scores and 102 in scores
-    assert isinstance(scores[101], float)
+    # 3. The fitted B0 scores every player in the frame, for the captain policy to use
+    scores = fitted.b0.predict(live_frame)
+    assert len(scores) == len(live_frame)
+    assert scores.notna().all()
 
 
 def test_replay_predicts_one_season_against_the_archive_calendar(game_rules: GameRules) -> None:
@@ -210,7 +208,7 @@ def test_replay_predicts_one_season_against_the_archive_calendar(game_rules: Gam
 
     assert set(frame["player_id"]) == {101, 102, 201, 202}
     assert (frame["next_gameweek"] == 3).all()
-    assert "captain_score" in frame.columns
+    assert "captain_score" not in frame.columns
 
 
 def test_a_gameweek_in_play_never_enters_the_fit() -> None:

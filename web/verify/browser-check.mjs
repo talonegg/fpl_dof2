@@ -392,6 +392,8 @@ for (const viewport of VIEWPORTS) {
     // reason: it is the page a reader opens when something looks wrong, so a route that regressed
     // to rendering nothing would be discovered at the worst possible moment.
     ["#/health", "health-panel"],
+    // The models page (MOD-07), whose Compare section is the strategy comparison.
+    ["#/models", "models-page"],
     ["#/no-such-view", "not-found"],
   ]) {
     await page.evaluate((h) => {
@@ -425,6 +427,52 @@ for (const viewport of VIEWPORTS) {
       .map(([name, count]) => `${name}=${count}`)
       .join(" ")}`,
   );
+
+  // --- the models page and the strategy switcher (MOD-07) ---
+  // Layout is checked on the page itself, then the switcher is driven: changing strategy must leave
+  // the page rendered and raise no console error.
+  await page.evaluate(() => {
+    window.location.hash = "#/models";
+  });
+  await page.waitForSelector('[data-testid="models-compare"]', { timeout: 10000 });
+  const modelsOverflow = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+  }));
+  check(
+    modelsOverflow.scrollWidth <= modelsOverflow.clientWidth + 1,
+    `#/models does not scroll horizontally (scrollWidth ${modelsOverflow.scrollWidth} vs clientWidth ${modelsOverflow.clientWidth})`,
+  );
+  const switcher = page.locator('[data-testid="model-select"]');
+  const errorsBeforeSwitch = consoleErrors.length;
+  const options = await switcher.locator("option").evaluateAll((os) => os.map((o) => o.value));
+  const current = await switcher.inputValue();
+  const other = options.find((v) => v !== current);
+  check(other !== undefined, `the strategy switcher offers a second strategy (${options.join(", ")})`);
+  if (other !== undefined) {
+    // `force`: on wide screens the native select is hidden in favour of the segmented control.
+    await switcher.selectOption(other, { force: true });
+    await page.waitForTimeout(300);
+    check((await switcher.inputValue()) === other, `the strategy switcher changes strategy (${current} -> ${other})`);
+    check(
+      (await page.locator('[data-testid="models-page"]').count()) === 1 &&
+        (await page.locator('[data-testid="app-error"]').count()) === 0,
+      "after switching strategy the models page still renders",
+    );
+    await page.evaluate(() => {
+      window.location.hash = "#/";
+    });
+    await page.waitForSelector('[data-testid="squad-pitch"]', { timeout: 10000 });
+    check(
+      consoleErrors.length === errorsBeforeSwitch,
+      `switching strategy raises no console error (${consoleErrors.slice(errorsBeforeSwitch, errorsBeforeSwitch + 2).join(" | ")})`,
+    );
+    await page.evaluate(() => {
+      window.location.hash = "#/models";
+    });
+    await page.waitForSelector('[data-testid="models-compare"]', { timeout: 10000 });
+    await switcher.selectOption(current, { force: true });
+  }
 
   // --- theming (E6-S1) ---
   // With no stored preference the root carries no attribute, so the operating system decides.
@@ -632,6 +680,16 @@ notes.push("\n== accessibility: keyboard and colour-independence ==");
   check(builderStops.length > 5, `the squad builder is keyboard-navigable (${builderStops.length} stops)`);
   const builderRingless = builderStops.filter((s) => s.focusVisible && !s.ring);
   check(builderRingless.length === 0, `every squad-builder control shows a focus ring (${builderRingless.length} without)`);
+
+  // --- the models page (MOD-07) is keyboard-navigable with visible focus ---
+  await page.evaluate(() => {
+    window.location.hash = "#/models";
+  });
+  await page.waitForSelector('[data-testid="models-compare"]', { timeout: 10000 });
+  const modelsStops = await tabThrough(40);
+  check(modelsStops.length > 5, `the models page is keyboard-navigable (${modelsStops.length} stops)`);
+  const modelsRingless = modelsStops.filter((s) => s.focusVisible && !s.ring);
+  check(modelsRingless.length === 0, `every models-page control shows a focus ring (${modelsRingless.length} without)`);
 
   // --- charts carry their meaning in text, not only in colour (NFR-14) ---
   await page.evaluate(() => {
@@ -873,6 +931,12 @@ notes.push("\n== progressive web app ==");
     const offlineRows = await offlinePage.locator('[data-testid="player-row"]').count();
     check(offlineRows > 0, `offline, the scout table renders from cache (${offlineRows} rows)`);
     check(offlineErrors.length === 0, `offline, no uncaught page error (${offlineErrors.slice(0, 2).join(" | ")})`);
+
+    await offlinePage.evaluate(() => {
+      window.location.hash = "#/models";
+    });
+    await offlinePage.waitForSelector('[data-testid="models-page"]', { timeout: 15000 });
+    check(offlineErrors.length === 0, `offline, the models page renders with no uncaught error (${offlineErrors.slice(0, 2).join(" | ")})`);
 
     await offlinePage.screenshot({ path: `${outputDir}offline.png`, fullPage: false });
   }

@@ -97,6 +97,13 @@ def solve_hindsight_optimal(
         pool_df["xp_horizon"] = pool_df["xp_next"]
     if "start_probability" not in pool_df.columns:
         pool_df["start_probability"] = 1.0
+    # Realised points stand in for the forecast frame (MOD-02): points as the frame's floats, and a
+    # variance of zero — they are known, not forecast — said so rather than omitted.
+    for column in ("xp_next", "xp_horizon"):
+        pool_df[column] = pool_df[column].astype(float)
+    for column in ("xp_next_sd", "xp_horizon_sd"):
+        if column not in pool_df.columns:
+            pool_df[column] = 0.0
 
     # Ensure pool has required player names map
     names = {

@@ -50,6 +50,7 @@ from fpl_dof.optimise.explain import (
     price_exposure,
     start_probability_assumptions,
 )
+from fpl_dof.optimise.frame import validate_forecast_frame
 from fpl_dof.optimise.horizon import (
     HorizonInputs,
     HorizonPlan,
@@ -131,6 +132,7 @@ def build_plan(
     most_captained_id: int | None = None,
 ) -> DecisionPlan:
     """Produce the multi-gameweek plan, the chip calendar, and the explanation for both."""
+    validate_forecast_frame(players)
     started = time.monotonic()
     weeks = plan_gameweeks(state, decision, last_gameweek)
     if not weeks:

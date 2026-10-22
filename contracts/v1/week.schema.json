@@ -18,11 +18,21 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "label", "role"],
-      "description": "Which model produced this recommendation. week.json is the champion (the live engine); week_challenger.json, when present, is the challenger in the same schema (champion/challenger).",
+      "description": "Which strategy produced this recommendation. week.json is the champion's (the live advice); every other published strategy writes week_<id>.json in the same schema, at the path strategies.json names.",
       "properties": {
         "id": { "type": "string" },
         "label": { "type": "string" },
-        "role": { "type": "string", "enum": ["champion", "challenger"] }
+        "role": { "type": "string", "enum": ["champion", "challenger", "experiment", "retired"], "description": "The strategy's registry role, as strategies.json lists it." }
+      }
+    },
+    "strategy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "digest"],
+      "description": "The registered strategy that produced this advice: its id in the strategy registry (strategies.json) and its digest (MOD-03): sha256 over the registry entry, the source that decides its advice and the run config it reads.",
+      "properties": {
+        "id": { "type": "string" },
+        "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
       }
     },
     "deadline": {

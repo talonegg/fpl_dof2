@@ -1,10 +1,15 @@
-"""Captain and vice by the price+position rule (C3).
+"""Captain and vice by the price+position rule (C3) — a policy, not a forecast (DL-76, MOD-02).
 
-The walk-forward decision backtest (``backtest/RESULTS_proposals.md``) found the solver's own
-captain — the highest ``xp_next`` in the XI — skews to goalkeepers and defenders and loses about two
-points a week to a far simpler rule: fit B0 (one least-squares line from price to points per
-position) on history, score every starter with it, captain the highest and vice the next. The XI
-and the transfers are unchanged; only the armband moves.
+The walk-forward decision backtest found the solver's own captain — the highest ``xp_next`` in the
+XI — skews to goalkeepers and defenders and loses about two points a week to a far simpler rule:
+fit B0 (one least-squares line from price to points per position) on history, score every starter
+with it, captain the highest and vice the next. The XI and the transfers are unchanged; only the
+armband moves.
+
+B0 is fitted by the model factory, on the forecaster's own training window, and handed to this rule
+as a :class:`PricePositionLine`: the fitted coefficients, validated on their own, never a column of
+the forecast frame. The rule applies them to the frame's price and position. Which rule a strategy
+uses is its registry ``policy.captain_rule``.
 """
 
 from __future__ import annotations
@@ -13,25 +18,32 @@ from collections.abc import Mapping
 from dataclasses import replace
 
 import pandas as pd
+from pydantic import BaseModel, ConfigDict
 
 from fpl_dof.frames import as_float, as_int
 from fpl_dof.optimise.transfer import TransferOption, TransferRecommendation
+from fpl_dof.rules.models import Position
 from fpl_dof.squad.selection import Selection
 
 
-def price_position_scores(
-    forecast: pd.DataFrame, history: pd.DataFrame | None = None
-) -> dict[int, float] | None:
-    """B0 score per ``player_id`` in ``forecast``, read from ``captain_score``.
+class PricePositionLine(BaseModel):
+    """B0, fitted: points as a line in price, one per position. The captain policy's input."""
 
-    Returns ``None`` if absent.
-    """
-    if forecast is None or forecast.empty or "captain_score" not in forecast.columns:
-        return None
-    scores = forecast["captain_score"]
-    if scores.isna().all():
-        return None
-    return {as_int(pid): float(v) for pid, v in zip(forecast["player_id"], scores, strict=True)}
+    model_config = ConfigDict(frozen=True, extra="forbid", allow_inf_nan=False)
+
+    intercept_by_position: dict[Position, float]
+    slope_by_position: dict[Position, float]
+    fallback: float
+    """For a position the fit never saw, or a missing price: the training mean, as B0 predicts."""
+
+    def scores(self, frame: pd.DataFrame) -> dict[int, float]:
+        """B0's score per ``player_id``, from the frame's ``price`` and ``position``."""
+        positions = frame["position"].astype(str)
+        intercept = positions.map({p.value: v for p, v in self.intercept_by_position.items()})
+        slope = positions.map({p.value: v for p, v in self.slope_by_position.items()})
+        price = pd.to_numeric(frame["price"], errors="coerce").astype(float)
+        predicted = (intercept.astype(float) + slope.astype(float) * price).fillna(self.fallback)
+        return {as_int(i): float(v) for i, v in zip(frame["player_id"], predicted, strict=True)}
 
 
 def pick_captains(starting: tuple[int, ...], scores: Mapping[int, float]) -> tuple[int, int]:

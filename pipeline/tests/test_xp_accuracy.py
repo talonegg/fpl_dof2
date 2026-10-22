@@ -74,18 +74,21 @@ def test_signflip_and_holm() -> None:
     assert holm([0.01, 0.04, float("nan")])[:2] == [0.02, 0.04]
 
 
-def test_paired_primary_is_c1_vs_c3() -> None:
+def test_paired_compares_every_strategy_with_the_champion() -> None:
     rows = []
     for gw in range(1, 11):
         for m, mae in (("C3", 1.0), ("C1", 0.9), ("engine", 1.1), ("A", 1.0)):
             rows.append(
                 {"season": "s", "subset": "all", "gw": gw, "model": m, "mae": mae + 0.001 * gw}
             )
-    out = paired(pd.DataFrame(rows), draws=2000)
+    out = paired(pd.DataFrame([*rows, {**rows[0], "model": "mystery"}]), draws=2000)
     assert all(set(r) == set(PAIRED_FIELDS) for r in out)
-    prim = [r for r in out if r["family"] == "primary"]
-    assert [(r["model"], r["comparator"]) for r in prim] == [("C1", "C3")]
-    assert prim[0]["mean_delta"] == pytest.approx(-0.1)
+    assert [(r["model"], r["comparator"]) for r in out] == [
+        ("c1", "c3"),
+        ("a", "c3"),
+        ("engine", "c3"),
+    ]
+    assert out[0]["mean_delta"] == pytest.approx(-0.1)
 
 
 def _sha(b: bytes) -> str:

@@ -19,8 +19,8 @@ from typing import Any
 
 import pandas as pd
 
+from fpl_dof.factory.registry import published_strategies
 from fpl_dof.forecast.form import form_by_player_id, trailing_form
-from fpl_dof.forecast.xp_v0 import MODEL_NAME as XP_V0_NAME
 from fpl_dof.frames import as_float, as_int
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.obs.manifest import RunManifest, git_sha, read_manifest
@@ -33,15 +33,14 @@ from fpl_dof.publish.history import build_history
 from fpl_dof.publish.league import build_league
 from fpl_dof.publish.models_compare import build_models
 from fpl_dof.publish.season_log import build_log
+from fpl_dof.publish.strategies import artefact_paths, build_strategies
 from fpl_dof.publish.typescript import write_types
 from fpl_dof.rules.models import GameRules
 from fpl_dof.silver.store import read_table, read_table_optional
 from fpl_dof.silver.tables import Table
-from fpl_dof.stages.decision import PLAN_FILENAME
 from fpl_dof.stages.forecast import XP_FILENAME
 from fpl_dof.stages.optimise import SQUAD_FILENAME
 from fpl_dof.stages.transform import read_rules
-from fpl_dof.stages.week import CHALLENGER_FILENAME, WEEK_FILENAME
 from fpl_dof.week.cadence import current_gameweek
 from fpl_dof.week.ledger import read_all_advice
 
@@ -79,6 +78,13 @@ def run(ctx: StageContext) -> StageResult:
         Output(path=contract.write("squad", squad_payload, destination)),
         Output(path=contract.write("history", history, destination), rows=len(history["players"])),
         Output(path=contract.write("fixtures", fixtures, destination), rows=len(fixtures["teams"])),
+        Output(
+            path=contract.write(
+                "strategies",
+                build_strategies(ctx.config, contract_version=CONTRACT_VERSION),
+                destination,
+            )
+        ),
     ]
 
     # The mini-league, when one is configured (E6-S10). Configuring a league is the whole trigger:
@@ -132,35 +138,35 @@ def run(ctx: StageContext) -> StageResult:
     if not published_models:
         removed.append("models.json")
 
-    # The weekly decision and the multi-gameweek plan, when there are any. Their absence is normal
-    # before the season starts (DL-20), so a missing file is not an error.
-    for artefact, filename in (("week", WEEK_FILENAME), ("plan", PLAN_FILENAME)):
-        source = gold / filename
-        if source.exists():
+    # Every published strategy's week and plan, when there are any (MOD-04). Their absence is normal
+    # before the season starts (DL-20), so a missing file is not an error. Each is validated against
+    # the week or plan schema on the way out; a challenger's that fails is dropped rather than
+    # failing the publish of everything else, while the champion's fails the run as it always has.
+    for strategy in published_strategies():
+        for artefact, filename in artefact_paths(strategy).items():
+            if filename is None:
+                continue
+            source = gold / filename
+            if not source.exists():
+                removed.append(filename)
+                continue
             payload = json.loads(source.read_text(encoding="utf-8"))
             payload["contract_version"] = CONTRACT_VERSION
-            outputs.append(Output(path=contract.write(artefact, payload, destination)))
-        else:
-            removed.append(f"{artefact}.json")
-
-    # The challenger (champion/challenger): validated against week.json's own schema, and isolated
-    # so a malformed challenger is dropped rather than failing the publish of everything else.
-    challenger_source = gold / CHALLENGER_FILENAME
-    published_challenger = False
-    if challenger_source.exists():
-        try:
-            payload = json.loads(challenger_source.read_text(encoding="utf-8"))
-            payload["contract_version"] = CONTRACT_VERSION
-            contract.validate("week", payload)
-            destination.mkdir(parents=True, exist_ok=True)
-            target = destination / CHALLENGER_FILENAME
-            target.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
-            outputs.append(Output(path=target))
-            published_challenger = True
-        except Exception as exc:
-            log.warning("publish.challenger_dropped", extra={"error": repr(exc)})
-    if not published_challenger:
-        removed.append(CHALLENGER_FILENAME)
+            try:
+                path = contract.write(artefact, payload, destination, filename=filename)
+            except Exception as exc:
+                if strategy.role == "champion":
+                    raise
+                log.warning(
+                    "publish.strategy_dropped",
+                    extra={"strategy": strategy.id, "artefact": filename, "error": repr(exc)},
+                )
+                removed.append(filename)
+                continue
+            outputs.append(Output(path=path))
+    # And every week or plan file no published strategy writes now: the pre-MOD-04
+    # week_challenger.json, an unpublished or deregistered strategy's pair, a plan switched off.
+    removed += stale_strategy_files(destination)
 
     for name in removed:
         (destination / name).unlink(missing_ok=True)
@@ -184,7 +190,7 @@ def run(ctx: StageContext) -> StageResult:
             for output in list(outputs):
                 if output.path.suffix == ".json":
                     shutil.copy2(output.path, public / output.path.name)
-            for name in removed:
+            for name in [*removed, *stale_strategy_files(public)]:
                 (public / name).unlink(missing_ok=True)
             log.info("publish.copied_to_app", extra={"destination": str(public)})
 
@@ -210,6 +216,19 @@ def run(ctx: StageContext) -> StageResult:
         },
         outputs=outputs,
     )
+
+
+_STRATEGY_FILE = re.compile(r"^(week|plan)(_[a-z0-9_]+)?\.json$")
+
+
+def stale_strategy_files(directory: Path) -> list[str]:
+    """Week and plan files in ``directory`` that no published strategy writes now (MOD-04)."""
+    current = {n for s in published_strategies() for n in artefact_paths(s).values() if n}
+    return [
+        p.name
+        for p in directory.glob("*.json")
+        if _STRATEGY_FILE.match(p.name) and p.name not in current
+    ]
 
 
 def _is_repo_data_root(ctx: StageContext, root: Path) -> bool:
@@ -261,11 +280,11 @@ def _meta(
 def _model_name(forecast: pd.DataFrame) -> str:
     """Which model produced this frame, from the frame's own provenance column.
 
-    Falls back to the cold-start model's name for a forecast written before that column existed,
-    which is what it would in fact have been (DP-15).
+    Every frame the factory writes carries it (MOD-02); one that does not is said to be unrecorded
+    rather than credited to a model by guesswork (DP-15).
     """
     if "model" not in forecast.columns or forecast.empty:
-        return XP_V0_NAME
+        return "unrecorded"
     return str(forecast["model"].iloc[0])
 
 

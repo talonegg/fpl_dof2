@@ -1,7 +1,7 @@
-"""The five-model comparison artefact (``models.json``).
+"""The five-model comparison artefact (``models.json``), keyed by strategy registry id (MOD-03).
 
-Generalises ``week_challenger.json``: rather than one extra model in week.json's schema, every
-frozen model's pre-deadline advice per gameweek, the points each actually scored once the gameweek
+Beside each published strategy's own week in week.json's schema, this is every frozen model's
+pre-deadline advice per gameweek, the points each actually scored once the gameweek
 is finished, and a season-to-date table. Before a gameweek's frozen decision exists, a dry-run
 preview of each model's current advice may stand in for it, flagged ``provisional``.
 
@@ -19,13 +19,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from fpl_dof.publish.benchmark import (
-    CHAMPION_KEY,
-    MODEL_REGISTRY,
-)
-from fpl_dof.publish.benchmark import (
-    REGISTRY_BY_KEY as _BY_KEY,
-)
+from fpl_dof.factory.registry import champion, resolve_alias, strategies
 
 
 def _element(code: Any, code_to_element: Mapping[str, Any]) -> int | None:
@@ -118,12 +112,12 @@ def build_models(
     by_gw = sorted([*decisions, *pending], key=lambda d: int(d["gw"]))
     actual_by_gw: dict[int, dict[str, Any]] = {}
     for row in scores:
-        key = str(row.get("model", ""))
-        if key in _BY_KEY:
-            actual_by_gw.setdefault(int(row["gw"]), {})[_BY_KEY[key][0]] = _actual(row)
+        sid = resolve_alias(str(row.get("model", "")))
+        if sid is not None:
+            actual_by_gw.setdefault(int(row["gw"]), {})[sid] = _actual(row)
 
     gameweeks: list[dict[str, Any]] = []
-    seen: set[str] = set()
+    seen: dict[str, str] = {}  # registry id -> the harness's key for it
     commit: str | None = None
     for doc in by_gw:
         gw = int(doc["gw"])
@@ -133,10 +127,10 @@ def build_models(
         availability: dict[str, dict[str, Any]] = {}
         advice = {}
         for key, pick in dict(doc.get("models", {})).items():
-            if key not in _BY_KEY:
+            wid = resolve_alias(key)
+            if wid is None:
                 continue
-            wid = _BY_KEY[key][0]
-            seen.add(key)
+            seen[wid] = key
             status = ((check or {}).get("models") or {}).get(key)
             if check is None:
                 reason: str | None = "no input-freshness check recorded for this decision"
@@ -167,19 +161,19 @@ def build_models(
     latest_provisional = bool(gameweeks and gameweeks[-1]["provisional"])
     models = [
         {
-            "id": wid,
-            "key": key,
-            "label": label,
-            "role": role,
-            "description": desc,
-            "available": bool(latest.get(wid, {}).get("available")),
-            "unavailable_reason": latest.get(wid, {}).get("reason")
-            if wid in latest
+            "id": s.id,
+            "key": seen[s.id],
+            "label": s.label,
+            "role": s.role,
+            "description": s.description,
+            "available": bool(latest.get(s.id, {}).get("available")),
+            "unavailable_reason": latest.get(s.id, {}).get("reason")
+            if s.id in latest
             else "not decided this gameweek",
-            "provisional": latest_provisional and wid in latest,
+            "provisional": latest_provisional and s.id in latest,
         }
-        for key, wid, label, role, desc in MODEL_REGISTRY
-        if key in seen
+        for s in strategies()
+        if s.id in seen
     ]
     season_to_date = []
     for info in models:
@@ -202,7 +196,7 @@ def build_models(
     return {
         "contract_version": contract_version,
         "season": season,
-        "champion": _BY_KEY[CHAMPION_KEY][0],
+        "champion": champion().id,
         "frozen": {"tag": frozen_tag, "code_commit": commit},
         "provisional": latest_provisional,
         "models": models,

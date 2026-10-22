@@ -1,8 +1,4 @@
-"""Model benchmark evaluation, registry, and accuracy calculation.
-
-Consolidates the five-model registry, walk-forward evaluation, and all-player xP MAE
-accuracy scoring into a deep module.
-"""
+"""Model benchmark accuracy: all-player xP MAE per strategy, keyed by registry id (MOD-03)."""
 
 from __future__ import annotations
 
@@ -12,28 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from fpl_dof.factory.registry import resolve_alias, strategies
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract
-
-#: Model entry: (harness_key, web_id, label, role, description). Display order.
-MODEL_REGISTRY: tuple[tuple[str, str, str, str, str], ...] = (
-    ("C3", "champion", "Champion (C3)", "champion", "Engine + minutes_v2, price/position captain"),
-    ("C1", "challenger", "Challenger (C1)", "challenger", "Boosted xG + minutes model"),
-    ("engine", "engine", "Engine", "comparison", "Original engine, engine captain"),
-    ("A", "a", "Model A", "comparison", "Component xPts model"),
-    ("A_odds", "a_odds", "A + odds", "comparison", "Model A with the odds team layer"),
-)
-
-CHAMPION_KEY = "C3"
-CHAMPION_WEB_ID = "champion"
-
-HARNESS_TO_WEB: dict[str, str] = {key: wid for key, wid, *_ in MODEL_REGISTRY}
-WEB_TO_HARNESS: dict[str, str] = {wid: key for key, wid, *_ in MODEL_REGISTRY}
-REGISTRY_BY_KEY: dict[str, tuple[str, str, str, str]] = {
-    key: (wid, label, role, desc) for key, wid, label, role, desc in MODEL_REGISTRY
-}
-HISTORY_MODELS: tuple[tuple[str, str, str], ...] = tuple(
-    (wid, label, role) for _, wid, label, role, _ in MODEL_REGISTRY
-)
 
 
 def build_xp_accuracy_season(
@@ -42,10 +18,12 @@ def build_xp_accuracy_season(
     path: Path | str,
     *,
     subset: str = "all",
-    id_map: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
-    """Compile accuracy metrics for a single season from an xp_scores CSV file."""
-    ids = id_map if id_map is not None else HARNESS_TO_WEB
+    """Compile accuracy metrics for a single season from an xp_scores CSV file.
+
+    Rows carry the harness's model keys; each is resolved to its registry id, and a key the
+    registry does not know is skipped rather than guessed at.
+    """
     csv_file = Path(path)
     gws: dict[int, dict[str, float]] = {}
     tot: dict[str, list[float]] = {}
@@ -54,10 +32,9 @@ def build_xp_accuracy_season(
         for r in csv.DictReader(f):
             if r.get("subset") != subset or not r.get("mae"):
                 continue
-            model_raw = r["model"]
-            if model_raw not in ids:
+            m = resolve_alias(r["model"])
+            if m is None:
                 continue
-            m = ids[model_raw]
             n = int(r["n_rows"])
             mae = float(r["mae"])
 
@@ -71,7 +48,9 @@ def build_xp_accuracy_season(
         "kind": kind,
         "gameweeks": [{"gameweek": g, "phase": kind, "mae": gws[g]} for g in sorted(gws)],
         "pooled_mae": {m: round(s / n, 4) for m, (s, n) in tot.items() if n},
-        "missing_models": {m: "no saved predictions" for m in ids.values() if m not in tot},
+        "missing_models": {
+            m: "no saved predictions" for m in (x.id for x in strategies()) if m not in tot
+        },
     }
 
 
@@ -114,13 +93,6 @@ class ModelBenchmarkBuilder:
 
 
 __all__ = [
-    "CHAMPION_KEY",
-    "CHAMPION_WEB_ID",
-    "HARNESS_TO_WEB",
-    "HISTORY_MODELS",
-    "MODEL_REGISTRY",
-    "REGISTRY_BY_KEY",
-    "WEB_TO_HARNESS",
     "ModelBenchmarkBuilder",
     "build_xp_accuracy",
     "build_xp_accuracy_season",

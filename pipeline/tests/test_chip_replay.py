@@ -15,7 +15,7 @@ import pytest
 
 from fpl_dof.config import Config
 from fpl_dof.config.models import BacktestConfig, ChipReplayConfig
-from fpl_dof.decision.replay import (
+from fpl_dof.factory.replay import (
     attach_team_ids,
     replay_chip_decisions,
     sample_deadlines,

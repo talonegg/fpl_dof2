@@ -3,7 +3,8 @@
 Keeps prediction and decision apart (DP-02):
 - ``fit_as_of(history, deadline, config, rules) -> FittedForecastModel`` with ``.predict(window)``
 - Produces identical predictions across live, backtest and replay.
-- B0 captain score is attached to the forecast output for the decision stage to read.
+- B0 is fitted on the same training window and kept on the fitted model (``b0``); the factory
+  hands it to the captain policy as its own input, never as a forecast column (DL-76, MOD-02).
 """
 
 from __future__ import annotations
@@ -244,7 +245,6 @@ class FittedForecastModel:
         ).clip(0.0, 1.0)
         frame["next_gameweek"] = horizon[0]
         frame["horizon_gameweeks"] = len(horizon)
-        frame["captain_score"] = self.b0.predict(frame).to_numpy()
         frame.attrs["component_description"] = self.models.describe()
 
         log.info(
@@ -309,7 +309,6 @@ class FittedForecastModel:
         ).clip(0.0, 1.0)
         frame["next_gameweek"] = horizon[0]
         frame["horizon_gameweeks"] = len(horizon)
-        frame["captain_score"] = self.b0.predict(frame).to_numpy()
         return frame
 
 

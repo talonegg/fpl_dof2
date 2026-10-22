@@ -39,7 +39,6 @@ def test_stage_registry_is_the_documented_pipeline() -> None:
         "forecast",
         "optimise",
         "week",
-        "decision",
         "publish",
     )
 
