@@ -69,10 +69,12 @@ describe("warmPublishedCache", () => {
     // the largest and most useful artefact, out of the offline cache entirely.
     const { storage } = fakeCaches({ missing: ["week", "plan"] });
 
-    const result = await warmPublishedCache({ dataBase, cacheStorage: storage });
+    // The registry names each strategy's week and plan; they are warmed with the fixed artefacts.
+    const names = [...WARMED_ARTEFACTS, "week", "plan"];
+    const result = await warmPublishedCache({ dataBase, cacheStorage: storage, names });
 
     expect(result.failed).toEqual(["week", "plan"]);
-    expect(result.added).toEqual(["meta", "rules", "players", "squad", "week_challenger", "models"]);
+    expect(result.added).toEqual([...WARMED_ARTEFACTS]);
   });
 
   it("reports an unsupported environment rather than throwing", async () => {
@@ -102,10 +104,10 @@ describe("warmPublishedCache", () => {
     expect(added).toEqual(["/fpl-dof/data/v1/meta.json"]);
   });
 
-  it("warms the six eager artefacts and not the lazy ones", () => {
+  it("warms the fixed eager artefacts and not the lazy ones", () => {
     // `history.json` fully populated is larger than the other six combined (DL-37). If it ever ends
     // up in this list, a first visit pays for it whether or not the reader opens a player page.
-    expect([...WARMED_ARTEFACTS]).toEqual(["meta", "rules", "players", "squad", "week", "plan", "week_challenger", "models"]);
+    expect([...WARMED_ARTEFACTS]).toEqual(["meta", "rules", "players", "squad", "strategies", "models"]);
     expect(WARMED_ARTEFACTS).not.toContain("history");
     expect(WARMED_ARTEFACTS).not.toContain("fixtures");
   });

@@ -14,12 +14,7 @@ from typing import Any
 
 import numpy as np
 
-from fpl_dof.publish.benchmark import (
-    CHAMPION_WEB_ID as CHAMPION,
-)
-from fpl_dof.publish.benchmark import (
-    HISTORY_MODELS,
-)
+from fpl_dof.factory.registry import champion, resolve_alias, strategies
 
 BOOTSTRAP_DRAWS = 2000
 BOOTSTRAP_SEED = 0
@@ -50,14 +45,18 @@ def build_models_history(
     provenance: Mapping[str, Any],
     contract_version: int,
 ) -> dict[str, Any]:
-    """Assemble the artefact from per-model decision rows keyed by web model id.
+    """Assemble the artefact from per-model decision rows keyed by strategy id or legacy alias.
 
     Each row: ``gw``, ``points`` (final XI after auto-subs incl. armband, net of hits),
     ``points_before_hits``, ``hit_points``, ``n_transfers``, ``transfers`` (list of str),
     ``captain``, ``vice_captain``, ``captain_points``, ``vice_used``, ``n_autosubs``.
     Only gameweeks every available model played are compared, so ranks and deltas are paired.
     """
-    present = [m for m, *_ in HISTORY_MODELS if rows.get(m)]
+    rows = {sid: v for k, v in rows.items() if (sid := resolve_alias(k)) is not None}
+    unavailable = {sid: v for k, v in unavailable.items() if (sid := resolve_alias(k)) is not None}
+    registered = strategies()
+    champ_id = champion().id
+    present = [s.id for s in registered if rows.get(s.id)]
     by_model = {m: {int(r["gw"]): r for r in rows[m]} for m in present}
     gws = sorted(set.intersection(*(set(v) for v in by_model.values()))) if present else []
 
@@ -91,11 +90,11 @@ def build_models_history(
         gameweeks.append({"gameweek": gw, "models": entries})
 
     summary = []
-    champ = [float(by_model[CHAMPION][g]["points"]) for g in gws] if CHAMPION in present else []
+    champ = [float(by_model[champ_id][g]["points"]) for g in gws] if champ_id in present else []
     for m in present:
         series = [float(by_model[m][g]["points"]) for g in gws]
         delta = None
-        if champ and m != CHAMPION:
+        if champ and m != champ_id:
             d = [a - b for a, b in zip(series, champ, strict=True)]
             lo, hi = bootstrap_ci(d)
             delta = {
@@ -121,15 +120,15 @@ def build_models_history(
 
     models = [
         {
-            "id": m,
-            "label": label,
-            "role": role,
-            "available": m in present,
+            "id": s.id,
+            "label": s.label,
+            "role": s.role,
+            "available": s.id in present,
             "unavailable_reason": None
-            if m in present
-            else unavailable.get(m, "No realistic 2025/26 run"),
+            if s.id in present
+            else unavailable.get(s.id, "No realistic 2025/26 run"),
         }
-        for m, label, role in HISTORY_MODELS
+        for s in registered
     ]
     return {
         "contract_version": contract_version,
@@ -140,7 +139,7 @@ def build_models_history(
             "season. Each model starts 2025/26 with its own fresh squad, uses no chips, and sees "
             "only data from before each deadline. Real results will differ."
         ),
-        "champion": CHAMPION,
+        "champion": champ_id,
         "provenance": dict(provenance),
         "bootstrap": {
             "draws": BOOTSTRAP_DRAWS,

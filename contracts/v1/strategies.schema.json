@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/talonegg/fpl_dof2/contracts/v1/strategies.schema.json",
+  "title": "Strategies",
+  "description": "The strategy registry as published (MOD-03, DL-86): every registered strategy — a forecaster paired with a decision policy — generated from the committed files under config/strategies/. Every per-strategy artefact names its strategy by the id and digest listed here. Additive in contract v1.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "champion", "strategies"],
+  "properties": {
+    "contract_version": { "type": "integer", "const": 1 },
+    "champion": { "type": "string", "description": "The id of the one strategy whose role is champion: the live advice." },
+    "strategies": {
+      "type": "array",
+      "description": "Champion first, then by role, published before unpublished, then by id.",
+      "items": { "$ref": "#/$defs/strategy" }
+    }
+  },
+  "$defs": {
+    "strategy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "description", "role", "published", "aliases", "digest", "plan", "artefacts"],
+      "properties": {
+        "id": { "type": "string", "description": "Stable; never reused, never a role name." },
+        "label": { "type": "string" },
+        "description": { "type": "string" },
+        "role": { "type": "string", "enum": ["champion", "challenger", "experiment", "retired"] },
+        "published": { "type": "boolean", "description": "Runs every refresh and appears in the app." },
+        "aliases": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Legacy ids that mean this strategy: the frozen harness's key and the app's old model ids."
+        },
+        "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "sha256 over the registry entry and the run config sections it reads, as canonical JSON, and the source that decides its advice: it changes whenever any of the three does." },
+        "plan": { "type": "boolean", "description": "Whether the strategy gets the multi-gameweek plan and chips." },
+        "artefacts": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["week", "plan"],
+          "description": "Where the app finds this strategy's published week and plan, relative to the data directory; null where it publishes none. The app reads these paths and never builds one.",
+          "properties": {
+            "week": { "type": ["string", "null"] },
+            "plan": { "type": ["string", "null"] }
+          }
+        }
+      }
+    }
+  }
+}

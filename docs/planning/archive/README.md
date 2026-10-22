@@ -34,7 +34,7 @@ lists every entry.
 ## R1.1.0 — the data pipeline uplift
 
 PIPE-01 … PIPE-14, built 2026-10-17 to 2026-10-19, remediated by REM-01 … REM-11 and tagged
-2026-10-21; its last box was verified on `main` in R1.1.1.
+2026-10-21; its last box was verified on `main` in R1.1.1, tagged 2026-10-22 ([DL-85](../../decisions/DL-85.md)).
 
 | Plan | Main decisions |
 | --- | --- |

@@ -1,11 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { installFetchStub, renderApp, resetAppState } from "../../test/render";
-import { challengerWeek, players, week } from "../../test/fixtures";
-import { diffModels } from "../../data/modelDiff";
+import { challengerWeek, strategiesFixture, week } from "../../test/fixtures";
 import { MODEL_STORAGE_KEY } from "../../data/model";
 
-describe("champion/challenger", () => {
+const registry = { strategies: strategiesFixture, week_c1: challengerWeek };
+const championRationale = week.recommendation!.rationale;
+
+describe("champion and challenger from the registry", () => {
   beforeEach(() => {
     resetAppState();
     window.history.replaceState(null, "", "/");
@@ -13,79 +15,65 @@ describe("champion/challenger", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("defaults to the champion and labels the recommendation", async () => {
-    installFetchStub({ bodies: { week_challenger: challengerWeek } });
+    installFetchStub({ bodies: registry });
     renderApp("/");
     await waitFor(() => expect(screen.getByTestId("model-toggle")).toBeTruthy());
-    expect(screen.getByTestId("model-toggle-champion").getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByTestId("model-toggle-c3").getAttribute("aria-checked")).toBe("true");
     const card = screen.getByTestId("dashboard-recommendation");
-    expect(within(card).getByTestId("model-badge").dataset.model).toBe("champion");
-    expect(screen.getByTestId("week-rationale").textContent).toBe(week.recommendation!.rationale);
+    expect(within(card).getByTestId("model-badge").dataset.model).toBe("c3");
+    expect(screen.getByTestId("week-rationale").textContent).toBe(championRationale);
   });
 
   it("switches to the challenger, relabels, and remembers the choice", async () => {
-    installFetchStub({ bodies: { week_challenger: challengerWeek } });
+    installFetchStub({ bodies: registry });
     renderApp("/");
     await waitFor(() => expect(screen.getByTestId("model-toggle")).toBeTruthy());
-    fireEvent.click(screen.getByTestId("model-toggle-challenger"));
-    await waitFor(() =>
-      expect(screen.getByTestId("week-rationale").textContent).toBe("Roll the free transfer"),
-    );
+    fireEvent.click(screen.getByTestId("model-toggle-c1"));
+    await waitFor(() => expect(screen.getByTestId("week-rationale").textContent).toBe("Roll the free transfer"));
     const card = screen.getByTestId("dashboard-recommendation");
-    expect(within(card).getByTestId("model-badge").dataset.model).toBe("challenger");
-    expect(window.localStorage.getItem(MODEL_STORAGE_KEY)).toBe("challenger");
+    expect(within(card).getByTestId("model-badge").dataset.model).toBe("c1");
+    expect(window.localStorage.getItem(MODEL_STORAGE_KEY)).toBe("c1");
   });
 
-  it("honours a stored choice and a ?model= URL param", async () => {
-    installFetchStub({ bodies: { week_challenger: challengerWeek } });
+  it("opens the challenger from a saved legacy 'challenger' preference, and saves the id instead", async () => {
+    installFetchStub({ bodies: registry });
     window.localStorage.setItem(MODEL_STORAGE_KEY, "challenger");
     renderApp("/");
-    await waitFor(() =>
-      expect(screen.getByTestId("week-rationale").textContent).toBe("Roll the free transfer"),
-    );
+    await waitFor(() => expect(screen.getByTestId("week-rationale").textContent).toBe("Roll the free transfer"));
+    expect(screen.getByTestId("model-toggle-c1").getAttribute("aria-checked")).toBe("true");
+    await waitFor(() => expect(window.localStorage.getItem(MODEL_STORAGE_KEY)).toBe("c1"));
   });
 
-  it("URL param overrides storage", async () => {
-    installFetchStub({ bodies: { week_challenger: challengerWeek } });
-    window.localStorage.setItem(MODEL_STORAGE_KEY, "challenger");
+  it("opens the challenger from an old ?model=challenger link", async () => {
+    installFetchStub({ bodies: registry });
+    window.history.replaceState(null, "", "/?model=challenger");
+    renderApp("/");
+    await waitFor(() => expect(screen.getByTestId("week-rationale").textContent).toBe("Roll the free transfer"));
+  });
+
+  it("an old ?model=champion link overrides the saved choice and opens the champion", async () => {
+    installFetchStub({ bodies: registry });
+    window.localStorage.setItem(MODEL_STORAGE_KEY, "c1");
     window.history.replaceState(null, "", "/?model=champion");
     renderApp("/");
-    await waitFor(() =>
-      expect(screen.getByTestId("week-rationale").textContent).toBe(week.recommendation!.rationale),
-    );
+    await waitFor(() => expect(screen.getByTestId("week-rationale").textContent).toBe(championRationale));
+    expect(screen.getByTestId("model-toggle-c3").getAttribute("aria-checked")).toBe("true");
   });
 
-  it("degrades to the champion when the challenger is missing", async () => {
-    installFetchStub();
+  it("an unknown model opens the champion", async () => {
+    installFetchStub({ bodies: registry });
+    window.history.replaceState(null, "", "/?model=nonsense");
+    renderApp("/");
+    await waitFor(() => expect(screen.getByTestId("week-rationale").textContent).toBe(championRationale));
+  });
+
+  it("degrades to the champion when the challenger's week is missing", async () => {
+    installFetchStub({ bodies: { strategies: strategiesFixture } });
     window.localStorage.setItem(MODEL_STORAGE_KEY, "challenger");
     renderApp("/");
     await waitFor(() => expect(screen.getByTestId("model-toggle")).toBeTruthy());
-    expect((screen.getByTestId("model-toggle-challenger") as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByTestId("model-toggle-c1")).toBeNull();
     expect(screen.getByTestId("model-toggle-note").textContent).toContain("not published");
-    expect(screen.getByTestId("week-rationale").textContent).toBe(week.recommendation!.rationale);
-  });
-
-  it("shows the side-by-side diff", async () => {
-    installFetchStub({ bodies: { week_challenger: challengerWeek } });
-    renderApp("/models");
-    await waitFor(() => expect(screen.getByTestId("model-diff")).toBeTruthy());
-    expect(screen.getByTestId("model-diff-summary").textContent).toContain("transfers differ");
-    expect(screen.getByTestId("model-diff-summary").textContent).toContain("captain differs");
-    expect(screen.getByTestId("model-diff-challenger-transfers").textContent).toContain("Roll");
-    expect(screen.getAllByTestId("model-diff-champion-only").length).toBe(1);
-  });
-
-  it("the diff view says so when the challenger is missing", async () => {
-    installFetchStub();
-    renderApp("/models");
-    await waitFor(() => expect(screen.getByTestId("model-diff-missing")).toBeTruthy());
-  });
-
-  it("diffModels finds transfer, captain and XI differences", () => {
-    const d = diffModels(week, challengerWeek, players);
-    expect(d.transfersDiffer).toBe(true);
-    expect(d.captainDiffers).toBe(true);
-    expect(d.onlyChampionXI.map((p) => p.id)).toEqual([2]);
-    expect(d.onlyChallengerXI.map((p) => p.id)).toEqual([3]);
-    expect(diffModels(week, week, players).differenceCount).toBe(0);
+    expect(screen.getByTestId("week-rationale").textContent).toBe(championRationale);
   });
 });

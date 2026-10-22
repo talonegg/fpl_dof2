@@ -1,24 +1,14 @@
 import { useId, useRef } from "react";
 import type { KeyboardEvent } from "react";
 import { Link } from "react-router-dom";
-import { useModel } from "../../data/DataProvider";
-import {
-  MODEL_CHOICES,
-  MODEL_DESCRIPTIONS,
-  MODEL_LABELS,
-  MODEL_SHORT_LABELS,
-  isComparison,
-} from "../../data/model";
+import { useModel, useRegistry } from "../../data/DataProvider";
+import { isComparison, modelDescription, modelLabel, orderIds } from "../../data/registry";
 import type { ModelChoice } from "../../data/model";
 import { PROVISIONAL_TITLE, ProvisionalBadge } from "./ProvisionalBadge";
 import "./models.css";
 
-/** Why a model cannot be picked right now. */
-export const NOT_PUBLISHED_TITLE =
-  "Not available: this model has no advice published for the current gameweek yet, or its inputs failed the freshness check.";
-
 /**
- * The model selector: champion (default) plus the four frozen comparison models.
+ * The model selector: every published strategy that has a week, the champion first.
  *
  * Two renderings of one choice, swapped by CSS at 768px so only one is ever visible (and the hidden
  * one is `display: none`, so it is out of the accessibility tree too):
@@ -51,13 +41,14 @@ export function ModelSelector({
 } = {}) {
   const prefix = testId === "model-toggle" ? "model" : testId;
   const global = useModel();
+  const registry = useRegistry();
   const available = availableOverride ?? global.available;
   const effective = value ?? global.effective;
   const provisional = provisionalOverride ?? global.provisional;
   const setModel = onChange ?? global.setModel;
   const noteId = `model-selector-note-${useId().replace(/:/g, "")}`;
   const refs = useRef<Partial<Record<ModelChoice, HTMLButtonElement | null>>>({});
-  const enabled = MODEL_CHOICES.filter((m) => available.includes(m));
+  const enabled = orderIds(registry, available);
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const i = enabled.indexOf(effective);
@@ -75,8 +66,8 @@ export function ModelSelector({
 
   const note = available.length === 1
     ? "Comparison models not published this run — showing the champion (live advice)."
-    : isComparison(effective)
-    ? `Comparison only — live advice is the champion. Showing ${MODEL_DESCRIPTIONS[effective]}.`
+    : isComparison(registry, effective)
+    ? `Comparison only — live advice is the champion. Showing ${modelDescription(registry, effective) || modelLabel(registry, effective)}`
     : "Live advice: champion. Other models are comparisons.";
 
   return (
@@ -89,10 +80,9 @@ export function ModelSelector({
         onKeyDown={onKeyDown}
         data-testid={`${prefix}-segmented`}
       >
-        {MODEL_CHOICES.map((choice) => {
-          const disabled = !available.includes(choice);
+        {enabled.map((choice) => {
           const checked = effective === choice;
-          const prov = !disabled && provisional.includes(choice);
+          const prov = provisional.includes(choice);
           return (
             <button
               key={choice}
@@ -102,21 +92,18 @@ export function ModelSelector({
               type="button"
               role="radio"
               aria-checked={checked}
-              aria-label={`${MODEL_LABELS[choice]}${isComparison(choice) ? " (comparison)" : " (live)"}${prov ? " (provisional)" : ""}`}
+              aria-label={`${modelLabel(registry, choice)}${isComparison(registry, choice) ? " (comparison)" : " (live)"}${prov ? " (provisional)" : ""}`}
               tabIndex={checked ? 0 : -1}
-              disabled={disabled}
               title={
-                disabled
-                  ? NOT_PUBLISHED_TITLE
-                  : prov
-                  ? `${MODEL_DESCRIPTIONS[choice]}. ${PROVISIONAL_TITLE}`
-                  : MODEL_DESCRIPTIONS[choice]
+                prov
+                  ? `${modelDescription(registry, choice)} ${PROVISIONAL_TITLE}`
+                  : modelDescription(registry, choice)
               }
               className={`model-toggle-button${checked ? " active" : ""}`}
               data-testid={`${testId}-${choice}`}
               onClick={() => setModel(choice)}
             >
-              {MODEL_SHORT_LABELS[choice]}
+              {modelLabel(registry, choice)}
               {prov && (
                 <span className="provisional-dot" aria-hidden="true" data-testid={`${testId}-${choice}-provisional`}>
                   {" "}·P
@@ -130,15 +117,15 @@ export function ModelSelector({
         <span className="model-select-label">Model</span>
         <select
           value={effective}
-          onChange={(e) => setModel(e.target.value as ModelChoice)}
+          onChange={(e) => setModel(e.target.value)}
           aria-describedby={noteId}
           data-testid={`${prefix}-select`}
         >
-          {MODEL_CHOICES.map((choice) => (
-            <option key={choice} value={choice} disabled={!available.includes(choice)}>
-              {MODEL_LABELS[choice]}
-              {isComparison(choice) ? " — comparison" : " — live"}
-              {provisional.includes(choice) && available.includes(choice) ? " (provisional)" : ""}
+          {enabled.map((choice) => (
+            <option key={choice} value={choice}>
+              {modelLabel(registry, choice)}
+              {isComparison(registry, choice) ? " — comparison" : " — live"}
+              {provisional.includes(choice) ? " (provisional)" : ""}
             </option>
           ))}
         </select>

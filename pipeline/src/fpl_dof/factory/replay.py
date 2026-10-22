@@ -1,7 +1,8 @@
 """Replaying real historical deadlines through the decision engine. Repays D-18.
 
-Moved from :mod:`fpl_dof.optimise.replay` to decouple prediction from decision (DP-02, PIPE-13).
-Uses :func:`~fpl_dof.forecast.fit.fit_as_of` for consistent model fitting.
+An evaluation that fits models, so it lives in the model factory (MOD-04): the decision engine in
+``core`` imports nothing from here. Uses :func:`~fpl_dof.forecast.fit.fit_as_of` for consistent
+model fitting.
 """
 
 from __future__ import annotations

@@ -1,36 +1,26 @@
-"""C1 shadow — per-position boosted xG model with a minutes head, P(play) x pts|play.
+"""C1 — per-position boosted xG model with a minutes head, P(play) x pts|play.
 
 Port of ``backtest/vector_models.py`` (kind ``xg2``), the candidate that scored +6.70 [3.21, 9.96]
 XI pts/GW over the engine in the walk-forward backtest, concentrated in 2025/26 and with 24 hits.
-That is not yet a reason to ship it, so it runs as a **shadow**: every week stage fits it on
-history strictly before the upcoming gameweek, lets the real transfer engine choose from its
-numbers (captain by the price+position rule), and logs the XI, captain and transfers beside the
-engine's own to ``shadow_c1.json``. Nothing it produces reaches ``week.json``, and any exception
-it raises is caught by :func:`run_shadow_safely` so the live run cannot fail on its account.
+It is the ``c1`` challenger's forecaster: the registry's ``Strategy.forecast`` calls
+:func:`forecast`, and its advice comes from the one decision engine like every strategy's (MOD-04).
 """
 
 from __future__ import annotations
 
-import json
-import traceback
-from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
 
-from fpl_dof.config.models import OptimiserConfig, TransferConfig
-from fpl_dof.frames import as_int
-from fpl_dof.obs.logging import get_logger
-from fpl_dof.optimise.captain import apply_price_position_captain, price_position_scores
-from fpl_dof.optimise.transfer import TransferOption, TransferRecommendation, recommend_transfers
+from fpl_dof.config.models import ForecastConfig
+from fpl_dof.forecast import live
+from fpl_dof.forecast.entry import Forecast
+from fpl_dof.forecast.inputs import ForecastInputs
+from fpl_dof.frames import as_int, gameweek_column
+from fpl_dof.optimise.frame import validate_forecast_frame
 from fpl_dof.rules.models import GameRules
-from fpl_dof.squad.state import SquadState
 
-log = get_logger(__name__)
-
-SHADOW_FILENAME = "shadow_c1.json"
 MODEL_NAME = "c1_gbm_xg_minutes"
 
 ROLL_SRC = [
@@ -195,99 +185,31 @@ def predict_next(
     return {as_int(k): float(v) for k, v in C1Model().fit_predict(g, t_next).items()}
 
 
-def _option(option: TransferOption) -> dict[str, object]:
-    return {
-        "transfers": option.transfers,
-        "hit_points": option.hit_points,
-        "moves": [
-            {"out": m.player_out_id, "in": m.player_in_id, "text": m.describe()}
-            for m in option.moves
-        ],
-        "starting": list(option.starting),
-        "captain": option.captain_id,
-        "vice_captain": option.vice_captain_id,
-        "gross_expected_points": option.gross_expected_points,
-    }
+def forecast(
+    inputs: ForecastInputs, rules: GameRules, config: ForecastConfig, variance_from: Forecast
+) -> Forecast:
+    """C1's forecast frame: its own next-gameweek mean, fitted on history strictly before it.
 
-
-@dataclass(frozen=True)
-class Challenger:
-    """C1's full weekly answer: the recommendation, the xPts frame it was chosen from, and the
-    price+position captain scores (None when there was no history to fit them)."""
-
-    recommendation: TransferRecommendation
-    forecast: pd.DataFrame
-    captain_scores: dict[int, float] | None
-
-
-def fit_challenger(
-    *,
-    forecast: pd.DataFrame,
-    history: pd.DataFrame,
-    players: pd.DataFrame,
-    fixtures: pd.DataFrame,
-    state: SquadState,
-    rules: GameRules,
-    transfer_config: TransferConfig,
-    optimiser_config: OptimiserConfig,
-    gameweek: int,
-) -> Challenger:
-    """Fit C1 on history strictly before ``gameweek`` and run the real transfer engine on it."""
-    xp_by_code = predict_next(history, players, fixtures, rules.season, gameweek)
+    C1 forecasts one gameweek and has no variance of its own yet, so it **borrows** from
+    ``variance_from`` (the champion's forecast): every sd column, the per-gameweek means beyond the
+    next gameweek (which the plan reads), and B0's line for the price-and-position captain rule.
+    MOD-05 gives C1 its own variance and horizon; until then the borrowing is this signature.
+    """
+    validate_forecast_frame(variance_from.frame)
+    gameweek, _, _ = live.next_deadline(inputs.gameweeks, config, as_of=inputs.as_of)
+    history = inputs.player_gameweek if inputs.player_gameweek is not None else pd.DataFrame()
+    players = inputs.players
+    xp_by_code = predict_next(history, players, inputs.fixtures, rules.season, gameweek)
     code_of = dict(zip(players["player_id"].astype(int), players["code"].astype(int), strict=True))
-    frame = forecast.copy()
+    frame = variance_from.frame.copy()
     frame["xp_next"] = [xp_by_code.get(code_of.get(as_int(i), -1), 0.0) for i in frame["player_id"]]
     frame["xp_horizon"] = frame["xp_next"]
-    rec = recommend_transfers(frame, state, rules, transfer_config, optimiser_config)
-    scores = price_position_scores(frame, history)
-    if scores is not None:
-        rec = apply_price_position_captain(rec, frame, scores, optimiser_config.captain_multiplier)
-    return Challenger(recommendation=rec, forecast=frame, captain_scores=scores)
-
-
-def run_shadow(**kwargs: Any) -> TransferRecommendation:
-    return fit_challenger(**kwargs).recommendation
-
-
-def run_shadow_safely(
-    *,
-    gold: Path,
-    run_id: str,
-    gameweek: int,
-    engine: TransferRecommendation,
-    result: Challenger | BaseException | None = None,
-    **kwargs: Any,
-) -> Path | None:
-    """Run C1 and log it beside the engine. Never raises: the shadow cannot fail the pipeline.
-
-    ``result`` lets the week stage pass in a challenger it has already fitted (or the exception
-    fitting it raised), so the model is trained once per run for both the log and the published
-    challenger artefact.
-    """
-    payload: dict[str, object] = {
-        "run_id": run_id,
-        "gameweek": gameweek,
-        "model": MODEL_NAME,
-        "affects_live_recommendation": False,
-        "engine": _option(engine.recommended),
-    }
-    try:
-        if isinstance(result, BaseException):
-            raise result
-        shadow = (
-            result.recommendation if result is not None else run_shadow(gameweek=gameweek, **kwargs)
-        )
-        payload.update(
-            status="ok", shadow=_option(shadow.recommended), shadow_rationale=shadow.rationale
-        )
-    except Exception as exc:
-        log.warning("shadow.c1_failed", extra={"error": repr(exc)})
-        payload.update(status="failed", error=repr(exc), traceback=traceback.format_exc())
-    try:
-        gold.mkdir(parents=True, exist_ok=True)
-        path = gold / SHADOW_FILENAME
-        path.write_text(json.dumps(payload, indent=2, default=str), encoding="utf-8")
-        return path
-    except Exception as exc:
-        log.warning("shadow.c1_unwritable", extra={"error": repr(exc)})
-        return None
+    if gameweek_column(gameweek) in frame.columns:
+        frame[gameweek_column(gameweek)] = frame["xp_next"]
+    frame["model"] = MODEL_NAME
+    return Forecast(
+        frame=validate_forecast_frame(frame),
+        model=MODEL_NAME,
+        fallback_reason=None,
+        captain_line=variance_from.captain_line,
+    )

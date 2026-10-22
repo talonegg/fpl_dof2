@@ -26,6 +26,7 @@ import numpy as np
 import pandas as pd
 
 from fpl_dof.config.models import OptimiserConfig, TransferConfig
+from fpl_dof.factory.registry import champion, resolve_alias
 from fpl_dof.frames import as_int
 from fpl_dof.rules.models import GameRules, Position
 from fpl_dof.squad.state import HeldPlayer, Provenance, SquadState
@@ -254,6 +255,7 @@ def _hindsight(
     lineups: dict[str, AdvisedLineup] = {}
     models_xp: dict[str, dict[int, float]] = {}
     models_captains: dict[str, int] = {}
+    champ_id = champion().id
 
     played_starting = tuple(played.get("starting", ()))
     played_bench = tuple(played.get("bench_order", ()))
@@ -290,7 +292,7 @@ def _hindsight(
         )
         adv_xp = float(adv.get("expected_points") or 0.0)
         if adv_starting:
-            lineups["xp_v1"] = AdvisedLineup(
+            lineups[champ_id] = AdvisedLineup(
                 starting=adv_starting,
                 bench_order=adv_bench,
                 bench_gkp=adv.get("reserve_goalkeeper"),
@@ -300,15 +302,16 @@ def _hindsight(
                 free_transfers=adv_free,
                 expected_points=adv_xp,
             )
-            models_captains["xp_v1"] = adv_cap
-            models_xp["xp_v1"] = {adv_cap: adv_xp / 2.0}
+            models_captains[champ_id] = adv_cap
+            models_xp[champ_id] = {adv_cap: adv_xp / 2.0}
 
     if recorded is not None and isinstance(recorded.get("models"), Mapping):
         for m_name, m_data in recorded["models"].items():
-            if not isinstance(m_data, Mapping):
-                continue
+            if not isinstance(m_data, Mapping) or m_data.get("role") == "champion":
+                continue  # the champion's advice is the top-level record, scored above
             adv_val = m_data.get("advised")
             m_adv: Mapping[str, Any] = adv_val if isinstance(adv_val, Mapping) else m_data
+            m_name = resolve_alias(m_name) or m_name  # legacy keys in recorded advice
             m_starting = tuple(m_adv.get("starting") or ())
             m_bench = tuple(m_adv.get("bench_order") or ())
             m_cap = m_adv.get("captain") or (m_starting[0] if m_starting else 1)

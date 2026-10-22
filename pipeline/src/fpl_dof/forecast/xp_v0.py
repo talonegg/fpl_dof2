@@ -382,23 +382,22 @@ def build_forecast(
             "mean_xp_next": round(float(result["xp_next"].mean()), 3),
         },
     )
-    result["captain_score"] = _captain_scores(result, inputs)
     return result
 
 
-def _captain_scores(frame: pd.DataFrame, inputs: ForecastInputs) -> np.ndarray:
-    """B0's price-and-position score per row, fitted on the gameweeks played before ``as_of``.
+def fit_captain_line(inputs: ForecastInputs) -> baselines.FittedBaseline | None:
+    """B0's price-and-position line, fitted on the gameweeks played before ``as_of``.
 
-    The default captain rule reads ``captain_score`` whichever model built the forecast (REM-08),
-    so the cold-start fallback writes it too. NaN when nothing has been played to fit on; the rule
-    then reports that and falls back.
+    The captain policy reads it whichever model built the forecast (REM-08), so the cold-start
+    fallback fits it too. ``None`` when nothing has been played to fit on; the policy then reports
+    that and falls back.
     """
     played = inputs.player_gameweek
     if played is not None and not played.empty:
         played = played[played["kickoff_time"] < pd.Timestamp(inputs.as_of)]
     if played is None or played.empty:
-        return np.full(len(frame), np.nan)
-    return baselines.fit_b0(played, TARGET).predict(frame).to_numpy()
+        return None
+    return baselines.fit_b0(played, TARGET)
 
 
 def _score_gameweeks(

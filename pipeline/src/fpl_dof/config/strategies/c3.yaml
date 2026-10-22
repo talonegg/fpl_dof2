@@ -1,0 +1,17 @@
+# The strategy registry (MOD-03, DL-86, DL-87): one file per strategy, the single home of its id,
+# label, role and recipe. The field reference is fpl_dof.factory.registry.Strategy.
+id: c3
+label: Champion (C3)
+description: Engine forecasts with the minutes_v2 model; captain by price and position. The live advice.
+role: champion # promoted by DL-76; changing the champion is a role change plus a DL-nn
+published: true
+aliases: [C3, champion, xp_v1] # the frozen harness's key, the web's old id and the season log's old champion key
+forecaster:
+  type: recipe
+  model: xp_v1
+  config: {} # the shipped forecast config as it stands (minutes_v2 on)
+  training_window: knowable_at_deadline
+policy:
+  captain_rule: price_position
+  plan: true
+requires: [player_gameweek, fixture]

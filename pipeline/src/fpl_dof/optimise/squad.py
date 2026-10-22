@@ -39,20 +39,11 @@ import pulp
 from fpl_dof.config.models import OptimiserConfig
 from fpl_dof.frames import as_float, as_int
 from fpl_dof.obs.logging import get_logger
+from fpl_dof.optimise.frame import validate_forecast_frame
 from fpl_dof.rules.legality import Squad, SquadPlayer, Violation, validate_squad
 from fpl_dof.rules.models import GameRules, Position
 
 log = get_logger(__name__)
-
-REQUIRED_COLUMNS = (
-    "player_id",
-    "position",
-    "team_id",
-    "price",
-    "xp_next",
-    "xp_horizon",
-    "start_probability",
-)
 
 
 class SolveStatus(StrEnum):
@@ -258,9 +249,7 @@ def optimise_squad(
     players: pd.DataFrame, rules: GameRules, config: OptimiserConfig
 ) -> tuple[Squad, SolveReport]:
     """Solve for the best legal squad. Raises :class:`InfeasibleError` when none exists."""
-    missing = [column for column in REQUIRED_COLUMNS if column not in players.columns]
-    if missing:
-        raise ValueError(f"player frame is missing columns: {', '.join(missing)}")
+    validate_forecast_frame(players)
 
     pool = players.reset_index(drop=True)
     squad_rules = rules.squad

@@ -2,7 +2,9 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from "react";
 import { loadPublishedData, resetPublishedDataCache } from "./published";
 import type { PublishedData } from "./published";
-import { MODEL_CHOICES, readModelChoice, storeModelChoice } from "./model";
+import { MODEL_STORAGE_KEY, readModelChoice, storeModelChoice } from "./model";
+import { EMPTY_REGISTRY, resolveModel } from "./registry";
+import type { Registry } from "./registry";
 import type { ModelGameweek } from "../contract/types";
 import type { ModelChoice } from "./model";
 import { effectiveSquad } from "../components/squad/effective";
@@ -17,7 +19,7 @@ interface DataContextValue {
   state: DataState;
   /** Clears the cache and loads again. The error view's retry button. */
   reload: () => void;
-  /** The model the reader chose. The challenger is only *in effect* when it was published. */
+  /** The strategy the reader asked for, as written (an id, a legacy alias, or empty). Use `useModel().effective`. */
   model: ModelChoice;
   setModel: (model: ModelChoice) => void;
 }
@@ -32,6 +34,21 @@ export function DataProvider({ children }: { children: ReactNode }) {
     storeModelChoice(next);
     setModelState(next);
   }, []);
+
+  // An old `?model=champion` link or saved preference means a registry id: map it once, and
+  // rewrite the saved preference so the alias is not needed again.
+  const registry = state.status === "ready" ? state.data.registry : null;
+  useEffect(() => {
+    if (!registry) return;
+    const id = resolveModel(registry, model);
+    if (!id || id === model) return;
+    setModelState(id);
+    try {
+      if (window.localStorage.getItem(MODEL_STORAGE_KEY) === model) storeModelChoice(id);
+    } catch {
+      // Storage can be unavailable; the mapping then happens again next visit.
+    }
+  }, [registry, model]);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,45 +114,52 @@ export function useData(): PublishedData {
   if (state.status !== "ready") {
     throw new Error("useData was called before the published data was ready");
   }
-  return useMemo(() => withModel(state.data, model), [state.data, model]);
+  return useMemo(() => withModel(state.data, effectiveModel(state.data, model)), [state.data, model]);
 }
 
 /**
- * The published data as the chosen model sees it. Choosing the challenger swaps `week` (and the
- * in-season squad derived from it) for the challenger's; everything else is model-independent.
- * With no challenger published, the champion is shown whatever was chosen.
+ * The published data as the chosen strategy sees it: its week (and the in-season squad derived
+ * from it) and its plan. Everything else is strategy-independent. A strategy with no week of its
+ * own shows the champion.
  */
 export function withModel(data: PublishedData, model: ModelChoice): PublishedData {
-  if (model !== "challenger" || !data.challenger) return data;
+  const week = data.weeks[model];
+  if (model === data.registry.champion || !week) return data;
   return {
     ...data,
-    week: data.challenger,
-    squad: effectiveSquad(data.publishedSquad, data.challenger, data.players),
+    week,
+    plan: data.plans[model] ?? null,
+    squad: effectiveSquad(data.publishedSquad, week, data.players),
   };
 }
 
-/** Which models have something published to show. The champion always does. */
+/** What a requested model means in this data: its registry id if it can be shown, else the champion. */
+export function effectiveModel(data: PublishedData, requested: string): ModelChoice {
+  const id = resolveModel(data.registry, requested);
+  return id && availableModels(data).includes(id) ? id : data.registry.champion;
+}
+
+/** Strategies with something to show: the champion always, and every other published one that
+ * has a week and has not failed the input freshness check. */
 export function availableModels(data: PublishedData): ModelChoice[] {
-  // A model whose inputs failed the freshness check is never shown, even partially.
-  const inModels = new Set(
-    (data.models?.models ?? []).filter((m) => m.available !== false).map((m) => m.id),
+  const stale = new Set(
+    (data.models?.models ?? []).filter((m) => m.available === false).map((m) => m.id),
   );
-  const latest = latestModelGameweek(data);
-  return MODEL_CHOICES.filter((m) => {
-    if (m === "champion") return true;
-    if (m === "challenger") return data.challenger !== null;
-    return inModels.has(m) && latest?.advice[m] !== undefined;
-  });
+  return data.registry.entries
+    .filter(
+      (e) => e.id === data.registry.champion || (e.published && data.weeks[e.id] !== undefined && !data.weeks[e.id].skipped && !stale.has(e.id)),
+    )
+    .map((e) => e.id);
 }
 
 /**
- * Models whose latest published advice is a provisional preview: computed before the frozen
+ * Strategies whose latest published advice is a provisional preview: computed before the frozen
  * decision exists, and replaced by it at the decision window.
  */
 export function provisionalModels(data: PublishedData): ModelChoice[] {
   const latest = latestModelGameweek(data);
   if (!latest?.provisional) return [];
-  return MODEL_CHOICES.filter((m) => m !== "champion" && latest.advice[m] !== undefined);
+  return Object.keys(latest.advice).filter((m) => m !== data.registry.champion);
 }
 
 /** The most recent gameweek the harness recorded advice for, or null. */
@@ -144,28 +168,28 @@ export function latestModelGameweek(data: PublishedData): ModelGameweek | null {
   return gws.length > 0 ? gws[gws.length - 1] : null;
 }
 
-/** The model actually in effect, which models are available, and which one `week` is from. */
+/** The registry, for any view: empty outside a provider or before the data is ready. */
+export function useRegistry(): Registry {
+  const value = useContext(DataContext);
+  return value?.state.status === "ready" ? value.state.data.registry : EMPTY_REGISTRY;
+}
+
+/** The strategy in effect, which strategies can be shown, and which have provisional advice. */
 export function useModel(): {
   model: ModelChoice;
   effective: ModelChoice;
-  /** The model the week (and squad) on screen came from: the champion unless C1 is chosen. */
-  weekModel: "champion" | "challenger";
   setModel: (model: ModelChoice) => void;
   available: ModelChoice[];
-  /** Available models whose advice is provisional (not yet frozen). */
+  /** Available strategies whose advice is provisional (not yet frozen). */
   provisional: ModelChoice[];
-  challengerAvailable: boolean;
 } {
   const { state, model, setModel } = useDataState();
-  const available = state.status === "ready" ? availableModels(state.data) : ["champion" as const];
-  const effective = available.includes(model) ? model : "champion";
+  if (state.status !== "ready") return { model, effective: model, setModel, available: [], provisional: [] };
   return {
     model,
-    effective,
-    weekModel: effective === "challenger" ? "challenger" : "champion",
+    effective: effectiveModel(state.data, model),
     setModel,
-    available,
-    provisional: state.status === "ready" ? provisionalModels(state.data) : [],
-    challengerAvailable: available.includes("challenger"),
+    available: availableModels(state.data),
+    provisional: provisionalModels(state.data),
   };
 }

@@ -38,9 +38,9 @@
       "additionalProperties": false,
       "required": ["id", "label", "role", "available", "unavailable_reason"],
       "properties": {
-        "id": { "type": "string", "enum": ["champion", "challenger", "engine", "a", "a_odds"] },
+        "id": { "type": "string", "description": "The strategy's id in the strategy registry (strategies.json); a file built before the registry carries one of its legacy aliases." },
         "label": { "type": "string" },
-        "role": { "type": "string", "enum": ["champion", "challenger", "comparison"] },
+        "role": { "type": "string", "description": "The strategy's registry role; a file built before the registry says comparison for a challenger." },
         "available": { "type": "boolean" },
         "unavailable_reason": { "type": ["string", "null"] }
       }

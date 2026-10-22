@@ -34,14 +34,15 @@
 export const PUBLISHED_CACHE = "fpl-dof-published-v1";
 
 /**
- * The artefacts worth having offline: the six the shell loads eagerly (DL-35).
+ * The fixed artefacts worth having offline. Each strategy's week and plan are added from the registry,
+ * which names their paths (MOD-07).
  *
  * `history.json` and `fixtures.json` are deliberately absent. They are lazy by route (DL-37) and
  * `history.json` fully populated is larger than the other six together; warming them would spend the
  * first visit's bandwidth on views the reader may never open. They still cache through the worker
  * once fetched, so a reader who has visited the player page has them offline too.
  */
-export const WARMED_ARTEFACTS = ["meta", "rules", "players", "squad", "week", "plan", "week_challenger", "models"] as const;
+export const WARMED_ARTEFACTS = ["meta", "rules", "players", "squad", "strategies", "models"] as const;
 
 export interface WarmResult {
   /** Artefacts newly written to the cache. */

@@ -1,0 +1,18 @@
+# See c3.yaml for what this file is.
+id: c1
+label: Challenger (C1)
+description: Boosted xG and minutes model; captain by price and position. Pre-registered against C3 on all-player xP MAE, with no look before GW10.
+role: challenger
+published: true
+aliases: [C1, challenger] # the frozen harness's key and the web's old id
+forecaster:
+  type: recipe
+  model: c1_gbm_xg_minutes # shadow/c1.py; its hyperparameters move into config in MOD-05
+  config: {}
+  training_window: knowable_at_deadline
+policy:
+  captain_rule: price_position
+  # Off until MOD-05: its means beyond the next gameweek are the champion's, borrowed, so a plan
+  # of its own would be the champion's horizon under C1's name. MOD-05 gives it its own horizon.
+  plan: false
+requires: [player_gameweek, fixture]

@@ -176,11 +176,17 @@ export interface Week {
   /** True when no squad could be established. Before the first gameweek is scored there is no picks endpoint to read (DL-20), so this is a normal state and not a failure. */
   skipped: boolean;
   skipped_reason?: string;
-  /** Which model produced this recommendation. week.json is the champion (the live engine); week_challenger.json, when present, is the challenger in the same schema (champion/challenger). */
+  /** Which strategy produced this recommendation. week.json is the champion's (the live advice); every other published strategy writes week_<id>.json in the same schema, at the path strategies.json names. */
   model?: {
     id: string;
     label: string;
-    role: "champion" | "challenger";
+    /** The strategy's registry role, as strategies.json lists it. */
+    role: "champion" | "challenger" | "experiment" | "retired";
+  };
+  /** The registered strategy that produced this advice: its id in the strategy registry (strategies.json) and its digest (MOD-03): sha256 over the registry entry, the source that decides its advice and the run config it reads. */
+  strategy?: {
+    id: string;
+    digest: string;
   };
   deadline: {
     gameweek: number;
@@ -440,6 +446,11 @@ export interface Plan {
   /** True when no squad could be established, or when no legal plan exists. Both are normal states before the season starts (DL-20) and neither is a failure. */
   skipped: boolean;
   skipped_reason?: string;
+  /** The registered strategy that produced this advice: its id in the strategy registry (strategies.json) and its digest (MOD-03): sha256 over the registry entry, the source that decides its advice and the run config it reads. */
+  strategy?: {
+    id: string;
+    digest: string;
+  };
   deadline: PlanDeadline;
   gameweeks?: number[];
   /** Which solver produced this. HiGHS from E4 onward (DL-15); CBC was only ever validated against the single-gameweek problem. */
@@ -922,11 +933,13 @@ export interface Log {
 }
 
 export interface ModelInfo {
-  id: "champion" | "challenger" | "engine" | "a" | "a_odds";
-  /** The harness's model key (C3, C1, engine, A, A_odds). */
+  /** The strategy's id in the strategy registry (strategies.json). */
+  id: string;
+  /** The frozen harness's key for this strategy, one of its registry aliases. */
   key: string;
   label: string;
-  role: "champion" | "challenger" | "comparison";
+  /** The strategy's registry role. */
+  role: string;
   description: string;
   /** Whether the latest gameweek's advice passed the CI input-freshness check. */
   available: boolean;
@@ -997,7 +1010,7 @@ export interface ModelSeason {
   }[];
 }
 
-/** The five frozen models side by side (generalises week_challenger.json). Per gameweek: each model's pre-deadline advice, recorded before the deadline by the prospective harness, and — once the gameweek is finished — the points it actually scored (final XI after auto-subs, armband with vice fallback, minus hits). Live advice is the champion's alone; every other model is a comparison. Absent until the harness has recorded a decision, so like log.json its absence is a normal published state. */
+/** The five frozen models side by side. Per gameweek: each model's pre-deadline advice, recorded before the deadline by the prospective harness, and — once the gameweek is finished — the points it actually scored (final XI after auto-subs, armband with vice fallback, minus hits). Live advice is the champion's alone; every other model is a comparison. Absent until the harness has recorded a decision, so like log.json its absence is a normal published state. */
 export interface Models {
   contract_version: 1;
   season: string;
@@ -1015,9 +1028,11 @@ export interface Models {
 }
 
 export interface ModelHistoryModel {
-  id: "champion" | "challenger" | "engine" | "a" | "a_odds";
+  /** The strategy's id in the strategy registry (strategies.json); a file built before the registry carries one of its legacy aliases. */
+  id: string;
   label: string;
-  role: "champion" | "challenger" | "comparison";
+  /** The strategy's registry role; a file built before the registry says comparison for a challenger. */
+  role: string;
   available: boolean;
   unavailable_reason: string | null;
 }
@@ -1105,4 +1120,34 @@ export interface XpAccuracy {
   contract_version: 1;
   metric: string;
   seasons: XpAccuracySeason[];
+}
+
+export interface Strategy {
+  /** Stable; never reused, never a role name. */
+  id: string;
+  label: string;
+  description: string;
+  role: "champion" | "challenger" | "experiment" | "retired";
+  /** Runs every refresh and appears in the app. */
+  published: boolean;
+  /** Legacy ids that mean this strategy: the frozen harness's key and the app's old model ids. */
+  aliases: string[];
+  /** sha256 over the registry entry and the run config sections it reads, as canonical JSON, and the source that decides its advice: it changes whenever any of the three does. */
+  digest: string;
+  /** Whether the strategy gets the multi-gameweek plan and chips. */
+  plan: boolean;
+  /** Where the app finds this strategy's published week and plan, relative to the data directory; null where it publishes none. The app reads these paths and never builds one. */
+  artefacts: {
+    week: string | null;
+    plan: string | null;
+  };
+}
+
+/** The strategy registry as published (MOD-03, DL-86): every registered strategy — a forecaster paired with a decision policy — generated from the committed files under config/strategies/. Every per-strategy artefact names its strategy by the id and digest listed here. Additive in contract v1. */
+export interface Strategies {
+  contract_version: 1;
+  /** The id of the one strategy whose role is champion: the live advice. */
+  champion: string;
+  /** Champion first, then by role, published before unpublished, then by id. */
+  strategies: Strategy[];
 }
