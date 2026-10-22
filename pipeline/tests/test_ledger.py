@@ -292,5 +292,7 @@ def test_hindsight_is_populated_and_validates_against_contract(
     assert "rankings" in gw2["hindsight"]
     assert "optimal" in gw2["hindsight"]
     assert "diagnostics" in gw2["hindsight"]
-    assert len(gw2["hindsight"]["rankings"]) >= 2  # played, xp_v1, c1
+    assert len(gw2["hindsight"]["rankings"]) >= 2  # played, the champion, c1
+    ranked = {r["model_name"] for r in gw2["hindsight"]["rankings"]}
+    assert "c3" in ranked and "xp_v1" not in ranked  # the champion is keyed by registry id (MOD-03)
     Contract(root=find_contracts_root()).validate("log", log)

@@ -1,5 +1,7 @@
 import { useMemo, useState } from "react";
 import type { Log, LogHindsight, LogOracleDiagnostic, Players } from "../../contract/types";
+import { useRegistry } from "../../data/DataProvider";
+import { modelLabel, resolveModel } from "../../data/registry";
 import "./hindsight.css";
 
 interface HindsightSectionProps {
@@ -8,21 +10,14 @@ interface HindsightSectionProps {
   status: "loading" | "ready" | "absent" | "error";
 }
 
-const MODEL_DISPLAY_NAMES: Record<string, string> = {
-  played: "Owner (Played)",
-  xp_v1: "Champion (xp_v1)",
-  c1: "Challenger (C1)",
-  a: "Model A",
-  a_odds: "Model A (odds)",
-  b0: "Baseline (B0)",
-  model_free: "Model-Free (form)",
-};
-
-function formatModelName(key: string): string {
-  return MODEL_DISPLAY_NAMES[key] || key;
-}
+/** The owner's own side of the leaderboard: the one row that is not a registry strategy. */
+const PLAYED = "played";
 
 export function HindsightSection({ log, players, status }: HindsightSectionProps) {
+  const registry = useRegistry();
+  // Keys in older logs are legacy ids; the registry's aliases map them (MOD-03).
+  const formatModelName = (key: string) =>
+    key === PLAYED ? "Owner (Played)" : modelLabel(registry, resolveModel(registry, key) ?? key);
   const completedGws = useMemo(() => {
     if (!log || !log.gameweeks) return [];
     return log.gameweeks.filter((gw) => gw.score !== null || gw.hindsight !== null);

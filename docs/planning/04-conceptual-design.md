@@ -430,7 +430,7 @@ backtest` is not part of `run`; CI runs it weekly with the archive enabled (DL-6
   **Read it before acting on a ranking** (DL-21): no −8 hit, chip or Wildcard on the chain alone
   (D-13).
 - **Not in the package:** a simulated season of the full optimiser. The chip replay
-  (`forecast/replay.py`, DL-28) covers chip timing only; season replays of the frozen models are built
+  (`factory/replay.py`, DL-28) covers chip timing only; season replays of the frozen models are built
   offline as `models_history`; the pre-registered comparison is
   [`prospective/`](../../prospective/README.md).
 

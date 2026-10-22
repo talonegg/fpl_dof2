@@ -150,10 +150,32 @@ class Strategy(_Entry):
         )
 
 
-def digest(strategy: Strategy) -> str:
-    """sha256 of the entry as canonical JSON: changes whenever anything in its file does."""
+#: The packages whose source a strategy runs: its models and its decision code (05 §4).
+_CODE_PACKAGES = ("forecast", "shadow", "factory", "optimise", "decision")
+_PACKAGE_ROOT = Path(__file__).resolve().parents[1]
+
+
+def code_hash(root: Path = _PACKAGE_ROOT) -> str:
+    """sha256 over the model and decision source files, by sorted relative path, line endings
+    normalised so Windows and Linux checkouts agree."""
+    files = sorted(p for pkg in _CODE_PACKAGES for p in (root / pkg).rglob("*.py"))
+    h = hashlib.sha256()
+    for path in files:
+        h.update(path.relative_to(root).as_posix().encode() + b"\0")
+        h.update(path.read_bytes().replace(b"\r\n", b"\n") + b"\0")
+    return h.hexdigest()
+
+
+@functools.cache
+def _shipped_code_hash() -> str:
+    return code_hash()
+
+
+def digest(strategy: Strategy, code: str | None = None) -> str:
+    """sha256 of the entry as canonical JSON plus the code it runs: changes whenever anything in
+    its file or in the model and decision source does. ``code`` is for tests."""
     canonical = json.dumps(strategy.model_dump(mode="json"), sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(canonical.encode()).hexdigest()
+    return hashlib.sha256(f"{canonical}\0{code or _shipped_code_hash()}".encode()).hexdigest()
 
 
 def load_registry(directory: Path = STRATEGIES_DIR) -> tuple[Strategy, ...]:
