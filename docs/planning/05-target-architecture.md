@@ -163,8 +163,8 @@ built: one file per strategy, its fields and its digest are in
 [04 §13](04-conceptual-design.md#13-configuration-and-feature-flags). Still target:
 
 - **`forecast` for every forecaster**, so the orchestrator runs any registered strategy without
-  naming its code (MOD-05); `forecast` exists for `xp_v1` and C1, and C1 still borrows the
-  champion's variance and later gameweeks through it. `decide` is built (MOD-04).
+  naming its code (MOD-05); `forecast` and `predictor` (the walk-forward harness's
+  `fit_as_of`/`predict`) exist for `xp_v1` and C1, each with its own variance. `decide` is built (MOD-04).
 - **Recipe forecasters** are the default: code version, config, feature set and training window,
   refitted by the orchestrator through `fit_as_of` on fresh data and recorded by digest (DP-11).
 - **Frozen forecasters** carry fitted parameters trained offline by the factory, for heavier models;
@@ -180,8 +180,11 @@ The five ids are registered ([04 §13](04-conceptual-design.md#13-configuration-
 `engine` is live (R1.2.2, MOD-05): `xp_v1` on the shipped forecast config with `minutes_v2` off,
 the solver's captain, no plan; a strategy's `forecaster.config` is a validated deep-merge override of that
 config, `training_window` (`current_season` or `all_seasons`) filters the history it is fitted on, and `requires`
-is enforced in `Strategy.forecast`. Still target: `a` and `a_odds` go live in R1.2.2 — `c1` rebuilt behind the frame
-contract, `a` and `a_odds` ported from the frozen bundle (they train on prior seasons and A_odds
+is enforced in `Strategy.forecast`. `c1` is rebuilt behind the frame contract (MOD-05): its own
+variance, `FeatureSpec` features checked by `assert_no_look_ahead`, hyperparameters and seed in
+`forecast.c1`, trained on `all_seasons` keyed by `player_code`, one gameweek with `plan: false`
+([04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)). Still target: `a` and
+`a_odds` go live in R1.2.2, ported from the frozen bundle (they train on prior seasons and A_odds
 reads odds, so the live run enables the archive and football-data.co.uk). The frozen harness is
 switched off when the ports go live, with no parity check; its records stay on `ledger` as each
 strategy's history up to the switch, which the app marks ([DL-87](../decisions/DL-87.md)).

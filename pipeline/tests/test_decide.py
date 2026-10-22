@@ -238,29 +238,30 @@ def _forecast_config() -> Config:
 
 def _c1(rules: GameRules) -> tuple[ForecastInputs, Forecast, Forecast]:
     inputs, champ = _snapshot(rules)
-    c1 = load_strategy("c1").forecast(inputs, rules, _forecast_config(), variance_from=champ)
+    c1 = load_strategy("c1").forecast(inputs, rules, _forecast_config())
     return inputs, champ, c1
 
 
-def test_c1_forecasts_through_the_registry_and_borrows_only_what_it_declares(
-    game_rules: GameRules,
-) -> None:
+def test_c1_forecasts_through_the_registry_with_nothing_borrowed(game_rules: GameRules) -> None:
     _, champ, c1 = _c1(game_rules)
     assert set(c1.frame["strategy"]) == {"c1"}
     assert not c1.frame["xp_next"].equals(champ.frame["xp_next"])  # its own next-gameweek mean
     assert c1.frame["xp_gw_5"].equals(c1.frame["xp_next"])
-    for borrowed in ("xp_next_sd", "xp_horizon_sd", "xp_gw_5_sd", "xp_gw_6", "xp_gw_6_sd"):
-        assert c1.frame[borrowed].equals(champ.frame[borrowed]), borrowed  # MOD-05 removes these
-    assert c1.captain_line == champ.captain_line
+    for own in ("xp_next_sd", "xp_horizon_sd", "start_probability"):
+        assert not c1.frame[own].equals(champ.frame[own]), (
+            own
+        )  # MOD-05: its own, not the champion's
+    assert "xp_gw_6" not in c1.frame.columns  # one gameweek, so plan: false (test_c1.py)
+    assert c1.captain_line is not None and c1.captain_line != champ.captain_line
 
 
 def test_engine_is_the_publishable_forecast_with_minutes_v2_off_and_the_solvers_captain(
     game_rules: GameRules,
 ) -> None:
-    inputs, champ = _snapshot(game_rules)
+    inputs, _ = _snapshot(game_rules)
     on = ForecastConfig().discrimination.model_copy(update={"minutes_v2": True})  # as shipped
     cfg = _config().model_copy(update={"forecast": ForecastConfig(discrimination=on)})
-    got = load_strategy("engine").forecast(inputs, game_rules, cfg, variance_from=champ)
+    got = load_strategy("engine").forecast(inputs, game_rules, cfg)
     flags = cfg.forecast.discrimination.model_copy(update={"minutes_v2": False})
     expected = publishable(
         inputs, game_rules, cfg.forecast.model_copy(update={"discrimination": flags})
@@ -287,6 +288,7 @@ def _with_prior_season(inputs: ForecastInputs) -> ForecastInputs:
         ("c3", "current_season", 1),
         ("engine", "current_season", 1),
         ("c1", "current_season", 1),
+        ("c1", "all_seasons", 2),
         ("c3", "all_seasons", 2),
     ],
 )
@@ -312,18 +314,16 @@ def test_training_window_decides_which_seasons_the_forecaster_is_fitted_on(
     strategy = strategy.model_copy(
         update={"forecaster": strategy.forecaster.model_copy(update={"training_window": window})}
     )
-    strategy.forecast(
-        _with_prior_season(inputs), game_rules, _forecast_config(), variance_from=champ
-    )
+    strategy.forecast(_with_prior_season(inputs), game_rules, _forecast_config())
     assert seen == [seasons]
 
 
-def test_c1_without_the_champions_forecast_to_borrow_from_is_refused(
-    game_rules: GameRules,
-) -> None:
+def test_c1_with_no_played_history_is_refused_by_its_requires(game_rules: GameRules) -> None:
     inputs, _ = _snapshot(game_rules)
-    with pytest.raises(ValueError, match="variance"):
-        load_strategy("c1").forecast(inputs, game_rules, _forecast_config())
+    with pytest.raises(ValueError, match="player_gameweek"):
+        load_strategy("c1").forecast(
+            dataclasses.replace(inputs, player_gameweek=None), game_rules, _forecast_config()
+        )
 
 
 def test_champion_and_c1_produce_full_weeks_and_plans_through_one_function(
@@ -338,8 +338,8 @@ def test_champion_and_c1_produce_full_weeks_and_plans_through_one_function(
     }
     got: dict[str, Decision] = {}
     for s, fc in ((champion(), champ), (load_strategy("c1"), c1)):
-        # Plan on for both at the policy level: production C1 runs `plan: false` until MOD-05 gives
-        # it means of its own beyond the next gameweek, but the one function plans for either.
+        # Plan on for both at the policy level: production C1 runs `plan: false` (it forecasts one
+        # gameweek), but the one function plans for either.
         policy = dataclasses.replace(s.decision_policy(cfg, fc.captain_line), plan=True)
         got[s.id] = decide(fc.frame, held, game_rules, policy, **calendar)
         assert len(got[s.id].selection.starting) == 11

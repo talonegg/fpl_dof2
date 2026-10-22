@@ -292,6 +292,27 @@ class Predictor(Protocol):
     def predict(self, features: pd.DataFrame) -> pd.Series: ...
 
 
+class StrategyPredictor(Protocol):
+    """What a strategy's forecaster offers the harness (``Strategy.predictor``, MOD-05).
+
+    ``fit_as_of`` is the call :func:`walk_forward` makes for the shipped champion: the raw history,
+    the fold's deadline, the harness's training rows and the season being predicted, so a
+    forecaster that builds its own features (C1) fits on what the live run fits on. ``predict``
+    then scores the fold's visible rows, as :class:`Predictor` does.
+    """
+
+    def fit_as_of(
+        self,
+        history: pd.DataFrame,
+        deadline: pd.Timestamp,
+        *,
+        training: pd.DataFrame | None = None,
+        season: str,
+    ) -> None: ...
+
+    def predict(self, features: pd.DataFrame) -> pd.Series: ...
+
+
 @runtime_checkable
 class MinutesReporting(Protocol):
     """What a predictor must expose for its minutes model to be *calibrated* as well as scored.
@@ -772,6 +793,7 @@ __all__ = [
     "MinutesReporting",
     "Predictor",
     "SquadShapeReporting",
+    "StrategyPredictor",
     "attach_fixtures",
     "deadlines_for",
     "fixture_calendar",
