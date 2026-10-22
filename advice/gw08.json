@@ -1,7 +1,7 @@
 {
   "gameweek": 8,
-  "run_id": "20261022T074844Z-76b7d190",
-  "recorded_at": "2026-10-22T07:48:44.352501Z",
+  "run_id": "20261022T211013Z-49f63ba3",
+  "recorded_at": "2026-10-22T21:10:13.012699Z",
   "advised": {
     "gameweek": 8,
     "squad": [
@@ -127,5 +127,221 @@
       "no purchase price for player 277; using the current price, which understates the sell-on fee for anyone who has risen",
       "no purchase price for player 175; using the current price, which understates the sell-on fee for anyone who has risen"
     ]
+  },
+  "models": {
+    "c3": {
+      "role": "champion",
+      "strategy": {
+        "id": "c3",
+        "digest": "a8dd0065f3bdf130d8bcfd80bb313427c231e6092216c633f9dd68fbcc02d8c3"
+      },
+      "advised": {
+        "gameweek": 8,
+        "squad": [
+          8,
+          31,
+          68,
+          109,
+          115,
+          124,
+          165,
+          237,
+          277,
+          330,
+          399,
+          411,
+          426,
+          464,
+          496
+        ],
+        "starting": [
+          109,
+          115,
+          330,
+          8,
+          399,
+          411,
+          124,
+          426,
+          277,
+          68,
+          237
+        ],
+        "bench_order": [
+          464,
+          31,
+          165
+        ],
+        "reserve_goalkeeper": 496,
+        "captain": 411,
+        "vice_captain": 426,
+        "formation": "1-4-5-1",
+        "expected_points": 39.137
+      },
+      "recommendation": {
+        "rationale": "1 free transfer(s) gain 1.10 expected points",
+        "is_roll": false,
+        "transfers": 1,
+        "hit_points": 0,
+        "net_expected_points": 39.1368,
+        "gain_over_roll": 1.1011,
+        "bank_after": 0.2,
+        "moves": [
+          {
+            "out": {
+              "player_id": 175,
+              "web_name": "van Ewijk",
+              "price": 3.9,
+              "xp_next": 1.567,
+              "form_points_per_match": 2.4
+            },
+            "in": {
+              "player_id": 330,
+              "web_name": "Bogle",
+              "price": 4.7,
+              "xp_next": 3.606,
+              "form_points_per_match": 7.167
+            }
+          }
+        ],
+        "options": [
+          {
+            "transfers": 0,
+            "hit_points": 0,
+            "net_expected_points": 38.0357,
+            "gain_over_roll": 0.0,
+            "moves": []
+          },
+          {
+            "transfers": 1,
+            "hit_points": 0,
+            "net_expected_points": 39.1368,
+            "gain_over_roll": 1.1011,
+            "moves": [
+              "van Ewijk (\u00a33.9m) -> Bogle (\u00a34.7m)"
+            ]
+          },
+          {
+            "transfers": 2,
+            "hit_points": -4,
+            "net_expected_points": 36.1222,
+            "gain_over_roll": -1.9135,
+            "moves": [
+              "Konsa (\u00a34.6m) -> Justin (\u00a34.5m)",
+              "van Ewijk (\u00a33.9m) -> Muharemovi\u0107 (\u00a35.0m)"
+            ]
+          }
+        ],
+        "warnings": []
+      },
+      "transfers": 1
+    },
+    "c1": {
+      "role": "challenger",
+      "strategy": {
+        "id": "c1",
+        "digest": "2b846b67a3deffc4e6249c0b772532760bf896dba72a8901adf760b42c19cf66"
+      },
+      "advised": {
+        "gameweek": 8,
+        "squad": [
+          8,
+          31,
+          68,
+          109,
+          115,
+          124,
+          165,
+          175,
+          237,
+          399,
+          411,
+          426,
+          447,
+          464,
+          496
+        ],
+        "starting": [
+          447,
+          399,
+          426,
+          109,
+          8,
+          115,
+          165,
+          124,
+          31,
+          411,
+          464
+        ],
+        "bench_order": [
+          175,
+          68,
+          237
+        ],
+        "reserve_goalkeeper": 496,
+        "captain": 411,
+        "vice_captain": 426,
+        "formation": "1-4-3-3",
+        "expected_points": 47.177
+      },
+      "recommendation": {
+        "rationale": "1 free transfer(s) gain 3.39 expected points",
+        "is_roll": false,
+        "transfers": 1,
+        "hit_points": 0,
+        "net_expected_points": 47.1769,
+        "gain_over_roll": 2.864,
+        "bank_after": 0.1,
+        "moves": [
+          {
+            "out": {
+              "player_id": 277,
+              "web_name": "Egan",
+              "price": 4.1,
+              "xp_next": 3.086,
+              "form_points_per_match": 4.5
+            },
+            "in": {
+              "player_id": 447,
+              "web_name": "Botman",
+              "price": 5.0,
+              "xp_next": 5.95,
+              "form_points_per_match": 3.833
+            }
+          }
+        ],
+        "options": [
+          {
+            "transfers": 0,
+            "hit_points": 0,
+            "net_expected_points": 44.3129,
+            "gain_over_roll": 0.0,
+            "moves": []
+          },
+          {
+            "transfers": 1,
+            "hit_points": 0,
+            "net_expected_points": 47.1769,
+            "gain_over_roll": 2.864,
+            "moves": [
+              "Egan (\u00a34.1m) -> Botman (\u00a35.0m)"
+            ]
+          },
+          {
+            "transfers": 2,
+            "hit_points": -4,
+            "net_expected_points": 45.964,
+            "gain_over_roll": 1.6511,
+            "moves": [
+              "Konsa (\u00a34.6m) -> Diop (\u00a33.9m)",
+              "Tavernier (\u00a36.2m) -> Cunha (\u00a37.9m)"
+            ]
+          }
+        ],
+        "warnings": []
+      },
+      "transfers": 1
+    }
   }
 }
