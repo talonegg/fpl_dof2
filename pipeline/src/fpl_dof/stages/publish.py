@@ -47,6 +47,7 @@ from fpl_dof.silver.store import read_table, read_table_optional
 from fpl_dof.silver.tables import Table
 from fpl_dof.week.cadence import current_gameweek
 from fpl_dof.week.ledger import read_all_advice
+from fpl_dof.week.score_advice import performances as performances_of
 
 log = get_logger(__name__)
 
@@ -657,42 +658,58 @@ def _season_log(
 
 
 def _models(ctx: StageContext, season: str) -> dict[str, Any] | None:
-    """models.json from the prospective harness's record, or ``None`` when there is none.
+    """models.json: the retired harness's record up to the switch, the live ledger from it.
 
-    A malformed record is logged and skipped: the comparison is optional and must never fail the
-    publish of the champion's artefacts.
+    The frozen record is optional (no ``source_dir`` means the live ledger alone). A malformed
+    input is logged and skipped: the comparison is optional and must never fail the publish of
+    the champion's artefacts.
     """
     cfg = ctx.config.publish.models
-    if not cfg.source_dir:
-        return None
-    root = Path(cfg.source_dir)
     try:
-        decisions = [
-            json.loads(p.read_text(encoding="utf-8"))
-            for p in sorted((root / "decisions").glob("GW*.json"))
-        ]
-        scores_path = root / "scores.csv"
-        scores = (
-            [{str(k): v for k, v in r.items()} for r in pd.read_csv(scores_path).to_dict("records")]
-            if scores_path.exists()
-            else []
-        )
-        statuses = {}
-        for p in sorted((root / "status").glob("GW*.json")):
-            doc = json.loads(p.read_text(encoding="utf-8"))
-            statuses[int(p.stem[2:])] = doc
-        previews = [
-            json.loads(p.read_text(encoding="utf-8"))
-            for p in sorted((root / "preview").glob("GW*.json"))
-        ]
+        decisions: list[dict[str, Any]] = []
+        scores: list[dict[str, Any]] = []
+        statuses: dict[int, Any] = {}
+        if cfg.source_dir:
+            root = Path(cfg.source_dir)
+            decisions = [
+                json.loads(p.read_text(encoding="utf-8"))
+                for p in sorted((root / "decisions").glob("GW*.json"))
+            ]
+            scores_path = root / "scores.csv"
+            if scores_path.exists():
+                scores = [
+                    {str(k): v for k, v in r.items()}
+                    for r in pd.read_csv(scores_path).to_dict("records")
+                ]
+            for p in sorted((root / "status").glob("GW*.json")):
+                statuses[int(p.stem[2:])] = json.loads(p.read_text(encoding="utf-8"))
+        silver = ctx.layout.silver
+        player_gameweek = read_table_optional(silver, season, Table.PLAYER_GAMEWEEK)
+        players = read_table_optional(silver, season, Table.PLAYER)
+        performances = {}
+        if player_gameweek is not None and not player_gameweek.empty:
+            weeks = read_table(silver, season, Table.GAMEWEEK)
+            finished = {as_int(g) for g in weeks.loc[weeks["finished"], "gameweek"]}
+            current = player_gameweek[player_gameweek["season"] == season]
+            performances = {
+                as_int(g): performances_of(rows)
+                for g, rows in current.groupby("gameweek")
+                if as_int(g) in finished
+            }
+        ledger = read_all_advice(ctx.layout)
         return build_models(
-            previews=previews,
             season=season,
             decisions=decisions,
             scores=scores,
             frozen_tag=cfg.frozen_tag,
             contract_version=CONTRACT_VERSION,
             statuses=statuses,
+            ledger=ledger,
+            performances=performances,
+            rules=read_rules(ctx, season) if ledger else None,
+            names={}
+            if players is None
+            else {as_int(r.player_id): str(r.web_name) for r in players.itertuples()},
         )
     except Exception as exc:
         log.warning("publish.models_dropped", extra={"error": repr(exc)})

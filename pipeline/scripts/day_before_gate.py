@@ -1,7 +1,6 @@
 """Gate for .github/workflows/day-before.yml. Always exits 0; the decision is in GITHUB_OUTPUT.
 
     python pipeline/scripts/day_before_gate.py [--manual]
-    python pipeline/scripts/day_before_gate.py --veto-plan /workspace/fpl_prospective/ci/plan.json
 
 Reads the game's state once, through the source layer (REM-06), and lists recent Ingest (slow)
 runs with ``gh`` (read-only GITHUB_TOKEN) for the idempotency check. Any failure to read either
@@ -23,7 +22,7 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from fpl_dof.sources import LiveFeed
-from fpl_dof.week.day_before import gate, veto_plan
+from fpl_dof.week.day_before import gate
 
 FIELDS = "databaseId,displayTitle,status,conclusion,createdAt"
 
@@ -63,15 +62,7 @@ def prior_runs() -> tuple[list[dict[str, Any]] | None, str | None]:
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--manual", action="store_true", help="workflow_dispatch: skip the 07:00 check")
-    ap.add_argument("--veto-plan", type=Path, help="force decide=false in a prospective plan.json")
     a = ap.parse_args(argv)
-    if a.veto_plan is not None:
-        plan = json.loads(a.veto_plan.read_text(encoding="utf-8")) if a.veto_plan.exists() else {}
-        vetoed = veto_plan(plan)
-        a.veto_plan.parent.mkdir(parents=True, exist_ok=True)
-        a.veto_plan.write_text(json.dumps(vetoed, indent=2, sort_keys=True), encoding="utf-8")
-        print(f"decide=false ({vetoed['decide_reason']})")
-        return 0
     bootstrap, error = fetch()
     runs, runs_error = prior_runs() if error is None else ([], None)
     decision = gate(

@@ -183,8 +183,12 @@ config, `training_window` (`current_season` or `all_seasons`) filters the histor
 is enforced in `Strategy.forecast`. Still target: `a` and `a_odds` go live in R1.2.2 — `c1` rebuilt behind the frame
 contract, `a` and `a_odds` ported from the frozen bundle (they train on prior seasons and A_odds
 reads odds, so the live run enables the archive and football-data.co.uk). The frozen harness is
-switched off when the ports go live, with no parity check; its records stay on `ledger` as each
-strategy's history up to the switch, which the app marks ([DL-87](../decisions/DL-87.md)).
+retired (MOD-06, 2026-10-23, no parity check): `pipeline.yml` has no `prospective` job and the `run` job
+only restores the harness's last record from `ledger`, read-only. `models.json` carries its records for
+gameweeks before the switch gameweek (the last it decided, plus one) and, from the switch, every published
+strategy's ledger advice scored on the owner's real squad with the real free transfers (`week/score_advice.py`).
+Each gameweek carries `record: frozen | live`, the file carries `switch_gameweek`, and every strategy's
+history chart marks it ([DL-87](../decisions/DL-87.md), [DL-89](../decisions/DL-89.md)).
 
 ### 5.3 Experiments and promotion
 

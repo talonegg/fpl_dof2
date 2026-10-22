@@ -7,13 +7,9 @@ from the code, the frozen bundle or the dated backfill file it talks about.
 
 from __future__ import annotations
 
-import csv
 import datetime as dt
-import hashlib
-import io
 import json
 import os
-import tarfile
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, cast
@@ -26,7 +22,6 @@ from fpl_dof.paths import find_repo_root
 from fpl_dof.publish.contract import Contract, find_contracts_root
 from fpl_dof.publish.health import build_sources
 from fpl_dof.sources import SourceDescriptor, describe, known
-from fpl_dof.sources.fdcouk.adapter import HISTORY
 from fpl_dof.sources.oddsapi.adapter import API_KEY_ENV, OddsApiAdapter
 from fpl_dof.stages import publish as publish_stage
 
@@ -43,13 +38,6 @@ SCRIBE_LABELS: dict[str, tuple[str, str]] = {
     "understat": ("live", "Expected goals (Understat)"),
     "fbref": ("live", "Advanced player stats (FBref)"),
     "fdcouk": ("live", "Match odds in the pipeline run (football-data.co.uk)"),
-    "fdcouk_fixtures": ("live", "Upcoming match odds (football-data.co.uk)"),
-    "fdcouk_history": (
-        "reference",
-        "Past match odds, 2023/24–2025/26 (football-data.co.uk)",  # noqa: RUF001 - Scribe's label, verbatim
-    ),
-    "fdcouk_backfill_2627": ("reference", "Early-season odds, 2026/27 (football-data.co.uk)"),
-    "fplcache": ("reference", "Archived FPL snapshots (fplcache)"),
 }
 
 
@@ -112,34 +100,6 @@ def test_the_archive_is_reference_data_whether_or_not_this_config_enables_it() -
     assert _catalogue()["fdcouk"].enabled is True
     assert _catalogue(config_file="config/ci-backtest.yaml")["fplarchive"].enabled is True
     assert _catalogue()["fplarchive"].kind == "reference"
-
-
-def test_the_history_label_names_exactly_the_hash_pinned_seasons() -> None:
-    """Scribe asked if 2026/27 is pinned. It is not: ``SEASONS`` has it, ``HISTORY`` doesn't."""
-    pinned = sorted(Path(rel).stem for rel in HISTORY)
-    assert pinned == ["E0_2324", "E0_2425", "E0_2526"]
-    manifest = json.loads((REPO / "prospective/bundle/manifest.json").read_text(encoding="utf-8"))
-    hashes = manifest["models"]["A_odds"]["model_files_sha256"]
-    assert set(HISTORY) <= set(hashes)
-    assert _catalogue()["fdcouk_history"].as_of == manifest["frozen_at"][:10]
-
-
-def test_the_backfill_row_describes_the_dated_file_written_once() -> None:
-    path = REPO / "scripts/models_history/data/fdcouk/E0_2627_20261017.csv"
-    digest = hashlib.sha256(path.read_bytes()).hexdigest()
-    assert digest.startswith("6731e95d")
-    assert _catalogue()["fdcouk_backfill_2627"].as_of == "2026-10-17"
-
-
-def test_the_fplcache_as_of_date_is_the_last_snapshot_in_the_frozen_bundle() -> None:
-    bundle = REPO / "prospective/bundle/frozen-2026-10-13.tar.gz"
-    with tarfile.open(bundle) as tar:
-        member = tar.extractfile("frozen/backtest/fplcache/index.csv")
-        assert member is not None
-        rows = list(csv.DictReader(io.TextIOWrapper(member, encoding="utf-8")))
-    last = max(rows, key=lambda row: row["snap_ts"])
-    assert (last["season"], last["gw"]) == ("2025/26", "38")
-    assert _catalogue()["fplcache"].as_of == last["snap_ts"][:10]
 
 
 # --- the publish stage's reads ----------------------------------------------------------------
@@ -256,17 +216,11 @@ def test_the_published_run_shows_every_source_in_its_real_state(
     assert states == {
         "fpl": ("live", "ok"),
         "fdcouk": ("live", "unknown"),  # enabled (DL-87), not observed in this fixture
-        "fdcouk_fixtures": ("live", "ok"),
         "oddsapi": ("live", "disabled"),
         "understat": ("live", "disabled"),
         "fbref": ("live", "disabled"),
         "fplarchive": ("reference", "ok"),
-        "fdcouk_history": ("reference", "ok"),
-        "fdcouk_backfill_2627": ("reference", "ok"),
-        "fplcache": ("reference", "ok"),
     }
-    history = next(e for e in published if e["source"] == "fdcouk_history")
-    assert history["check"] == "pass"
 
 
 def test_the_published_rows_match_the_schema(published: list[dict[str, Any]]) -> None:

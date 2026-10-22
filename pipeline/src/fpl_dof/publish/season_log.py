@@ -35,7 +35,8 @@ from fpl_dof.week.oracle import solve_hindsight_optimal
 from fpl_dof.week.reconcile import reconcile
 from fpl_dof.week.score_advice import (
     AdvisedLineup,
-    PlayerPerformance,
+    lineup_from_advice,
+    performances,
     score_model_recommendations,
 )
 
@@ -224,6 +225,12 @@ def _optional_int(value: object) -> int | None:
     return None
 
 
+def _free_transfers(recorded: Mapping[str, Any]) -> int:
+    """The free transfers the owner really had that gameweek, as the ledger recorded them."""
+    state = recorded.get("squad_state")
+    return int(state.get("free_transfers") or 1) if isinstance(state, Mapping) else 1
+
+
 def _hindsight(
     gameweek: int,
     recorded: Mapping[str, Any] | None,
@@ -241,19 +248,8 @@ def _hindsight(
     if gw_perf.empty:
         return None
 
-    perfs: dict[int, PlayerPerformance] = {}
-    player_actuals: dict[int, int] = {}
-    for r in gw_perf.itertuples():
-        pid = as_int(r.player_id)
-        pts = as_int(getattr(r, "total_points", 0))
-        mins = as_int(getattr(r, "minutes", 0))
-        pos_str = str(getattr(r, "position", "MID"))
-        try:
-            pos = Position(pos_str)
-        except ValueError:
-            pos = Position.MID
-        perfs[pid] = PlayerPerformance(player_id=pid, position=pos, minutes=mins, points=pts)
-        player_actuals[pid] = pts
+    perfs = performances(gw_perf)
+    player_actuals = {pid: perf.points for pid, perf in perfs.items()}
 
     lineups: dict[str, AdvisedLineup] = {}
     models_xp: dict[str, dict[int, float]] = {}
@@ -279,34 +275,17 @@ def _hindsight(
 
     if recorded is not None and isinstance(recorded.get("advised"), Mapping):
         adv = recorded["advised"]
-        adv_starting = tuple(adv.get("starting") or ())
-        adv_bench = tuple(adv.get("bench_order") or ())
-        adv_cap = adv.get("captain") or (adv_starting[0] if adv_starting else 1)
-        adv_vice = adv.get("vice_captain") or adv_cap
         adv_transfers = (
             int(recorded.get("recommendation", {}).get("transfers") or 0)
             if isinstance(recorded.get("recommendation"), Mapping)
             else 0
         )
-        adv_free = (
-            int(recorded.get("squad_state", {}).get("free_transfers") or 1)
-            if isinstance(recorded.get("squad_state"), Mapping)
-            else 1
-        )
-        adv_xp = float(adv.get("expected_points") or 0.0)
-        if adv_starting:
-            lineups[champ_id] = AdvisedLineup(
-                starting=adv_starting,
-                bench_order=adv_bench,
-                bench_gkp=adv.get("reserve_goalkeeper"),
-                captain=adv_cap,
-                vice_captain=adv_vice,
-                transfers_made=adv_transfers,
-                free_transfers=adv_free,
-                expected_points=adv_xp,
-            )
-            models_captains[champ_id] = adv_cap
-            models_xp[champ_id] = {adv_cap: adv_xp / 2.0}
+        adv_free = _free_transfers(recorded)
+        lineup = lineup_from_advice(adv, transfers_made=adv_transfers, free_transfers=adv_free)
+        if lineup is not None:
+            lineups[champ_id] = lineup
+            models_captains[champ_id] = lineup.captain
+            models_xp[champ_id] = {lineup.captain: lineup.expected_points / 2.0}
 
     if recorded is not None and isinstance(recorded.get("models"), Mapping):
         for m_name, m_data in recorded["models"].items():
@@ -315,24 +294,15 @@ def _hindsight(
             adv_val = m_data.get("advised")
             m_adv: Mapping[str, Any] = adv_val if isinstance(adv_val, Mapping) else m_data
             m_name = resolve_alias(m_name) or m_name  # legacy keys in recorded advice
-            m_starting = tuple(m_adv.get("starting") or ())
-            m_bench = tuple(m_adv.get("bench_order") or ())
-            m_cap = m_adv.get("captain") or (m_starting[0] if m_starting else 1)
-            m_vice = m_adv.get("vice_captain") or m_cap
-            m_xp = float(m_adv.get("expected_points") or 0.0)
-            if m_starting:
-                lineups[m_name] = AdvisedLineup(
-                    starting=m_starting,
-                    bench_order=m_bench,
-                    bench_gkp=m_adv.get("reserve_goalkeeper"),
-                    captain=m_cap,
-                    vice_captain=m_vice,
-                    transfers_made=int(m_data.get("transfers", 0)),
-                    free_transfers=1,
-                    expected_points=m_xp,
-                )
-                models_captains[m_name] = m_cap
-                models_xp[m_name] = {m_cap: m_xp / 2.0}
+            lineup = lineup_from_advice(
+                m_adv,
+                transfers_made=int(m_data.get("transfers", 0)),
+                free_transfers=_free_transfers(recorded),
+            )
+            if lineup is not None:
+                lineups[m_name] = lineup
+                models_captains[m_name] = lineup.captain
+                models_xp[m_name] = {lineup.captain: lineup.expected_points / 2.0}
 
     rankings = score_model_recommendations(lineups, perfs, rules)
 

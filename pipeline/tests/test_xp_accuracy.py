@@ -5,9 +5,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import importlib.util
-import io
 import json
-import tarfile
 from pathlib import Path
 from types import ModuleType
 from typing import Any
@@ -148,25 +146,3 @@ def test_score_xp_scores_once_and_refuses_a_tampered_file(tmp_path: Path) -> Non
     ).exists()
     assert mod.run(tmp_path, _Feed(), now) == 0
     assert len(pd.read_csv(tmp_path / "xp_scores.csv")) == len(s)  # idempotent
-
-
-def test_record_keeps_gold_xp_and_rejects_traversal(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("PROSPECTIVE_ROOT", str(tmp_path))
-    mod = _load("prospective_ci")
-    assert mod._in_record("data/gold/xp/GW7/xp_C1.parquet")
-    assert mod._in_record("xp_scores.csv")
-    assert not mod._in_record("data/silver/x.parquet")
-    assert not mod._in_record("../evil")
-    buf = io.BytesIO()
-    with tarfile.open(fileobj=buf, mode="w:gz") as t:
-        for name in ("data/gold/xp/GW7/xp_C1.parquet", "data/silver/s.parquet"):
-            info = tarfile.TarInfo(name)
-            info.size = 1
-            t.addfile(info, io.BytesIO(b"x"))
-    tb = tmp_path / "r.tgz"
-    tb.write_bytes(buf.getvalue())
-    mod.unpack(tb)
-    assert (tmp_path / "data/gold/xp/GW7/xp_C1.parquet").exists()
-    assert not (tmp_path / "data/silver/s.parquet").exists()

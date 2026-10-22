@@ -2,14 +2,14 @@
 
 Beside each published strategy's own week in week.json's schema, this is every frozen model's
 pre-deadline advice per gameweek, the points each actually scored once the gameweek
-is finished, and a season-to-date table. Before a gameweek's frozen decision exists, a dry-run
-preview of each model's current advice may stand in for it, flagged ``provisional``.
+is finished, and a season-to-date table.
 
-**This module scores nothing.** The advice is what the prospective harness recorded *before* each
-deadline (``decisions/GW{n}.json``) and the points are what its scorer wrote afterwards
-(``scores.csv``: final XI after auto-subs, armband with vice fallback, plus hits). Re-deriving
-either here would be a second opinion that could disagree with the frozen record, so this is
-assembly only.
+**Two records, one switch (DL-87, DL-89).** Gameweeks before the switch gameweek S come from the
+retired prospective harness: its advice (``decisions/GW{n}.json``, recorded *before* each deadline)
+and its points (``scores.csv``), taken as written, never re-derived. S is the last gameweek the
+harness decided, plus one. Gameweeks from S come from the live ledger: every published strategy's
+advice, scored on the owner's real squad by ``week.score_advice``, the scorer the season log uses.
+The two quantities differ (a virtual season versus real-squad advice); ``record`` marks which.
 
 Pure: no I/O, no clock. The stage reads the files and hands their contents in (DP-03).
 """
@@ -20,6 +20,12 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from fpl_dof.factory.registry import champion, resolve_alias, strategies
+from fpl_dof.rules.models import GameRules
+from fpl_dof.week.score_advice import (
+    PlayerPerformance,
+    lineup_from_advice,
+    score_model_recommendations,
+)
 
 
 def _element(code: Any, code_to_element: Mapping[str, Any]) -> int | None:
@@ -78,6 +84,94 @@ def _actual(row: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
+def _live_advice(
+    advised: Mapping[str, Any], rec: Mapping[str, Any], names: Mapping[int, str]
+) -> dict[str, Any]:
+    """A ledger ``advised`` block and recommendation in the shape of a frozen model's advice."""
+
+    def name(pid: Any) -> str:
+        return names.get(int(pid), "") if pid is not None else ""
+
+    bench = ([advised["reserve_goalkeeper"]] if advised.get("reserve_goalkeeper") else []) + list(
+        advised.get("bench_order") or []
+    )
+    starting = [int(p) for p in advised.get("starting") or []]
+    return {
+        "transfers": [
+            {
+                "out": int(m["out"]["player_id"]),
+                "out_name": str(m["out"].get("web_name", "")),
+                "in": int(m["in"]["player_id"]),
+                "in_name": str(m["in"].get("web_name", "")),
+            }
+            for m in rec.get("moves") or []
+        ],
+        "n_transfers": int(rec.get("transfers") or 0),
+        "hit_points": int(rec.get("hit_points") or 0),
+        "starting": starting,
+        "starting_names": [name(p) for p in starting],
+        "bench_order": [int(p) for p in bench],
+        "bench_names": [name(p) for p in bench],
+        "captain": advised.get("captain"),
+        "captain_name": name(advised.get("captain")),
+        "vice_captain": advised.get("vice_captain"),
+        "vice_name": name(advised.get("vice_captain")),
+        "expected_points": round(float(advised.get("expected_points") or 0.0), 2),
+    }
+
+
+def _live_gameweek(
+    gw: int,
+    entry: Mapping[str, Any],
+    perfs: Mapping[int, PlayerPerformance] | None,
+    rules: GameRules | None,
+    names: Mapping[int, str],
+) -> dict[str, Any]:
+    """One live gameweek from a ledger entry; scored on the real squad once ``perfs`` exist."""
+    state = entry.get("squad_state")
+    free = int(state.get("free_transfers") or 1) if isinstance(state, Mapping) else 1
+    availability: dict[str, dict[str, Any]] = {}
+    advice: dict[str, Any] = {}
+    lineups = {}
+    for key, m in dict(entry.get("models") or {}).items():
+        sid = resolve_alias(key) or key
+        advised = m.get("advised") if isinstance(m, Mapping) else None
+        if not isinstance(advised, Mapping):
+            reason = str((m or {}).get("no_advice") or "no advice recorded")
+            availability[sid] = {"available": False, "reason": reason}
+            continue
+        availability[sid] = {"available": True, "reason": None}
+        advice[sid] = _live_advice(advised, m.get("recommendation") or {}, names)
+        lineup = lineup_from_advice(
+            advised, transfers_made=int(m.get("transfers") or 0), free_transfers=free
+        )
+        if lineup is not None:
+            lineups[sid] = lineup
+    actual = None
+    if perfs and rules is not None and lineups:
+        actual = {
+            r.model_name: {
+                "points": float(r.score.net_points),
+                "points_before_hits": float(r.score.points_before_hits),
+                "hit_points": float(r.score.hit_points),
+                "n_autosubs": len(r.score.autosubs_in),
+                "vice_used": r.score.vice_used,
+                "armband_points": float(r.score.armband_points),
+            }
+            for r in score_model_recommendations(lineups, perfs, rules)
+        }
+    return {
+        "gameweek": gw,
+        "deadline": None,
+        "decided_at": entry.get("recorded_at"),
+        "availability": availability,
+        "advice": advice,
+        "actual": actual,
+        "provisional": False,
+        "record": "live",
+    }
+
+
 def build_models(
     *,
     season: str,
@@ -86,7 +180,10 @@ def build_models(
     frozen_tag: str | None,
     contract_version: int,
     statuses: Mapping[int, Mapping[str, Any]] | None = None,
-    previews: Sequence[Mapping[str, Any]] = (),
+    ledger: Mapping[int, Mapping[str, Any]] | None = None,
+    performances: Mapping[int, Mapping[int, PlayerPerformance]] | None = None,
+    rules: GameRules | None = None,
+    names: Mapping[int, str] | None = None,
 ) -> dict[str, Any] | None:
     """The ``models.json`` payload, or ``None`` when the harness has recorded no decision yet.
 
@@ -98,18 +195,17 @@ def build_models(
     missing or stale is published as unavailable with the reason, and neither its advice nor its
     points for that gameweek appear. A gameweek with no recorded check makes every model
     unavailable: no check is not the same as a passed check.
-
-    **Provisional previews.** ``previews`` are ``decide.py --dry-run`` documents (same shape as a
-    decision, with their own input check under ``preview_status``) for gameweeks that have no
-    frozen decision yet. They are published with ``provisional: true`` and are dropped the moment
-    a frozen decision for that gameweek exists, so the frozen record always wins.
     """
     decided = {int(d["gw"]) for d in decisions}
-    pending = [p for p in previews if int(p["gw"]) not in decided]
-    if not decisions and not pending:
+    switch = max(decided) + 1 if decided else None
+    live = {
+        gw: e
+        for gw, e in (ledger or {}).items()
+        if gw >= (switch or 1) and isinstance(e.get("models"), Mapping)
+    }
+    if not decisions and not live:
         return None
-    preview_checks = {int(p["gw"]): p.get("preview_status") for p in pending}
-    by_gw = sorted([*decisions, *pending], key=lambda d: int(d["gw"]))
+    by_gw = sorted(decisions, key=lambda d: int(d["gw"]))
     actual_by_gw: dict[int, dict[str, Any]] = {}
     for row in scores:
         sid = resolve_alias(str(row.get("model", "")))
@@ -122,8 +218,7 @@ def build_models(
     for doc in by_gw:
         gw = int(doc["gw"])
         c2e = {str(k): v for k, v in dict(doc.get("code_to_element", {})).items()}
-        provisional = gw in preview_checks
-        check = preview_checks[gw] if provisional else (statuses or {}).get(gw)
+        check = (statuses or {}).get(gw)
         availability: dict[str, dict[str, Any]] = {}
         advice = {}
         for key, pick in dict(doc.get("models", {})).items():
@@ -152,13 +247,17 @@ def build_models(
                 "decided_at": doc.get("decided_at"),
                 "availability": availability,
                 "advice": advice,
-                "actual": None if provisional else (actual or None),
-                "provisional": provisional,
+                "actual": actual or None,
+                "provisional": False,
+                "record": "frozen",
             }
         )
+    for gw in sorted(live):
+        live_gw = _live_gameweek(gw, live[gw], (performances or {}).get(gw), rules, names or {})
+        seen.update({m: m for m in live_gw["availability"] if m not in seen})
+        gameweeks.append(live_gw)
 
     latest = gameweeks[-1]["availability"] if gameweeks else {}
-    latest_provisional = bool(gameweeks and gameweeks[-1]["provisional"])
     models = [
         {
             "id": s.id,
@@ -170,7 +269,7 @@ def build_models(
             "unavailable_reason": latest.get(s.id, {}).get("reason")
             if s.id in latest
             else "not decided this gameweek",
-            "provisional": latest_provisional and s.id in latest,
+            "provisional": False,
         }
         for s in strategies()
         if s.id in seen
@@ -197,8 +296,9 @@ def build_models(
         "contract_version": contract_version,
         "season": season,
         "champion": champion().id,
+        "switch_gameweek": switch,
         "frozen": {"tag": frozen_tag, "code_commit": commit},
-        "provisional": latest_provisional,
+        "provisional": False,
         "models": models,
         "gameweeks": gameweeks,
         "season_to_date": season_to_date,

@@ -133,9 +133,6 @@ forbidden_modules = [
     "fpl_dof.stages", "fpl_dof.pipeline", "fpl_dof.cli", "fpl_dof.week", "fpl_dof.publish",
     "fpl_dof.schedule_cli",
 ]
-ignore_imports = [
-    "fpl_dof.sources.fdcouk.adapter -> fpl_dof.prospective.bundle",  # MOD-06: the odds capture bundle moves out of the model factory
-]
 
 [[tool.importlinter.contracts]]
 name = "The model factory never imports the orchestrator"

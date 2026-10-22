@@ -1,10 +1,7 @@
 """What the data health page lists as a source, and how each one describes itself (T-003).
 
-The adapter registry already knows every source the champion pipeline can fetch. It does not know
-the inputs the frozen prospective harness reads outside the registry (the football-data.co.uk odds
-feeds and the fplcache deadline snapshots), and a Sources section built from the registry alone
-lists one source when the pipeline really depends on nine. So the catalogue is the registry plus a
-short, declared list of external sources (``sources/external.py``), each a
+The adapter registry knows every source the pipeline can fetch (the football-data.co.uk odds and
+the FPL archive are adapters now, DL-87), so the catalogue is the registry, each source a
 :class:`SourceDescriptor`.
 
 This module lives in ``sources/`` because it names sources, and only this package may (Invariant 1).
@@ -86,18 +83,11 @@ def _registered(config: SourcesConfig, environ: Mapping[str, str] | None) -> lis
 def describe(
     config: SourcesConfig, environ: Mapping[str, str] | None = None
 ) -> list[SourceDescriptor]:
-    """Every source the page should list: the registry first (by name), then the external ones.
+    """Every source the page should list: the registry, by name.
 
     ``environ`` is only asked whether a credential is *present*; no value is ever carried out.
     """
-    from fpl_dof.sources.external import EXTERNAL_SOURCES
-
-    registered = _registered(config, environ)
-    taken = {descriptor.key for descriptor in registered}
-    clashes = [d.key for d in EXTERNAL_SOURCES if d.key in taken]
-    if clashes:
-        raise ValueError(f"external source key(s) clash with registered sources: {clashes}")
-    return [*registered, *EXTERNAL_SOURCES]
+    return _registered(config, environ)
 
 
 __all__ = ["KINDS", "LIVE", "REFERENCE", "SourceDescriptor", "describe"]

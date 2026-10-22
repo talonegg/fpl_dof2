@@ -10,9 +10,12 @@ from typing import Any
 import pytest
 
 from fpl_dof.config.models import ModelsArtefactConfig
+from fpl_dof.paths import DataLayout
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
 from fpl_dof.publish.models_compare import build_models
+from fpl_dof.rules.models import GameRules, Position
 from fpl_dof.stages import publish
+from fpl_dof.week.score_advice import PlayerPerformance
 
 #: The frozen harness's own model keys, as its records carry them.
 HARNESS_KEYS = ("C3", "C1", "engine", "A", "A_odds")
@@ -135,9 +138,12 @@ def test_actuals_and_season_to_date() -> None:
     assert totals["c3"]["per_gameweek"] == [{"gameweek": 7, "points": 60, "cumulative": 60}]
 
 
-def _ctx(source: Path | None) -> Any:
+def _ctx(source: Path | None, data: Path | None = None) -> Any:
     cfg = ModelsArtefactConfig(source_dir=str(source) if source else None)
-    return SimpleNamespace(config=SimpleNamespace(publish=SimpleNamespace(models=cfg)))
+    return SimpleNamespace(
+        config=SimpleNamespace(publish=SimpleNamespace(models=cfg)),
+        layout=DataLayout(root=data or (source or Path()) / "_data"),
+    )
 
 
 def test_stage_reads_harness_dir(tmp_path: Path) -> None:
@@ -180,62 +186,107 @@ def test_missing_check_fails_closed() -> None:
     assert gw7["availability"]["c3"]["reason"].startswith("no input-freshness check")
 
 
+# --- the switch to the live ledger (MOD-06) ---------------------------------------------------
+
+
+def _perfs() -> dict[int, PlayerPerformance]:
+    positions = [Position.GKP] + [Position.DEF] * 4 + [Position.MID] * 4 + [Position.FWD] * 2
+    positions += [Position.GKP] + [Position.DEF] * 3
+    return {
+        i + 1: PlayerPerformance(player_id=i + 1, position=p, minutes=90, points=i + 1)
+        for i, p in enumerate(positions)
+    }
+
+
+def _ledger_entry(gw: int, transfers: int, free: int) -> dict[str, Any]:
+    def model(role: str, captain: int, moves: int) -> dict[str, Any]:
+        move = {
+            "out": {"player_id": 3, "web_name": "Out", "price": 5.0},
+            "in": {"player_id": 16, "web_name": "In", "price": 5.0},
+        }
+        return {
+            "role": role,
+            "transfers": moves,
+            "advised": {
+                "gameweek": gw,
+                "starting": list(range(1, 12)),
+                "bench_order": [13, 14, 15],
+                "reserve_goalkeeper": 12,
+                "captain": captain,
+                "vice_captain": 1,
+                "expected_points": 50.0,
+            },
+            "recommendation": {"transfers": moves, "hit_points": 0, "moves": [move] * moves},
+        }
+
+    return {
+        "gameweek": gw,
+        "recorded_at": f"2026-10-{gw:02d}T08:00:00Z",
+        "squad_state": {"free_transfers": free},
+        "models": {
+            "c3": model("champion", 11, 0),
+            "c1": model("challenger", 10, transfers),
+            "a": {"role": "challenger", "no_advice": "no advice: odds missing"},
+        },
+    }
+
+
+def test_the_switch_gameweek_follows_the_last_frozen_decision(game_rules: GameRules) -> None:
+    p = build_models(
+        season="2026/27",
+        decisions=[_decision(7), _decision(8)],
+        scores=[_score(8, "C3", 60)],
+        frozen_tag="t",
+        contract_version=CONTRACT_VERSION,
+        statuses={7: _ok(), 8: _ok()},
+        ledger={
+            8: _ledger_entry(8, 0, 1),  # before the switch: the frozen record owns it
+            9: _ledger_entry(9, 2, 2),
+            10: _ledger_entry(10, 2, 1),
+        },
+        performances={9: _perfs()},
+        rules=game_rules,
+        names={3: "Out", 16: "In", 11: "Cap"},
+    )
+    assert p is not None
+    Contract(root=find_contracts_root()).validate("models", p)
+    assert p["switch_gameweek"] == 9
+    assert [(g["gameweek"], g["record"]) for g in p["gameweeks"]] == [
+        (7, "frozen"),
+        (8, "frozen"),
+        (9, "live"),
+        (10, "live"),
+    ]
+    gw9, gw10 = p["gameweeks"][2:]
+    assert gw9["advice"]["c3"]["captain_name"] == "Cap"
+    assert gw9["advice"]["c1"]["transfers"][0]["in_name"] == "In"
+    assert gw9["availability"]["a"] == {"available": False, "reason": "no advice: odds missing"}
+    # Two moves with the two free transfers the owner really had cost nothing.
+    assert gw9["actual"]["c1"]["hit_points"] == 0
+    assert gw10["actual"] is None  # not finished
+    totals = {s["model"]: s for s in p["season_to_date"]}
+    assert totals["c3"]["per_gameweek"][-1]["gameweek"] == 9
+
+
+def test_two_moves_on_one_free_transfer_cost_a_hit(game_rules: GameRules) -> None:
+    p = build_models(
+        season="2026/27",
+        decisions=[],
+        scores=[],
+        frozen_tag=None,
+        contract_version=CONTRACT_VERSION,
+        ledger={5: _ledger_entry(5, 2, 1)},
+        performances={5: _perfs()},
+        rules=game_rules,
+    )
+    assert p is not None and p["switch_gameweek"] is None
+    assert p["gameweeks"][0]["actual"]["c1"]["hit_points"] == 4
+    assert p["gameweeks"][0]["record"] == "live"
+
+
 @pytest.mark.parametrize("make", ["unset", "empty", "corrupt"])
 def test_stage_returns_none_when_absent_or_bad(tmp_path: Path, make: str) -> None:
     if make == "corrupt":
         (tmp_path / "decisions").mkdir()
         (tmp_path / "decisions" / "GW7.json").write_text("{not json")
     assert publish._models(_ctx(None if make == "unset" else tmp_path), "2026/27") is None
-
-
-# --- provisional previews --------------------------------------------------------------------
-
-
-def _preview(gw: int, *stale: str) -> dict[str, Any]:
-    return _decision(gw) | {"provisional": True, "preview_status": _ok(*stale)}
-
-
-def test_preview_is_published_as_provisional_until_the_frozen_decision_exists() -> None:
-    p = build_models(
-        season="2026/27",
-        decisions=[_decision(7)],
-        scores=[_score(7, "C3", 60), _score(8, "C3", 99)],
-        frozen_tag="frozen-2026-10-13",
-        contract_version=CONTRACT_VERSION,
-        statuses={7: _ok()},
-        previews=[_preview(8, "A_odds")],
-    )
-    assert p is not None
-    Contract(root=find_contracts_root()).validate("models", p)
-    gw7, gw8 = p["gameweeks"]
-    assert gw7["provisional"] is False and gw8["provisional"] is True
-    assert p["provisional"] is True
-    assert set(gw8["advice"]) == {"c3", "c1", "engine", "a"}  # still fail closed
-    assert gw8["actual"] is None  # a preview is never scored
-    info = {m["id"]: m for m in p["models"]}
-    assert info["engine"]["provisional"] is True and info["a_odds"]["available"] is False
-
-
-def test_frozen_decision_replaces_the_preview() -> None:
-    p = build_models(
-        season="2026/27",
-        decisions=[_decision(7), _decision(8)],
-        scores=[],
-        frozen_tag=None,
-        contract_version=CONTRACT_VERSION,
-        statuses={7: _ok(), 8: _ok()},
-        previews=[_preview(8)],
-    )
-    assert p is not None
-    assert [g["gameweek"] for g in p["gameweeks"]] == [7, 8]
-    assert not any(g["provisional"] for g in p["gameweeks"]) and p["provisional"] is False
-    assert not any(m["provisional"] for m in p["models"])
-
-
-def test_preview_alone_publishes_and_stage_reads_preview_dir(tmp_path: Path) -> None:
-    (tmp_path / "preview").mkdir()
-    (tmp_path / "preview" / "GW7.json").write_text(json.dumps(_preview(7)))
-    payload = publish._models(_ctx(tmp_path), "2026/27")
-    assert payload is not None and payload["provisional"] is True
-    assert payload["gameweeks"][0]["decided_at"] is not None
-    Contract(root=find_contracts_root()).validate("models", payload)
