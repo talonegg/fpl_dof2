@@ -141,8 +141,10 @@ def _last_finished(bootstrap: dict[str, Any]) -> int:
 #: Directories the frozen decide.py writes into but never creates. ``state/`` is absent from the
 #: bundle and from the ledger record until the first decision, so decide.py wrote GW7's decision
 #: and then crashed on ``state/engine.json`` (run 38974140926, 2026-10-17), losing every model's
-#: state. Create them before any decision can run.
-HARNESS_DIRS = ("decisions", "state")
+#: state. Create them before any decision can run. ``raw/`` is left out of the record, and the
+#: frozen score.py writes ``raw/live_GW<n>.json`` into it, so a score-only run after a restore
+#: crashed (run 39854574887, 2026-10-22).
+HARNESS_DIRS = ("decisions", "state", "raw")
 
 
 def ensure_harness_dirs() -> None:

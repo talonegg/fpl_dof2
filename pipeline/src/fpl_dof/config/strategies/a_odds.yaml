@@ -3,7 +3,7 @@ id: a_odds
 label: A + odds
 description: Model A with the bookmaker-odds team layer. Currently duplicates A until odds rows flow; no saved backtest xP.
 role: challenger
-published: false # lives only in the frozen bundle until MOD-05 ports it (R1.2.1)
+published: false # lives only in the frozen bundle until MOD-05 ports it (R1.2.2)
 aliases: [A_odds]
 forecaster:
   type: frozen

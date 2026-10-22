@@ -335,6 +335,18 @@ def test_pack_is_deterministic_and_unpack_restores_only_the_record(
     assert (fresh / "scores.csv").exists()
 
 
+def test_a_restored_record_gets_every_directory_the_frozen_scripts_write_into(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # The record leaves out raw/, and the frozen score.py writes raw/live_GW<n>.json without
+    # creating it: every score-only run after a restore crashed until plan() made it.
+    ci = _ci_module()
+    monkeypatch.setattr(ci, "ROOT", tmp_path)
+    ci.ensure_harness_dirs()
+    for d in ("decisions", "state", "raw"):
+        assert (tmp_path / d).is_dir()
+
+
 def test_models_source_dir_can_be_set_from_the_environment() -> None:
     cfg, _ = load_config(environ={"FPL_DOF_MODELS_SOURCE_DIR": "/workspace/fpl_prospective"})
     assert cfg.publish.models.source_dir == "/workspace/fpl_prospective"
