@@ -212,9 +212,9 @@ Under `paths.DataLayout`; what persists between CI runs is
 | --- | --- |
 | Bronze | `bronze/{source}/{resource}/{date}/{key}__{timestamp}.{json,csv,html}.gz` + `.meta.json` (URL, status, fetch time, SHA-256 of the uncompressed payload, size, `run_id`, source version, `immutable`, `ETag`/`Last-Modified`) |
 | Silver | `silver/season={s}/{table}.parquet` plus the season's `rules.json`; rebuilt from bronze each run except the accumulating tables (03 §7.1) |
-| Gold | `gold/season={s}/` — `expected_points.parquet`, `player_career_history.parquet`, `team_match_odds.parquet`, `squad.json`, `plan.json`, `week.json`, `quality.json`, `model-card.md`, backtest outputs |
+| Gold | `gold/season={s}/` — `expected_points.parquet`, `player_career_history.parquet`, `team_match_odds.parquet`, `squad.json`, `plan.json`, `week.json` (and `week_<id>.json`, `plan_<id>.json` per other published strategy), `quality.json`, `model-card.md`, backtest outputs |
 | Quarantine | `quarantine/bronze/…` from `bronze verify --quarantine`; `quarantine/silver-{time}/` from `silver rebuild` (REM-10). Kept, never read |
-| Ledger | `ledger/advice/gwNN.json`, append-only (DL-69) |
+| Ledger | `ledger/advice/gwNN.json`, append-only (DL-69): the champion's advice, and every published strategy's under `models` by registry id, or its "no advice" reason (MOD-04) |
 | Runs | `runs/{run_id}/manifest.json` |
 | Web contract | `web/v1/*.json`, served at `/data/v1/` (03 §7.2) |
 
@@ -430,7 +430,7 @@ backtest` is not part of `run`; CI runs it weekly with the archive enabled (DL-6
   **Read it before acting on a ranking** (DL-21): no −8 hit, chip or Wildcard on the chain alone
   (D-13).
 - **Not in the package:** a simulated season of the full optimiser. The chip replay
-  (`decision/replay.py`, DL-28) covers chip timing only; season replays of the frozen models are built
+  (`forecast/replay.py`, DL-28) covers chip timing only; season replays of the frozen models are built
   offline as `models_history`; the pre-registered comparison is
   [`prospective/`](../../prospective/README.md).
 
@@ -447,15 +447,26 @@ Three solver models, all reading the forecast and nothing source-specific (DP-02
 | Model | Code | Runs | Solver |
 | --- | --- | --- | --- |
 | Squad MILP — best fifteen | `optimise/squad.py` | Preseason, or `optimiser.squad_solve: always`; otherwise `squad.json` is skipped with a reason (DL-67) | CBC |
-| Transfer MILP — this week | `optimise/transfer.py` | Every `week` run | CBC |
-| Horizon plan — transfers and chips | `optimise/horizon.py`, `plan.py`, `chips.py` | Every `decision` run | HiGHS (DL-26) |
+| Transfer MILP — this week | `optimise/transfer.py` | Every `week` run, once per published strategy | CBC |
+| Horizon plan — transfers and chips | `optimise/horizon.py`, `plan.py`, `chips.py` | Every `week` run, once per published strategy whose policy plans | HiGHS (DL-26) |
+
+**One decision path for every strategy** (MOD-04). `decision.decide(frame, squad_state, rules,
+policy) → Decision` turns any strategy's forecast frame into its advice: the transfer MILP, the
+captain by the policy's rule (§6.5), the XI and bench by `squad.select_team` — with the
+start-probability floor relaxed, and said so in the warnings, when the advised squad cannot field
+an XI above it — and the horizon plan with its chips unless the policy's `plan` is false. An
+infeasible plan is a stated reason beside a week that stands. The policy arrives resolved
+(`DecisionPolicy`: plan, B0's line or none, and the transfer, optimiser and decision config) from
+`Strategy.decision_policy`; `decide` reads no file and no config (DP-03). The week stage calls it
+once per published strategy on one input snapshot, so two strategies differ only by the forecaster
+and policy their registry entries name.
 
 Each re-encodes legality, solver construction is repeated, and `optimiser.solver` is never read (03
 §12 P2).
 
 **What the engine reads** is the forecast frame, version `FORECAST_FRAME_VERSION` in
 `optimise/frame.py` (MOD-02). Every entry point — `optimise_squad`, `recommend_transfers`,
-`build_plan` and C1's `fit_challenger` — validates it first and refuses a frame that breaks it, with
+`build_plan` and C1's forecaster (which checks the champion frame it borrows from) — validates it first and refuses a frame that breaks it, with
 every failing column named; nothing is coerced. Required: `player_id` (unique), `position`,
 `team_id`, `price`, `xp_next`, `xp_horizon` and their `_sd`, and `start_probability` in [0, 1]. Every
 `xp_gw_<n>` must come with `xp_gw_<n>_sd` and the reverse. Every sd is a float, never negative, never
@@ -806,13 +817,14 @@ single home of its id, label, description and role (MOD-03):
 
 Registered ([DL-87](../decisions/DL-87.md)): `c3`, the champion, and `c1`, published; `engine`, `a`
 and `a_odds`, challengers unpublished until they are ported live. A strategy's digest is the sha256
-of its entry as canonical JSON; `week.json`, `week_challenger.json` and `plan.json` carry
-`strategy: {id, digest}`, and the published `strategies.json` lists every entry with its aliases and the paths of its week and plan (`artefacts`), which are the only place the app learns a file name. Every builder that
+of its entry as canonical JSON; `week.json` and `plan.json` (the champion's) and every other
+published strategy's `week_<id>.json` and `plan_<id>.json` carry `strategy: {id, digest}`, and the published `strategies.json` lists every entry with its aliases and the paths of its week and plan (`artefacts`), which are the only place the app learns a file name. Every builder that
 names a model — `models.json`, the model history, xP accuracy, the paired accuracy tests — reads the
-registry and resolves the harness's keys through the aliases. The week stage reads each
-strategy's `captain_rule` from the registry (MOD-02), and the forecast stage runs the champion
-through `Strategy.forecast`, which stamps the frame with the strategy's id and digest; `plan` and
-publishing C1 are still decided by the stages and the optimiser config until MOD-04.
+registry and resolves the harness's keys through the aliases. The forecast stage runs the
+champion through `Strategy.forecast`, which stamps the frame with the strategy's id and digest; the
+week stage runs every published strategy through `Strategy.forecast` and `decide` with
+`Strategy.decision_policy`, so the captain rule, `plan` and whether a strategy publishes at all are
+read from the registry alone (MOD-04).
 
 **Shadow mode** — publishing a candidate for comparison without letting it decide — is how a model
 changes mid-season; promotion needs the
@@ -820,10 +832,12 @@ changes mid-season; promotion needs the
 Four mechanisms, none promoting automatically:
 
 - **Flagged variants** in the chain, each graded per flag in the backtest (DL-47).
-- **The challenger, `c1`** (`shadow/c1.py`): its own gradient-boosted P(plays) and points models
-  feeding the real transfer MILP, published as `week_challenger.json` beside the champion's
-  (`optimiser.shadow_c1`, `publish_challenger`). `run_shadow_safely` means it never stops the run. No
-  variance, no horizon, its own features outside the forecast seam (03 §12 P1).
+- **The challenger, `c1`** (`shadow/c1.py`, reached through `Strategy.forecast`): its own
+  gradient-boosted P(plays) and points models for the next gameweek, decided by the same `decide`
+  as the champion and published as `week_c1.json` and `plan_c1.json`. A failure records "no
+  advice" with its reason in both and in the ledger, and stops nothing else (NFR-15). It borrows
+  the champion's sd columns, its per-gameweek means beyond the next gameweek and B0's line until
+  MOD-05 gives it its own, and builds its features outside the forecast seam (03 §12 P1).
 - **The monolith**, backtest only (DL-53).
 - **The prospective harness**: five models frozen before each deadline, scored after, published in
   `models.json` under their registry ids and compared on `/models`

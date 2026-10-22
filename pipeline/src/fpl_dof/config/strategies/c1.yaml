@@ -12,5 +12,5 @@ forecaster:
   training_window: knowable_at_deadline
 policy:
   captain_rule: price_position
-  plan: false # one gameweek only until MOD-04 gives every strategy the plan
+  plan: true # beyond its next gameweek the plan reads the champion's means, borrowed until MOD-05
 requires: [player_gameweek, fixture]

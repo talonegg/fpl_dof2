@@ -1,7 +1,7 @@
 """The five-model comparison artefact (``models.json``), keyed by strategy registry id (MOD-03).
 
-Generalises ``week_challenger.json``: rather than one extra model in week.json's schema, every
-frozen model's pre-deadline advice per gameweek, the points each actually scored once the gameweek
+Beside each published strategy's own week in week.json's schema, this is every frozen model's
+pre-deadline advice per gameweek, the points each actually scored once the gameweek
 is finished, and a season-to-date table. Before a gameweek's frozen decision exists, a dry-run
 preview of each model's current advice may stand in for it, flagged ``provisional``.
 

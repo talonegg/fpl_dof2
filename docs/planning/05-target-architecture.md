@@ -140,9 +140,9 @@ packages, or per-module versions, waits until these rules prove insufficient (§
 | Seam | From → to | Form | Versioning |
 | --- | --- | --- | --- |
 | **Upstream data** | Data platform → everything | Silver and gold schemas (`silver/tables.py`), each row knowable at `as_of` (Invariant 5, DL-83) | Schema change → `silver rebuild` |
-| **Strategy registry** | Factory → orchestrator, web | Built ([04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)), with `Strategy.forecast` for the `xp_v1` recipe. Still target: `decide(frame, squad_state, rules)` (MOD-04) and `forecast` for every forecaster (MOD-05) | Digest of code, config and training window |
+| **Strategy registry** | Factory → orchestrator, web | Built ([04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)), with `Strategy.forecast` for `xp_v1` and C1 and `Strategy.decision_policy` for `decide` ([04 §6](04-conceptual-design.md#6-decision-engine), MOD-04). Still target: `forecast` for every forecaster (MOD-05) | Digest of code, config and training window |
 | **Forecast frame** | Forecaster → decision engine | Built: [04 §6](04-conceptual-design.md#6-decision-engine) (MOD-02) | `FORECAST_FRAME_VERSION` |
-| **Decision output** | Decision engine → orchestrator, web | The `week` and `plan` schemas, one per strategy | Web contract |
+| **Decision output** | Decision engine → orchestrator, web | Built (MOD-04): the `week` and `plan` schemas, one pair per published strategy | Web contract |
 | **Ledger records** | Orchestrator, factory → evaluation, web | `advice/gwNN.json` (advice of record per strategy), `evaluation/gwNN.json`, `experiments/<id>/…`, each stamped with strategy digest and `as_of` | Record schema version |
 | **Web contract and registries** | Publish → web | `contracts/v1/*.schema.json`, plus published `strategies` and `artefacts` registries and `ui` flags | `contract_version` major, `contract_minor` (§7.3) |
 
@@ -162,9 +162,9 @@ The decision engine is a pure library in `core`; a strategy only parameterises i
 built: one file per strategy, its fields and its digest are in
 [04 §13](04-conceptual-design.md#13-configuration-and-feature-flags). Still target:
 
-- **`decide` on a `Strategy`**, and `forecast` for every forecaster, so the orchestrator runs any
-  registered strategy without naming its code (MOD-04, MOD-05); `forecast` exists for the `xp_v1`
-  recipe only, and C1 still runs inside the week stage.
+- **`forecast` for every forecaster**, so the orchestrator runs any registered strategy without
+  naming its code (MOD-05); `forecast` exists for `xp_v1` and C1, and C1 still borrows the
+  champion's variance and later gameweeks through it. `decide` is built (MOD-04).
 - **Recipe forecasters** are the default: code version, config, feature set and training window,
   refitted by the orchestrator through `fit_as_of` on fresh data and recorded by digest (DP-11).
 - **Frozen forecasters** carry fitted parameters trained offline by the factory, for heavier models;
@@ -215,24 +215,26 @@ stateDiagram-v2
 
 ### 6.2 Refresh
 
+Built in R1.2.0 (MOD-04, [04 §6](04-conceptual-design.md#6-decision-engine)): every published
+strategy gets the full recommendation from the one decision engine on one snapshot, and the ledger's
+advice file records each strategy's advice, or its "no advice" reason, under `models`. Still target:
+
 - **Triggers.** Ingest writes a change manifest — what moved since the last ingest: prices, status,
   odds, fixtures. A material change dispatches the orchestrator with typed `workflow_dispatch`
   inputs; a scheduled tick reads the state machine and the input digests. Nothing chains by workflow
   name or title.
-- **Every published strategy is refreshed together, on one input snapshot**, so any two strategies
-  on screen were computed from identical data. The change manifest and input digests decide whether
-  a run is needed, never which strategies run.
-- **Every strategy gets the full recommendation** from the one decision engine: transfers and hits,
-  XI and bench, captain and vice, chip, and the multi-gameweek plan unless its policy sets
-  `plan: false`.
+- **The change manifest and input digests decide whether a run is needed**, never which strategies
+  run: every published strategy is refreshed together, so any two on screen were computed from
+  identical data.
 - **The app shows the latest snapshot**, stamped with its `as_of` and what triggered it.
 
 ### 6.3 Advice of record
 
 The last successful recommendation before the deadline is each strategy's advice of record for that
 gameweek, written to `ledger`. A strategy that produced nothing records "no advice" with the reason,
-fail-closed, rather than carrying last week's forward. The scheduler's freeze guard
-(`schedule.freeze_minutes`) only stops a run starting too close to the deadline.
+fail-closed, rather than carrying last week's forward; within a run this is built (MOD-04), and the
+deadline rule is ORC-03. The scheduler's freeze guard (`schedule.freeze_minutes`) only stops a run
+starting too close to the deadline.
 
 ### 6.4 Evaluation
 

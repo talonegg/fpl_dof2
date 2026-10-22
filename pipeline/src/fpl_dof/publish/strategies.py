@@ -10,17 +10,17 @@ from typing import Any
 from fpl_dof.factory.registry import Strategy, champion, digest, strategies
 
 
-def _artefacts(s: Strategy) -> dict[str, str | None]:
-    """Where the app finds the strategy's week and plan, relative to the data directory.
+def artefact_paths(s: Strategy) -> dict[str, str | None]:
+    """The strategy's week and plan files: in gold, and relative to the published data directory.
 
-    The web reads these paths and never builds one; MOD-04 gives every strategy its own pair.
+    The one home of these names (MOD-04). The champion keeps ``week.json`` and ``plan.json``; every
+    other published strategy writes ``week_<id>.json`` and, if its policy plans, ``plan_<id>.json``.
+    The web reads these paths from ``strategies.json`` and never builds one.
     """
     if not s.published:
         return {"week": None, "plan": None}
-    if s.role == "champion":
-        return {"week": "week.json", "plan": "plan.json" if s.policy.plan else None}
-    # shortcut: one challenger file, until MOD-04 gives every strategy its own pair.
-    return {"week": "week_challenger.json", "plan": None}
+    suffix = "" if s.role == "champion" else f"_{s.id}"
+    return {"week": f"week{suffix}.json", "plan": f"plan{suffix}.json" if s.policy.plan else None}
 
 
 def build_strategies(*, contract_version: int) -> dict[str, Any]:
@@ -37,11 +37,11 @@ def build_strategies(*, contract_version: int) -> dict[str, Any]:
                 "aliases": list(s.aliases),
                 "digest": digest(s),
                 "plan": s.policy.plan,
-                "artefacts": _artefacts(s),
+                "artefacts": artefact_paths(s),
             }
             for s in strategies()
         ],
     }
 
 
-__all__ = ["build_strategies"]
+__all__ = ["artefact_paths", "build_strategies"]

@@ -1,19 +1,15 @@
-"""C3 (club-cap crash fix + price+position captain) and the C1 shadow's isolation."""
+"""C3: the club-cap crash fix and the price+position captain."""
 
 from __future__ import annotations
 
-import json
 from collections import Counter
-from pathlib import Path
 
 import pandas as pd
-import pytest
 
 from fpl_dof.config.models import EntryConfig, OptimiserConfig, TransferConfig
 from fpl_dof.optimise.captain import apply_price_position_captain, pick_captains
 from fpl_dof.optimise.transfer import recommend_transfers
 from fpl_dof.rules.models import GameRules
-from fpl_dof.shadow import c1
 from fpl_dof.squad.state import SquadState, load_squad_state
 from squads import legal_declaration
 from squads import players as _players
@@ -120,95 +116,5 @@ def test_captain_rule_flag_defaults_on_and_minutes_v2_on_in_production() -> None
     from fpl_dof.factory.registry import champion
 
     assert champion().policy.captain_rule == "price_position"
-    assert OptimiserConfig().shadow_c1 is True
     cfg, _ = load_config(environ={})
     assert cfg.forecast.discrimination.minutes_v2 is True
-
-
-def test_shadow_failure_is_logged_not_raised(
-    game_rules: GameRules, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    players = _players()
-    state = _state(game_rules, players)
-    fc = _forecast(players)
-    engine = recommend_transfers(fc, state, game_rules, TransferConfig(), CONFIG)
-
-    def boom(**_: object) -> None:
-        raise RuntimeError("shadow exploded")
-
-    monkeypatch.setattr(c1, "run_shadow", boom)
-    path = c1.run_shadow_safely(
-        gold=tmp_path,
-        run_id="r",
-        gameweek=2,
-        engine=engine,
-        forecast=fc,
-        history=pd.DataFrame(),
-        players=players,
-        fixtures=pd.DataFrame(),
-        state=state,
-        rules=game_rules,
-        transfer_config=TransferConfig(),
-        optimiser_config=CONFIG,
-    )
-    assert path is not None
-    payload = json.loads(path.read_text())
-    assert payload["status"] == "failed" and "shadow exploded" in payload["error"]
-    assert payload["affects_live_recommendation"] is False
-    assert payload["engine"]["captain"] == engine.recommended.captain_id
-
-
-def test_shadow_real_failure_with_no_history_is_contained(
-    game_rules: GameRules, tmp_path: Path
-) -> None:
-    players = _players()
-    state = _state(game_rules, players)
-    fc = _forecast(players)
-    engine = recommend_transfers(fc, state, game_rules, TransferConfig(), CONFIG)
-    before = fc.copy()
-    path = c1.run_shadow_safely(
-        gold=tmp_path,
-        run_id="r",
-        gameweek=2,
-        engine=engine,
-        forecast=fc,
-        history=pd.DataFrame(),
-        players=players,
-        fixtures=pd.DataFrame(),
-        state=state,
-        rules=game_rules,
-        transfer_config=TransferConfig(),
-        optimiser_config=CONFIG,
-    )
-    assert path is not None
-    assert json.loads(Path(path).read_text())["status"] == "failed"
-    pd.testing.assert_frame_equal(fc, before)  # the live forecast frame is never mutated
-
-
-def test_shadow_unwritable_gold_returns_none(
-    game_rules: GameRules, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    blocker = tmp_path / "file"
-    blocker.write_text("x")
-    players = _players()
-    state = _state(game_rules, players)
-    fc = _forecast(players)
-    engine = recommend_transfers(fc, state, game_rules, TransferConfig(), CONFIG)
-    monkeypatch.setattr(c1, "run_shadow", lambda **_: engine)
-    assert (
-        c1.run_shadow_safely(
-            gold=blocker / "gold",
-            run_id="r",
-            gameweek=2,
-            engine=engine,
-            forecast=fc,
-            history=pd.DataFrame(),
-            players=players,
-            fixtures=pd.DataFrame(),
-            state=state,
-            rules=game_rules,
-            transfer_config=TransferConfig(),
-            optimiser_config=CONFIG,
-        )
-        is None
-    )

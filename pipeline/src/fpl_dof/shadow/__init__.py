@@ -1,1 +1,1 @@
-"""Shadow models: run beside the engine, logged, never allowed to change the live recommendation."""
+"""Challenger forecasters awaiting their port into the factory proper (C1; MOD-05)."""

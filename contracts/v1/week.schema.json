@@ -18,7 +18,7 @@
       "type": "object",
       "additionalProperties": false,
       "required": ["id", "label", "role"],
-      "description": "Which model produced this recommendation. week.json is the champion (the live engine); week_challenger.json, when present, is the challenger in the same schema (champion/challenger).",
+      "description": "Which strategy produced this recommendation. week.json is the champion's (the live advice); every other published strategy writes week_<id>.json in the same schema, at the path strategies.json names.",
       "properties": {
         "id": { "type": "string" },
         "label": { "type": "string" },

@@ -119,13 +119,11 @@ STAGES: tuple[Stage, ...] = (
     ),
     Stage(
         name="week",
-        summary="Produce the weekly transfer, lineup and alert recommendation",
+        summary=(
+            "Advise every published strategy: transfers, lineup, captain, the multi-gameweek "
+            "plan and chips, and the alerts"
+        ),
         target="fpl_dof.stages.week:run",
-    ),
-    Stage(
-        name="decision",
-        summary="Plan the next few gameweeks and the chip calendar (E4)",
-        target="fpl_dof.stages.decision:run",
     ),
     Stage(
         name="publish",

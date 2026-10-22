@@ -1,6 +1,6 @@
-# E7-S2: transform → gates → forecast → optimise → week → decision → publish. Deliberately *not*
-# ingest (that is ingest-fast.yml / ingest-slow.yml's job) and deliberately not run after every
-# fast ingest — re-solving because a price moved £0.10 is waste (architecture §9).
+# E7-S2: transform → gates → forecast → optimise → week (every strategy's week and plan, MOD-04)
+# → publish. Deliberately *not* ingest (that is ingest-fast.yml / ingest-slow.yml's job) and
+# deliberately not run after every fast ingest — re-solving because a price moved £0.10 is waste (architecture §9).
 #
 # Triggers: nightly, after ingest-slow, at T-3h/T-45m before a deadline, and manual dispatch. The
 # deadline-relative trigger is a static 15-minute cron plus a guard step, for the same reason
@@ -365,7 +365,7 @@ jobs:
           FPL_DOF_MODELS_SOURCE_DIR: ${{ github.workspace }}/prospective-record
         run: >
           fpl-dof run
-          --only transform quality forecast optimise week decision publish
+          --only transform quality forecast optimise week publish
 
       - name: Upload the published web contract
         uses: actions/upload-artifact@v4

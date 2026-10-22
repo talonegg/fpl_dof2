@@ -929,7 +929,7 @@ export const strategiesFixture: Strategies = {
   champion: "c3",
   strategies: [
     strategy("c3", "Champion (C3)", "champion", true, ["C3", "champion"], { week: "week.json", plan: "plan.json" }),
-    strategy("c1", "Challenger (C1)", "challenger", true, ["C1", "challenger"], { week: "week_challenger.json", plan: null }),
+    strategy("c1", "Challenger (C1)", "challenger", true, ["C1", "challenger"], { week: "week_c1.json", plan: "plan_c1.json" }),
     strategy("engine", "Engine", "challenger", false, [], { week: null, plan: null }),
     strategy("a", "Model A", "challenger", false, ["A"], { week: null, plan: null }),
     strategy("a_odds", "A + odds", "challenger", false, ["A_odds"], { week: null, plan: null }, "Model A with the odds layer. Currently duplicates A until odds rows flow."),
