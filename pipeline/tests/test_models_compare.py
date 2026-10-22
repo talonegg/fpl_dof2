@@ -98,8 +98,8 @@ def test_payload_matches_schema() -> None:
 
 def test_all_five_models_in_display_order_champion_first() -> None:
     p = _payload()
-    assert [m["id"] for m in p["models"]] == ["c3", "c1", "a", "a_odds", "engine"]
-    assert [m["key"] for m in p["models"]] == ["C3", "C1", "A", "A_odds", "engine"]
+    assert [m["id"] for m in p["models"]] == ["c3", "c1", "engine", "a", "a_odds"]
+    assert [m["key"] for m in p["models"]] == ["C3", "C1", "engine", "A", "A_odds"]
     assert p["champion"] == "c3"
     assert p["models"][0]["role"] == "champion"
     assert {m["role"] for m in p["models"][1:]} == {"challenger"}

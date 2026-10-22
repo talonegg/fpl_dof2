@@ -140,7 +140,7 @@ packages, or per-module versions, waits until these rules prove insufficient (§
 | Seam | From → to | Form | Versioning |
 | --- | --- | --- | --- |
 | **Upstream data** | Data platform → everything | Silver and gold schemas (`silver/tables.py`), each row knowable at `as_of` (Invariant 5, DL-83) | Schema change → `silver rebuild` |
-| **Strategy registry** | Factory → orchestrator, web | Built ([04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)), with `Strategy.forecast` for `xp_v1` and C1 and `Strategy.decision_policy` for `decide` ([04 §6](04-conceptual-design.md#6-decision-engine), MOD-04). Still target: `forecast` for every forecaster (MOD-05) | Digest of (entry, code, effective config): the entry with its training window, the source that decides advice, and the run config sections it reads |
+| **Strategy registry** | Factory → orchestrator, web | Built ([04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)), with `Strategy.forecast` for `xp_v1` and C1 and `Strategy.decision_policy` for `decide` ([04 §6](04-conceptual-design.md#6-decision-engine), MOD-04). Still target: `forecast` for `a` and `a_odds` (MOD-05) | Digest of (entry, code, effective config): the entry with its training window, the source that decides advice, and the run config sections it reads |
 | **Forecast frame** | Forecaster → decision engine | Built: [04 §6](04-conceptual-design.md#6-decision-engine) (MOD-02) | `FORECAST_FRAME_VERSION` |
 | **Decision output** | Decision engine → orchestrator, web | Built (MOD-04): the `week` and `plan` schemas, one pair per published strategy | Web contract |
 | **Ledger records** | Orchestrator, factory → evaluation, web | `advice/gwNN.json` (advice of record per strategy), `evaluation/gwNN.json`, `experiments/<id>/…`, each stamped with strategy digest and `as_of` | Record schema version |
@@ -177,7 +177,10 @@ built: one file per strategy, its fields and its digest are in
 ### 5.2 The registered strategies
 
 The five ids are registered ([04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)).
-Still target: `engine`, `a` and `a_odds` go live in R1.2.2 — `c1` rebuilt behind the frame
+`engine` is live (R1.2.2, MOD-05): `xp_v1` on the shipped forecast config with `minutes_v2` off,
+the solver's captain, no plan; a strategy's `forecaster.config` is a validated deep-merge override of that
+config, `training_window` (`current_season` or `all_seasons`) filters the history it is fitted on, and `requires`
+is enforced in `Strategy.forecast`. Still target: `a` and `a_odds` go live in R1.2.2 — `c1` rebuilt behind the frame
 contract, `a` and `a_odds` ported from the frozen bundle (they train on prior seasons and A_odds
 reads odds, so the live run enables the archive and football-data.co.uk). The frozen harness is
 switched off when the ports go live, with no parity check; its records stay on `ledger` as each
