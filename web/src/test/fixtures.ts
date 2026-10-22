@@ -928,7 +928,7 @@ export const strategiesFixture: Strategies = {
   contract_version: 1,
   champion: "c3",
   strategies: [
-    strategy("c3", "Champion (C3)", "champion", true, ["C3", "champion"], { week: "week.json", plan: "plan.json" }),
+    strategy("c3", "Champion (C3)", "champion", true, ["C3", "champion", "xp_v1"], { week: "week.json", plan: "plan.json" }),
     strategy("c1", "Challenger (C1)", "challenger", true, ["C1", "challenger"], { week: "week_c1.json", plan: "plan_c1.json" }),
     strategy("engine", "Engine", "challenger", false, [], { week: null, plan: null }),
     strategy("a", "Model A", "challenger", false, ["A"], { week: null, plan: null }),

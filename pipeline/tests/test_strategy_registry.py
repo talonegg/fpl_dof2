@@ -217,7 +217,8 @@ def _python() -> list[Path]:
 
 
 def test_no_python_module_defines_a_strategy_id_or_alias() -> None:
-    names = _names()
+    # A forecaster's own model name (``MODEL_NAME = "xp_v1"``) is its code's, not a strategy's.
+    names = _names() - {s.forecaster.model for s in strategies() if s.forecaster.model}
     offenders = {str(p.relative_to(SRC)): _module_constants(p) & names for p in _python()}
     assert {k: v for k, v in offenders.items() if v} == {}
 
@@ -226,6 +227,44 @@ def test_no_python_module_restates_a_strategy_label() -> None:
     labels = {s.label for s in strategies()} | {s.description for s in strategies()}
     offenders = {str(p.relative_to(SRC)): _all_strings(p) & labels for p in _python()}
     assert {k: v for k, v in offenders.items() if v} == {}
+
+
+def _keyed_strings(path: Path) -> set[str]:
+    """Strings used as a mapping key or subscript: how a strategy id is used as a dict key."""
+    keys: set[str] = set()
+    for n in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+        if isinstance(n, ast.Subscript) and isinstance(n.slice, ast.Constant):
+            keys.add(str(n.slice.value))
+        if isinstance(n, ast.Dict):
+            keys |= {str(k.value) for k in n.keys if isinstance(k, ast.Constant)}
+    return keys
+
+
+def test_no_python_module_uses_a_strategy_id_or_alias_as_a_key() -> None:
+    # A forecaster's model name is an argument or a constant, never a key, so it is not flagged;
+    # `lineups["xp_v1"]` (the champion keyed by a legacy name) is.
+    # Role words are not strategy keys, and ids under three characters ("a") are any one-letter key.
+    names = {n for n in _names() - {"champion", "challenger"} if len(n) > 2}
+    offenders = {str(p.relative_to(SRC)): _keyed_strings(p) & names for p in _python()}
+    assert {k: v for k, v in offenders.items() if v} == {}
+
+
+def test_no_web_source_names_a_strategy_or_restates_its_label() -> None:
+    web = SRC.parents[2] / "web" / "src"
+    # Ids under three characters ("a", "A") are indistinguishable from any one-letter string.
+    names = {n for n in _names() - {"champion", "challenger"} if len(n) > 2}
+    labels = {s.label for s in strategies()}
+    offenders: dict[str, set[str]] = {}
+    for path in [*web.rglob("*.ts"), *web.rglob("*.tsx")]:
+        rel = path.relative_to(web).as_posix()
+        if ".test." in rel or rel.startswith(("test/", "contract/")):
+            continue
+        text = path.read_text(encoding="utf-8")
+        hit = {n for n in names | labels if any(f"{q}{n}{q}" in text for q in "\"'`")}
+        hit |= {label for label in labels if label in text}
+        if hit:
+            offenders[rel] = hit
+    assert offenders == {}
 
 
 def _enums(node: Any) -> list[list[Any]]:

@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { HindsightSection } from "./HindsightSection";
 import type { Log, Players } from "../../contract/types";
 
-const mockPlayers: Players = {
+export const mockPlayers: Players = {
   contract_version: 1,
   players: [
     {
@@ -57,7 +57,7 @@ const mockPlayers: Players = {
   ],
 };
 
-const mockLog: Log = {
+export const mockLog: Log = {
   contract_version: 1,
   season: "2026/27",
   entry_id: 4529900,
