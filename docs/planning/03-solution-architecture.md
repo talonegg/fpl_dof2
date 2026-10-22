@@ -121,9 +121,9 @@ graph TB
 The pipeline is one CLI, `fpl-dof`, whose stages are registered in `pipeline.py` and run in order by
 `run_stages`; CI runs the same commands a developer does (NFR-09). Beside the main run sit the
 `backtest` stage (walk-forward regression and the model card verdict, DL-21) and the `prospective`
-harness (pre-registered model comparison, frozen before each deadline). The challenger model (C1,
-`shadow/`) runs inside the `week` stage and is published beside the champion but never acted on
-(DP-08).
+harness (pre-registered model comparison, frozen before each deadline). The `week` stage runs every
+published strategy of the registry through `forecast` → `decide` on one snapshot (MOD-04); the
+challenger's (C1's) week and plan are published beside the champion's but never acted on (DP-08).
 
 ### Container responsibilities
 
@@ -243,7 +243,7 @@ flowchart TB
         TRF["transform<br/>conform, resolve, append"]
         QG{"quality gates<br/>incl. temporal"}
         FC["forecast<br/>fit_as_of → μ, σ per gameweek"]
-        DEC["optimise · week · decision<br/>transfers, captain, chips, plan;<br/>C1 challenger in shadow"]
+        DEC["optimise · week<br/>every published strategy: forecast → decide —<br/>transfers, captain, chips, plan"]
         PUB["publish<br/>validated against contracts/v1"]
     end
 
@@ -264,7 +264,7 @@ flowchart TB
     DATA -->|"retention.py restore"| VER --> TRF --> QG
     QG -->|"pass"| FC --> DEC --> PUB
     QG -.->|"blocking failure:<br/>alert issue opened"| STOP
-    DEC -->|"advice/gwNN.json,<br/>before the deadline"| LED
+    DEC -->|"advice/gwNN.json, every strategy,<br/>before the deadline"| LED
     PRO -->|"prospective record"| PUB
     TRF -->|"new price history"| DATA
     PUB -->|"web-data-contract → deploy.yml"| PAGES
@@ -335,7 +335,9 @@ The single most important seam in the system: the boundary between DL-04's two l
   artefact before writing it**. `publish/typescript.py` generates `web/src/contract/types.ts` from the
   same registry.
 - **Artefacts:** `meta` (run, freshness, `contract_version`), `rules`, `players`, `fixtures`, `squad`,
-  `plan`, `week` (plus `week_challenger`), `history`, `models`, `health`, `league`, `log`,
+  `plan` and `week` (the champion's; every other published strategy writes `week_<id>` and
+  `plan_<id>` in the same schemas, at the paths `strategies.json` names), `history`, `models`,
+  `health`, `league`, `log`,
   `strategies` (the strategy registry, [04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)),
   and the static `models_history` and `xp_accuracy` series. All JSON: ~700 rows needs no query engine.
 - **Versioned.** `/data/v1/`. A breaking change bumps to `v2` and publishes both during the transition.
@@ -456,7 +458,7 @@ No paid tooling exists in a £0 budget, so observability is built from artefacts
 | The FPL API fails | The run stops; the last good publication stays live; an issue is opened |
 | A blocking quality gate fails | Publication blocked; last good publication stays live; issue opened |
 | The solver fails or times out | Greedy fallback; the result is flagged as fallback-quality |
-| The challenger model fails | Logged and skipped; the champion publishes (`run_shadow_safely`) |
+| A challenger strategy fails | Its week, plan and ledger entry say "no advice" with the reason; every other strategy publishes (`stages.week.advise_all`, NFR-15). A champion failure fails the run |
 | A deploy fails | The previous site stays live; static hosting makes this the default |
 
 ### 10.4 Security and privacy
@@ -499,12 +501,13 @@ fpl_dof2/
 │  │  ├─ silver/               # canonical tables, Pandera schemas, Parquet store
 │  │  ├─ quality/              # gates as data; run_gates
 │  │  ├─ rules/                # FPL rules from the API + config: scoring, legality (pure, 100% covered)
-│  │  ├─ forecast/             # features, M1–M8, fit_as_of, horizon, xp_v0/xp_v1, backtest, baselines, monolith, model card
+│  │  ├─ factory/              # the strategy registry: forecast and decision policy per strategy
+│  │  ├─ forecast/             # features, M1–M8, fit_as_of, horizon, xp_v0/xp_v1, backtest, baselines, monolith, model card, chip replay (DL-28)
 │  │  ├─ optimise/             # squad, transfer and horizon MILPs, chips, captain, risk, explain
-│  │  ├─ decision/             # the historical chip replay through the decision engine (DL-28)
+│  │  ├─ decision/             # decide: one decision path for every strategy (MOD-04)
 │  │  ├─ squad/                # current squad state; XI and bench selection
 │  │  ├─ week/                 # deadlines, alerts, ledger, reconciliation, hindsight oracle, schedule
-│  │  ├─ shadow/               # the challenger model (C1)
+│  │  ├─ shadow/               # the C1 forecaster, reached through the registry
 │  │  ├─ prospective/          # the pre-registered model comparison harness
 │  │  ├─ publish/              # contract writer, builders, TypeScript generator
 │  │  ├─ stages/               # the effectful edge: one module per stage (DP-03)
@@ -553,7 +556,8 @@ says so in its first words. §12.6 adds the code findings of the 2026-10-22 docu
 | `optimise` | `rules`, `squad` |
 | `squad` | `rules` |
 | `week` | `rules`, `squad`, `optimise` |
-| `shadow` | `rules`, `squad`, `optimise` |
+| `decision` | `rules`, `squad`, `optimise` |
+| `shadow` | `rules`, `forecast`, `optimise` (the frame) |
 | `publish` | `rules`, `squad`, `forecast`, `optimise`, `week`, `sources` (catalogue only) |
 | `quality` | `silver` |
 | `stages` | everything, plus 13 stage-to-stage imports |
@@ -585,16 +589,16 @@ empty before R1.2.1 promotes (DL-87). Nothing outside `sources/` imports a sourc
 
 | # | Finding | Evidence | Deepening |
 | --- | --- | --- | --- |
-| **P1** | **Closed by PIPE-13 except for C1:** live, backtest and the chip replay (`decision/replay.py`) fit through `fit_as_of`; B0 stays on the fitted model and reaches the captain policy as its own input (MOD-02). The C1 challenger still has its own features and fit outside the `Predictor` protocol (DP-02) | `forecast/fit.py`, `forecast/xp_v1.py:526-530`, `shadow/c1.py:63` | One interface in `forecast/`: `fit_as_of(history, deadline, config, rules) → FittedModel` with `.predict(window)`. live, backtest, replay and C1 call it |
+| **P1** | **Closed by PIPE-13 except for C1:** live, backtest and the chip replay (`forecast/replay.py`) fit through `fit_as_of`; B0 stays on the fitted model and reaches the captain policy as its own input (MOD-02). The C1 challenger still has its own features and fit outside the `Predictor` protocol (DP-02) | `forecast/fit.py`, `forecast/xp_v1.py:526-530`, `shadow/c1.py:63` | One interface in `forecast/`: `fit_as_of(history, deadline, config, rules) → FittedModel` with `.predict(window)`. live, backtest, replay and C1 call it |
 | **P2** | **Three solver models each re-encode squad legality**; solver construction is repeated; `optimiser.solver` is never read — squad and transfer hard-code CBC | `optimise/squad.py:251,288-326,342`, `optimise/transfer.py:278-332,348`, `optimise/horizon.py:154,388-470`; formation tally at `squad.py:430`, `transfer.py:468`, `horizon.py:655` | `optimise/milp.py`: `add_squad_constraints(problem, select, start, rules, week=None)` and `solver_for(config)`. Each model keeps only its objective. Delete the dead field |
-| **P3** | **The stage edge holds domain logic and duplicated orchestration** (2,648 lines). Publish fits M2 and, through the season log, runs the hindsight oracle; six optional artefacts are handled inline with differing error handling; `week` and `decision` duplicate context loading and their `_write`; the gold season path is rebuilt ten times; ~410 lines of backtest-card Markdown live in the stage while core `model_card.py` writes files | `stages/publish.py:93-160,368-379`, `week/oracle.py:118`, `stages/week.py:64-112,280`, `stages/decision.py:38-84,144`, `stages/backtest.py:127-540`, `forecast/model_card.py:342` | `DataLayout.gold_for(season)` and one artefacts module owning file names; `load_decision_context(ctx) → DecisionContext | Skipped`; `optional_artefact(name, build)`; M2 ratings as a forecast output; card renderers return strings and stages write them |
+| **P3** | **Decision part closed by MOD-04:** XI selection, the start-probability floor relaxation and the price-and-position captain relabel moved out of `stages/week.py` into `decision.decide`, and the `decision` stage folded into `week`, so its duplicated context loading and `_write` went; each strategy's file names have one home, `publish.strategies.artefact_paths`. **Still open: the stage edge holds domain logic** (2,648 lines at the review). Publish fits M2 and, through the season log, runs the hindsight oracle; six optional artefacts are handled inline with differing error handling; the gold season path is rebuilt ten times; ~410 lines of backtest-card Markdown live in the stage while core `model_card.py` writes files | `stages/publish.py:93-160,368-379`, `week/oracle.py:118`, `stages/backtest.py:127-540`, `forecast/model_card.py:342` | `DataLayout.gold_for(season)` and one artefacts module owning file names; `optional_artefact(name, build)`; M2 ratings as a forecast output; card renderers return strings and stages write them |
 | **P4** | **Closed by PIPE-12:** one `as_of` per run, recorded in the manifest, and one gameweek predicate ([DL-84](../decisions/DL-84.md)). **The clock and "the next gameweek" are not coherent** (DP-11). `utcnow()` is read eight times across stages; three definitions of the next gameweek — first unfinished, first deadline after now, FPL's `is_next`. Between a deadline passing and the gameweek finishing, `xp_next` may describe GW N while the advice is for GW N+1 (inferred, not yet reproduced) | `forecast/live.py:84`, `forecast/xp_v0.py:332`, `week/cadence.py:130`, `stages/publish.py:383`, `stages/week.py:76,140`, `quality/rules.py:143` | Set `StageContext.as_of` once in `cli.py` and record it in the manifest; one `current_gameweek(gameweeks, as_of)` used by forecast, week and publish. A prerequisite for PIPE-01 and PIPE-10 |
 | **P5** | **Closed by PIPE-04:** the `fdcouk` adapter, scripts reading through `sources.LiveFeed`, and an isolation test that scans `scripts/` with no allow-list (REM-06). **A source is handled outside `sources/`, and the guard misses it** (DP-01). football-data.co.uk URLs, a second team-name resolver, and a `urllib` fetch writing straight to bronze, bypassing `Fetcher`, robots and lineage. The isolation test neither lists the source nor scans `scripts/` | `prospective/fdcouk.py:16`, `prospective/timing.py:50` vs `sources/resolve.py:302`, `scripts/prospective_ci.py:56-81`, `tests/test_source_isolation.py:28-37` | A registered, off-by-default `fdcouk` adapter (PIPE-04). Meanwhile add the pattern to the test and scan `scripts/` |
 | **P6** | **Closed by MOD-02 except the shared scoring:** `forecast.publishable(inputs, rules, config) → Forecast` owns the choice between xp_v1 and the xp_v0 fallback and is the package's entry point; the stage reaches it through the champion's `Strategy.forecast`, and every frame is validated against the forecast-frame schema (`optimise/frame.py`) before the engine reads it. **Still open:** the Poisson survival function and points arithmetic are duplicated across `rules/scoring.py`, `xp_v0` and `xp_v1` | `xp_v0.py:66,399-482`, `xp_v1.py:146,352-411`, `rules/scoring.py:60` | `rules.scoring.expected_points(components, position, rules)` shared by every model |
 | **P7** | **Shallow facades and a grab-bag in `week/`.** Three pure re-export modules; three different functions called `next_deadline`; `cadence.py` mixes deadlines, CI idempotency, cron gating and a veto; scheduling spread over five files | `week/deadline.py`, `week/day_before.py`, `week/ci_runs.py`, `week/cadence.py:118`, `forecast/live.py:80`, `schedule_cli.py`, `scripts/day_before_gate.py` | Delete the facades; move cron and CI gating into a `schedule/` package so `week/` is only about advice |
 | **P8** | **Very large files** — a locality cost, not a depth one. `config/models.py` is 2,215 lines and 53 classes, imported directly by 40 files; `sources/fpl/adapter.py` 1,301; `forecast/models.py` 1,106; `optimise/horizon.py` 950 | `wc -l` | Split `config/models.py` by area behind the package root. The others sit behind deep seams; split only when touched |
-| **P9** | **Tests reach past interfaces** — symptoms of P1, P3 and P6 | `test_adaptive_shrinkage.py:295`, `test_duty.py:400` (`stages.backtest._card`); `test_expected_goals.py:17`, `test_goalkeeper.py:150` (`xp_v1` privates); `test_source_catalogue.py:156-185`; `test_champion_challenger.py:68` | Re-point at the new interfaces as each finding lands |
-| **P10** | **Minor DP-03 leaks** — file I/O in core; publish reads `os.environ` directly, bypassing the CLI's override path | `forecast/model_card.py:342`, `week/ledger.py:60-76`, `shadow/c1.py`, `stages/publish.py:445` | Return values; let stages write. Read the setting through `Config` |
+| **P9** | **Tests reach past interfaces** — symptoms of P1, P3 and P6 | `test_adaptive_shrinkage.py:295`, `test_duty.py:400` (`stages.backtest._card`); `test_expected_goals.py:17`, `test_goalkeeper.py:150` (`xp_v1` privates); `test_source_catalogue.py:156-185` | Re-point at the new interfaces as each finding lands |
+| **P10** | **Minor DP-03 leaks** — file I/O in core; publish reads `os.environ` directly, bypassing the CLI's override path | `forecast/model_card.py:342`, `week/ledger.py:60-76`, `stages/publish.py:445` | Return values; let stages write. Read the setting through `Config` |
 
 ### 12.4 Web and contract findings
 
@@ -604,7 +608,7 @@ empty before R1.2.1 promotes (DL-87). Nothing outside `sources/` imports a sourc
 | **W2** | **Model-labels part closed by MOD-07 (the app reads `strategies.json`); the rest stands: behaviour duplicated across languages without a corpus has already drifted.** Bench order: TS sorts by `xp_next`, Python by P(plays) × xP. Violation codes listed twice. `sellingPrice` in TS has no production caller | `web/src/components/squad/lineup.ts:84-86` vs `squad/selection.py:8-11`; `legality.ts:44` vs `rules/legality.py:23` | A `lineup-corpus.json` beside the legality corpus; violation codes as a schema enum; delete `sellingPrice` |
 | **W3** | **Six loading hooks, three spellings of "absent", six hand-kept artefact lists in TS** plus `ARTEFACTS` in Python. Adding an artefact touches about six files; `retry` drops eight artefacts | `store.ts:35,59,220,244,284`, `offline.ts:44`, `data/api.ts` (15 pass-throughs), `useFixtures.ts`, `useLeague.ts`, `useLog.ts`, `useHealth.ts`, `useLazyArtefact.ts` | One generated artefact registry carrying each loading policy; one `useArtefact(key)` returning `loading | ready | absent | malformed | error`; delete the pass-through layers |
 | **W4** | **Type generation is a side effect of every data run and is not checked in CI**; duplicate `$defs` names would collide silently | `stages/publish.py:166-169`, `publish/typescript.py:96-97` | `fpl-dof contract types --check` in CI; stop writing into `web/src` from the publish stage |
-| **W5** | **One artefact has no schema** (the season replay, typed by hand in TS), and `week_challenger` bypasses `Contract.write` | `web/src/components/history/season.ts:34-48`, `stages/publish.py:150-157` | Add its schema to `ARTEFACTS`; route the challenger through `write` |
+| **W5** | **Challenger part closed by MOD-04:** every strategy's week and plan go through `Contract.write`. **Still open: one artefact has no schema** (the season replay, typed by hand in TS) | `web/src/components/history/season.ts:34-48` | Add its schema to `ARTEFACTS` |
 | **W6** | **The data layer imports components**, and `effectiveSquad` is applied twice | `store.ts:17-18`, `DataProvider.tsx:8,121`, `store.ts:199` | Move `effective.ts` and the replay type into `data/`; apply once in `withModel` |
 
 ### 12.5 Orchestration findings

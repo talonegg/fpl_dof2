@@ -145,9 +145,9 @@ def test_requires_names_silver_tables(tmp_path: Path) -> None:
 
 def test_champion_entry_matches_the_shipped_config_it_describes() -> None:
     # The captain rule is read from the registry policy (MOD-02); a second copy in the optimiser
-    # config would be a second home that could drift. Publishing C1 is still config until MOD-04.
+    # config would be a second home that could drift; so would a switch for publishing C1 (MOD-04).
     assert "captain_rule" not in OptimiserConfig.model_fields
-    assert load_strategy("c1").published == OptimiserConfig().publish_challenger
+    assert not {"shadow_c1", "publish_challenger"} & set(OptimiserConfig.model_fields)
 
 
 def test_strategies_json_validates_and_lists_every_registry_file() -> None:
@@ -160,10 +160,10 @@ def test_strategies_json_validates_and_lists_every_registry_file() -> None:
     assert set(listed) == {p.stem for p in STRATEGIES_DIR.glob("*.yaml")}
     assert payload["champion"] == "c3"
     assert listed["c3"]["digest"] == digest(load_strategy("c3"))
-    assert listed["c3"]["plan"] is True and listed["c1"]["plan"] is False
+    assert listed["c3"]["plan"] is True and listed["c1"]["plan"] is True
     # The app reads each strategy's week and plan from here, never from a name it builds (MOD-07).
     assert listed["c3"]["artefacts"] == {"week": "week.json", "plan": "plan.json"}
-    assert listed["c1"]["artefacts"] == {"week": "week_challenger.json", "plan": None}
+    assert listed["c1"]["artefacts"] == {"week": "week_c1.json", "plan": "plan_c1.json"}
     unpublished = [s for s in payload["strategies"] if not s["published"]]
     assert all(s["artefacts"] == {"week": None, "plan": None} for s in unpublished)
 

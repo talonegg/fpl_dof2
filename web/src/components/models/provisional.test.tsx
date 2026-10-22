@@ -22,7 +22,7 @@ describe("provisional (pre-window) advice", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("badges every model on the Models page with freeze-at-window hover text", async () => {
-    installFetchStub({ bodies: { strategies: strategiesFixture, week_challenger: challengerWeek, models: provisional } });
+    installFetchStub({ bodies: { strategies: strategiesFixture, week_c1: challengerWeek, models: provisional } });
     renderApp("/models");
     const banner = await screen.findByTestId("models-provisional-note");
     expect(banner.textContent).toContain("GW10");
@@ -34,7 +34,7 @@ describe("provisional (pre-window) advice", () => {
   });
 
   it("marks a provisional strategy in the selector", async () => {
-    installFetchStub({ bodies: { strategies: strategiesFixture, week_challenger: challengerWeek, models: provisional } });
+    installFetchStub({ bodies: { strategies: strategiesFixture, week_c1: challengerWeek, models: provisional } });
     renderApp("/");
     await waitFor(() => expect(screen.getByTestId("model-toggle")).toBeTruthy());
     const c1 = screen.getByTestId("model-toggle-c1");
@@ -45,7 +45,7 @@ describe("provisional (pre-window) advice", () => {
   });
 
   it("shows no badge once the frozen decision is published", async () => {
-    installFetchStub({ bodies: { strategies: strategiesFixture, week_challenger: challengerWeek, models: modelsFixture } });
+    installFetchStub({ bodies: { strategies: strategiesFixture, week_c1: challengerWeek, models: modelsFixture } });
     renderApp("/models");
     await screen.findByTestId("models-summary");
     expect(screen.queryByTestId("models-provisional-note")).toBeNull();

@@ -122,11 +122,7 @@ forbidden_modules = [
     "fpl_dof.stages", "fpl_dof.pipeline", "fpl_dof.cli", "fpl_dof.week", "fpl_dof.publish",
     "fpl_dof.schedule_cli",
 ]
-ignore_imports = [
-    "fpl_dof.decision.replay -> fpl_dof.forecast.backtest",  # MOD-04: replay reads forecasts through the registry and the forecast frame (MOD-02)
-    "fpl_dof.decision.replay -> fpl_dof.forecast.features",  # MOD-04: replay reads forecasts through the registry and the forecast frame (MOD-02)
-    "fpl_dof.decision.replay -> fpl_dof.forecast.fit",  # MOD-04: replay reads forecasts through the registry and the forecast frame (MOD-02)
-]
+ignore_imports = []
 
 [[tool.importlinter.contracts]]
 name = "The data platform knows no model and no orchestration"
@@ -173,8 +169,6 @@ ignore_imports = [
     "fpl_dof.stages.publish -> fpl_dof.forecast.form",  # MOD-01 by R1.2.1: domain logic moves out of the publish stage
     "fpl_dof.stages.publish -> fpl_dof.forecast.models",  # MOD-01 by R1.2.1: domain logic moves out of the publish stage
     "fpl_dof.stages.publish -> fpl_dof.forecast.xp_v1",  # MOD-01 by R1.2.1: domain logic moves out of the publish stage
-    "fpl_dof.stages.week -> fpl_dof.forecast.form",  # MOD-04: the week is built by the one decision path
-    "fpl_dof.stages.week -> fpl_dof.shadow.c1",  # MOD-04: C1 runs through the one decision path, not a stage special case
 ]
 
 [[tool.importlinter.contracts]]
@@ -193,24 +187,20 @@ ignore_imports = []
 name = "Stages do not import each other"
 type = "independence"
 modules = [
-    "fpl_dof.stages.backtest", "fpl_dof.stages.decision", "fpl_dof.stages.forecast",
+    "fpl_dof.stages.backtest", "fpl_dof.stages.forecast",
     "fpl_dof.stages.ingest", "fpl_dof.stages.optimise", "fpl_dof.stages.publish",
     "fpl_dof.stages.quality", "fpl_dof.stages.transform", "fpl_dof.stages.week",
 ]
 ignore_imports = [
     "fpl_dof.stages.backtest -> fpl_dof.stages.transform",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
-    "fpl_dof.stages.decision -> fpl_dof.stages.forecast",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
-    "fpl_dof.stages.decision -> fpl_dof.stages.transform",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
     "fpl_dof.stages.forecast -> fpl_dof.stages.backtest",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
     "fpl_dof.stages.forecast -> fpl_dof.stages.transform",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
     "fpl_dof.stages.optimise -> fpl_dof.stages.forecast",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
     "fpl_dof.stages.optimise -> fpl_dof.stages.transform",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
-    "fpl_dof.stages.publish -> fpl_dof.stages.decision",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
     "fpl_dof.stages.publish -> fpl_dof.stages.forecast",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
     "fpl_dof.stages.publish -> fpl_dof.stages.optimise",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
     "fpl_dof.stages.publish -> fpl_dof.stages.quality",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
     "fpl_dof.stages.publish -> fpl_dof.stages.transform",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
-    "fpl_dof.stages.publish -> fpl_dof.stages.week",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
     "fpl_dof.stages.quality -> fpl_dof.stages.transform",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
     "fpl_dof.stages.week -> fpl_dof.stages.forecast",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module
     "fpl_dof.stages.week -> fpl_dof.stages.transform",  # MOD-01 by R1.2.1: stage constants and helpers move to the owning module

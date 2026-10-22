@@ -305,8 +305,8 @@ def _hindsight(
 
     if recorded is not None and isinstance(recorded.get("models"), Mapping):
         for m_name, m_data in recorded["models"].items():
-            if not isinstance(m_data, Mapping):
-                continue
+            if not isinstance(m_data, Mapping) or m_data.get("role") == "champion":
+                continue  # the champion's advice is the top-level record, scored above
             adv_val = m_data.get("advised")
             m_adv: Mapping[str, Any] = adv_val if isinstance(adv_val, Mapping) else m_data
             m_starting = tuple(m_adv.get("starting") or ())

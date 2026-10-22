@@ -176,7 +176,7 @@ export interface Week {
   /** True when no squad could be established. Before the first gameweek is scored there is no picks endpoint to read (DL-20), so this is a normal state and not a failure. */
   skipped: boolean;
   skipped_reason?: string;
-  /** Which model produced this recommendation. week.json is the champion (the live engine); week_challenger.json, when present, is the challenger in the same schema (champion/challenger). */
+  /** Which strategy produced this recommendation. week.json is the champion's (the live advice); every other published strategy writes week_<id>.json in the same schema, at the path strategies.json names. */
   model?: {
     id: string;
     label: string;
@@ -1009,7 +1009,7 @@ export interface ModelSeason {
   }[];
 }
 
-/** The five frozen models side by side (generalises week_challenger.json). Per gameweek: each model's pre-deadline advice, recorded before the deadline by the prospective harness, and — once the gameweek is finished — the points it actually scored (final XI after auto-subs, armband with vice fallback, minus hits). Live advice is the champion's alone; every other model is a comparison. Absent until the harness has recorded a decision, so like log.json its absence is a normal published state. */
+/** The five frozen models side by side. Per gameweek: each model's pre-deadline advice, recorded before the deadline by the prospective harness, and — once the gameweek is finished — the points it actually scored (final XI after auto-subs, armband with vice fallback, minus hits). Live advice is the champion's alone; every other model is a comparison. Absent until the harness has recorded a decision, so like log.json its absence is a normal published state. */
 export interface Models {
   contract_version: 1;
   season: string;

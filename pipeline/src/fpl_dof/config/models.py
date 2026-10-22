@@ -1454,22 +1454,6 @@ class OptimiserConfig(_Section):
             "A locked player is exempt: an explicit human override outranks the heuristic."
         ),
     )
-    shadow_c1: bool = Field(
-        default=True,
-        description=(
-            "Run the C1 shadow model (boosted per-position xG + minutes) beside the engine in the "
-            "week stage and log its XI, captain and transfers to shadow_c1.json. Never changes the "
-            "live recommendation, and its failures are logged, not raised."
-        ),
-    )
-    publish_challenger: bool = Field(
-        default=True,
-        description=(
-            "Champion/challenger: also publish C1's full weekly answer (transfers, captain/vice, "
-            "XI and bench) as week_challenger.json, in week.json's schema, so the app can toggle "
-            "between the two. Requires shadow_c1. A challenger failure never blocks the champion."
-        ),
-    )
     squad_solve: Literal["preseason", "always"] = Field(
         default="preseason",
         description=(

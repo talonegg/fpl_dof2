@@ -4,7 +4,7 @@ import { installFetchStub, renderApp, resetAppState } from "../../test/render";
 import { challengerWeek, strategiesFixture, week } from "../../test/fixtures";
 import { MODEL_STORAGE_KEY } from "../../data/model";
 
-const registry = { strategies: strategiesFixture, week_challenger: challengerWeek };
+const registry = { strategies: strategiesFixture, week_c1: challengerWeek };
 const championRationale = week.recommendation!.rationale;
 
 describe("champion and challenger from the registry", () => {

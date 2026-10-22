@@ -6,8 +6,9 @@ A strategy is a forecaster paired with a decision policy (05 §5.1). Its file un
 it from here. Legacy keys (the frozen harness's ``C3``, the web's old ``champion``) are aliases,
 resolved once by :func:`resolve_alias`.
 
-``Strategy.forecast`` is the orchestrator's way to a forecast frame (MOD-02); ``decide`` arrives
-with MOD-04.
+``Strategy.forecast`` is the orchestrator's way to a forecast frame (MOD-02), and
+``Strategy.decision_policy`` resolves its policy for the one decision engine,
+:func:`fpl_dof.decision.decide` (MOD-04).
 """
 
 from __future__ import annotations
@@ -22,14 +23,19 @@ from typing import Any, Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
-from fpl_dof.config.models import CaptainRule, ForecastConfig
+from fpl_dof.config.models import CaptainRule, Config, ForecastConfig
+from fpl_dof.decision import DecisionPolicy
 from fpl_dof.forecast import xp_v0, xp_v1
 from fpl_dof.forecast.entry import Forecast, publishable
 from fpl_dof.forecast.inputs import ForecastInputs
+from fpl_dof.obs.logging import get_logger
+from fpl_dof.optimise.captain import PricePositionLine
 from fpl_dof.optimise.frame import STRATEGY_COLUMN, STRATEGY_DIGEST_COLUMN
 from fpl_dof.rules.models import GameRules
 from fpl_dof.shadow import c1
 from fpl_dof.silver.tables import Table
+
+log = get_logger(__name__)
 
 STRATEGIES_DIR = Path(__file__).resolve().parents[1] / "config" / "strategies"
 
@@ -85,24 +91,63 @@ class Strategy(_Entry):
     requires: tuple[Table, ...] = Field(description="Silver tables the strategy reads")
 
     def forecast(
-        self, inputs: ForecastInputs, rules: GameRules, config: ForecastConfig
+        self,
+        inputs: ForecastInputs,
+        rules: GameRules,
+        config: ForecastConfig,
+        *,
+        variance_from: Forecast | None = None,
     ) -> Forecast:
         """This strategy's forecast frame, validated and stamped with its id and digest.
 
-        Only the shipped ``xp_v1`` recipe (with its ``xp_v0`` cold-start fallback) has a live entry
-        point; C1's runs inside the week stage until MOD-04, and config overrides and the frozen
-        ports arrive with MOD-05. Asking for one of those is an error, never a quiet substitute.
+        Live entry points: the shipped ``xp_v1`` recipe (with its ``xp_v0`` cold-start fallback)
+        and C1, which borrows its variance, later gameweeks and captain line from
+        ``variance_from`` — the champion's forecast — until MOD-05 gives it its own. Config
+        overrides and the frozen ports arrive with MOD-05; asking for one is an error, never a
+        quiet substitute.
         """
         recipe = self.forecaster
-        if recipe.type != "recipe" or recipe.model != xp_v1.MODEL_NAME or recipe.config:
+        if recipe.type == "recipe" and recipe.model == c1.MODEL_NAME and not recipe.config:
+            if variance_from is None:
+                raise ValueError(
+                    f"{self.id}: C1 borrows the champion's variance; pass its forecast"
+                )
+            result = c1.forecast(inputs, rules, config, variance_from)
+        elif recipe.type == "recipe" and recipe.model == xp_v1.MODEL_NAME and not recipe.config:
+            result = publishable(inputs, rules, config)
+        else:
             raise NotImplementedError(
                 f"{self.id}: no forecast entry point for {recipe.type} {recipe.model!r}"
-                f"{' with config overrides' if recipe.config else ''} yet (MOD-04, MOD-05)"
+                f"{' with config overrides' if recipe.config else ''} yet (MOD-05)"
             )
-        result = publishable(inputs, rules, config)
         result.frame[STRATEGY_COLUMN] = self.id
         result.frame[STRATEGY_DIGEST_COLUMN] = digest(self)
         return result
+
+    def decision_policy(
+        self, config: Config, captain_line: PricePositionLine | None
+    ) -> DecisionPolicy:
+        """The policy :func:`fpl_dof.decision.decide` runs this strategy with, on this config.
+
+        ``captain_line`` is the forecaster's B0. A ``price_position`` rule with no line to apply
+        (nothing played yet to fit B0 on) falls back to the solver's captain, and says so.
+        """
+        line = None
+        if self.policy.captain_rule == "price_position":
+            line = captain_line
+            if line is None:
+                log.warning(
+                    "strategy.captain_rule_fallback",
+                    extra={"strategy": self.id, "reason": "no history to fit B0"},
+                )
+        return DecisionPolicy(
+            plan=self.policy.plan,
+            captain_line=line,
+            transfers=config.transfers,
+            optimiser=config.optimiser,
+            decision=config.decision,
+            start_probability_floor=config.forecast.minimum_start_probability_for_xi,
+        )
 
 
 def digest(strategy: Strategy) -> str:
@@ -179,6 +224,8 @@ def stamp(strategy: Strategy) -> dict[str, str]:
 __all__ = [
     "LIVE_MODELS",
     "STRATEGIES_DIR",
+    "Forecast",
+    "ForecastInputs",
     "Forecaster",
     "Policy",
     "RegistryError",

@@ -21,7 +21,7 @@ from conftest import before_next_deadline
 from decisions import OPTIMISER, decision, fixture_table, forecast, pool, state
 from fpl_dof.config.models import TransferConfig
 from fpl_dof.factory.registry import champion, digest, load_strategy
-from fpl_dof.forecast import ForecastInputs, publishable
+from fpl_dof.forecast import Forecast, ForecastInputs, publishable
 from fpl_dof.forecast.xp_v0 import MODEL_NAME as XP_V0
 from fpl_dof.forecast.xp_v1 import MODEL_NAME as XP_V1
 from fpl_dof.optimise.captain import PricePositionLine, pick_captains
@@ -123,8 +123,8 @@ def test_the_champion_strategy_stamps_a_valid_frame_that_survives_parquet(
 
 
 def test_a_strategy_without_a_live_forecaster_says_so(game_rules: GameRules) -> None:
-    with pytest.raises(NotImplementedError, match="c1"):
-        load_strategy("c1").forecast(_snapshot(8), game_rules, CONFIG)
+    with pytest.raises(NotImplementedError, match="a"):
+        load_strategy("a").forecast(_snapshot(8), game_rules, CONFIG)
 
 
 def test_the_captain_line_refuses_an_unknown_position_or_a_non_finite_number() -> None:
@@ -177,17 +177,8 @@ def _entry_points(rules: GameRules) -> dict[str, Callable[[pd.DataFrame], object
             optimiser=OPTIMISER,
             fixtures=fixture_table(squad, GAMEWEEKS),
         ),
-        "c1": lambda f: c1.fit_challenger(
-            forecast=f,
-            history=pd.DataFrame(),
-            players=squad,
-            fixtures=pd.DataFrame(),
-            state=held,
-            rules=rules,
-            transfer_config=TransferConfig(),
-            optimiser_config=OPTIMISER,
-            gameweek=GAMEWEEKS[0],
-            captain_scores=None,
+        "c1": lambda f: c1.forecast(
+            _snapshot(8), rules, CONFIG, Forecast(frame=f, model="xp_v1", fallback_reason=None)
         ),
     }
 
@@ -205,18 +196,13 @@ def test_every_engine_entry_point_refuses_a_frame_without_variance(
         run(negative)
 
 
-def test_the_week_reads_the_captain_rule_from_each_strategys_policy(tmp_path: Path) -> None:
+def test_the_week_reads_the_captain_line_the_forecast_stage_wrote(tmp_path: Path) -> None:
     from fpl_dof.stages import week
     from fpl_dof.stages.forecast import CAPTAIN_LINE_FILENAME
 
-    frame = _frame()
     line = PricePositionLine(
         intercept_by_position={"MID": 1.0}, slope_by_position={"MID": 2.0}, fallback=0.5
     )
     (tmp_path / CAPTAIN_LINE_FILENAME).write_text(line.model_dump_json(), encoding="utf-8")
-    read = week._read_captain_line(tmp_path)
-    assert read == line
-    assert week._captain_scores(champion(), read, frame) == line.scores(frame)
-    assert week._captain_scores(champion(), None, frame) is None  # nothing to fit: solver's pick
-    assert week._captain_scores(load_strategy("engine"), read, frame) is None  # policy: model
+    assert week._read_captain_line(tmp_path) == line
     assert week._read_captain_line(tmp_path / "absent") is None

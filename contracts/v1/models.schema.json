@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/talonegg/fpl_dof2/contracts/v1/models.schema.json",
   "title": "Models",
-  "description": "The five frozen models side by side (generalises week_challenger.json). Per gameweek: each model's pre-deadline advice, recorded before the deadline by the prospective harness, and — once the gameweek is finished — the points it actually scored (final XI after auto-subs, armband with vice fallback, minus hits). Live advice is the champion's alone; every other model is a comparison. Absent until the harness has recorded a decision, so like log.json its absence is a normal published state.",
+  "description": "The five frozen models side by side. Per gameweek: each model's pre-deadline advice, recorded before the deadline by the prospective harness, and — once the gameweek is finished — the points it actually scored (final XI after auto-subs, armband with vice fallback, minus hits). Live advice is the champion's alone; every other model is a comparison. Absent until the harness has recorded a decision, so like log.json its absence is a normal published state.",
   "type": "object",
   "additionalProperties": false,
   "required": ["contract_version", "season", "champion", "frozen", "models", "gameweeks", "season_to_date"],

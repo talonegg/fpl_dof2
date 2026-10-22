@@ -73,7 +73,7 @@ describe("/models comparison", () => {
 
   it("compares the registry's real pair, with historical performance from the history file", async () => {
     installFetchStub({
-      bodies: { strategies: strategiesFixture, week_challenger: challengerWeek, models_history_2526: historyFixture },
+      bodies: { strategies: strategiesFixture, week_c1: challengerWeek, models_history_2526: historyFixture },
     });
     renderApp("/models");
     await screen.findByTestId("compare-advice");
