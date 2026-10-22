@@ -10,10 +10,12 @@ from typing import Any
 import pytest
 
 from fpl_dof.config.models import ModelsArtefactConfig
-from fpl_dof.publish.benchmark import MODEL_REGISTRY
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
 from fpl_dof.publish.models_compare import build_models
 from fpl_dof.stages import publish
+
+#: The frozen harness's own model keys, as its records carry them.
+HARNESS_KEYS = ("C3", "C1", "engine", "A", "A_odds")
 
 
 def _pick(cap: int, xp: float, hit: int = 0) -> dict[str, Any]:
@@ -35,7 +37,7 @@ def _pick(cap: int, xp: float, hit: int = 0) -> dict[str, Any]:
 
 
 def _decision(gw: int) -> dict[str, Any]:
-    keys = [k for k, *_ in MODEL_REGISTRY]
+    keys = HARNESS_KEYS
     return {
         "gw": gw,
         "deadline": f"2026-10-{gw:02d}T09:00:00+00:00",
@@ -61,7 +63,7 @@ def _score(gw: int, model: str, points: float) -> dict[str, Any]:
 
 
 def _ok(*stale: str) -> dict[str, Any]:
-    keys = [k for k, *_ in MODEL_REGISTRY]
+    keys = HARNESS_KEYS
     return {
         "models": {
             k: {"available": k not in stale, "reason": "live odds missing" if k in stale else None}
@@ -96,21 +98,22 @@ def test_payload_matches_schema() -> None:
 
 def test_all_five_models_in_display_order_champion_first() -> None:
     p = _payload()
-    assert [m["id"] for m in p["models"]] == ["champion", "challenger", "engine", "a", "a_odds"]
-    assert p["champion"] == "champion"
+    assert [m["id"] for m in p["models"]] == ["c3", "c1", "a", "a_odds", "engine"]
+    assert [m["key"] for m in p["models"]] == ["C3", "C1", "A", "A_odds", "engine"]
+    assert p["champion"] == "c3"
     assert p["models"][0]["role"] == "champion"
-    assert {m["role"] for m in p["models"][2:]} == {"comparison"}
+    assert {m["role"] for m in p["models"][1:]} == {"challenger"}
 
 
 def test_advice_maps_codes_to_element_ids_and_keeps_hits() -> None:
     gw7 = _payload()["gameweeks"][0]
     assert gw7["gameweek"] == 7
-    champ = gw7["advice"]["champion"]
+    champ = gw7["advice"]["c3"]
     assert champ["starting"] == list(range(1, 12))
     assert champ["bench_order"] == [16, 13, 14, 15]  # GK first, then outfield order
     assert champ["captain"] == 6 and champ["vice_captain"] == 1
-    assert gw7["advice"]["challenger"]["hit_points"] == -4
-    assert gw7["advice"]["challenger"]["transfers"][0] == {
+    assert gw7["advice"]["c1"]["hit_points"] == -4
+    assert gw7["advice"]["c1"]["transfers"][0] == {
         "out": 2,
         "out_name": "Out",
         "in": 12,
@@ -122,14 +125,14 @@ def test_advice_maps_codes_to_element_ids_and_keeps_hits() -> None:
 def test_actuals_and_season_to_date() -> None:
     p = _payload()
     gw7, gw8 = p["gameweeks"]
-    assert gw7["actual"]["challenger"]["points"] == 52
-    assert gw7["actual"]["challenger"]["hit_points"] == -4
+    assert gw7["actual"]["c1"]["points"] == 52
+    assert gw7["actual"]["c1"]["hit_points"] == -4
     assert gw8["actual"] is None  # not finished yet
     totals = {s["model"]: s for s in p["season_to_date"]}
     assert totals["a"]["total"] == 70 and totals["a"]["gameweeks_scored"] == 1
     assert totals["engine"]["gameweeks_scored"] == 0
     # A score for a gameweek with no recorded advice is unattributable and ignored.
-    assert totals["champion"]["per_gameweek"] == [{"gameweek": 7, "points": 60, "cumulative": 60}]
+    assert totals["c3"]["per_gameweek"] == [{"gameweek": 7, "points": 60, "cumulative": 60}]
 
 
 def _ctx(source: Path | None) -> Any:
@@ -148,7 +151,7 @@ def test_stage_reads_harness_dir(tmp_path: Path) -> None:
     )
     payload = publish._models(_ctx(tmp_path), "2026/27")
     assert payload is not None
-    assert payload["gameweeks"][0]["actual"]["champion"]["vice_used"] is True
+    assert payload["gameweeks"][0]["actual"]["c3"]["vice_used"] is True
     assert payload["gameweeks"][0]["availability"]["a_odds"] == {
         "available": False,
         "reason": "live odds missing",
@@ -167,14 +170,14 @@ def test_stale_model_is_unavailable_with_reason_and_no_partial_data() -> None:
     info = {m["id"]: m for m in p["models"]}
     assert info["a_odds"]["available"] is False
     assert info["a_odds"]["unavailable_reason"] == "live odds missing"
-    assert info["champion"]["available"] is True
+    assert info["c3"]["available"] is True
 
 
 def test_missing_check_fails_closed() -> None:
     p = _payload({8: _ok()})  # GW7 has no recorded input check
     gw7 = p["gameweeks"][0]
     assert gw7["advice"] == {} and gw7["actual"] is None
-    assert gw7["availability"]["champion"]["reason"].startswith("no input-freshness check")
+    assert gw7["availability"]["c3"]["reason"].startswith("no input-freshness check")
 
 
 @pytest.mark.parametrize("make", ["unset", "empty", "corrupt"])
@@ -207,7 +210,7 @@ def test_preview_is_published_as_provisional_until_the_frozen_decision_exists() 
     gw7, gw8 = p["gameweeks"]
     assert gw7["provisional"] is False and gw8["provisional"] is True
     assert p["provisional"] is True
-    assert set(gw8["advice"]) == {"champion", "challenger", "engine", "a"}  # still fail closed
+    assert set(gw8["advice"]) == {"c3", "c1", "engine", "a"}  # still fail closed
     assert gw8["actual"] is None  # a preview is never scored
     info = {m["id"]: m for m in p["models"]}
     assert info["engine"]["provisional"] is True and info["a_odds"]["available"] is False

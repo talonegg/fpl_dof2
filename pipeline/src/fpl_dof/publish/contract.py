@@ -56,6 +56,9 @@ ARTEFACTS: dict[str, str] = {
     # All-player next-GW xP MAE across seasons. Built from xp_scores CSVs and checked in / published
     # for the models page. Registered here for validation and generated TypeScript types.
     "xp_accuracy": "xp_accuracy.schema.json",
+    # The strategy registry as published (MOD-03): every strategy's id, label, role and digest,
+    # generated from config/strategies/. Additive, so contract v1 does not bump.
+    "strategies": "strategies.schema.json",
 }
 
 

@@ -14,6 +14,16 @@
       "description": "True when no squad could be established, or when no legal plan exists. Both are normal states before the season starts (DL-20) and neither is a failure."
     },
     "skipped_reason": { "type": "string" },
+    "strategy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "digest"],
+      "description": "The registered strategy that produced this advice: its id in the strategy registry (strategies.json) and the digest of its registry entry (MOD-03).",
+      "properties": {
+        "id": { "type": "string" },
+        "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
     "deadline": { "$ref": "#/$defs/plan_deadline" },
     "gameweeks": { "type": "array", "items": { "type": "integer" } },
     "solver": {

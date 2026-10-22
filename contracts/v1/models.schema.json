@@ -30,10 +30,10 @@
       "additionalProperties": false,
       "required": ["id", "key", "label", "role", "description", "available", "unavailable_reason"],
       "properties": {
-        "id": { "type": "string", "enum": ["champion", "challenger", "engine", "a", "a_odds"] },
-        "key": { "type": "string", "description": "The harness's model key (C3, C1, engine, A, A_odds)." },
+        "id": { "type": "string", "description": "The strategy's id in the strategy registry (strategies.json)." },
+        "key": { "type": "string", "description": "The frozen harness's key for this strategy, one of its registry aliases." },
         "label": { "type": "string" },
-        "role": { "type": "string", "enum": ["champion", "challenger", "comparison"] },
+        "role": { "type": "string", "description": "The strategy's registry role." },
         "description": { "type": "string" },
         "available": { "type": "boolean", "description": "Whether the latest gameweek's advice passed the CI input-freshness check." },
         "unavailable_reason": { "type": ["string", "null"], "description": "Why not, shown verbatim in the app." },

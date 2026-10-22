@@ -124,8 +124,8 @@ settled DL-11, DL-72 and OD-04 and recorded DL-76 to DL-79.
 | Blueprint (B1–B7), season calendar, RAID log (`R-nn`, `I-nn`) | [Project plan](planning/02-project-plan-and-blueprint.md) |
 | Shortcuts taken and what repays each (`D-nn`) | [Debt register](planning/debt-register.md) |
 | Structure, stack, hosting, data flow, the web contract, orchestration — as built; the module-design review; R1.1.0's data architecture | [Solution architecture](planning/03-solution-architecture.md) |
-| The target design: orchestrator, model factory and web as independent modules, the strategy registry, the 2026-10-22 code review | [Target architecture](planning/05-target-architecture.md) |
-| Each component's design: sources, data layer, models, optimiser, UX, testing, extensibility; open questions (`Q-nn`) | [Conceptual design](planning/04-conceptual-design.md) |
+| The target design: orchestrator, model factory and web as independent modules, the 2026-10-22 code review | [Target architecture](planning/05-target-architecture.md) |
+| Each component's design: sources, data layer, models, the strategy registry, optimiser, UX, testing, extensibility; open questions (`Q-nn`) | [Conceptual design](planning/04-conceptual-design.md) |
 | Releases (`Rx.y.z`): what is being built now, how to choose what next, and the branching and release model | [Release register](planning/epics/README.md); the procedure is the `release` skill |
 | R1.2.0, the open release, then R1.3.0 and R1.4.0: the modular platform's stories | [`planning/epics/R1.2.0-modular-platform-backlog.md`](planning/epics/R1.2.0-modular-platform-backlog.md) |
 | Where the season stands (rewritten each gameweek), the weekly loop, and the bar for changing the model mid-season | [E8 — ongoing in-season monitoring](planning/epics/E8-ongoing-in-season-monitoring.md) |

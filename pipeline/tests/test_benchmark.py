@@ -1,4 +1,4 @@
-"""Tests for unified model evaluation, registry, and benchmark accuracy."""
+"""Benchmark accuracy: harness keys resolve to strategy registry ids (MOD-03)."""
 
 from __future__ import annotations
 
@@ -7,28 +7,11 @@ from pathlib import Path
 from typing import Any
 
 from fpl_dof.publish.benchmark import (
-    CHAMPION_KEY,
-    CHAMPION_WEB_ID,
-    HARNESS_TO_WEB,
-    HISTORY_MODELS,
-    MODEL_REGISTRY,
-    REGISTRY_BY_KEY,
-    WEB_TO_HARNESS,
     ModelBenchmarkBuilder,
     build_xp_accuracy,
     build_xp_accuracy_season,
 )
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
-
-
-def test_model_registry_consistency() -> None:
-    assert len(MODEL_REGISTRY) == 5
-    assert CHAMPION_KEY == "C3"
-    assert CHAMPION_WEB_ID == "champion"
-    assert HARNESS_TO_WEB[CHAMPION_KEY] == CHAMPION_WEB_ID
-    assert WEB_TO_HARNESS[CHAMPION_WEB_ID] == CHAMPION_KEY
-    assert len(HISTORY_MODELS) == len(MODEL_REGISTRY)
-    assert len(REGISTRY_BY_KEY) == len(MODEL_REGISTRY)
 
 
 def test_build_xp_accuracy_season_and_validation(tmp_path: Path) -> None:
@@ -53,8 +36,8 @@ def test_build_xp_accuracy_season_and_validation(tmp_path: Path) -> None:
     assert season_doc["season"] == "2026/27"
     assert season_doc["kind"] == "prospective"
     assert len(season_doc["gameweeks"]) == 2
-    assert season_doc["gameweeks"][0]["mae"]["champion"] == 1.20
-    assert season_doc["gameweeks"][0]["mae"]["challenger"] == 1.10
+    assert season_doc["gameweeks"][0]["mae"]["c3"] == 1.20
+    assert season_doc["gameweeks"][0]["mae"]["c1"] == 1.10
     # a_odds had no rows
     assert "a_odds" in season_doc["missing_models"]
 

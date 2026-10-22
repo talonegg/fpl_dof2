@@ -158,25 +158,12 @@ corpus read in both languages where both need it (DP-04, DP-13, DL-39).
 
 What is deployed, compared and promoted is a **strategy**, because most experiments worth running
 are on the policy (hits, captaincy, chips, risk), and those must be as comparable as a new forecast.
-The decision engine is a pure library in `core`; a strategy only parameterises it.
+The decision engine is a pure library in `core`; a strategy only parameterises it. The registry is
+built: one file per strategy, its fields and its digest are in
+[04 §13](04-conceptual-design.md#13-configuration-and-feature-flags). Still target:
 
-```yaml
-# config/strategies/c3.yaml — illustrative shape, fixed in R1.2.0
-id: c3                     # stable; never reused, never a role name
-label: Champion (C3)
-role: champion             # champion | challenger | experiment | retired — exactly one champion
-published: true            # runs every refresh and appears in the app
-forecaster:
-  type: recipe             # recipe (refitted every run) | frozen (fitted parameters, published by the factory)
-  model: xp_v1
-  config: {discrimination: {minutes_v2: true}}
-  training_window: current_season
-policy:
-  captain_rule: price_position
-  plan: true               # the multi-gameweek plan and chips; false where solve time matters
-requires: [fpl]            # data the strategy needs; missing data is a fail-closed "no advice"
-```
-
+- **`forecast` and `decide` on a `Strategy`**, so the orchestrator runs any registered strategy
+  without naming its code (MOD-02, MOD-04); until then the registry labels what the stages run.
 - **Recipe forecasters** are the default: code version, config, feature set and training window,
   refitted by the orchestrator through `fit_as_of` on fresh data and recorded by digest (DP-11).
 - **Frozen forecasters** carry fitted parameters trained offline by the factory, for heavier models;
@@ -185,16 +172,17 @@ requires: [fpl]            # data the strategy needs; missing data is a fail-clo
   forecast frame into the policy (DL-76).
 - **Every forecaster carries its own variance** and builds its features through `FeatureSpec` with
   declared knowability, checked by `assert_no_look_ahead` (Invariants 5 and 6).
+- **`requires` is enforced**: a strategy whose required data is missing records a fail-closed
+  "no advice" (MOD-05).
 
 ### 5.2 The registered strategies
 
-The five models compared today become registered live strategies: `engine` (minutes_v2 off), `c3`
-(today's champion), `c1` (the gradient-boosted challenger, rebuilt behind the frame contract), `a`
-and `a_odds` (ported from the frozen bundle; they train on prior seasons and A_odds reads odds, so
-the live run enables the archive and football-data.co.uk). The pre-registered C1-versus-C3 study is
-retired. The frozen harness is switched off when the ports go live, with no parity check; its
-records stay on `ledger` as each strategy's history up to the switch, which the app marks
-([DL-87](../decisions/DL-87.md)).
+The five ids are registered ([04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)).
+Still target: `engine`, `a` and `a_odds` go live in R1.2.1 — `c1` rebuilt behind the frame
+contract, `a` and `a_odds` ported from the frozen bundle (they train on prior seasons and A_odds
+reads odds, so the live run enables the archive and football-data.co.uk). The frozen harness is
+switched off when the ports go live, with no parity check; its records stay on `ledger` as each
+strategy's history up to the switch, which the app marks ([DL-87](../decisions/DL-87.md)).
 
 ### 5.3 Experiments and promotion
 

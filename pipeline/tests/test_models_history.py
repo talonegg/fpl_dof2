@@ -33,7 +33,7 @@ def _row(gw: int, points: float, hit: float = 0.0) -> dict[str, Any]:
 
 
 def _build(**over: Any) -> dict[str, Any]:
-    rows = {
+    rows = {  # legacy keys, as the offline scripts write them: resolved through the registry
         "champion": [_row(1, 50), _row(2, 40), _row(3, 60)],
         "challenger": [_row(1, 60, -4), _row(2, 40), _row(3, 50)],
         "engine": [_row(1, 40), _row(2, 30), _row(3, 70), _row(4, 99)],
@@ -60,22 +60,22 @@ def test_only_common_gameweeks_are_compared() -> None:
 def test_ranks_cumulative_and_ties() -> None:
     p = _build()
     gw1, gw2, gw3 = (g["models"] for g in p["gameweeks"])
-    assert (gw1["challenger"]["rank"], gw1["champion"]["rank"], gw1["engine"]["rank"]) == (1, 2, 3)
-    assert gw2["champion"]["rank"] == gw2["challenger"]["rank"] == 1  # tie shares the better rank
-    assert gw3["engine"]["cumulative"] == 140 and gw3["champion"]["cumulative"] == 150
-    assert gw3["champion"]["cumulative_rank"] == 1 and gw3["challenger"]["cumulative_rank"] == 1
-    assert gw1["challenger"]["hit_points"] == -4
+    assert (gw1["c1"]["rank"], gw1["c3"]["rank"], gw1["engine"]["rank"]) == (1, 2, 3)
+    assert gw2["c3"]["rank"] == gw2["c1"]["rank"] == 1  # tie shares the better rank
+    assert gw3["engine"]["cumulative"] == 140 and gw3["c3"]["cumulative"] == 150
+    assert gw3["c3"]["cumulative_rank"] == 1 and gw3["c1"]["cumulative_rank"] == 1
+    assert gw1["c1"]["hit_points"] == -4
 
 
 def test_summary_and_deltas() -> None:
     s = {x["model"]: x for x in _build()["summary"]}
-    assert s["champion"]["delta_vs_champion"] is None
+    assert s["c3"]["delta_vs_champion"] is None
     d = s["engine"]["delta_vs_champion"]
     assert d["total"] == -10 and d["mean"] == pytest.approx(-3.33, abs=0.01)
     assert d["gameweeks_better"] == 1 and d["gameweeks_worse"] == 2
     assert d["ci_low"] <= d["mean"] <= d["ci_high"]
-    assert s["challenger"]["gameweeks_won"] == 2  # GW1 outright + GW2 shared
-    assert s["challenger"]["hit_points"] == -4
+    assert s["c1"]["gameweeks_won"] == 2  # GW1 outright + GW2 shared
+    assert s["c1"]["hit_points"] == -4
 
 
 def test_unavailable_models_are_marked_not_invented() -> None:

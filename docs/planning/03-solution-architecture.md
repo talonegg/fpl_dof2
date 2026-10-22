@@ -330,13 +330,14 @@ flowchart LR
 
 The single most important seam in the system: the boundary between DL-04's two languages (DP-04).
 
-- **One definition.** `contracts/v1/*.schema.json` — fourteen schemas, all `additionalProperties:
+- **One definition.** `contracts/v1/*.schema.json` — fifteen schemas, all `additionalProperties:
   false`. `publish/contract.py` holds the artefact registry (`ARTEFACTS`) and **validates every
   artefact before writing it**. `publish/typescript.py` generates `web/src/contract/types.ts` from the
   same registry.
 - **Artefacts:** `meta` (run, freshness, `contract_version`), `rules`, `players`, `fixtures`, `squad`,
-  `plan`, `week` (plus `week_challenger`), `history`, `models`, `health`, `league`, `log`, and the
-  static `models_history` and `xp_accuracy` series. All JSON: ~700 rows needs no query engine.
+  `plan`, `week` (plus `week_challenger`), `history`, `models`, `health`, `league`, `log`,
+  `strategies` (the strategy registry, [04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)),
+  and the static `models_history` and `xp_accuracy` series. All JSON: ~700 rows needs no query engine.
 - **Versioned.** `/data/v1/`. A breaking change bumps to `v2` and publishes both during the transition.
 - **Behaviour pinned in both languages** by shared corpora in `contracts/conformance/`, read by pytest
   and vitest and never copied (DL-39). Today the legality corpus is the only one.

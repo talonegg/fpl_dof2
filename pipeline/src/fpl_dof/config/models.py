@@ -15,6 +15,9 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+#: How captain and vice are picked inside the chosen XI; a strategy's policy names one (MOD-03).
+CaptainRule = Literal["price_position", "model"]
+
 
 class _Section(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -1451,7 +1454,7 @@ class OptimiserConfig(_Section):
             "A locked player is exempt: an explicit human override outranks the heuristic."
         ),
     )
-    captain_rule: Literal["price_position", "model"] = Field(
+    captain_rule: CaptainRule = Field(
         default="price_position",
         description=(
             "How the weekly recommendation picks captain and vice inside the chosen XI. "
