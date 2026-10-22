@@ -34,7 +34,7 @@
 .model-advice-grid dt { font-weight: 600; }
 .model-advice-grid dd { margin: 0; }
 .models-note { opacity: 0.85; }
-.table-scroll { overflow-x: auto; }
+.table-scroll { overflow-x: auto; position: relative; }
 .models-table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
 .models-table th, .models-table td { padding: 0.4rem 0.6rem; text-align: right; border-bottom: 1px solid rgba(127,127,127,0.3); white-space: nowrap; }
 .models-table th:first-child { text-align: left; }
