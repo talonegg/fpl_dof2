@@ -1,7 +1,7 @@
 # See c3.yaml for what this file is.
 id: c1
 label: Challenger (C1)
-description: Boosted xG + minutes model
+description: Boosted xG and minutes model; captain by price and position. Pre-registered against C3 on all-player xP MAE, with no look before GW10.
 role: challenger
 published: true
 aliases: [C1, challenger] # the frozen harness's key and the web's old id
