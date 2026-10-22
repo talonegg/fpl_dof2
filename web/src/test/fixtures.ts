@@ -13,6 +13,8 @@ import type {
   ModelAdvice,
   ModelInfo,
   Models,
+  Strategies,
+  Strategy,
 } from "../contract/types";
 
 export const meta: Meta = {
@@ -857,16 +859,16 @@ function modelActual(points: number, hit = 0): ModelActual {
 }
 
 const MODEL_INFO: ModelInfo[] = [
-  { id: "champion", key: "C3", label: "Champion (C3)", role: "champion", description: "Engine + minutes_v2", available: true, unavailable_reason: null },
-  { id: "challenger", key: "C1", label: "Challenger (C1)", role: "challenger", description: "Boosted xG", available: true, unavailable_reason: null },
+  { id: "c3", key: "C3", label: "Champion (C3)", role: "champion", description: "Engine + minutes_v2", available: true, unavailable_reason: null },
+  { id: "c1", key: "C1", label: "Challenger (C1)", role: "challenger", description: "Boosted xG", available: true, unavailable_reason: null },
   { id: "engine", key: "engine", label: "Engine", role: "comparison", description: "Original engine", available: true, unavailable_reason: null },
   { id: "a", key: "A", label: "Model A", role: "comparison", description: "Component xPts", available: true, unavailable_reason: null },
   { id: "a_odds", key: "A_odds", label: "A + odds", role: "comparison", description: "A + odds team layer", available: true, unavailable_reason: null },
 ];
 
 const SCORED: Record<string, number[]> = {
-  champion: [62, 48, 71],
-  challenger: [58, 55, 66],
+  c3: [62, 48, 71],
+  c1: [58, 55, 66],
   engine: [51, 44, 69],
   a: [60, 47, 74],
   a_odds: [60, 49, 72],
@@ -875,7 +877,7 @@ const SCORED: Record<string, number[]> = {
 export const modelsFixture: Models = {
   contract_version: 1,
   season: "2026/27",
-  champion: "champion",
+  champion: "c3",
   frozen: { tag: "frozen-2026-10-13", code_commit: "79e080c" },
   models: MODEL_INFO,
   gameweeks: [7, 8, 9, 10].map((gw, i) => ({
@@ -886,8 +888,8 @@ export const modelsFixture: Models = {
       MODEL_INFO.map((m) => [m.id, { available: true, reason: null }]),
     ),
     advice: {
-      champion: modelAdvice("Haaland", 61.2),
-      challenger: modelAdvice("Salah", 63.4, -4),
+      c3: modelAdvice("Haaland", 61.2),
+      c1: modelAdvice("Salah", 63.4, -4),
       engine: modelAdvice("Palmer", 58.9),
       a: modelAdvice("Isak", 60.1),
       a_odds: modelAdvice("Isak", 60.7),
@@ -895,7 +897,7 @@ export const modelsFixture: Models = {
     actual:
       i < 3
         ? Object.fromEntries(
-            Object.entries(SCORED).map(([m, pts]) => [m, modelActual(pts[i], m === "challenger" ? -4 : 0)]),
+            Object.entries(SCORED).map(([m, pts]) => [m, modelActual(pts[i], m === "c1" ? -4 : 0)]),
           )
         : null,
   })),
@@ -908,3 +910,52 @@ export const modelsFixture: Models = {
     return { model, gameweeks_scored: pts.length, total: cum, per_gameweek };
   }),
 };
+
+function strategy(
+  id: string,
+  label: string,
+  role: Strategy["role"],
+  published: boolean,
+  aliases: string[],
+  artefacts: Strategy["artefacts"],
+  description = `${label} description.`,
+): Strategy {
+  return { id, label, description, role, published, aliases, digest: "0".repeat(64), plan: artefacts.plan !== null, artefacts };
+}
+
+/** The registry as the pipeline publishes it today: two strategies live, three not yet ported. */
+export const strategiesFixture: Strategies = {
+  contract_version: 1,
+  champion: "c3",
+  strategies: [
+    strategy("c3", "Champion (C3)", "champion", true, ["C3", "champion"], { week: "week.json", plan: "plan.json" }),
+    strategy("c1", "Challenger (C1)", "challenger", true, ["C1", "challenger"], { week: "week_challenger.json", plan: null }),
+    strategy("engine", "Engine", "challenger", false, [], { week: null, plan: null }),
+    strategy("a", "Model A", "challenger", false, ["A"], { week: null, plan: null }),
+    strategy("a_odds", "A + odds", "challenger", false, ["A_odds"], { week: null, plan: null }, "Model A with the odds layer. Currently duplicates A until odds rows flow."),
+  ],
+};
+
+/** A registry with `n` published strategies the TypeScript has never named, the first the champion. */
+export function novelRegistry(n: number): { registry: Strategies; weeks: Record<string, Week> } {
+  const ids = Array.from({ length: n }, (_, i) => `zeta_${i + 1}`);
+  const registry: Strategies = {
+    contract_version: 1,
+    champion: ids[0],
+    strategies: ids.map((id, i) =>
+      strategy(id, `Zeta ${i + 1}`, i === 0 ? "champion" : "challenger", true, i === 0 ? ["champion"] : [], {
+        week: `week_${id}.json`,
+        plan: null,
+      }),
+    ),
+  };
+  const weeks = Object.fromEntries(
+    ids.map((id, i) => [
+      `week_${id}`,
+      i === 0
+        ? week
+        : { ...challengerWeek, advised: { ...challengerWeek.advised!, captain: i % 2 ? 1 : 2, vice_captain: 3 } },
+    ]),
+  );
+  return { registry, weeks };
+}

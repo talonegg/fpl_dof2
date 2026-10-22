@@ -1,8 +1,8 @@
 import type { Models } from "../../contract/types";
 import type { SeasonReplay } from "./season";
-import { MODEL_LABELS } from "../../data/model";
+import { useRegistry } from "../../data/DataProvider";
+import { modelLabel, seriesStyle } from "../../data/registry";
 import type { ModelChoice } from "../../data/model";
-import { COLOURS, DASHES } from "../models/modelStyle";
 import { buildSeason } from "./season";
 import type { Phase, Season } from "./season";
 
@@ -24,6 +24,8 @@ export function PhaseBadge({ phase }: { phase: Phase }) {
 
 /** Replay segment faint and thin over a shaded band; prospective segment solid with point markers. */
 function SeasonChart({ season }: { season: Season }) {
+  const registry = useRegistry();
+  const sty = (id: string) => seriesStyle(registry, id);
   const { rows, models } = season;
   if (rows.length === 0) return null;
   const W = 720;
@@ -57,13 +59,13 @@ function SeasonChart({ season }: { season: Season }) {
         {models.map((m) => (
           <g key={m} data-model={m}>
             {lastReplay >= 0 && (
-              <polyline data-phase="replay" points={seg(m, 0, lastReplay)} fill="none" stroke={COLOURS[m]} strokeWidth={1.5} strokeDasharray={DASHES[m]} opacity={0.45} />
+              <polyline data-phase="replay" points={seg(m, 0, lastReplay)} fill="none" stroke={sty(m).colour} strokeWidth={1.5} strokeDasharray={sty(m).dash} opacity={0.45} />
             )}
             {split !== -1 && (
-              <polyline data-phase="prospective" points={seg(m, Math.max(0, lastReplay), rows.length - 1)} fill="none" stroke={COLOURS[m]} strokeWidth={3} strokeDasharray={DASHES[m]} />
+              <polyline data-phase="prospective" points={seg(m, Math.max(0, lastReplay), rows.length - 1)} fill="none" stroke={sty(m).colour} strokeWidth={3} strokeDasharray={sty(m).dash} />
             )}
             {split !== -1 &&
-              rows.slice(split).map((r, k) => <circle key={r.gameweek} cx={x(split + k)} cy={y(r.cumulative[m] ?? 0)} r={3} fill={COLOURS[m]} />)}
+              rows.slice(split).map((r, k) => <circle key={r.gameweek} cx={x(split + k)} cy={y(r.cumulative[m] ?? 0)} r={3} fill={sty(m).colour} />)}
           </g>
         ))}
       </svg>
@@ -71,9 +73,9 @@ function SeasonChart({ season }: { season: Season }) {
         {models.map((m) => (
           <span key={m} className="models-legend-item">
             <svg width="24" height="8" aria-hidden="true">
-              <line x1="0" y1="4" x2="24" y2="4" stroke={COLOURS[m]} strokeWidth="3" strokeDasharray={DASHES[m]} />
+              <line x1="0" y1="4" x2="24" y2="4" stroke={sty(m).colour} strokeWidth="3" strokeDasharray={sty(m).dash} />
             </svg>
-            {MODEL_LABELS[m]}
+            {modelLabel(registry, m)}
           </span>
         ))}
         <span className="history-axis-note" data-testid="season-line-legend">
@@ -86,7 +88,8 @@ function SeasonChart({ season }: { season: Season }) {
 
 /** The current season: GW1–n replay, then prospective frozen decisions as each GW is scored. */
 export function SeasonView({ replay, models }: { replay: SeasonReplay | null; models: Models | null }) {
-  const season = buildSeason(replay, models);
+  const registry = useRegistry();
+  const season = buildSeason(replay, models, registry);
   if (season.rows.length === 0) return null;
   const { asOf } = season;
   const latest = Math.max(asOf.replay ?? 0, asOf.prospective ?? 0);
@@ -110,7 +113,7 @@ export function SeasonView({ replay, models }: { replay: SeasonReplay | null; mo
       {replay && Object.keys(replay.missing_models).length > 0 && (
         <p className="models-note">
           {Object.entries(replay.missing_models)
-            .map(([m, why]) => `${MODEL_LABELS[m as ModelChoice] ?? m}: ${why}`)
+            .map(([m, why]) => `${modelLabel(registry, m)}: ${why}`)
             .join("; ")}
           .
         </p>
@@ -132,7 +135,7 @@ export function SeasonView({ replay, models }: { replay: SeasonReplay | null; mo
               const t = season.totals[m]!;
               return (
                 <tr key={m} data-testid={`season-row-${m}`}>
-                  <th scope="row">{MODEL_LABELS[m]}</th>
+                  <th scope="row">{modelLabel(registry, m)}</th>
                   <td>{asOf.replay ? pts(t.replay) : "—"}</td>
                   <td>{asOf.prospective ? pts(t.prospective) : "—"}</td>
                   <td data-testid={`season-total-${m}`}>
@@ -158,7 +161,7 @@ export function SeasonView({ replay, models }: { replay: SeasonReplay | null; mo
               <th scope="col">Type</th>
               {season.models.map((m) => (
                 <th scope="col" key={m}>
-                  {MODEL_LABELS[m]}
+                  {modelLabel(registry, m)}
                 </th>
               ))}
             </tr>

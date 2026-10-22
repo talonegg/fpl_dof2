@@ -610,7 +610,7 @@ are displayed, not fed into the objective (Q-09).
 
 A hash router (DL-35) inside a theme provider, a client-side password gate (deterrence only — the data
 stays publicly fetchable) and one data context. A flat top bar of ten entries, Data health last; a
-global model selector chooses whose advice is shown. Player detail is reached from Scout and Squad.
+global strategy selector lists every published strategy that has a week and chooses whose advice is shown on every page. Strategy ids, labels, roles, colours and artefact paths come from the published registry (`strategies.json`), never from the code (MOD-07). Player detail is reached from Scout and Squad.
 
 ### 8.3 Screens
 
@@ -624,7 +624,7 @@ global model selector chooses whose advice is shown. Player detail is reached fr
 | `/fixtures` | Clubs × gameweeks shaded by model difficulty (DL-37) |
 | `/league` | Standings, overlap, differentials, captain divergence (DL-40) |
 | `/log` | Per finished gameweek: played, scored, advised, followed (DL-69) |
-| `/models` | The frozen models: summary, details, xP accuracy, hindsight (E14), history (`/history` redirects) |
+| `/models` | A multi-select comparison of the registry's published strategies against the champion (advice differences, xP on the players they disagree on, historical performance), then summary, details, xP accuracy, hindsight (E14), history (`/history` redirects) |
 | `/settings` | Team and league IDs, kept in the browser (DL-44); a copyable link to dispatch a run |
 | `/health` | Last run, gates, every source's status and freshness, trends from recent manifests (DL-41) |
 
@@ -791,7 +791,7 @@ single home of its id, label, description and role (MOD-03):
 Registered ([DL-87](../decisions/DL-87.md)): `c3`, the champion, and `c1`, published; `engine`, `a`
 and `a_odds`, challengers unpublished until they are ported live. A strategy's digest is the sha256
 of its entry as canonical JSON; `week.json`, `week_challenger.json` and `plan.json` carry
-`strategy: {id, digest}`, and the published `strategies.json` lists every entry. Every builder that
+`strategy: {id, digest}`, and the published `strategies.json` lists every entry with its aliases and the paths of its week and plan (`artefacts`), which are the only place the app learns a file name. Every builder that
 names a model — `models.json`, the model history, xP accuracy, the paired accuracy tests — reads the
 registry and resolves the harness's keys through the aliases. The optimiser config still decides
 what the stages run until the policy is read from the registry (MOD-02, MOD-04); a test keeps the
