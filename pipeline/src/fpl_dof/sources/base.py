@@ -23,6 +23,9 @@ from fpl_dof.config.models import SourceOverride
 from fpl_dof.rules.models import ApiRules
 from fpl_dof.sources.fetch import Fetched, Fetcher
 
+#: When the Open gameweek's matches can kick off: its deadline, then the next deadline or ``None``.
+Window = tuple[dt.datetime, dt.datetime | None] | None
+
 
 @dataclass(frozen=True, slots=True)
 class Resource:
@@ -224,6 +227,16 @@ class SourceAdapter(ABC):
         no contract of their own, such as a robots file, need not override it.
         """
         return None
+
+    watched: ClassVar[tuple[tuple[str, str], ...]] = ()
+    """The ``(resource, key)`` captures the change manifest compares across an ingest (ORC-02)."""
+
+    def changes(self, resource: str, before: bytes, after: bytes, window: Window) -> set[str]:
+        """The change kinds (:data:`~fpl_dof.sources.changes.KINDS`) between two captures of one
+        watched resource. ``window`` is when the Open gameweek's matches can kick off, from its
+        deadline to the next one's (``None`` for no next), or ``None`` when no gameweek is Open.
+        The default sees none: a source changes nothing that starts a run unless it says so."""
+        return set()
 
     def note_observed(self, key: str, fetched: Fetched) -> None:
         """Remember when the bytes just read were captured, keeping the latest per key."""

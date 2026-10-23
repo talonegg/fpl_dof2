@@ -271,15 +271,17 @@ stateDiagram-v2
 
 Built in R1.2.0 (MOD-04, [04 §6](04-conceptual-design.md#6-decision-engine)): every published
 strategy gets the full recommendation from the one decision engine on one snapshot, and the ledger's
-advice file records each strategy's advice, or its "no advice" reason, under `models`. Still target:
+advice file records each strategy's advice, or its "no advice" reason, under `models`.
 
-- **Triggers.** Ingest writes a change manifest — what moved since the last ingest: prices, status,
-  odds, fixtures. A material change dispatches the orchestrator with typed `workflow_dispatch`
-  inputs; a scheduled tick reads the state machine and the input digests. Nothing chains by workflow
-  name or title.
-- **The change manifest and input digests decide whether a run is needed**, never which strategies
-  run: every published strategy is refreshed together, so any two on screen were computed from
-  identical data.
+- **Triggers** (ORC-02). Ingest writes a change manifest — the kinds that moved since the bronze it
+  restored: prices, status and news, fixtures, the Open gameweek's first odds. Any of them
+  dispatches `pipeline.yml` with typed `workflow_dispatch` inputs (`trigger`, `kinds`, `gameweek`,
+  `must_publish`); the slow ingest also dispatches the daily refresh; one scheduled tick reads the
+  Open gameweek's state for the pre-deadline windows. Nothing chains by workflow name, title or cron
+  string.
+- **The change manifest decides whether a run is needed**, never which strategies run: every
+  published strategy is refreshed together, so any two on screen were computed from identical data.
+  Still target: input digests beside it.
 - **The app shows the latest snapshot**, stamped with its `as_of` and what triggered it.
 
 ### 6.3 Advice of record
@@ -289,8 +291,8 @@ gameweek, written to `ledger`. A strategy that produced nothing records "no advi
 fail-closed, rather than carrying last week's forward. A strategy's entry is replaced only by a
 newer success; a later failure is noted beside it as `last_failure {as_of, reason}`, and the ledger
 writer refuses a write after the deadline (ORC-03, [DL-94](../decisions/DL-94.md)). Every advice carries its snapshot's
-`as_of` and the run's `trigger`, and deploy follows only a run that published. The scheduler's freeze guard (`schedule.freeze_minutes`) only stops a run
-starting too close to the deadline.
+`as_of` and the run's `trigger`, and deploy follows only a run that published. The guard's freeze (`schedule.deadline_freeze_minutes`) refuses a run of
+any trigger starting too close to the deadline.
 
 ### 6.4 Evaluation
 
@@ -371,7 +373,7 @@ flowchart LR
 | Which strategies exist, their roles, forecaster and policy | `pipeline/src/fpl_dof/config/strategies/*.yaml` (the registry) |
 | A forecaster's tunables, including hyperparameters now hard-coded (C1, M2's half-life) | The forecaster's config in the registry, validated by `ForecastConfig` (DP-06) |
 | An experiment | A declared experiment file in the factory |
-| Cadence, freeze guard, material-change thresholds | `schedule` config |
+| Cadence, freeze guard | `schedule` config (material changes have no thresholds, DL-94) |
 | Data sources | `sources.overrides`, as today ([04 §14.1](04-conceptual-design.md#141-adding-a-data-source)) |
 | UI variants | Published `ui` flags, overridable per device in settings |
 | Game rules | The API and `rules` config, as today (Invariants 2 and 9) |

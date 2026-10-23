@@ -34,17 +34,20 @@ Nothing that produces a recommendation may run inside 45 minutes of a deadline. 
    ``deadline_freeze_minutes`` stands down whatever the offsets say.
 
 A cron firing delayed past the end of a window means the run is skipped, not deferred. That is the
-correct failure: the T-3h run has already published a recommendation, and manual dispatch is always
-available (Architecture §9).
+correct failure: the T-3h run has already published a recommendation, and a manual dispatch before
+the freeze is always available (Architecture §9). The freeze binds every trigger, dispatched or
+scheduled (:func:`dispatch_decision`, ORC-02).
 """
 
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from fpl_dof.config.models import ScheduleConfig
 from fpl_dof.gameweek import Due, GameweekState
+from fpl_dof.sources import CHANGE_KINDS
 
 MINUTES_PER_HOUR = 60.0
 
@@ -142,11 +145,10 @@ def pipeline_decision(
     state: GameweekState | None,
     config: ScheduleConfig,
 ) -> ScheduleDecision:
-    """Whether this firing of ``pipeline.yml``'s deadline-relative cron should run the pipeline.
+    """Whether this firing of ``pipeline.yml``'s one scheduled tick should run the pipeline.
 
-    Only the deadline-relative trigger consults this. The nightly cron, the run that follows the
-    slow ingest, and manual dispatch all proceed unconditionally — they are not deadline-relative,
-    so there is no window for them to be inside or outside.
+    Only the tick consults this; a dispatched run goes through :func:`dispatch_decision`, which
+    applies the same freeze but no window, since it was started by something that happened.
 
     See the module docstring for how R-09 is enforced. The short version: the freeze is checked
     first, and every window ends at its offset rather than straddling it. Only a gameweek whose
@@ -167,8 +169,7 @@ def pipeline_decision(
             should_run=False,
             reason=(
                 f"{minutes_to_deadline:.0f}m to the gameweek {gameweek} deadline is inside the "
-                f"{config.deadline_freeze_minutes:g}m freeze (R-09); dispatch manually if you "
-                "really want a fresh solve this late"
+                f"{config.deadline_freeze_minutes:g}m freeze (R-09); nothing runs inside it"
             ),
             minutes_to_deadline=minutes_to_deadline,
             gameweek=gameweek,
@@ -198,9 +199,62 @@ def pipeline_decision(
     )
 
 
+#: What may start a pipeline run (ORC-02), as `pipeline.yml`'s `trigger` input names it. The cron
+#: tick sends none. `schedule` is the daily refresh the slow ingest dispatches; `change` carries the
+#: change manifest's kinds; `day-before` must publish a fresh contract.
+TRIGGERS: tuple[str, ...] = ("manual", "schedule", "change", "day-before")
+
+
+def dispatch_decision(
+    *,
+    trigger: str,
+    kinds: Sequence[str],
+    gameweek: int | None,
+    now: dt.datetime,
+    state: GameweekState | None,
+    config: ScheduleConfig,
+) -> ScheduleDecision:
+    """Whether this run of ``pipeline.yml`` goes ahead; every trigger passes through here (ORC-02).
+
+    The tick (``trigger`` empty) is :func:`pipeline_decision`. A dispatched run is refused inside
+    the freeze (R-09) whatever started it, and refused when it was dispatched for a gameweek that is
+    no longer the Open one: a run that queued across a deadline has nothing left to advise.
+
+    Raises :class:`ValueError` on a trigger or kind nobody sends: a wiring fault, failed loudly.
+    """
+    if trigger and trigger not in TRIGGERS:
+        raise ValueError(f"unknown trigger {trigger!r}; expected one of {', '.join(TRIGGERS)}")
+    unknown = sorted(set(kinds) - set(CHANGE_KINDS))
+    if unknown or bool(kinds) != (trigger == "change"):
+        raise ValueError(
+            f"kinds {','.join(kinds) or '(none)'} do not fit trigger {trigger or 'tick'!r}: a "
+            f"change carries one or more of {', '.join(CHANGE_KINDS)}, any other trigger none"
+        )
+    if not trigger:
+        return pipeline_decision(now=now, state=state, config=config)
+
+    minutes_to_deadline = _minutes_to_deadline(state, now)
+    open_gw = None if state is None or minutes_to_deadline is None else state.gameweek
+    if minutes_to_deadline is not None and minutes_to_deadline < config.deadline_freeze_minutes:
+        reason = (
+            f"{minutes_to_deadline:.0f}m to the gameweek {open_gw} deadline is inside the "
+            f"{config.deadline_freeze_minutes:g}m freeze (R-09); a {trigger} run is refused"
+        )
+        return ScheduleDecision(False, reason, minutes_to_deadline, open_gw)
+    if gameweek is not None and gameweek != open_gw:
+        reason = f"dispatched for gameweek {gameweek}, but the Open gameweek is {open_gw}"
+        return ScheduleDecision(False, reason, minutes_to_deadline, open_gw)
+    if open_gw is None and trigger in ("change", "day-before"):
+        reason = f"no open gameweek could be established; a {trigger} run has nothing to advise"
+        return ScheduleDecision(False, reason)
+    return ScheduleDecision(True, f"{trigger} run", minutes_to_deadline, open_gw)
+
+
 __all__ = [
     "MINUTES_PER_HOUR",
+    "TRIGGERS",
     "ScheduleDecision",
+    "dispatch_decision",
     "fast_ingest_decision",
     "pipeline_decision",
 ]

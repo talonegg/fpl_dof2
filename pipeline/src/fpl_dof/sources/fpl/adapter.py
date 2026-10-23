@@ -53,6 +53,7 @@ from fpl_dof.sources.base import (
     IngestRequest,
     Resource,
     SourceAdapter,
+    Window,
 )
 from fpl_dof.sources.errors import (
     OfflineWithoutSnapshotError,
@@ -266,6 +267,34 @@ class FplApiAdapter(SourceAdapter):
 
     def check(self, resource: str, key: str, payload: bytes) -> None:
         self._parse(resource, key, payload)
+
+    watched: ClassVar[tuple[tuple[str, str], ...]] = (
+        ("bootstrap_static", "all"),
+        ("fixtures", "all"),
+    )
+
+    def changes(self, resource: str, before: bytes, after: bytes, window: Window) -> set[str]:
+        """Prices, status or news per player; kick-off or gameweek per fixture (ORC-02). A player
+        or fixture in only one capture is not a change of either."""
+        old, new = json.loads(before), json.loads(after)
+        if resource == "fixtures":
+            was = {f["id"]: (f.get("kickoff_time"), f.get("event")) for f in old}
+            now = {f["id"]: (f.get("kickoff_time"), f.get("event")) for f in new}
+            return {"fixtures"} if any(was.get(i, at) != at for i, at in now.items()) else set()
+        kinds: set[str] = set()
+        players = {e["id"]: e for e in old["elements"]}
+        for element in new["elements"]:
+            prior = players.get(element["id"])
+            if prior is None:
+                continue
+            if prior.get("now_cost") != element.get("now_cost"):
+                kinds.add("prices")
+            if (prior.get("status"), prior.get("news")) != (
+                element.get("status"),
+                element.get("news"),
+            ):
+                kinds.add("status")
+        return kinds
 
     def _parse(self, resource: str, key: str, payload: bytes) -> Any:
         """Decode one capture and check it against this source's contract (ORC-10).

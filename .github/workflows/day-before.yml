@@ -4,19 +4,20 @@
 # GitHub drops and delays cron firings on this repo, so this fires every 20 minutes at odd minutes
 # from 19:07 to 22:47 UTC (05:07–09:47 Sydney under AEST or AEDT). The gate proceeds on the first
 # firing on or after 07:00 Sydney on the day before the next FPL deadline (bootstrap-static), and is
-# idempotent: once that gameweek's "[day-before GW{n}]" ingest is queued, running or succeeded,
-# later firings are logged no-ops (a failed one is retried by the next firing).
-# Logic and tests: pipeline/src/fpl_dof/week/day_before.py.
+# idempotent: once an ingest-slow run dispatched since midnight Sydney is queued, running or
+# succeeded, later firings are logged no-ops (a failed one is retried by the next firing). It reads
+# each run's typed event, never its title (ORC-02). Logic and tests:
+# pipeline/src/fpl_dof/week/day_before.py.
 #
-# It reuses the existing chain rather than duplicating it: the gate dispatches `Ingest (slow)` with
-# reason="day-before GW{n}" (its run is titled "[day-before GW{n}]"); that run's completion triggers `Pipeline`
-# (workflow_run), whose last job deploys only when that run published (deploy.yml, ORC-03). Both
-# fail closed: Pipeline does not run on a failed ingest, and its deploy job fails rather than
-# deploying when the run's own contract is missing or stale.
+# It reuses the existing chain rather than duplicating it: the gate dispatches ingest-slow.yml with
+# `must_publish=true`, which ends by dispatching pipeline.yml with `trigger=day-before` and
+# `must_publish=true`; the pipeline's last job deploys only when that run published (deploy.yml,
+# ORC-03). Both fail closed: a failed ingest dispatches nothing, and the deploy job fails rather
+# than deploying when the run's own contract is missing or stale.
 #
-# Concurrency: its own group. 19:07–22:47 UTC is clear of the nightly pipeline (01:11 UTC, fallback
-# 03:47), ingest-slow (02:23, fallback 05:41) and — the deadline being > 14 h away — of every
-# deadline-relative run; the dispatched runs join their workflows' own groups.
+# Concurrency: its own group. 19:07–22:47 UTC is clear of ingest-slow's daily firings (02:23,
+# fallback 05:41) and — the deadline being > 14 h away — of every deadline-relative tick; the
+# dispatched runs join their workflows' own groups, where a newer queued run supersedes an older.
 
 name: Day-before refresh
 
@@ -38,7 +39,7 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: read
-      actions: read # gh run list: has this gameweek's day-before ingest already run?
+      actions: read # gh run list: has today's day-before ingest already been dispatched?
     outputs:
       run: ${{ steps.gate.outputs.run }}
       gameweek: ${{ steps.gate.outputs.gameweek }}
@@ -71,10 +72,10 @@ jobs:
     permissions:
       actions: write # dispatch Ingest (slow); GITHUB_TOKEN-dispatched runs do start workflows
     steps:
-      - name: Start the full ingest (Pipeline follows via workflow_run, and deploys)
+      - name: Start the full ingest (it dispatches the pipeline, which deploys)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           gh workflow run ingest-slow.yml --repo "${{ github.repository }}" \
-            --ref "${{ github.event.repository.default_branch }}" -f reason="day-before GW${{ needs.gate.outputs.gameweek }}"
+            --ref "${{ github.event.repository.default_branch }}" -f must_publish=true
           echo "day-before refresh started for GW${{ needs.gate.outputs.gameweek }}"

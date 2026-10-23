@@ -29,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from fpl_dof.config import load_config
 from fpl_dof.week.ci_runs import start_of_utc_day, succeeded_since
 
-FIELDS = "databaseId,displayTitle,status,conclusion,createdAt,event"
+FIELDS = "databaseId,status,conclusion,createdAt,event"
 
 
 def gh_json(*args: str) -> Any:
@@ -56,7 +56,7 @@ def today_done(workflow: str, job: str | None, now: dt.datetime, self_id: int | 
         if hit is None:
             return False
         if job is None or job_succeeded(int(hit["databaseId"]), job):
-            print(f"already done today: run {hit['databaseId']} ({hit.get('displayTitle')})")
+            print(f"already done today: run {hit['databaseId']}")
             return True
         runs = [r for r in runs if r["databaseId"] != hit["databaseId"]]
 

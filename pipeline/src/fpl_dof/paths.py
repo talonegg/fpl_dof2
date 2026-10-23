@@ -63,6 +63,11 @@ class DataLayout:
         return self.root / "runs"
 
     @property
+    def changes(self) -> Path:
+        """The last ingest's change manifest, which the ingest workflows dispatch on (ORC-02)."""
+        return self.runs / "changes.json"
+
+    @property
     def ledger(self) -> Path:
         """Append-only record of what the pipeline advised, per gameweek (DL-69).
 

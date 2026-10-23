@@ -12,7 +12,7 @@ import pytest
 import yaml
 
 from fpl_dof.week.ci_runs import active_or_succeeded, start_of_utc_day, succeeded_since
-from fpl_dof.week.day_before import CRON, SYDNEY, gate, marker
+from fpl_dof.week.day_before import CRON, SYDNEY, gate
 
 REPO = Path(__file__).resolve().parents[2]
 UTC = dt.UTC
@@ -81,18 +81,25 @@ def test_saturday_deadline_runs_on_the_first_firing_from_0700_friday() -> None:
     assert d.gameweek == 7 and "Sat 17 Oct 21:00 AEDT" in d.reason and "10:00 UTC" in d.reason
 
 
+def _dispatched(
+    i: int, created: str, conclusion: str | None, event: str = "workflow_dispatch"
+) -> dict[str, Any]:
+    """An ingest-slow.yml run from `gh run list`; the gate reads its event, not its title."""
+    status = "completed" if conclusion else "in_progress"
+    return {
+        "databaseId": i,
+        "event": event,
+        "createdAt": created,
+        "status": status,
+        "conclusion": conclusion,
+    }
+
+
 def test_later_firings_are_no_ops_once_this_gameweek_ran() -> None:
     now = at("2026-10-15T20:27:00+00:00")
     boot = bs("2026-10-10T10:00:00Z", GW7)
     for status, conclusion in (("queued", None), ("in_progress", None), ("completed", "success")):
-        prior = [
-            {
-                "databaseId": 41,
-                "displayTitle": f"Ingest (slow) {marker(7)}",
-                "status": status,
-                "conclusion": conclusion,
-            }
-        ]
+        prior = [{**_dispatched(41, "2026-10-15T20:07:00Z", conclusion), "status": status}]
         d = gate(now=now, bootstrap=boot, prior_runs=prior)
         assert not d.run and d.reason.startswith("no-op") and "41" in d.reason
 
@@ -100,24 +107,9 @@ def test_later_firings_are_no_ops_once_this_gameweek_ran() -> None:
 def test_a_failed_earlier_run_or_another_gameweeks_run_does_not_block() -> None:
     now = at("2026-10-15T20:27:00+00:00")
     prior = [
-        {
-            "databaseId": 40,
-            "displayTitle": f"Ingest (slow) {marker(7)}",
-            "status": "completed",
-            "conclusion": "failure",
-        },
-        {
-            "databaseId": 39,
-            "displayTitle": f"Ingest (slow) {marker(6)}",
-            "status": "completed",
-            "conclusion": "success",
-        },
-        {
-            "databaseId": 38,
-            "displayTitle": "Ingest (slow)",
-            "status": "completed",
-            "conclusion": "success",
-        },
+        _dispatched(40, "2026-10-15T20:07:00Z", "failure"),  # today's, failed: retried
+        _dispatched(39, "2026-10-15T12:59:00Z", "success"),  # 23:59 Sydney yesterday
+        _dispatched(38, "2026-10-15T15:00:00Z", "success", event="schedule"),  # the daily ingest
     ]
     assert gate(now=now, bootstrap=bs("2026-10-10T10:00:00Z", GW7), prior_runs=prior).run
 
@@ -244,10 +236,13 @@ def test_succeeded_since_today_only_counts_todays_successes_and_not_itself() -> 
     assert succeeded_since(runs, since, exclude_id=9)["databaseId"] == 10  # type: ignore[index]
 
 
-def test_active_or_succeeded_matches_title() -> None:
-    runs = [_run(1, "2026-10-15T20:07:00Z", None, title="Ingest (slow) [day-before GW7]")]
-    assert active_or_succeeded(runs, title_contains="[day-before GW7]") is not None
-    assert active_or_succeeded(runs, title_contains="[day-before GW8]") is None
+def test_active_or_succeeded_reads_the_event_and_the_time_never_the_title() -> None:
+    runs = [_dispatched(1, "2026-10-15T20:07:00Z", None)]
+    assert active_or_succeeded(runs, since=at("2026-10-15T13:00:00+00:00")) is not None
+    assert active_or_succeeded(runs, since=at("2026-10-15T21:00:00+00:00")) is None
+    assert (
+        active_or_succeeded(runs, since=at("2026-10-15T13:00:00+00:00"), event="schedule") is None
+    )
 
 
 def test_today_done_requires_the_named_job(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -352,7 +347,7 @@ def test_deploy_runs_only_after_a_pipeline_run_that_published() -> None:
     assert job["if"] == "needs.run.outputs.published == 'true'"  # no always(): success() applies
     assert job["uses"] == "./.github/workflows/deploy.yml"
     assert job["with"]["from_pipeline"] is True
-    assert job["with"]["day_before"] == "${{ needs.guard.outputs.day_before == 'true' }}"
+    assert job["with"]["must_publish"] == "${{ inputs.must_publish == true }}"
     assert {"pages": "write", "id-token": "write"}.items() <= job["permissions"].items()
 
     deploy = yaml.safe_load((wf / "deploy.yml").read_text())
@@ -362,8 +357,8 @@ def test_deploy_runs_only_after_a_pipeline_run_that_published() -> None:
     own = build["Download this pipeline run's contract"]
     assert own["if"] == "inputs.from_pipeline" and "run-id" not in own["with"]
     assert "continue-on-error" not in own
-    fresh = build["Day-before - require the fresh contract"]
-    assert fresh["if"] == "inputs.day_before" and "contract_fresh.py" in fresh["run"]
+    fresh = build["Must publish - require the fresh contract"]
+    assert fresh["if"] == "inputs.must_publish" and "contract_fresh.py" in fresh["run"]
     assert (
         build["Restore the newest pipeline run's contract"]["if"] == "${{ !inputs.from_pipeline }}"
     )

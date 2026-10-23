@@ -15,6 +15,7 @@ Usage::
     fpl-dof-schedule                    # the full decision for both workflows, as JSON
     fpl-dof-schedule --decide fast      # prints `true` or `false`, for a workflow `if:`
     fpl-dof-schedule --decide pipeline
+    fpl-dof-schedule --decide pipeline --trigger change --kinds prices,odds --gameweek 9
 
 Nothing here knows it is running in CI. The workflow captures stdout and turns it into a step
 output itself, so there is no CI-only branch anywhere in the pipeline source (NFR-09).
@@ -38,11 +39,12 @@ from fpl_dof.silver.store import read_table_optional
 from fpl_dof.silver.tables import Table
 from fpl_dof.week.schedule import (
     MINUTES_PER_HOUR,
+    dispatch_decision,
     fast_ingest_decision,
-    pipeline_decision,
 )
 
 EXIT_OK = 0
+EXIT_USAGE = 2
 EXIT_CONFIG_ERROR = 3
 
 #: What ``--decide`` prints. Lower case because that is what a GitHub Actions ``if:`` expression
@@ -63,6 +65,22 @@ def build_parser() -> argparse.ArgumentParser:
         "--decide",
         choices=["fast", "pipeline"],
         help="Print only `true` or `false` for one workflow, rather than the full JSON.",
+    )
+    parser.add_argument(
+        "--trigger",
+        default="",
+        help=(
+            "What started this pipeline run, as pipeline.yml's `trigger` input; empty for the "
+            "scheduled tick (ORC-02)."
+        ),
+    )
+    parser.add_argument(
+        "--kinds", default="", help="The change manifest's kinds, comma-separated, for `change`."
+    )
+    parser.add_argument(
+        "--gameweek",
+        default="",
+        help="The gameweek a dispatched run was started for; refused unless it is the Open one.",
     )
     parser.add_argument(
         "--now",
@@ -137,13 +155,25 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     state, unknown_reason = open_state(config, layout_for(config), now)
     fast = fast_ingest_decision(now=now, state=state, config=config.schedule)
-    pipeline = pipeline_decision(now=now, state=state, config=config.schedule)
+    try:
+        pipeline = dispatch_decision(
+            trigger=args.trigger,
+            kinds=[kind for kind in args.kinds.split(",") if kind],
+            gameweek=int(args.gameweek) if args.gameweek else None,
+            now=now,
+            state=state,
+            config=config.schedule,
+        )
+    except ValueError as exc:
+        print(f"refused: {exc}", file=sys.stderr)
+        return EXIT_USAGE
     minutes = None if state is None else (state.deadline - now).total_seconds() / 60
 
     if args.decide == "fast":
         print(TRUE if fast.should_run else FALSE)
         return EXIT_OK
     if args.decide == "pipeline":
+        print(pipeline.reason, file=sys.stderr)
         print(TRUE if pipeline.should_run else FALSE)
         return EXIT_OK
 
