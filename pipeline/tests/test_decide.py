@@ -547,16 +547,44 @@ def test_a_challenger_failing_after_an_earlier_success_keeps_that_success_as_the
     """ORC-03 (DL-94): the second run's failure is noted beside the first run's advice."""
     first = _advise_all(game_rules, tmp_path)
     _fail_c1(monkeypatch)
-    second = _advise_all(game_rules, tmp_path)
-    assert second["c1"][0]["skipped"]  # this run's artefact says so honestly
+    snapshot = _orchestration(game_rules)
+    later = dataclasses.replace(
+        snapshot,
+        inputs=dataclasses.replace(
+            snapshot.inputs, as_of=snapshot.inputs.as_of + pd.Timedelta(minutes=10)
+        ),
+    )
+    second, _ = week.advise_all(
+        later, published_strategies(), gold=tmp_path / "gold", layout=DataLayout(root=tmp_path)
+    )
 
     recorded = read_advice(DataLayout(root=tmp_path), HORIZON[0])
     assert recorded is not None
     c1 = recorded["models"]["c1"]
     assert c1["advised"] == first["c1"][0]["advised"]
-    assert c1["last_failure"]["reason"] == second["c1"][0]["skipped_reason"]
-    assert c1["last_failure"]["as_of"] == second["c1"][0]["as_of"]
+    assert "c1 fit exploded" in c1["last_failure"]["reason"]
     assert "last_failure" not in recorded["models"]["c3"]
+
+    # The published file shows the advice of record, not "no advice", with the failure beside it.
+    written = json.loads((tmp_path / "gold" / "week_c1.json").read_text(encoding="utf-8"))
+    assert written == second["c1"][0]
+    assert not written["skipped"] and "skipped_reason" not in written
+    assert written["advised"] == first["c1"][0]["advised"]
+    assert written["recommendation"] == first["c1"][0]["recommendation"]
+    assert written["strategy"] == first["c1"][0]["strategy"]
+    assert written["as_of"] == first["c1"][0]["as_of"] != c1["last_failure"]["as_of"]
+    assert written["last_failure"] == c1["last_failure"]
+    Contract(root=find_contracts_root()).validate(
+        "week", written | {"contract_version": CONTRACT_VERSION}
+    )
+
+
+def test_a_challenger_that_never_succeeded_publishes_no_advice(
+    game_rules: GameRules, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _fail_c1(monkeypatch)
+    advice = _advise_all(game_rules, tmp_path)
+    assert advice["c1"][0]["skipped"] and "last_failure" not in advice["c1"][0]
 
 
 def test_a_run_that_ends_after_the_deadline_records_nothing(

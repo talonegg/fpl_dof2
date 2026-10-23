@@ -145,6 +145,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Move corrupt and orphaned files out of bronze into data/quarantine/, kept as "
         "evidence. Exits non-zero only if an issue remains in bronze.",
     )
+    verify_parser.add_argument(
+        "--contract",
+        action="store_true",
+        help="Also check every snapshot against its source's contract, the one-off sweep of "
+        "history kept before ingest checked each capture (ORC-10).",
+    )
 
     return parser
 
@@ -186,10 +192,15 @@ def main(argv: Sequence[str] | None = None) -> int:
         return EXIT_OK
 
     if args.command == "bronze" and args.bronze_command == "verify":
-        from fpl_dof.sources import BronzeStore
+        from fpl_dof.sources import BronzeStore, Fetcher, known
 
         bronze = BronzeStore(layout.bronze)
-        report = bronze.verify(quarantine=args.quarantine)
+        with Fetcher(config=config.http, bronze=bronze) as fetcher:
+            # Every known source, enabled or not: each registers its contract check on the fetcher.
+            for adapter_cls in known().values():
+                adapter_cls(fetcher)
+            contract = fetcher.check_contract if args.contract else None
+            report = bronze.verify(quarantine=args.quarantine, contract=contract)
         print(
             f"bronze verify: {report.total_snapshots} snapshots checked, "
             f"{report.passed} passed, {report.failed} failed, {len(report.issues)} issue(s)"
@@ -198,6 +209,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             print(f"  [{issue.kind}] {issue.path}: {issue.detail}")
         if report.quarantined:
             print(f"quarantined {len(report.quarantined)} file(s) to {bronze.quarantine_root}")
+            if any(issue.kind == "contract" for issue in report.issues):
+                print("silver may hold what was quarantined: run `fpl-dof silver rebuild`")
         return EXIT_STAGE_FAILED if report.unresolved else EXIT_OK
 
     if args.command == "silver" and args.silver_command == "rebuild":

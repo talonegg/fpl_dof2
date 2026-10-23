@@ -231,7 +231,9 @@ def advise_all(
     The registry's champion goes first, and its week is written and ledgered before anything that
     could fail or take long: its plan, then each challenger. A champion week failure propagates,
     because a run without the live advice has failed; a champion plan failure is "no plan" and the
-    week stands; a challenger that raises gets "no advice" with the reason (NFR-15).
+    week stands; a challenger that raises gets "no advice" with the reason (NFR-15), unless the
+    ledger holds a success for the gameweek: its file then shows that advice of record, with the
+    failure as ``last_failure`` (DL-94).
     """
     lead = champion()
     policy = lead.decision_policy(snapshot.config, snapshot.champion.captain_line)
@@ -242,13 +244,15 @@ def advise_all(
     advice: dict[str, Advice] = {lead.id: (week, _champion_plan(snapshot, lead, policy))}
     outputs = _write_all(gold, advice, [lead])
     challengers = [s for s in strategies if s.id != lead.id]
+    held = (read_advice(layout, snapshot.deadline.gameweek) or {}).get("models") or {}
+    published: dict[str, Advice] = {}
     for strategy in challengers:
         try:
             advice[strategy.id] = _advise(snapshot, strategy)
         except Exception as exc:
             reason = f"no advice: {type(exc).__name__}: {exc}"
             log.warning("week.no_advice", extra={"strategy": strategy.id, "reason": reason})
-            advice[strategy.id] = _no_advice(
+            failed = _no_advice(
                 snapshot.run_id,
                 snapshot.deadline,
                 strategy,
@@ -256,9 +260,41 @@ def advise_all(
                 snapshot.config,
                 snapshot.inputs.as_of,
             )
-    outputs += _write_all(gold, advice, challengers)
+            advice[strategy.id] = failed
+            of_record = _of_record(held.get(strategy.id), failed[0], week)
+            if of_record is not None:
+                published[strategy.id] = (of_record, failed[1])
+    # The ledger gets the failure (it keeps the success beside it); the app gets the record.
+    outputs += _write_all(gold, advice | published, challengers)
     _record(snapshot, layout, advice, [lead, *challengers])
-    return advice, outputs
+    return advice | published, outputs
+
+
+def _of_record(
+    held: object, failed: dict[str, Any], champion_week: dict[str, Any]
+) -> dict[str, Any] | None:
+    """A failed strategy's week file rebuilt from its held success, the advice of record (DL-94).
+
+    The squad, alerts and reconciliation are the run's, shared by every strategy; the advice,
+    its strategy digest and its stamp are the success's. ``None`` when nothing succeeded yet.
+    """
+    if not isinstance(held, dict) or not {"advised", "recommendation", "strategy"} <= held.keys():
+        return None
+    shared = {k: champion_week[k] for k in ("squad_state", "alerts", "reconciliation")}
+    stamp = {k: held[k] for k in ("as_of", "trigger") if held.get(k)}
+    week = {k: v for k, v in failed.items() if k not in (SKIPPED_REASON_KEY, "as_of", "trigger")}
+    return (
+        week
+        | shared
+        | stamp
+        | {
+            "skipped": False,
+            "advised": held["advised"],
+            "recommendation": held["recommendation"],
+            "strategy": held["strategy"],
+            "last_failure": {"as_of": failed["as_of"], "reason": failed[SKIPPED_REASON_KEY]},
+        }
+    )
 
 
 def _record(

@@ -6,10 +6,14 @@
 
 export const CONTRACT_VERSION = 1;
 
+export const CONTRACT_MINOR = 2;
+
 /** What this publication is, when it was made, and what produced it. The browser reads this first and can render an honest 'as at' line without trusting anything else. */
 export interface Meta {
   /** Bumped only for a breaking change. The app refuses to render a version it does not know. */
   contract_version: 1;
+  /** Bumped by every additive change within the major. Absent in data older than WEB-02; the app reads that as 0 and warns when it is below the minor the app needs. */
+  contract_minor?: number;
   /** UTC (DL-11). */
   generated_at: string;
   /** Traces back to the run manifest. */
@@ -205,6 +209,11 @@ export interface Week {
     decide_by_utc: string;
     local_zone: string;
     uk_zone: string;
+  };
+  /** This run's strategy failed after an earlier success for the gameweek; the file shows that success, the advice of record, stamped with its own as_of (ORC-03, DL-94). Absent when this run succeeded. */
+  last_failure?: {
+    as_of: string;
+    reason: string;
   };
   squad_state?: {
     /** How much was read versus inferred. Reported, never hidden. */
@@ -734,6 +743,8 @@ export interface HealthSource {
   network_calls?: number | null;
   /** A run served entirely from cache is a legitimate, fast run — and also the reason a source can be 'ok' while its data is older than the run. Published so the two are distinguishable. */
   cache_hits?: number | null;
+  /** Captures of this source held in quarantine because they broke its contract (ORC-10). None of them is ever read: the run used the last valid capture, whose age `observed_at` already gives. Absent on artefacts published before R1.3.0; read absent as 0. */
+  quarantined?: number;
 }
 
 /** The quality gate report. A blocking failure means nothing was published and the last good artefact is still live (Invariant 7) — so a health page showing a blocked run is being served by the run before it. */

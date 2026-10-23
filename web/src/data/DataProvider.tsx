@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import type { ReactNode } from "react";
 import { loadPublishedData, resetPublishedDataCache } from "./published";
 import type { PublishedData } from "./published";
+import { ContractMajorError } from "./compat";
 import { MODEL_STORAGE_KEY, readModelChoice, storeModelChoice } from "./model";
 import { EMPTY_REGISTRY, resolveModel } from "./registry";
 import type { Registry } from "./registry";
@@ -13,7 +14,7 @@ import { effectiveSquad } from "../components/squad/effective";
 export type DataState =
   | { status: "loading" }
   | { status: "ready"; data: PublishedData }
-  | { status: "error"; error: string };
+  | { status: "error"; error: string; refused?: boolean };
 
 interface DataContextValue {
   state: DataState;
@@ -62,6 +63,7 @@ export function DataProvider({ children }: { children: ReactNode }) {
           setState({
             status: "error",
             error: error instanceof Error ? error.message : String(error),
+            refused: error instanceof ContractMajorError,
           });
         }
       });

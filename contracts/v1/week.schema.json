@@ -58,6 +58,16 @@
         "uk_zone": { "type": "string" }
       }
     },
+    "last_failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["as_of", "reason"],
+      "description": "This run's strategy failed after an earlier success for the gameweek; the file shows that success, the advice of record, stamped with its own as_of (ORC-03, DL-94). Absent when this run succeeded.",
+      "properties": {
+        "as_of": { "type": "string", "format": "date-time" },
+        "reason": { "type": "string" }
+      }
+    },
     "squad_state": {
       "type": "object",
       "additionalProperties": false,

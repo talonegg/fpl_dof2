@@ -1,5 +1,5 @@
 import type { Week } from "../contract/types";
-import { formatPoints, formatPrice } from "../format";
+import { formatLocalDateTime, formatPoints, formatPrice } from "../format";
 
 /**
  * "This week" — the panel that answers the only question that matters on a Thursday evening.
@@ -61,6 +61,14 @@ export function WeekPanel({ week }: { week: Week }) {
     <section className="week" aria-labelledby="week-heading">
       <h2 id="week-heading">This week</h2>
       <DeadlineTimes week={week} />
+
+      {week.last_failure && (
+        <p className="week-last-failure" data-testid="week-last-failure">
+          The latest run failed ({formatLocalDateTime(week.last_failure.as_of)}:{" "}
+          {week.last_failure.reason}). This is the advice of record from{" "}
+          {week.as_of ? formatLocalDateTime(week.as_of) : "an earlier run"}.
+        </p>
+      )}
 
       {state && (
         <p className="week-state" data-testid="week-state">

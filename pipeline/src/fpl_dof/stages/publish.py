@@ -33,7 +33,7 @@ from fpl_dof.obs.logging import get_logger
 from fpl_dof.obs.manifest import RunManifest, git_sha, read_manifest
 from fpl_dof.paths import find_repo_root
 from fpl_dof.pipeline import Output, StageContext, StageResult
-from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
+from fpl_dof.publish.contract import CONTRACT_MINOR, CONTRACT_VERSION, Contract, find_contracts_root
 from fpl_dof.publish.fixtures import build_fixtures
 from fpl_dof.publish.health import build_health
 from fpl_dof.publish.history import build_history
@@ -45,6 +45,7 @@ from fpl_dof.publish.typescript import write_types
 from fpl_dof.rules.models import GameRules
 from fpl_dof.silver.store import read_table, read_table_optional
 from fpl_dof.silver.tables import Table
+from fpl_dof.sources import BronzeStore
 from fpl_dof.week.cadence import current_gameweek
 from fpl_dof.week.ledger import read_all_advice
 from fpl_dof.week.score_advice import performances as performances_of
@@ -261,6 +262,7 @@ def _meta(
     regression = regress_xp_on_price(forecast)
     return {
         "contract_version": CONTRACT_VERSION,
+        "contract_minor": CONTRACT_MINOR,
         "generated_at": _iso(ctx.as_of),
         **_run_stamp(ctx),
         "run_id": ctx.run_id,
@@ -445,6 +447,7 @@ def _health(ctx: StageContext, gold: Path) -> dict[str, Any] | None:
         manifest=manifest,
         gate_report=_gate_report(gold),
         observed=_source_observations(ctx),
+        quarantined=BronzeStore(ctx.layout.bronze).quarantined(),
         recent=_recent_manifests(ctx, limit=limit),
         generated_at=ctx.as_of,
         history_limit=limit,
@@ -495,55 +498,8 @@ def _source_observations(ctx: StageContext) -> dict[str, dt.datetime]:
     The labels are the bronze store's top-level directory names, which the store writes from
     whatever the adapter called itself. This module never names one and never branches on one
     (Invariant 1) — it reads what is there and passes the strings through.
-
-    The newest file is found by the UTC capture stamp the store writes into every snapshot's file
-    name (``<key>__<YYYYmmddTHHMMSSZ>``), which is cheap over a tree that holds a snapshot per
-    player per day and, unlike modification time, survives the ``cp -r`` that restores bronze in
-    CI. The capture time is then read from **that one sidecar**'s ``fetched_at``.
     """
-    from fpl_dof.sources import BronzeStore
-
-    bronze = BronzeStore(ctx.layout.bronze)
-    if not bronze.root.is_dir():
-        return {}
-
-    observations: dict[str, dt.datetime] = {}
-    for directory in sorted(p for p in bronze.root.iterdir() if p.is_dir()):
-        sidecars = list(directory.rglob("*.meta.json"))
-        if not sidecars:
-            continue
-        newest = max(sidecars, key=_capture_stamp)
-        moment = _fetched_at(newest)
-        if moment is not None:
-            observations[directory.name] = moment
-    return observations
-
-
-_CAPTURE_STAMP = re.compile(r"__(\d{8}T\d{6}Z)")
-
-
-def _capture_stamp(sidecar: Path) -> tuple[str, str]:
-    """Sort key for "newest snapshot": the stamp after the last ``__`` in the name, then the path.
-
-    A name without a stamp sorts first, so it can only win when it is the only sidecar there is.
-    """
-    found = _CAPTURE_STAMP.findall(sidecar.name)
-    return (found[-1] if found else ""), str(sidecar)
-
-
-def _fetched_at(sidecar: Path) -> dt.datetime | None:
-    """``fetched_at`` from a snapshot sidecar, falling back to the file's own mtime."""
-    try:
-        payload = json.loads(sidecar.read_text(encoding="utf-8"))
-        stamp = payload.get("fetched_at")
-        if isinstance(stamp, str):
-            return pd.Timestamp(stamp).tz_convert("UTC").to_pydatetime()
-    except OSError, ValueError:
-        pass
-    try:
-        return dt.datetime.fromtimestamp(sidecar.stat().st_mtime, tz=dt.UTC)
-    except OSError:
-        return None
+    return BronzeStore(ctx.layout.bronze).observed()
 
 
 def _recent_manifests(ctx: StageContext, *, limit: int) -> list[RunManifest]:

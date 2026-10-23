@@ -200,6 +200,68 @@ class ArchiveAdapter(SourceAdapter):
 
     # --- fetch ---------------------------------------------------------------------------
 
+    #: The columns each file must carry, and what is lost without them.
+    _COLUMNS: ClassVar[dict[str, tuple[tuple[str, ...], str]]] = {
+        "merged_gameweeks": (REQUIRED_GAMEWEEK_COLUMNS, "gameweek data"),
+        "players": (
+            ("id", "code", "element_type"),
+            "player list, so cross-season identity cannot be established and the history must "
+            "not be used",
+        ),
+        "teams": (
+            REQUIRED_TEAM_COLUMNS,
+            "club list, so the club a row belongs to cannot be resolved to a cross-season "
+            "identity and the fixture join would be silently empty (D-26)",
+        ),
+    }
+
+    def check(self, resource: str, key: str, payload: bytes) -> None:
+        self._rows(resource, key, payload)
+
+    def _rows(self, resource: str, key: str, payload: bytes) -> list[dict[str, str]]:
+        """Parse one file and check it against this source's contract (ORC-10).
+
+        A row with more or fewer cells than the header is malformed, and one malformed row makes
+        the whole file malformed (DL-94).
+        """
+        try:
+            text = payload.decode("utf-8-sig")
+        except UnicodeDecodeError as exc:
+            raise SourceContractError(
+                f"{self.name}/{resource}/{key} was not UTF-8 text",
+                source=self.name,
+                resource=resource,
+                key=key,
+            ) from exc
+        rows = list(csv.DictReader(io.StringIO(text)))
+        if not rows:
+            raise SourceContractError(
+                f"{self.name}/{resource}/{key} contained no rows",
+                source=self.name,
+                resource=resource,
+                key=key,
+            )
+        ragged = next(
+            (n for n, row in enumerate(rows, 2) if None in row or None in row.values()), None
+        )
+        if ragged is not None:
+            raise SourceContractError(
+                f"{self.name}/{resource}/{key} line {ragged} does not have one cell per column",
+                source=self.name,
+                resource=resource,
+                key=key,
+            )
+        required, lost = self._COLUMNS.get(resource, ((), ""))
+        missing = [column for column in required if column not in rows[0]]
+        if missing:
+            raise SourceContractError(
+                f"{key} {lost} is missing required columns: {', '.join(missing)}",
+                source=self.name,
+                resource=resource,
+                key=key,
+            )
+        return rows
+
     def _fetch_csv(
         self, resource_name: str, path: str, key: str, request: IngestRequest
     ) -> list[dict[str, str]]:
@@ -218,78 +280,19 @@ class ArchiveAdapter(SourceAdapter):
             immutable=resource.immutable,
             rebackfill=getattr(request, "rebackfill", False),
         )
-        try:
-            text = fetched.payload.decode("utf-8-sig")
-        except UnicodeDecodeError as exc:
-            raise SourceContractError(
-                f"{self.name}/{resource.name}/{key} was not UTF-8 text",
-                source=self.name,
-                resource=resource.name,
-                key=key,
-            ) from exc
-        rows = list(csv.DictReader(io.StringIO(text)))
-        if not rows:
-            raise SourceContractError(
-                f"{self.name}/{resource.name}/{key} contained no rows",
-                source=self.name,
-                resource=resource.name,
-                key=key,
-            )
-        return rows
+        return self._rows(resource.name, key, fetched.payload)
 
     def fetch_gameweeks(self, season: str, request: IngestRequest) -> list[dict[str, str]]:
-        rows = self._fetch_csv(
-            "merged_gameweeks",
-            f"{season_slug(season)}/gws/merged_gw.csv",
-            season_slug(season),
-            request,
-        )
-        missing = [column for column in REQUIRED_GAMEWEEK_COLUMNS if column not in rows[0]]
-        if missing:
-            raise SourceContractError(
-                f"{season} gameweek data is missing required columns: {', '.join(missing)}",
-                source=self.name,
-                resource="merged_gameweeks",
-                key=season_slug(season),
-            )
-        return rows
+        slug = season_slug(season)
+        return self._fetch_csv("merged_gameweeks", f"{slug}/gws/merged_gw.csv", slug, request)
 
     def fetch_players(self, season: str, request: IngestRequest) -> list[dict[str, str]]:
-        rows = self._fetch_csv(
-            "players",
-            f"{season_slug(season)}/players_raw.csv",
-            season_slug(season),
-            request,
-        )
-        for column in ("id", "code", "element_type"):
-            if column not in rows[0]:
-                raise SourceContractError(
-                    f"{season} player list has no {column!r} column, so cross-season identity "
-                    "cannot be established and the history must not be used",
-                    source=self.name,
-                    resource="players",
-                    key=season_slug(season),
-                )
-        return rows
+        slug = season_slug(season)
+        return self._fetch_csv("players", f"{slug}/players_raw.csv", slug, request)
 
     def fetch_teams(self, season: str, request: IngestRequest) -> list[dict[str, str]]:
-        rows = self._fetch_csv(
-            "teams",
-            f"{season_slug(season)}/teams.csv",
-            season_slug(season),
-            request,
-        )
-        for column in REQUIRED_TEAM_COLUMNS:
-            if column not in rows[0]:
-                raise SourceContractError(
-                    f"{season} club list has no {column!r} column, so the club a row belongs to "
-                    "cannot be resolved to a cross-season identity and the fixture join would be "
-                    "silently empty (D-26)",
-                    source=self.name,
-                    resource="teams",
-                    key=season_slug(season),
-                )
-        return rows
+        slug = season_slug(season)
+        return self._fetch_csv("teams", f"{slug}/teams.csv", slug, request)
 
     # --- conform -------------------------------------------------------------------------
 

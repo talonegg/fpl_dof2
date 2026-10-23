@@ -264,6 +264,7 @@
    "label": "Match odds in the pipeline run (football-data.co.uk)",
    "network_calls": 4,
    "observed_at": null,
+   "quarantined": 0,
    "resources": {},
    "source": "fdcouk",
    "status": "ok"
@@ -281,6 +282,7 @@
    "label": "Official FPL data",
    "network_calls": 95,
    "observed_at": "2026-08-15T12:00:00Z",
+   "quarantined": 0,
    "resources": {
     "bootstrap_static": 1,
     "element_summary": 92,
@@ -304,6 +306,7 @@
    "label": "Advanced player stats (FBref)",
    "network_calls": null,
    "observed_at": null,
+   "quarantined": 0,
    "resources": {},
    "source": "fbref",
    "status": "disabled"
@@ -321,6 +324,7 @@
    "label": "Match odds (The Odds API)",
    "network_calls": null,
    "observed_at": null,
+   "quarantined": 0,
    "resources": {},
    "source": "oddsapi",
    "status": "disabled"
@@ -338,6 +342,7 @@
    "label": "Expected goals (Understat)",
    "network_calls": null,
    "observed_at": null,
+   "quarantined": 0,
    "resources": {},
    "source": "understat",
    "status": "disabled"
@@ -355,6 +360,7 @@
    "label": "Past seasons archive (community FPL archive)",
    "network_calls": null,
    "observed_at": null,
+   "quarantined": 0,
    "resources": {},
    "source": "fplarchive",
    "status": "degraded"
