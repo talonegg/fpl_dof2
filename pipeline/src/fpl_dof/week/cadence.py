@@ -31,6 +31,8 @@ SYDNEY = ZoneInfo(SYDNEY_ZONE)
 #: Day-before refresh schedule constants
 LOCAL_HOUR = 7
 CRON = "7,27,47 19-22 * * *"
+#: The actor of a run a GITHUB_TOKEN started: the gate's own dispatches, never the owner's.
+GATE_ACTOR = "github-actions[bot]"
 
 
 def zone(name: str) -> ZoneInfo:
@@ -224,13 +226,17 @@ def active_or_succeeded(
     *,
     since: dt.datetime,
     event: str = "workflow_dispatch",
+    actor: str | None = None,
 ) -> Mapping[str, Any] | None:
-    """A run started by ``event`` at or after ``since`` that is queued, in progress or succeeded.
+    """A run started by ``event`` (and ``actor``, when given) at or after ``since`` that is queued,
+    in progress or succeeded.
 
-    The event is typed; a run's title is never read (ORC-02).
+    The event and the actor are typed; a run's title is never read (ORC-02).
     """
     for run in runs:
         if run.get("event") != event or _created(run) < since:
+            continue
+        if actor is not None and run.get("actor") != actor:
             continue
         if run.get("status") != "completed" or run.get("conclusion") == "success":
             return run
@@ -298,9 +304,10 @@ def gate(
             gw,
             deadline,
         )
-    # Any dispatch of the slow ingest since midnight Sydney: the gate's own, or the owner's.
+    # The gate's own dispatch of the slow ingest since midnight Sydney. The owner's manual ingest
+    # does not count: it need not have asked to publish (must_publish), so cannot stand for it.
     since = dt.datetime.combine(local.date(), dt.time(), SYDNEY)
-    earlier = active_or_succeeded(prior_runs, since=since)
+    earlier = active_or_succeeded(prior_runs, since=since, actor=GATE_ACTOR)
     if earlier is not None:
         state = earlier.get("conclusion") or earlier.get("status")
         return GateDecision(
@@ -321,6 +328,7 @@ def gate(
 
 __all__ = [
     "CRON",
+    "GATE_ACTOR",
     "LOCAL_HOUR",
     "SYDNEY",
     "SYDNEY_ZONE",

@@ -184,7 +184,8 @@ def test_every_trigger_pattern_accepts_exactly_the_vocabulary() -> None:
 # --- the wiring ---------------------------------------------------------------------------------
 
 #: Ways one workflow can follow another by its name, a run's title or a cron string (ORC-02).
-CHAINING = (r"workflow_run", r"github\.event\.schedule", r"display_?title", r"title_contains")
+#: `workflow_runs`, the REST API's list of runs, is not the `workflow_run` trigger.
+CHAINING = (r"workflow_run\b", r"github\.event\.schedule", r"display_?title", r"title_contains")
 
 
 def _code(text: str) -> str:
