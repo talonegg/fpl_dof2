@@ -139,4 +139,5 @@ by hand.
 | [DL-89](DL-89.md) | 2026-10-23 | Accepted | R1.2.2: the switch when it promotes, F1 as a bug fix, live history scored on the real squad |
 | [DL-90](DL-90.md) | 2026-10-23 | Accepted | F1 ships: M7 reads each player's own card rate |
 | [DL-91](DL-91.md) | 2026-10-23 | Accepted | F3 is rejected: the champion keeps its current-season window; both experiments retire |
+| [DL-92](DL-92.md) | 2026-10-23 | Accepted | Hotfix R1.2.3: a purchase price is what was paid; an unknown one never overstates the budget |
 <!-- index:end -->
