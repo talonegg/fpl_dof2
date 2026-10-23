@@ -1,0 +1,16 @@
+/* ORC-07. Body text on the warning and panel surfaces, as `.model-warning-loud` already pairs them;
+   the border carries the meaning and is a 3:1 boundary token in both themes. */
+.source-alert {
+  margin: var(--space-3) 0 0;
+  padding: 0.6rem 0.9rem;
+  border-radius: var(--radius-sm);
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-border);
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.source-arrived {
+  background: var(--bg-panel-alt);
+  border-color: var(--accent);
+}

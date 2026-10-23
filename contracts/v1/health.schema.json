@@ -150,6 +150,11 @@
           "type": ["integer", "null"],
           "minimum": 0,
           "description": "A run served entirely from cache is a legitimate, fast run — and also the reason a source can be 'ok' while its data is older than the run. Published so the two are distinguishable."
+        },
+        "quarantined": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Captures of this source held in quarantine because they broke its contract (ORC-10). None of them is ever read: the run used the last valid capture, whose age `observed_at` already gives. Absent on artefacts published before R1.3.0; read absent as 0."
         }
       }
     },

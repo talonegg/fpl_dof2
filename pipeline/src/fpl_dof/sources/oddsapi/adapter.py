@@ -237,25 +237,44 @@ class OddsApiAdapter(SourceAdapter):
             )
         finally:
             self._spend(month, self.fetcher.network_calls - before)
+        return self.parse_odds(fetched.payload, key=month)
 
-        data = json.loads(fetched.payload)
+    def check(self, resource: str, key: str, payload: bytes) -> None:
+        self.parse_odds(payload, key=key)
+
+    def parse_odds(self, payload: bytes, *, key: str) -> list[dict[str, Any]]:
+        """The events in one capture. Every event is checked, not the first: one malformed event
+        makes the whole capture malformed (DL-94)."""
+        try:
+            data = json.loads(payload)
+        except json.JSONDecodeError as exc:
+            raise SourceContractError(
+                f"the odds endpoint did not return JSON: {exc}",
+                source=self.name,
+                resource="match_odds",
+                key=key,
+            ) from exc
         if not isinstance(data, list):
             raise SourceContractError(
                 "the odds endpoint did not return a list of events",
                 source=self.name,
                 resource="match_odds",
-                key=month,
+                key=key,
             )
-        for event in data[:1]:
-            missing = [name for name in REQUIRED_EVENT_KEYS if name not in event]
+        for event in data:
+            missing = [
+                name
+                for name in REQUIRED_EVENT_KEYS
+                if not isinstance(event, dict) or name not in event
+            ]
             if missing:
                 raise SourceContractError(
                     f"odds events are missing required keys: {', '.join(missing)}",
                     source=self.name,
                     resource="match_odds",
-                    key=month,
+                    key=key,
                 )
-        return [event for event in data if isinstance(event, dict)]
+        return data
 
     # --- conform -------------------------------------------------------------------------
 

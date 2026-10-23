@@ -26,11 +26,12 @@ import {
   normaliseReplay,
 } from "./registry";
 import type { Registry } from "./registry";
-import { WARMED_ARTEFACTS, warmPublishedCache } from "./offline";
+import { DATA_DIR, WARMED_ARTEFACTS, warmPublishedCache } from "./offline";
+import { checkMajor } from "./compat";
 import type { WarmOptions, WarmResult } from "./offline";
 
 /** Base for published data files. Never points outside this origin (Invariant 8). */
-export const DATA_BASE = `${import.meta.env.BASE_URL}data/v1`;
+export const DATA_BASE = `${import.meta.env.BASE_URL}${DATA_DIR}`;
 
 /** The checked-in 2025/26 model-history backtest. Static, shipped with the app. */
 export const MODELS_HISTORY_URL = `${import.meta.env.BASE_URL}static/models_history_2526.json`;
@@ -247,7 +248,7 @@ class DataStore {
       });
       this.publishedPromise = Promise.all([
         this.registry(),
-        this.get("meta"),
+        this.get("meta").then(checkMajor),
         this.get("rules"),
         this.get("players"),
         this.get("squad"),

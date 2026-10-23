@@ -6,14 +6,22 @@
 
 export const CONTRACT_VERSION = 1;
 
+export const CONTRACT_MINOR = 3;
+
 /** What this publication is, when it was made, and what produced it. The browser reads this first and can render an honest 'as at' line without trusting anything else. */
 export interface Meta {
   /** Bumped only for a breaking change. The app refuses to render a version it does not know. */
   contract_version: 1;
+  /** Bumped by every additive change within the major. Absent in data older than WEB-02; the app reads that as 0 and warns when it is below the minor the app needs. */
+  contract_minor?: number;
   /** UTC (DL-11). */
   generated_at: string;
   /** Traces back to the run manifest. */
   run_id: string;
+  /** UTC instant of the input snapshot the advice was decided on (ORC-03, DL-94). Absent before R1.3.0. */
+  as_of?: string;
+  /** What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0. */
+  trigger?: string;
   git_sha?: string | null;
   season: string;
   next_gameweek: number;
@@ -173,6 +181,10 @@ export interface MoveSide {
 export interface Week {
   contract_version: 1;
   run_id: string;
+  /** UTC instant of the input snapshot the advice was decided on (ORC-03, DL-94). Absent before R1.3.0. */
+  as_of?: string;
+  /** What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0. */
+  trigger?: string;
   /** True when no squad could be established. Before the first gameweek is scored there is no picks endpoint to read (DL-20), so this is a normal state and not a failure. */
   skipped: boolean;
   skipped_reason?: string;
@@ -197,6 +209,18 @@ export interface Week {
     decide_by_utc: string;
     local_zone: string;
     uk_zone: string;
+  };
+  /** This run's strategy failed after an earlier success for the gameweek; the file shows that success, the advice of record, stamped with its own as_of (ORC-03, DL-94). Absent when this run succeeded. */
+  last_failure?: {
+    as_of: string;
+    reason: string;
+  };
+  /** The source this strategy waited for arrived and the strategy was refreshed with it: it had no advice for the gameweek in the ledger's record because the source's data was missing, and advises in this run, whatever started it; the file's trigger says what did (ORC-07). Absent otherwise, and gone from the next run's file. */
+  arrived?: {
+    /** The awaited sources' labels, as the data health page names them. */
+    sources: string[];
+    /** UTC instant of the snapshot the source arrived in. */
+    at: string;
   };
   squad_state?: {
     /** How much was read versus inferred. Reported, never hidden. */
@@ -443,6 +467,10 @@ export interface PruningReport {
 export interface Plan {
   contract_version: 1;
   run_id: string;
+  /** UTC instant of the input snapshot the advice was decided on (ORC-03, DL-94). Absent before R1.3.0. */
+  as_of?: string;
+  /** What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0. */
+  trigger?: string;
   /** True when no squad could be established, or when no legal plan exists. Both are normal states before the season starts (DL-20) and neither is a failure. */
   skipped: boolean;
   skipped_reason?: string;
@@ -722,6 +750,8 @@ export interface HealthSource {
   network_calls?: number | null;
   /** A run served entirely from cache is a legitimate, fast run — and also the reason a source can be 'ok' while its data is older than the run. Published so the two are distinguishable. */
   cache_hits?: number | null;
+  /** Captures of this source held in quarantine because they broke its contract (ORC-10). None of them is ever read: the run used the last valid capture, whose age `observed_at` already gives. Absent on artefacts published before R1.3.0; read absent as 0. */
+  quarantined?: number;
 }
 
 /** The quality gate report. A blocking failure means nothing was published and the last good artefact is still live (Invariant 7) — so a health page showing a blocked run is being served by the run before it. */
@@ -955,6 +985,12 @@ export interface ModelInfo {
 export interface ModelAvailability {
   available: boolean;
   reason: string | null;
+  /** The sources whose missing data left the strategy without advice, by the labels the data health page uses (ORC-07). Absent when it is not waiting for a source. */
+  sources?: string[];
+  /** UTC instant of the first run in this gameweek that found the source's data missing (ORC-07). */
+  since?: string | null;
+  /** When the source is next fetched: the next fast-ingest firing before the deadline, which GitHub may drop. Null for a gameweek no longer Open, or none before its deadline (ORC-07). */
+  next_check?: string | null;
 }
 
 export interface ModelTransfer {
@@ -969,6 +1005,10 @@ export interface ModelAdvice {
   n_transfers: number;
   hit_points: number;
   starting: number[];
+  /** UTC instant of the input snapshot the advice was decided on (ORC-03, DL-94). Absent before R1.3.0. */
+  as_of?: string;
+  /** What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0. */
+  trigger?: string;
   starting_names: string[];
   bench_order: number[];
   bench_names: string[];
@@ -1019,6 +1059,10 @@ export interface ModelSeason {
 export interface Models {
   contract_version: 1;
   season: string;
+  /** UTC instant of the input snapshot the advice was decided on (ORC-03, DL-94). Absent before R1.3.0. */
+  as_of?: string;
+  /** What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0. */
+  trigger?: string;
   /** The model id whose advice is live. */
   champion: string;
   /** The first gameweek recorded live. Earlier gameweeks are the retired frozen harness's virtual seasons; later ones are each strategy's advice on the owner's real squad (DL-87, DL-89). Null when the frozen record decided nothing. Absent means null. */

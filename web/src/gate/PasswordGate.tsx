@@ -12,7 +12,7 @@ import { ThemeToggle } from "../layout/ThemeToggle";
 import "./PasswordGate.css";
 
 /**
- * A client-side password gate: **deterrence only.** The published `data/v1/*.json` and the JS bundle
+ * A client-side password gate: **deterrence only.** The published `data/v{N}/*.json` and the JS bundle
  * stay publicly fetchable; the gate only stops the app from rendering (and so from fetching data)
  * until the reader enters the password.
  *

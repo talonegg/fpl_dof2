@@ -31,6 +31,7 @@ def _week_payload(gameweek: int, captain: int = 1) -> dict[str, object]:
     return {
         "run_id": f"run-gw{gameweek}",
         "skipped": False,
+        "deadline": {"gameweek": gameweek, "deadline_utc": "2026-08-21T17:30:00Z"},
         "recommendation": {
             "transfers": 1,
             "hit_points": 0,
@@ -97,7 +98,7 @@ def _scores(*gameweeks: int) -> pd.DataFrame:
 
 def test_advice_is_recorded_under_its_gameweek(tmp_path: Path) -> None:
     layout = DataLayout(root=tmp_path)
-    path = record_advice(layout, _week_payload(5), as_of=AS_OF)
+    path = record_advice(layout, _week_payload(5), as_of=AS_OF, now=AS_OF)
     assert path == advice_path(layout, 5)
     assert path is not None and path.name == "gw05.json"
     recorded = read_advice(layout, 5)
@@ -109,19 +110,111 @@ def test_advice_is_recorded_under_its_gameweek(tmp_path: Path) -> None:
 
 def test_a_skipped_week_records_nothing(tmp_path: Path) -> None:
     layout = DataLayout(root=tmp_path)
-    assert record_advice(layout, {"run_id": "r", "skipped": True}, as_of=AS_OF) is None
+    assert record_advice(layout, {"run_id": "r", "skipped": True}, as_of=AS_OF, now=AS_OF) is None
     assert read_all_advice(layout) == {}
 
 
 def test_rerunning_inside_a_gameweek_replaces_that_gameweek_only(tmp_path: Path) -> None:
     layout = DataLayout(root=tmp_path)
-    record_advice(layout, _week_payload(5, captain=1), as_of=AS_OF)
-    record_advice(layout, _week_payload(6, captain=3), as_of=AS_OF)
-    record_advice(layout, _week_payload(6, captain=4), as_of=AS_OF)
+    record_advice(layout, _week_payload(5, captain=1), as_of=AS_OF, now=AS_OF)
+    record_advice(layout, _week_payload(6, captain=3), as_of=AS_OF, now=AS_OF)
+    record_advice(layout, _week_payload(6, captain=4), as_of=AS_OF, now=AS_OF)
     entries = read_all_advice(layout)
     assert sorted(entries) == [5, 6]
     assert entries[5]["advised"]["captain"] == 1
     assert entries[6]["advised"]["captain"] == 4
+
+
+def _with_models(payload: dict[str, object], **models: dict[str, Any]) -> dict[str, object]:
+    return payload | {"models": models}
+
+
+def _success(captain: int, as_of: str) -> dict[str, Any]:
+    return {
+        "role": "challenger",
+        "as_of": as_of,
+        "trigger": "schedule",
+        "advised": {"captain": captain},
+    }
+
+
+def _failure(reason: str, as_of: str) -> dict[str, Any]:
+    return {"role": "challenger", "as_of": as_of, "trigger": "schedule", "no_advice": reason}
+
+
+def test_a_later_failure_leaves_the_earlier_success_as_the_record(tmp_path: Path) -> None:
+    """ORC-03, DL-94: replaced only by a newer success; a failure is noted beside it."""
+    layout = DataLayout(root=tmp_path)
+    later = AS_OF + dt.timedelta(hours=1)
+    first = _with_models(_week_payload(5), c1=_success(7, "2026-08-21T12:00:00Z"))
+    record_advice(layout, first, as_of=AS_OF, now=AS_OF)
+    failed = _with_models(_week_payload(5), c1=_failure("no advice: boom", "2026-08-21T13:00:00Z"))
+    record_advice(layout, failed, as_of=later, now=later)
+
+    c1 = (read_advice(layout, 5) or {})["models"]["c1"]
+    assert c1["advised"] == {"captain": 7} and c1["as_of"] == "2026-08-21T12:00:00Z"
+    assert c1["last_failure"] == {"as_of": "2026-08-21T13:00:00Z", "reason": "no advice: boom"}
+
+    latest = later + dt.timedelta(hours=1)
+    again = _with_models(_week_payload(5), c1=_success(9, "2026-08-21T14:00:00Z"))
+    record_advice(layout, again, as_of=latest, now=latest)
+    c1 = (read_advice(layout, 5) or {})["models"]["c1"]
+    assert c1["advised"] == {"captain": 9} and "last_failure" not in c1
+
+
+def test_a_strategy_that_never_succeeded_records_no_advice(tmp_path: Path) -> None:
+    layout = DataLayout(root=tmp_path)
+    payload = _with_models(_week_payload(5), c1=_failure("no advice: boom", "2026-08-21T12:00:00Z"))
+    record_advice(layout, payload, as_of=AS_OF, now=AS_OF)
+    c1 = (read_advice(layout, 5) or {})["models"]["c1"]
+    assert c1["no_advice"] == "no advice: boom" and "advised" not in c1
+
+
+def test_failure_after_failure_keeps_since_the_first_and_a_success_ends_it(tmp_path: Path) -> None:
+    """ORC-07: how long a strategy has waited is the first failure's ``as_of``, kept across runs."""
+    layout = DataLayout(root=tmp_path)
+    for hour in (12, 13, 14):
+        moment = AS_OF.replace(hour=hour)
+        failed = _failure("no advice: no odds", f"2026-08-21T{hour}:00:00Z")
+        record_advice(layout, _with_models(_week_payload(5), c1=failed), as_of=moment, now=moment)
+    c1 = (read_advice(layout, 5) or {})["models"]["c1"]
+    assert c1["since"] == "2026-08-21T12:00:00Z" and c1["as_of"] == "2026-08-21T14:00:00Z"
+    later = AS_OF.replace(hour=15)
+    ok = _with_models(_week_payload(5), c1=_success(7, "2026-08-21T15:00:00Z"))
+    record_advice(layout, ok, as_of=later, now=later)
+    assert "since" not in (read_advice(layout, 5) or {})["models"]["c1"]
+
+
+def test_a_write_mentioning_fewer_strategies_keeps_the_others(tmp_path: Path) -> None:
+    layout = DataLayout(root=tmp_path)
+    both = _with_models(_week_payload(5), c1=_success(7, "x"), c3=_success(1, "x"))
+    record_advice(layout, both, as_of=AS_OF, now=AS_OF)
+    record_advice(
+        layout, _with_models(_week_payload(5), c3=_success(2, "x")), as_of=AS_OF, now=AS_OF
+    )
+    models = (read_advice(layout, 5) or {})["models"]
+    assert models["c1"]["advised"] == {"captain": 7} and models["c3"]["advised"] == {"captain": 2}
+
+
+def test_a_write_after_the_deadline_is_refused(tmp_path: Path) -> None:
+    """ORC-03: the record closes at the deadline, whatever ``week`` is advising."""
+    layout = DataLayout(root=tmp_path)
+    record_advice(layout, _week_payload(5, captain=1), as_of=AS_OF, now=AS_OF)
+    deadline = dt.datetime(2026, 8, 21, 17, 30, tzinfo=dt.UTC)
+    for now in (deadline, deadline + dt.timedelta(seconds=1)):
+        assert record_advice(layout, _week_payload(5, captain=4), as_of=AS_OF, now=now) is None
+    assert (read_advice(layout, 5) or {})["advised"]["captain"] == 1
+    undated = _week_payload(6)
+    del undated["deadline"]
+    assert record_advice(layout, undated, as_of=AS_OF, now=AS_OF) is None  # cannot show it open
+
+
+def test_a_write_older_than_the_record_is_ignored(tmp_path: Path) -> None:
+    layout = DataLayout(root=tmp_path)
+    record_advice(layout, _week_payload(5, captain=1), as_of=AS_OF, now=AS_OF)
+    earlier = AS_OF - dt.timedelta(hours=1)
+    assert record_advice(layout, _week_payload(5, captain=4), as_of=earlier, now=AS_OF) is None
+    assert (read_advice(layout, 5) or {})["advised"]["captain"] == 1
 
 
 def test_a_corrupt_entry_is_reported_as_absent_not_raised(tmp_path: Path) -> None:
@@ -174,8 +267,8 @@ def test_gameweeks_decided_without_the_tool_say_so() -> None:
 
 def test_recorded_advice_is_reconciled_against_what_was_played(tmp_path: Path) -> None:
     layout = DataLayout(root=tmp_path)
-    record_advice(layout, _week_payload(5, captain=1), as_of=AS_OF)
-    record_advice(layout, _week_payload(6, captain=1), as_of=AS_OF)
+    record_advice(layout, _week_payload(5, captain=1), as_of=AS_OF, now=AS_OF)
+    record_advice(layout, _week_payload(6, captain=1), as_of=AS_OF, now=AS_OF)
     log = build_log(
         entry_id=7,
         season="2026/27",
@@ -215,7 +308,7 @@ def test_a_gameweek_the_game_has_not_scored_yet_has_a_null_score() -> None:
 
 def test_the_log_validates_against_its_contract(tmp_path: Path) -> None:
     layout = DataLayout(root=tmp_path)
-    record_advice(layout, _week_payload(2), as_of=AS_OF)
+    record_advice(layout, _week_payload(2), as_of=AS_OF, now=AS_OF)
     log = build_log(
         entry_id=7,
         season="2026/27",
@@ -246,7 +339,7 @@ def test_hindsight_is_populated_and_validates_against_contract(
             "transfers": 0,
         }
     }
-    record_advice(layout, payload, as_of=AS_OF)
+    record_advice(layout, payload, as_of=AS_OF, now=AS_OF)
 
     positions = ["GKP"] * 2 + ["DEF"] * 5 + ["MID"] * 5 + ["FWD"] * 3 + ["MID"]  # 16 players
     pool_rows = []
@@ -313,7 +406,7 @@ def _hindsight_log(tmp_path: Path, game_rules: GameRules, state: dict[str, float
         del payload["squad_state"]
     else:
         payload["squad_state"] = state
-    record_advice(layout, payload, as_of=AS_OF)
+    record_advice(layout, payload, as_of=AS_OF, now=AS_OF)
     positions = ["GKP"] * 2 + ["DEF"] * 5 + ["MID"] * 5 + ["FWD"] * 3 + ["MID"]
     pool = pd.DataFrame(
         [

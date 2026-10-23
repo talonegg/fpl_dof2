@@ -359,7 +359,7 @@ def _walk(config: ForecastConfig, rules: GameRules) -> BacktestResult:
     )
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def default_walk_result(game_rules: GameRules) -> BacktestResult:
     return _walk(ForecastConfig(), game_rules)
 

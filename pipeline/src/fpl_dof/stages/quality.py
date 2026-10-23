@@ -105,18 +105,16 @@ def _promote_warnings(report: GateReport) -> GateReport:
 
 
 def _newest_snapshot_age(ctx: StageContext) -> float | None:
-    """How old the freshest bronze snapshot is, in seconds.
+    """How old the freshest bronze snapshot is, in seconds, by its capture time.
 
     Freshest rather than oldest on purpose: an archive snapshot from last season is *supposed* to
     be a year old, and judging freshness by the oldest file would flag every run that has ever
-    backfilled history.
+    backfilled history. Read from each sidecar's ``fetched_at``, never file mtime, which a restore
+    resets: when a malformed capture was quarantined, this is the age of the last valid one, so
+    falling back never hides that the data is old (ORC-10, Invariant 7).
     """
-    bronze = BronzeStore(ctx.layout.bronze)
-    if not bronze.root.is_dir():
-        return None
-    ages = [
-        (ctx.as_of.timestamp() - path.stat().st_mtime) for path in bronze.root.rglob("*.meta.json")
-    ]
+    observed = BronzeStore(ctx.layout.bronze).observed()
+    ages = [(ctx.as_of - moment).total_seconds() for moment in observed.values()]
     return min(ages) if ages else None
 
 

@@ -33,8 +33,10 @@ from squads import legal_declaration
 from squads import players as _players
 
 #: Solver overrides used by every test here. The start-probability floor is off because the fixture
-#: pool has no minutes model behind it, and it is E0's constraint rather than E4's.
-OPTIMISER = OptimiserConfig(enforce_start_probability_floor=False)
+#: pool has no minutes model behind it, and it is E0's constraint rather than E4's. One scenario
+#: worker: starting processes costs more than these small solves. The parallel path is tested by
+#: test_the_parallel_chip_plan_is_the_sequential_one and by every full run on the shipped config.
+OPTIMISER = OptimiserConfig(enforce_start_probability_floor=False, scenario_workers=1)
 
 
 def pool() -> pd.DataFrame:

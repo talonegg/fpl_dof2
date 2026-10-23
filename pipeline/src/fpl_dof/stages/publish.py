@@ -29,11 +29,12 @@ from fpl_dof.factory import (
 )
 from fpl_dof.factory.registry import published_strategies
 from fpl_dof.frames import as_float, as_int
+from fpl_dof.gameweek import SilverTables, open_gameweek
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.obs.manifest import RunManifest, git_sha, read_manifest
 from fpl_dof.paths import find_repo_root
 from fpl_dof.pipeline import Output, StageContext, StageResult
-from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
+from fpl_dof.publish.contract import CONTRACT_MINOR, CONTRACT_VERSION, Contract, find_contracts_root
 from fpl_dof.publish.fixtures import build_fixtures
 from fpl_dof.publish.health import build_health
 from fpl_dof.publish.history import build_history
@@ -45,8 +46,10 @@ from fpl_dof.publish.typescript import write_types
 from fpl_dof.rules.models import GameRules
 from fpl_dof.silver.store import read_table, read_table_optional
 from fpl_dof.silver.tables import Table
+from fpl_dof.sources import BronzeStore, supplying
 from fpl_dof.week.cadence import current_gameweek
 from fpl_dof.week.ledger import read_all_advice
+from fpl_dof.week.schedule import next_fast_ingest
 from fpl_dof.week.score_advice import performances as performances_of
 
 log = get_logger(__name__)
@@ -131,7 +134,7 @@ def run(ctx: StageContext) -> StageResult:
         removed.append("log.json")
 
     # The five-model comparison: absent until the prospective harness has recorded a decision.
-    models_payload = _models(ctx, season)
+    models_payload = _models(ctx, season, gameweeks)
     published_models = False
     if models_payload is not None:
         try:
@@ -261,7 +264,9 @@ def _meta(
     regression = regress_xp_on_price(forecast)
     return {
         "contract_version": CONTRACT_VERSION,
+        "contract_minor": CONTRACT_MINOR,
         "generated_at": _iso(ctx.as_of),
+        **_run_stamp(ctx),
         "run_id": ctx.run_id,
         "git_sha": git_sha(find_repo_root()),
         "season": season,
@@ -293,6 +298,11 @@ def _model_name(forecast: pd.DataFrame) -> str:
 
 def _iso(moment: dt.datetime) -> str:
     return moment.astimezone(dt.UTC).isoformat().replace("+00:00", "Z")
+
+
+def _run_stamp(ctx: StageContext) -> dict[str, str]:
+    """The run's snapshot ``as_of`` and what started it, as every advice carries them (ORC-03)."""
+    return {"as_of": _iso(ctx.as_of), "trigger": ctx.config.runtime.trigger}
 
 
 def _rules(rules: GameRules) -> dict[str, Any]:
@@ -439,6 +449,7 @@ def _health(ctx: StageContext, gold: Path) -> dict[str, Any] | None:
         manifest=manifest,
         gate_report=_gate_report(gold),
         observed=_source_observations(ctx),
+        quarantined=BronzeStore(ctx.layout.bronze).quarantined(),
         recent=_recent_manifests(ctx, limit=limit),
         generated_at=ctx.as_of,
         history_limit=limit,
@@ -489,55 +500,8 @@ def _source_observations(ctx: StageContext) -> dict[str, dt.datetime]:
     The labels are the bronze store's top-level directory names, which the store writes from
     whatever the adapter called itself. This module never names one and never branches on one
     (Invariant 1) — it reads what is there and passes the strings through.
-
-    The newest file is found by the UTC capture stamp the store writes into every snapshot's file
-    name (``<key>__<YYYYmmddTHHMMSSZ>``), which is cheap over a tree that holds a snapshot per
-    player per day and, unlike modification time, survives the ``cp -r`` that restores bronze in
-    CI. The capture time is then read from **that one sidecar**'s ``fetched_at``.
     """
-    from fpl_dof.sources import BronzeStore
-
-    bronze = BronzeStore(ctx.layout.bronze)
-    if not bronze.root.is_dir():
-        return {}
-
-    observations: dict[str, dt.datetime] = {}
-    for directory in sorted(p for p in bronze.root.iterdir() if p.is_dir()):
-        sidecars = list(directory.rglob("*.meta.json"))
-        if not sidecars:
-            continue
-        newest = max(sidecars, key=_capture_stamp)
-        moment = _fetched_at(newest)
-        if moment is not None:
-            observations[directory.name] = moment
-    return observations
-
-
-_CAPTURE_STAMP = re.compile(r"__(\d{8}T\d{6}Z)")
-
-
-def _capture_stamp(sidecar: Path) -> tuple[str, str]:
-    """Sort key for "newest snapshot": the stamp after the last ``__`` in the name, then the path.
-
-    A name without a stamp sorts first, so it can only win when it is the only sidecar there is.
-    """
-    found = _CAPTURE_STAMP.findall(sidecar.name)
-    return (found[-1] if found else ""), str(sidecar)
-
-
-def _fetched_at(sidecar: Path) -> dt.datetime | None:
-    """``fetched_at`` from a snapshot sidecar, falling back to the file's own mtime."""
-    try:
-        payload = json.loads(sidecar.read_text(encoding="utf-8"))
-        stamp = payload.get("fetched_at")
-        if isinstance(stamp, str):
-            return pd.Timestamp(stamp).tz_convert("UTC").to_pydatetime()
-    except OSError, ValueError:
-        pass
-    try:
-        return dt.datetime.fromtimestamp(sidecar.stat().st_mtime, tz=dt.UTC)
-    except OSError:
-        return None
+    return BronzeStore(ctx.layout.bronze).observed()
 
 
 def _recent_manifests(ctx: StageContext, *, limit: int) -> list[RunManifest]:
@@ -621,7 +585,9 @@ def _season_log(
     )
 
 
-def _models(ctx: StageContext, season: str) -> dict[str, Any] | None:
+def _models(
+    ctx: StageContext, season: str, gameweeks: pd.DataFrame | None = None
+) -> dict[str, Any] | None:
     """models.json: the retired harness's record up to the switch, the live ledger from it.
 
     The frozen record is optional (no ``source_dir`` means the live ledger alone). A malformed
@@ -661,7 +627,12 @@ def _models(ctx: StageContext, season: str) -> dict[str, Any] | None:
                 if as_int(g) in finished
             }
         ledger = read_all_advice(ctx.layout)
-        return build_models(
+        # ORC-07: an awaited source is next checked at the next fast-ingest firing that fetches.
+        state = None if gameweeks is None else open_gameweek(SilverTables(gameweeks), (), ctx.as_of)
+        check = None
+        if state is not None:
+            check = next_fast_ingest(now=ctx.as_of, state=state, config=ctx.config.schedule)
+        payload = build_models(
             season=season,
             decisions=decisions,
             scores=scores,
@@ -674,10 +645,14 @@ def _models(ctx: StageContext, season: str) -> dict[str, Any] | None:
             names={}
             if players is None
             else {as_int(r.player_id): str(r.web_name) for r in players.itertuples()},
+            sources={t.value: supplying([t.value], ctx.config.sources) for t in Table},
+            open_gameweek=None if state is None else state.gameweek,
+            next_check=None if check is None else _iso(check),
         )
     except Exception as exc:
         log.warning("publish.models_dropped", extra={"error": repr(exc)})
         return None
+    return None if payload is None else payload | _run_stamp(ctx)
 
 
 def _latest_finished(gameweeks: pd.DataFrame) -> int | None:

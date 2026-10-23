@@ -80,6 +80,7 @@ def gameweeks_from_bronze(bronze_root: Path) -> pd.DataFrame | None:
                 "deadline_time": pd.Timestamp(e["deadline_time"]).tz_convert("UTC"),
                 "finished": bool(e.get("finished", False)),
                 "is_next": bool(e.get("is_next", False)),
+                "data_checked": bool(e.get("data_checked", False)),
             }
             for e in events
         ]

@@ -8,7 +8,7 @@ Architecture is in [03](03-solution-architecture.md), component design in
 [04](04-conceptual-design.md).
 
 > **Status at 2026-10-17, GW7 deadline day.** In season. R1.0 (epics E0–E14) is delivered and
-> archived; R1.1.0, the data pipeline uplift, is delivered, R1.2.0 tagged and R1.2.2 open; where the season stands is
+> archived; R1.1.0, the data pipeline uplift, is delivered, R1.2.0 and R1.2.2 tagged and R1.3.0 open; where the season stands is
 > [E8's season state](epics/E8-ongoing-in-season-monitoring.md). The plan of record is the
 > [release register](epics/README.md); shortcuts are in the [debt register](debt-register.md).
 > §3, §4, §7 and §8 were superseded by the epics (DL-10) and archived in
@@ -164,7 +164,7 @@ acting on the advice, ends the project. ASM-2 and ASM-3 failed and were absorbed
 | I-08 | football-data.co.uk handled outside `sources/`, unseen by the isolation test (03 §12 P5) | Breaches Invariant 1 / DP-01 | **Closed** — PIPE-04: the `fdcouk` adapter; scripts read through `sources.LiveFeed` (REM-06) |
 | I-09 | The app does not check what it reads; `contract_version` never read (03 §12 W1) | A contract change renders wrong instead of degrading (DP-04, DP-15) | **Open** |
 | I-10 | TypeScript copies without a corpus have drifted, e.g. bench order (03 §12 W2) | App and pipeline disagree about one squad | **Open** |
-| I-11 | Deploy runs after every pipeline completion, even guard-only skips (03 §12 O1) | Redundant builds of an unchanged contract | **Open** |
+| I-11 | Deploy runs after every pipeline completion, even guard-only skips (03 §12 O1) | Redundant builds of an unchanged contract | **Closed** — ORC-03: deploy is `pipeline.yml`'s last job, run only when that run published ([DL-94](../decisions/DL-94.md)) |
 
 ### Dependencies
 

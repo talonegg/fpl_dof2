@@ -18,16 +18,19 @@ from __future__ import annotations
 import datetime as dt
 import gzip
 import hashlib
+import json
 import os
 import re
 import shutil
 import zlib
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from pydantic import BaseModel, ConfigDict
 
 from fpl_dof.obs.manifest import utcnow
+from fpl_dof.sources.errors import SourceContractError
 
 SNAPSHOT_SUFFIX = ".json.gz"
 """Default snapshot extension. Overridable per call, because not every source speaks JSON — the
@@ -65,6 +68,8 @@ class SnapshotMeta(BaseModel):
     retain: bool = False
     etag: str | None = None
     last_modified: str | None = None
+    quarantine_reason: str | None = None
+    """Why the capture broke its source's contract. Set only on a sidecar in quarantine (ORC-10)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -258,11 +263,65 @@ class BronzeStore:
             return Snapshot(path=path, meta=meta)
         return None
 
-    def verify(self, *, quarantine: bool = False) -> VerifyReport:
+    def quarantine(self, snapshot: Snapshot, reason: str) -> Path:
+        """Move a capture that broke its source's contract out of every read, with why (ORC-10).
+
+        Every reader goes through :meth:`latest`, so once the capture has gone the last valid one
+        at or before a reader's ``as_of`` is what it finds (DL-94).
+        """
+        target = self.quarantine_root / snapshot.path.relative_to(self.root)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        snapshot.path.replace(target)
+        _write_sidecar(target, snapshot.meta.model_copy(update={"quarantine_reason": reason}))
+        snapshot.path.with_name(snapshot.path.name + META_SUFFIX).unlink(missing_ok=True)
+        return target
+
+    def quarantined(self) -> dict[str, int]:
+        """How many captures each source has in quarantine for breaking its contract."""
+        counts: dict[str, int] = {}
+        for sidecar in sorted(self.quarantine_root.glob(f"*/*/*/*{META_SUFFIX}")):
+            try:
+                meta = SnapshotMeta.model_validate_json(sidecar.read_text(encoding="utf-8"))
+            except OSError, ValueError:
+                continue  # verify's quarantine of a torn or corrupt file carries no reason
+            if meta.quarantine_reason:
+                counts[meta.source] = counts.get(meta.source, 0) + 1
+        return counts
+
+    def observed(self) -> dict[str, dt.datetime]:
+        """When each source's freshest snapshot was captured, keyed by its directory name.
+
+        The newest file is found by the UTC stamp in its name, which survives the copy that
+        restores bronze in CI where modification time does not, and its time is that sidecar's
+        ``fetched_at`` (03 §12.6 F2). A quarantined capture is not here, so this is the time of
+        the capture actually used (ORC-10).
+        """
+        if not self.root.is_dir():
+            return {}
+        observations: dict[str, dt.datetime] = {}
+        for directory in sorted(p for p in self.root.iterdir() if p.is_dir()):
+            sidecars = list(directory.rglob(f"*{META_SUFFIX}"))
+            if not sidecars:
+                continue
+            moment = _fetched_at(max(sidecars, key=_capture_stamp))
+            if moment is not None:
+                observations[directory.name] = moment
+        return observations
+
+    def verify(
+        self,
+        *,
+        quarantine: bool = False,
+        contract: Callable[[SnapshotMeta, bytes], None] | None = None,
+    ) -> VerifyReport:
         """Inspect the Bronze store for corruption, torn writes, and orphaned files (PIPE-11).
 
         ``quarantine`` moves each bad file to :attr:`quarantine_root`, beside bronze rather than in
         it: out of every read, but kept as evidence of what went wrong (REM-10).
+
+        ``contract`` also checks each whole snapshot against its source's contract, raising
+        :class:`~fpl_dof.sources.errors.SourceContractError` for one that breaks it: the one-off
+        sweep of history kept before ingest checked every capture (ORC-10).
         """
         report = VerifyReport()
         if not self.root.is_dir():
@@ -347,5 +406,41 @@ class BronzeStore:
                                 meta_path,
                             )
                             continue
+                        if contract is not None:
+                            try:
+                                contract(meta, uncompressed)
+                            except SourceContractError as exc:
+                                report.issues.append(IntegrityIssue(payload, "contract", str(exc)))
+                                report.failed += 1
+                                if quarantine:
+                                    self.quarantine(Snapshot(path=payload, meta=meta), str(exc))
+                                    report.quarantined.extend([payload, meta_path])
+                                continue
                         report.passed += 1
         return report
+
+
+_CAPTURE_STAMP = re.compile(r"__(\d{8}T\d{6}Z)")
+
+
+def _capture_stamp(sidecar: Path) -> tuple[str, str]:
+    """Sort key for "newest snapshot": the stamp after the last ``__`` in the name, then the path.
+
+    A name without a stamp sorts first, so it can only win when it is the only sidecar there is.
+    """
+    found = _CAPTURE_STAMP.findall(sidecar.name)
+    return (found[-1] if found else ""), str(sidecar)
+
+
+def _fetched_at(sidecar: Path) -> dt.datetime | None:
+    """``fetched_at`` from a snapshot sidecar, falling back to the file's own mtime."""
+    try:
+        stamp = json.loads(sidecar.read_text(encoding="utf-8")).get("fetched_at")
+        if isinstance(stamp, str):
+            return dt.datetime.fromisoformat(stamp).astimezone(dt.UTC)
+    except OSError, ValueError, AttributeError:
+        pass
+    try:
+        return dt.datetime.fromtimestamp(sidecar.stat().st_mtime, tz=dt.UTC)
+    except OSError:
+        return None

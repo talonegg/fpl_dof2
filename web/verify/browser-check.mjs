@@ -19,6 +19,7 @@
  */
 import { chromium, devices } from "playwright";
 import { mkdirSync, readFileSync } from "node:fs";
+import { CONTRACT_VERSION } from "./contract-version.mjs";
 
 const baseUrl = process.argv[2] ?? "http://127.0.0.1:4173";
 const outputDir = new URL("./screenshots/", import.meta.url).pathname.replace(/^\//, "");
@@ -121,7 +122,7 @@ for (const viewport of VIEWPORTS) {
     if (!url.startsWith(baseUrl) && !url.startsWith("data:") && !url.startsWith("blob:")) {
       externalRequests.push(url);
     }
-    const artefact = /\/data\/v1\/([^/?]+)\.json/.exec(url);
+    const artefact = /\/data\/v[0-9]+\/([^/?]+)\.json/.exec(url);
     if (artefact) artefactRequests[artefact[1]] = (artefactRequests[artefact[1]] ?? 0) + 1;
   });
 
@@ -892,7 +893,7 @@ notes.push("\n== progressive web app ==");
   });
   const allCached = Object.values(cacheReport).flat();
   const cachedArtefacts = CORE_ARTEFACTS.filter((name) =>
-    allCached.some((path) => path.endsWith(`/data/v1/${name}.json`)),
+    allCached.some((path) => path.endsWith(`/data/v${CONTRACT_VERSION}/${name}.json`)),
   );
   measure(`caches: ${Object.keys(cacheReport).join(", ")}`);
   measure(`published artefacts cached: ${cachedArtefacts.join(", ") || "none"}`);
@@ -998,7 +999,7 @@ notes.push("\n== performance: emulated Pixel 5 on throttled 4G ==");
         const navigation = performance.getEntriesByType("navigation")[0];
         const resources = performance.getEntriesByType("resource");
         const sum = (entries) => entries.reduce((total, entry) => total + (entry.transferSize || 0), 0);
-        const isData = (entry) => entry.name.includes("/data/v1/");
+        const isData = (entry) => entry.name.includes("/data/v");
         return {
           document: navigation?.transferSize ?? 0,
           code: sum(resources.filter((entry) => !isData(entry))),

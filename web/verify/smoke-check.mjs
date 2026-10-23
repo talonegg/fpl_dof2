@@ -28,11 +28,12 @@
  * built with that prefix as its base. Passing the bare origin would check a 404 page.
  */
 import { chromium } from "playwright";
+import { CONTRACT_VERSION } from "./contract-version.mjs";
 
 const baseUrl = (process.argv[2] ?? "http://127.0.0.1:4173").replace(/\/+$/, "");
 
 /** The contract version this bundle of checks understands. Mirrors `CONTRACT_VERSION` (DP-04). */
-const EXPECTED_CONTRACT_VERSION = 1;
+const EXPECTED_CONTRACT_VERSION = CONTRACT_VERSION;
 
 /**
  * Artefacts every successful publication writes, so any one of them missing is a real fault.

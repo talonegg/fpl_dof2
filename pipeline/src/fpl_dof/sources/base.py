@@ -23,6 +23,9 @@ from fpl_dof.config.models import SourceOverride
 from fpl_dof.rules.models import ApiRules
 from fpl_dof.sources.fetch import Fetched, Fetcher
 
+#: When the Open gameweek's matches can kick off: its deadline, then the next deadline or ``None``.
+Window = tuple[dt.datetime, dt.datetime | None] | None
+
 
 @dataclass(frozen=True, slots=True)
 class Resource:
@@ -212,6 +215,28 @@ class SourceAdapter(ABC):
         self.options = options or SourceOverride()
         self.observed: dict[str, dt.datetime] = {}
         """The latest snapshot time read per key: what stamps ``observed_at`` (DL-83)."""
+        fetcher.contracts[self.name] = self.check
+
+    def check(self, resource: str, key: str, payload: bytes) -> None:
+        """Raise :class:`~fpl_dof.sources.errors.SourceContractError` if one capture breaks this
+        source's contract, with the same parser conformance uses.
+
+        The fetcher calls it on every new capture before it is kept, and ``bronze verify
+        --contract`` on every capture already kept (ORC-10). One malformed row makes the whole
+        capture malformed (DL-94). The default accepts everything: a source whose captures carry
+        no contract of their own, such as a robots file, need not override it.
+        """
+        return None
+
+    watched: ClassVar[tuple[tuple[str, str], ...]] = ()
+    """The ``(resource, key)`` captures the change manifest compares across an ingest (ORC-02)."""
+
+    def changes(self, resource: str, before: bytes, after: bytes, window: Window) -> set[str]:
+        """The change kinds (:data:`~fpl_dof.sources.changes.KINDS`) between two captures of one
+        watched resource. ``window`` is when the Open gameweek's matches can kick off, from its
+        deadline to the next one's (``None`` for no next), or ``None`` when no gameweek is Open.
+        The default sees none: a source changes nothing that starts a run unless it says so."""
+        return set()
 
     def note_observed(self, key: str, fetched: Fetched) -> None:
         """Remember when the bytes just read were captured, keeping the latest per key."""

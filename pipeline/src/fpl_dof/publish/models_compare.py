@@ -122,12 +122,27 @@ def _live_advice(
     }
 
 
+def _offline(
+    m: Mapping[str, Any], sources: Mapping[str, Sequence[str]], next_check: str | None
+) -> dict[str, Any]:
+    """Which sources a strategy without advice waits for, since when, and when next checked.
+
+    Empty unless the ledger says a table it needs was missing and a source can supply it (ORC-07).
+    """
+    labels = sorted({label for t in m.get("missing") or () for label in sources.get(t, ())})
+    if not labels:
+        return {}
+    return {"sources": labels, "since": m.get("since") or m.get("as_of"), "next_check": next_check}
+
+
 def _live_gameweek(
     gw: int,
     entry: Mapping[str, Any],
     perfs: Mapping[int, PlayerPerformance] | None,
     rules: GameRules | None,
     names: Mapping[int, str],
+    sources: Mapping[str, Sequence[str]],
+    next_check: str | None,
 ) -> dict[str, Any]:
     """One live gameweek from a ledger entry; scored on the real squad once ``perfs`` exist."""
     free = recorded_free_transfers(entry)
@@ -139,10 +154,13 @@ def _live_gameweek(
         advised = m.get("advised") if isinstance(m, Mapping) else None
         if not isinstance(advised, Mapping):
             reason = str((m or {}).get("no_advice") or "no advice recorded")
-            availability[sid] = {"available": False, "reason": reason}
+            offline = _offline(m or {}, sources, next_check)
+            availability[sid] = {"available": False, "reason": reason} | offline
             continue
         availability[sid] = {"available": True, "reason": None}
-        advice[sid] = _live_advice(advised, m.get("recommendation") or {}, names)
+        # The advice of record's own stamp (ORC-03); a pre-R1.3.0 entry has none.
+        stamp = {k: m[k] for k in ("as_of", "trigger") if m.get(k)}
+        advice[sid] = _live_advice(advised, m.get("recommendation") or {}, names) | stamp
         lineup = lineup_from_advice(
             advised,
             transfers_made=int(m.get("transfers") or 0),
@@ -188,6 +206,9 @@ def build_models(
     performances: Mapping[int, Mapping[int, PlayerPerformance]] | None = None,
     rules: GameRules | None = None,
     names: Mapping[int, str] | None = None,
+    sources: Mapping[str, Sequence[str]] | None = None,
+    open_gameweek: int | None = None,
+    next_check: str | None = None,
 ) -> dict[str, Any] | None:
     """The ``models.json`` payload, or ``None`` when the harness has recorded no decision yet.
 
@@ -199,6 +220,10 @@ def build_models(
     missing or stale is published as unavailable with the reason, and neither its advice nor its
     points for that gameweek appear. A gameweek with no recorded check makes every model
     unavailable: no check is not the same as a passed check.
+
+    **A live strategy waiting for a source** (ORC-07): ``sources`` maps a silver table to the
+    labels of the sources that supply it, so a ledger entry's ``missing`` tables name what it
+    waits for; ``next_check`` is when that is next fetched, and applies to ``open_gameweek`` only.
     """
     decided = {int(d["gw"]) for d in decisions}
     scored = decided & {int(r["gw"]) for r in scores}
@@ -266,7 +291,15 @@ def build_models(
             }
         )
     for gw in sorted(live):
-        live_gw = _live_gameweek(gw, live[gw], (performances or {}).get(gw), rules, names or {})
+        live_gw = _live_gameweek(
+            gw,
+            live[gw],
+            (performances or {}).get(gw),
+            rules,
+            names or {},
+            sources or {},
+            next_check if gw == open_gameweek else None,
+        )
         seen.update({m: m for m in live_gw["availability"] if m not in seen})
         gameweeks.append(live_gw)
 

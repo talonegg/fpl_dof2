@@ -15,6 +15,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from fpl_dof.triggers import MANUAL, TRIGGER_STAMP
+
 #: How captain and vice are picked inside the chosen XI; a strategy's policy names one (MOD-03).
 CaptainRule = Literal["price_position", "model"]
 
@@ -37,6 +39,14 @@ class RuntimeConfig(_Section):
         description=(
             "Rendering zone only. Everything is stored and computed in UTC (DL-11); this is used "
             "at the display edge and nowhere else."
+        ),
+    )
+    trigger: str = Field(
+        default=MANUAL,
+        pattern=TRIGGER_STAMP,
+        description=(
+            "What started this run, stamped on every advice (ORC-03, DL-94): schedule, "
+            "change:<kinds>, manual or day-before. CI sets FPL_DOF_TRIGGER; a local run is manual."
         ),
     )
 
@@ -1707,6 +1717,16 @@ class OptimiserConfig(_Section):
     )
     captain_multiplier: int = Field(default=2, ge=1)
     solve_time_limit_seconds: int = Field(default=60, gt=0)
+    scenario_workers: int = Field(
+        default=4,
+        ge=1,
+        description=(
+            "Processes the chip plan solves its scenarios across (ORC-09), capped at the machine's "
+            "cores. Four because the hosted runner has four cores. Each scenario is an independent "
+            "MILP over the same inputs, so the plan is the sequential one whatever this is; 1 "
+            "solves them one after another in this process."
+        ),
+    )
     solver: str = Field(default="CBC", description="PuLP's bundled solver. HiGHS arrives in E4.")
     enforce_start_probability_floor: bool = Field(
         default=True,
@@ -2383,6 +2403,17 @@ class ScheduleConfig(_Section):
             "those are exactly the fields NFR-05 puts a freshness bound on."
         ),
     )
+    fast_ingest_cron_minute: int = Field(
+        default=7,
+        ge=0,
+        le=59,
+        description=(
+            "The minute past each hour at which ingest-fast.yml's cron fires (`7 * * * *`: an odd "
+            "minute, off the :00 peak GitHub sheds). It must match that workflow; declared here so "
+            "the app's next-check time for an awaited source is computed from it (ORC-07) rather "
+            "than from a second copy, and a test holds the two together."
+        ),
+    )
     pipeline_offsets_minutes: tuple[int, ...] = Field(
         default=(360, 180, 90, 45),
         description=(
@@ -2418,10 +2449,32 @@ class ScheduleConfig(_Section):
         default=45.0,
         ge=0,
         description=(
-            "Nothing that produces a recommendation is scheduled inside this many minutes of a "
-            "deadline (R-09). Scheduled runs are best-effort and can be delayed under platform "
-            "load; the deadline is not. Manual dispatch remains the fallback."
+            "Nothing that produces a recommendation runs inside this many minutes of a deadline "
+            "(R-09), whatever started it: the tick, a change, the day-before or a manual dispatch "
+            "(ORC-02). Runs are best-effort and can be delayed under platform load; the deadline "
+            "is not."
         ),
+    )
+    pipeline_run_budget_seconds: int = Field(
+        default=300,
+        gt=0,
+        description=(
+            "Wall clock a pipeline.yml run may take, from its start to its last job, deploy "
+            "included and a wait in the run job's queue not (DL-94 Q9). "
+            "A dispatched run must finish well inside the freeze, and every extra run per "
+            "gameweek multiplies each minute (ORC-09). Over it, a CI step fails, so a slow change "
+            "is seen when it lands."
+        ),
+    )
+    ci_workflow_budget_seconds: int = Field(
+        default=180,
+        gt=0,
+        description="Wall clock a CI workflow run may take, every job included (DL-94 Q9).",
+    )
+    python_tests_budget_seconds: int = Field(
+        default=90,
+        gt=0,
+        description="Wall clock the Python test step may take in CI (DL-94 Q9).",
     )
 
     @model_validator(mode="after")

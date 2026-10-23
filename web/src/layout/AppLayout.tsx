@@ -1,10 +1,12 @@
 import { NavLink, Outlet } from "react-router-dom";
 import { useDataState } from "../data/DataProvider";
+import { isOlderMinor } from "../data/compat";
 import { Header } from "../components/Header";
 import { ThemeToggle } from "./ThemeToggle";
 import { LockButton } from "../gate/PasswordGate";
 import { NAV_ITEMS } from "../routes/nav";
 import { ModelSelector } from "../components/models/ModelSelector";
+import { SourceAlerts } from "./SourceAlerts";
 
 /**
  * The persistent shell: brand, navigation, theme control, then the active route.
@@ -52,7 +54,19 @@ export function AppLayout() {
           </div>
         )}
 
-        {state.status === "error" && (
+        {state.status === "error" && state.refused && (
+          <div className="app-error" role="alert" data-testid="app-refused">
+            <p>
+              This version of the app cannot read the latest published data. {state.error} Reload
+              the page, or install the update if one is offered, to get a matching version.
+            </p>
+            <button type="button" onClick={() => window.location.reload()} className="app-retry">
+              Reload
+            </button>
+          </div>
+        )}
+
+        {state.status === "error" && !state.refused && (
           <div className="app-error" role="alert" data-testid="app-error">
             <p>Could not load published data: {state.error}</p>
             <button type="button" onClick={reload} className="app-retry">
@@ -63,7 +77,14 @@ export function AppLayout() {
 
         {state.status === "ready" && (
           <>
+            {isOlderMinor(state.data.meta) && (
+              <p className="app-error" role="status" data-testid="app-minor-warning">
+                The published data is slightly older than this version of the app expects, so some
+                newer details may be missing. It will resolve itself at the next publication.
+              </p>
+            )}
             <Header meta={state.data.meta} />
+            <SourceAlerts data={state.data} />
             <ModelSelector />
             <main>
               <Outlet />

@@ -24,11 +24,17 @@ import pytest
 from pydantic import ValidationError
 
 from fpl_dof.config.models import ScheduleConfig
+from fpl_dof.gameweek import GameweekState, Phase
 from fpl_dof.schedule_cli import EXIT_OK
 from fpl_dof.schedule_cli import main as schedule_main
 from fpl_dof.silver.store import write_table
 from fpl_dof.silver.tables import Table
-from fpl_dof.week.schedule import fast_ingest_decision, pipeline_decision
+from fpl_dof.week.schedule import (
+    ScheduleDecision,
+    fast_ingest_decision,
+    next_fast_ingest,
+    pipeline_decision,
+)
 
 SYDNEY = ZoneInfo("Australia/Sydney")
 CONFIG = ScheduleConfig()
@@ -38,17 +44,29 @@ def _at(hour: int, minute: int = 0) -> dt.datetime:
     return dt.datetime(2026, 8, 20, hour, minute, tzinfo=dt.UTC)
 
 
+#: The instant the pipeline decisions are asked at; only minutes to the deadline matter to them.
+NOW = _at(12)
+
+
+def _state(now: dt.datetime, minutes: float | None) -> GameweekState | None:
+    """Gameweek 3's state ``minutes`` before its deadline: Open ahead of it, Recorded from it."""
+    if minutes is None:
+        return None
+    phase = Phase.OPEN if minutes > 0 else Phase.RECORDED
+    return GameweekState(3, phase, now + dt.timedelta(minutes=minutes), None)
+
+
 def _fast(*, hour: int, minutes: float | None, minute: int = 0) -> bool:
-    return fast_ingest_decision(
-        now=_at(hour, minute),
-        minutes_to_deadline=minutes,
-        gameweek=3,
-        config=CONFIG,
-    ).should_run
+    now = _at(hour, minute)
+    return fast_ingest_decision(now=now, state=_state(now, minutes), config=CONFIG).should_run
+
+
+def _decide(minutes: float | None, config: ScheduleConfig = CONFIG) -> ScheduleDecision:
+    return pipeline_decision(now=NOW, state=_state(NOW, minutes), config=config)
 
 
 def _pipeline(minutes: float | None, config: ScheduleConfig = CONFIG) -> bool:
-    return pipeline_decision(minutes_to_deadline=minutes, gameweek=3, config=config).should_run
+    return _decide(minutes, config).should_run
 
 
 # --- fast ingest ------------------------------------------------------------------------------
@@ -98,9 +116,7 @@ def test_the_decision_is_the_same_instant_however_the_clock_is_expressed() -> No
     sydney = utc.astimezone(SYDNEY)
     assert sydney.hour != utc.hour  # the test would be vacuous otherwise
     for moment in (utc, sydney):
-        decision = fast_ingest_decision(
-            now=moment, minutes_to_deadline=None, gameweek=3, config=CONFIG
-        )
+        decision = fast_ingest_decision(now=moment, state=None, config=CONFIG)
         assert decision.should_run is True
 
 
@@ -115,7 +131,7 @@ def test_nothing_is_scheduled_inside_the_forty_five_minute_freeze() -> None:
     minutes nobody thought to write a case for.
     """
     for minutes in range(0, 6 * 60 + 1):
-        decision = pipeline_decision(minutes_to_deadline=minutes, gameweek=3, config=CONFIG)
+        decision = _decide(minutes)
         if decision.should_run:
             assert minutes >= CONFIG.deadline_freeze_minutes, (
                 f"pipeline would run at T-{minutes}m, inside the "
@@ -175,14 +191,22 @@ def test_several_decision_chances_fall_inside_the_prospective_14h_window() -> No
 
 def test_an_unknown_deadline_stands_the_deadline_trigger_down() -> None:
     """The nightly cron and manual dispatch are unaffected; only this trigger is conditional."""
-    decision = pipeline_decision(minutes_to_deadline=None, gameweek=None, config=CONFIG)
+    decision = _decide(None)
     assert decision.should_run is False
-    assert "no deadline" in decision.reason
+    assert "no open gameweek" in decision.reason
+
+
+def test_a_gameweek_past_its_deadline_has_no_window_whatever_the_clock_says() -> None:
+    """ORC-01: the window belongs to the Open gameweek; a Recorded one is due nothing but ingest,
+    even at a moment that would match an offset if its deadline were still ahead."""
+    recorded = GameweekState(3, Phase.RECORDED, NOW + dt.timedelta(minutes=50), None)
+    assert pipeline_decision(now=NOW, state=recorded, config=CONFIG).should_run is False
+    assert _pipeline(50) is True
 
 
 def test_the_reason_names_the_window_so_a_skipped_run_is_never_a_mystery() -> None:
-    assert "T-45m" in pipeline_decision(minutes_to_deadline=50, gameweek=3, config=CONFIG).reason
-    assert "freeze" in pipeline_decision(minutes_to_deadline=10, gameweek=3, config=CONFIG).reason
+    assert "T-45m" in _decide(50).reason
+    assert "freeze" in _decide(10).reason
 
 
 def test_days_out_from_a_deadline_the_pipeline_leaves_it_to_the_nightly_run() -> None:
@@ -222,6 +246,26 @@ def test_the_shipped_defaults_are_the_ones_the_workflows_assume() -> None:
     assert CONFIG.deadline_freeze_minutes == 45.0
 
 
+def test_the_fast_ingest_cron_minute_is_the_workflows() -> None:
+    """ORC-07 reads the next check from config, so config must say what ingest-fast.yml fires."""
+    workflow = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "ingest-fast.yml"
+    assert f'cron: "{CONFIG.fast_ingest_cron_minute} * * * *"' in workflow.read_text("utf-8")
+
+
+def _next(now: dt.datetime, minutes: float | None) -> dt.datetime | None:
+    return next_fast_ingest(now=now, state=_state(now, minutes), config=CONFIG)
+
+
+def test_the_next_check_is_the_next_firing_the_guard_lets_fetch() -> None:
+    """ORC-07: four-hourly days out, hourly inside the window, never at or after the deadline."""
+    minute = CONFIG.fast_ingest_cron_minute
+    assert _next(_at(12, 30), 3 * 24 * 60) == _at(16, minute)  # the next boundary hour
+    assert _next(_at(12, 30), 5 * 60) == _at(13, minute)  # inside the window: the next hour
+    assert _next(_at(12, minute), 5 * 60) == _at(13, minute)  # strictly after now
+    assert _next(_at(12, 30), 20) is None  # the deadline comes first
+    assert _next(_at(12, 30), None) is None  # no Open gameweek
+
+
 # --- the guard command ------------------------------------------------------------------------
 
 SEASON = "2026/27"
@@ -254,6 +298,7 @@ def test_the_guard_reports_the_time_to_the_next_deadline(
     _write_gameweeks(tmp_path)
     payload = json.loads(_run(capsys, "--data-dir", str(tmp_path), "--now", "2026-08-21T14:30:00Z"))
     assert payload["gameweek"] == 1
+    assert payload["gameweek_state"] == "open"
     assert payload["hours_to_deadline"] == pytest.approx(3.0)
     assert payload["pipeline"]["should_run"] is True
 

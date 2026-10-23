@@ -11,7 +11,6 @@ from fpl_dof.week.cadence import (
     SYDNEY,
     GateDecision,
     gate,
-    marker,
 )
 from fpl_dof.week.cadence import (
     find_next_deadline_event as next_deadline,
@@ -23,6 +22,5 @@ __all__ = [
     "SYDNEY",
     "GateDecision",
     "gate",
-    "marker",
     "next_deadline",
 ]

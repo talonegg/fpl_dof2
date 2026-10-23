@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -9,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from fpl_dof.config.models import ModelsArtefactConfig
+from fpl_dof.config.models import ModelsArtefactConfig, SourcesConfig
 from fpl_dof.paths import DataLayout
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
 from fpl_dof.publish.models_compare import build_models
@@ -142,8 +143,13 @@ def test_actuals_and_season_to_date() -> None:
 def _ctx(source: Path | None, data: Path | None = None) -> Any:
     cfg = ModelsArtefactConfig(source_dir=str(source) if source else None)
     return SimpleNamespace(
-        config=SimpleNamespace(publish=SimpleNamespace(models=cfg)),
+        config=SimpleNamespace(
+            publish=SimpleNamespace(models=cfg),
+            runtime=SimpleNamespace(trigger="manual"),
+            sources=SourcesConfig(),
+        ),
         layout=DataLayout(root=data or (source or Path()) / "_data"),
+        as_of=dt.datetime(2026, 10, 9, 7, tzinfo=dt.UTC),
     )
 
 
@@ -159,6 +165,7 @@ def test_stage_reads_harness_dir(tmp_path: Path) -> None:
     payload = publish._models(_ctx(tmp_path), "2026/27")
     assert payload is not None
     assert payload["gameweeks"][0]["actual"]["c3"]["vice_used"] is True
+    assert (payload["as_of"], payload["trigger"]) == ("2026-10-09T07:00:00Z", "manual")
     assert payload["gameweeks"][0]["availability"]["a_odds"] == {
         "available": False,
         "reason": "live odds missing",
@@ -229,7 +236,9 @@ def _ledger_entry(gw: int, transfers: int, free: int) -> dict[str, Any]:
         "recorded_at": f"2026-10-{gw:02d}T08:00:00Z",
         "squad_state": {"free_transfers": free},
         "models": {
-            "c3": model("champion", 11, 0),
+            # Stamped as R1.3.0 records it (ORC-03); c1 is a pre-R1.3.0 entry with no stamp.
+            "c3": model("champion", 11, 0)
+            | {"as_of": f"2026-10-{gw:02d}T07:00:00Z", "trigger": "schedule"},
             "c1": model("challenger", 10, transfers),
             "a": {"role": "challenger", "no_advice": "no advice: odds missing"},
         },
@@ -264,6 +273,11 @@ def test_the_switch_gameweek_follows_the_last_frozen_decision(game_rules: GameRu
     ]
     gw9, gw10 = p["gameweeks"][2:]
     assert gw9["advice"]["c3"]["captain_name"] == "Cap"
+    assert (gw9["advice"]["c3"]["as_of"], gw9["advice"]["c3"]["trigger"]) == (
+        "2026-10-09T07:00:00Z",
+        "schedule",
+    )
+    assert "as_of" not in gw9["advice"]["c1"]
     assert gw9["advice"]["c1"]["transfers"][0]["in_name"] == "In"
     assert gw9["availability"]["a"] == {"available": False, "reason": "no advice: odds missing"}
     # Two moves with the two free transfers the owner really had cost nothing.
@@ -312,3 +326,43 @@ def test_stage_returns_none_when_absent_or_bad(tmp_path: Path, make: str) -> Non
         (tmp_path / "decisions").mkdir()
         (tmp_path / "decisions" / "GW7.json").write_text("{not json")
     assert publish._models(_ctx(None if make == "unset" else tmp_path), "2026/27") is None
+
+
+def test_a_strategy_waiting_for_a_source_names_it_since_when_and_the_next_check() -> None:
+    """ORC-07: the ledger's ``missing`` tables name the source; ``next_check`` is the Open
+    gameweek's only, and a failure that is not a missing source names none."""
+    waiting = {
+        "role": "challenger",
+        "as_of": "2026-10-10T08:00:00Z",
+        "since": "2026-10-09T02:00:00Z",
+        "no_advice": "no advice: MissingOddsError: no match odds knowable",
+        "missing": ["team_match_expectation"],
+    }
+    broken = {"role": "challenger", "as_of": "2026-10-10T08:00:00Z", "no_advice": "boom"}
+    ledger = {
+        gw: {"gameweek": gw, "recorded_at": "x", "models": {"a_odds": waiting, "c1": broken}}
+        for gw in (9, 10)
+    }
+    p = build_models(
+        season="2026/27",
+        decisions=[],
+        scores=[],
+        frozen_tag=None,
+        contract_version=CONTRACT_VERSION,
+        ledger=ledger,
+        sources={"team_match_expectation": ["Match odds"], "fixture": []},
+        open_gameweek=10,
+        next_check="2026-10-10T09:07:00Z",
+    )
+    assert p is not None
+    Contract(root=find_contracts_root()).validate("models", p)
+    gw9, gw10 = (g["availability"] for g in p["gameweeks"])
+    assert gw10["a_odds"] == {
+        "available": False,
+        "reason": waiting["no_advice"],
+        "sources": ["Match odds"],
+        "since": "2026-10-09T02:00:00Z",
+        "next_check": "2026-10-10T09:07:00Z",
+    }
+    assert gw9["a_odds"]["next_check"] is None  # no longer Open: nothing is checked for it
+    assert gw10["c1"] == {"available": False, "reason": "boom"}

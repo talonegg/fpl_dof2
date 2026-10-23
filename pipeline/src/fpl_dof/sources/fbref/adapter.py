@@ -218,6 +218,10 @@ class FbrefAdapter(SourceAdapter):
         self.note_observed(season, fetched)
         return self.parse_page(fetched.payload, page=page, key=self.season_slug(season))
 
+    def check(self, resource: str, key: str, payload: bytes) -> None:
+        if resource.startswith("league_"):
+            self.parse_page(payload, page=resource.removeprefix("league_"), key=key)
+
     def parse_page(self, payload: bytes, *, page: str, key: str) -> list[dict[str, str]]:
         """Read one statistics table. Testable against a recorded page with no transport at all."""
         table_id, _ = PAGES[page]
@@ -234,7 +238,8 @@ class FbrefAdapter(SourceAdapter):
                 resource=f"league_{page}",
                 key=key,
             )
-        missing = [name for name in REQUIRED_ROW_KEYS if name not in rows[0]]
+        # Every row, not the first: one malformed row makes the whole page malformed (DL-94).
+        missing = sorted({name for row in rows for name in REQUIRED_ROW_KEYS if name not in row})
         if missing:
             raise SourceContractError(
                 f"the {page} table is missing required cells: {', '.join(missing)}",

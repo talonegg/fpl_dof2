@@ -35,6 +35,7 @@ ENV_MAP: dict[str, tuple[str, ...]] = {
     "FPL_DOF_DATA_DIR": ("runtime", "data_dir"),
     "FPL_DOF_LOG_LEVEL": ("runtime", "log_level"),
     "FPL_DOF_TIMEZONE": ("runtime", "timezone"),
+    "FPL_DOF_TRIGGER": ("runtime", "trigger"),
     "FPL_DOF_USER_AGENT_CONTACT": ("http", "user_agent_contact"),
     "FPL_DOF_TEAM_ID": ("entry", "team_id"),
     "FPL_DOF_LEAGUE_ID": ("entry", "league_id"),

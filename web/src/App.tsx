@@ -61,7 +61,7 @@ export function AppRoutes() {
 export function App() {
   return (
     <ThemeProvider>
-      {/* The gate sits above DataProvider: nothing under data/v1 is fetched before unlock. */}
+      {/* The gate sits above DataProvider: nothing under the data directory is fetched before unlock. */}
       <PasswordGate expectedHash={BUILD_PASSWORD_HASH}>
         <DataProvider>
           <HashRouter
