@@ -269,7 +269,10 @@ than read: the chip captain multiplier (D-16). The most-captained id never reach
 `squad.load_squad_state` reconstructs the fifteen, purchase and selling prices, bank, free transfers
 and chips used, with provenance `from_picks`, `reconstructed` (picks plus later transfers) or
 `declared`. A declared squad (`entry.declared_*`) is a first-class input, because preseason there is
-nothing to reconstruct (DL-20), and is validated on entry. Free transfers are recomputed from history;
+nothing to reconstruct (DL-20), and is validated on entry. Picks publish no purchase price, so it is
+what was paid: the cost of the latest transfer that bought the player, else his price in the first
+gameweek he was held. Where neither is known the run warns and assumes the lowest price seen this
+season, which can understate the sell value but never overstate it. Free transfers are recomputed from history;
 Wildcard and Free Hit do not consume them. An illegal reconstruction raises, and the week and decision
 stages skip with a reason. `squad/selection.py` picks the XI across legal formations under the start
 floor (§6.1) and orders the bench by P(plays) × μ (DL-66).
