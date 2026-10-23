@@ -51,3 +51,36 @@ Write the case, run both suites, and make the *implementations* agree — never 
 to make a red test green. If the two disagree, `legality.py` is the authority (Invariant 2/9: it
 reads the same rules configuration the contract publishes) and the TypeScript mirror is what changes.
 One such disagreement has already been found and fixed that way; see DL-39.
+
+## `realised/realised-corpus.json`
+
+What a team actually scored is FPL's to say, so this corpus is FPL's own answer, not ours. Each case
+is a real public 2026/27 entry for one finished gameweek — the owner's and the mini-league's, by
+entry id and nothing else — and its `expected` is what the game published:
+`entry_history.points` (before the hit), `entry_history.event_transfers_cost`, and the game's
+`automatic_subs`. Only Python reads it today (`pipeline/tests/test_rules_realised.py`, against
+`fpl_dof/rules/realised.py`); it is here so a second implementation never gets its own copy.
+
+A case that the scorer cannot reproduce is a failing test, not an expectation to soften.
+
+| Key | What it is |
+| --- | --- |
+| `picks` | The fifteen in submitted order: starters 1–11, the reserve goalkeeper, then the outfield bench in order. Each has its `position` and `fixtures`, one `[minutes, points]` per fixture played (two in a double gameweek, none in a blank). |
+| `captain`, `vice_captain`, `chip` | As submitted. `chip` is the game's own name (`bboost`, `3xc`, `freehit`, `wildcard`) or `null`. |
+| `transfers`, `free_transfers` | `event_transfers` from `entry_history`, and the free transfers derived from the entry's history (below). `null` free transfers in the first gameweek, whose transfers are unlimited. |
+| `tags` | What the case exercises, so the test can insist the corpus still covers it. |
+
+### How a case is built from the public endpoints
+
+From `entry/{id}/event/{gw}/picks/`, `event/{gw}/live/` and `entry/{id}/history/`, with no
+credentials (Invariant 4):
+
+1. **The submitted team.** A finished gameweek's picks are the XI *after* substitution. Each pair in
+   `automatic_subs` is swapped back, last first, to recover the team as it stood at the deadline.
+2. **Per-fixture points.** Each player's `explain` in the live endpoint is one entry per fixture;
+   minutes are its `minutes` stat and points the sum of its stats' points.
+3. **Free transfers.** One at the second gameweek; after each gameweek, the unused ones plus one,
+   capped at the configured maximum; a Wildcard or Free Hit keeps the banked ones and adds one.
+
+No double gameweek or blank had been played when the corpus was cut (GW1 to GW7). The first double
+gameweek's entries are the next cases to add.

@@ -49,7 +49,7 @@ Python lives in `.venv` at the repo root, created with `uv`. `uv` is installed a
 | Python tests | `cd pipeline && ..\.venv\Scripts\python -m pytest -q` |
 | Live-API drift tests | `cd pipeline && ..\.venv\Scripts\python -m pytest -q --network` |
 | Slow tests — the historical chip replay (D-18/DL-28), ~16 min | `cd pipeline && ..\.venv\Scripts\python -m pytest -q --slow tests/test_chip_replay.py`. Needs the archive backfill in silver; writes its finding to `data/gold/chip-replay.json` |
-| Rules coverage gate (must be 100%) | `cd pipeline && ..\.venv\Scripts\python -m pytest --cov=fpl_dof.rules --cov-fail-under=100 tests/test_rules_build.py tests/test_rules_scoring.py tests/test_rules_legality.py` |
+| Rules coverage gate (must be 100%) | `cd pipeline && ..\.venv\Scripts\python -m pytest --cov=fpl_dof.rules --cov-fail-under=100 tests/test_rules_build.py tests/test_rules_scoring.py tests/test_rules_legality.py tests/test_rules_realised.py` |
 | Lint + format + type check | `cd pipeline && ..\.venv\Scripts\python -m ruff check . && ..\.venv\Scripts\python -m ruff format --check . && ..\.venv\Scripts\python -m mypy && ..\.venv\Scripts\lint-imports` |
 | Web dev server (LAN-accessible for mobile testing) | `cd web && npm run dev` — `vite.config.ts` sets `host: true` |
 | Web tests | `cd web && npm run test -- --run` |

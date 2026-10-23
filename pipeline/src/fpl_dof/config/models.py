@@ -201,12 +201,22 @@ class SupplementaryTransfers(_Section):
     extra_transfer_cost: int = -4
 
 
+class SupplementaryChips(_Section):
+    """What each chip does to a score. See config/defaults/rules.yaml for why it is configured."""
+
+    captain_multiplier: int = Field(default=2, gt=0)
+    captain_multiplier_by_chip: dict[str, int] = Field(default_factory=lambda: {"3xc": 3})
+    bench_scores_with: tuple[str, ...] = ("bboost",)
+    transfers_free_with: tuple[str, ...] = ("wildcard", "freehit")
+
+
 class RulesConfig(_Section):
     """The supplementary half of the rules. The rest is seeded from the source snapshot."""
 
     season: str = "2026/27"
     scoring: SupplementaryScoring = SupplementaryScoring()
     transfers: SupplementaryTransfers = SupplementaryTransfers()
+    chips: SupplementaryChips = SupplementaryChips()
 
 
 class MinutesConfig(_Section):

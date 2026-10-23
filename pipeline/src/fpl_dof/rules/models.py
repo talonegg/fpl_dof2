@@ -14,7 +14,8 @@ ones to be suspicious of, and they are deliberately few:
 * the Defensive Contribution match thresholds;
 * the bonus points awarded to the top three BPS scorers;
 * the minutes threshold separating an appearance from a full game;
-* free-transfer accumulation and the points cost of an extra transfer.
+* free-transfer accumulation and the points cost of an extra transfer;
+* what each chip does to a score: the armband multipliers, the bench, and free transfers.
 
 Every field carries provenance: :attr:`GameRules.derived` records which values came from the API
 snapshot and which came from configuration, and that record is published in the web contract
@@ -148,6 +149,25 @@ class TransferRules(_Frozen):
     )
 
 
+class ChipRules(_Frozen):
+    """What each chip does to a gameweek's score.
+
+    Supplementary in full: the API's ``chips[].overrides`` publishes no multiplier and no bench
+    rule (``pick_multiplier`` is null for every chip).
+    """
+
+    captain_multiplier: int = Field(gt=0, description="The armband's ordinary multiplier.")
+    captain_multiplier_by_chip: dict[str, int] = Field(
+        description="Chip name -> the armband multiplier it imposes instead."
+    )
+    bench_scores_with: tuple[str, ...] = Field(
+        description="Chips under which all fifteen score and no substitution is made."
+    )
+    transfers_free_with: tuple[str, ...] = Field(
+        description="Chips under which the gameweek's transfers cost no points."
+    )
+
+
 class ApiScoring(_Frozen):
     """Exactly the scoring values a source publishes. No supplementary values may appear here."""
 
@@ -199,6 +219,7 @@ class GameRules(_Frozen):
     scoring: ScoringRules
     squad: SquadRules
     transfers: TransferRules
+    chips: ChipRules
     derived: dict[str, str] = Field(
         default_factory=dict,
         description=(
