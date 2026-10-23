@@ -1,0 +1,935 @@
+[
+  {
+    "strategy": {
+      "id": "c3",
+      "digest": "6578a3b87191f0235f2588a249c1c4520fc7a08a3fcbb569c5d6292c28246391"
+    },
+    "role": "champion",
+    "training_window": "current_season",
+    "run_id": "20261023T025830Z-e93622d9",
+    "recorded_at": "2026-10-23T02:58:30.872895+00:00",
+    "config_digest": "93b003897a4e15caf3a4c79b441a5a323f423258eed6e5f1ef880bdced7d0b76",
+    "data_window": {
+      "seasons": [
+        "2024/25",
+        "2025/26"
+      ],
+      "first": {
+        "season": "2024/25",
+        "gameweek": 5
+      },
+      "last": {
+        "season": "2025/26",
+        "gameweek": 38
+      },
+      "folds": 68
+    },
+    "metrics": {
+      "name": "model",
+      "observations": 20573,
+      "mae": 1.9061,
+      "rmse": 3.0566,
+      "mae_skill_score": 0.02687,
+      "spearman": 0.2826,
+      "spearman_by_position": {
+        "DEF": 0.233,
+        "FWD": 0.34199,
+        "GKP": 0.08461,
+        "MID": 0.31499
+      },
+      "spearman_by_price_band": {
+        "<10.0": 0.12006,
+        "<5.0": 0.23164,
+        "<7.5": 0.24655,
+        ">=10.0": 0.28352
+      },
+      "spearman_by_fixture_band": {
+        "average": 0.22911,
+        "easy": 0.28199,
+        "hard": 0.25141
+      },
+      "calibration_by_fixture_band": {
+        "average": 0.61959,
+        "easy": 0.74926,
+        "hard": 0.64426
+      },
+      "top_n_precision": 0.125,
+      "top_n_precision_by_position": {
+        "DEF": 0.12185,
+        "FWD": 0.20956,
+        "GKP": 0.23039,
+        "MID": 0.13655
+      },
+      "captaincy_hit_rate": 0.02941,
+      "calibration_slope": 0.75538,
+      "calibration_slope_by_position": {
+        "DEF": 0.67895,
+        "FWD": 0.8741,
+        "GKP": 0.16478,
+        "MID": 0.99395
+      },
+      "minutes_brier": 0.32943
+    },
+    "paired_vs_champion": null,
+    "verdict": "The forecast beats B0 but not the model-free benchmark. It knows more than price, and still less than picking the last six gameweeks' top scorers. This is the finding, not a number to tune.",
+    "beats_b0": true,
+    "beats_model_free": false,
+    "b0": {
+      "name": "B0 (price + position)",
+      "observations": 20573,
+      "mae": 1.95873,
+      "rmse": 3.17609,
+      "mae_skill_score": 0.00776,
+      "spearman": 0.21441,
+      "spearman_by_position": {
+        "DEF": 0.1775,
+        "FWD": 0.28044,
+        "GKP": 0.0585,
+        "MID": 0.22596
+      },
+      "spearman_by_price_band": {
+        "<10.0": 0.02134,
+        "<5.0": 0.15171,
+        "<7.5": 0.12065,
+        ">=10.0": 0.16715
+      },
+      "spearman_by_fixture_band": {
+        "average": 0.15401,
+        "easy": 0.20784,
+        "hard": 0.18505
+      },
+      "calibration_by_fixture_band": {
+        "average": 0.54186,
+        "easy": 0.5251,
+        "hard": 0.5878
+      },
+      "top_n_precision": 0.16471,
+      "top_n_precision_by_position": {
+        "DEF": 0.13445,
+        "FWD": 0.23897,
+        "GKP": 0.19608,
+        "MID": 0.17857
+      },
+      "captaincy_hit_rate": 0.05882,
+      "calibration_slope": 0.60275,
+      "calibration_slope_by_position": {
+        "DEF": 0.64855,
+        "FWD": 0.56137,
+        "GKP": 0.15419,
+        "MID": 0.65692
+      },
+      "minutes_brier": null
+    },
+    "model_free": {
+      "name": "model-free (trailing 6)",
+      "observations": 20573,
+      "mae": 2.10174,
+      "rmse": 3.06389,
+      "mae_skill_score": -0.07301,
+      "spearman": 0.29724,
+      "spearman_by_position": {
+        "DEF": 0.21057,
+        "FWD": 0.41136,
+        "GKP": 0.04587,
+        "MID": 0.35396
+      },
+      "spearman_by_price_band": {
+        "<10.0": 0.14289,
+        "<5.0": 0.23881,
+        "<7.5": 0.27491,
+        ">=10.0": 0.31637
+      },
+      "spearman_by_fixture_band": {
+        "average": 0.2721,
+        "easy": 0.31255,
+        "hard": 0.26301
+      },
+      "calibration_by_fixture_band": {
+        "average": 0.37796,
+        "easy": 0.44225,
+        "hard": 0.30402
+      },
+      "top_n_precision": 0.14706,
+      "top_n_precision_by_position": {
+        "DEF": 0.13235,
+        "FWD": 0.23897,
+        "GKP": 0.15196,
+        "MID": 0.13655
+      },
+      "captaincy_hit_rate": 0.07353,
+      "calibration_slope": 0.40783,
+      "calibration_slope_by_position": {
+        "DEF": 0.33015,
+        "FWD": 0.46742,
+        "GKP": 0.03585,
+        "MID": 0.46513
+      },
+      "minutes_brier": null
+    },
+    "mean_baseline": {
+      "name": "mean",
+      "observations": 20573,
+      "mae": 1.97404,
+      "rmse": 3.37864,
+      "mae_skill_score": 0.0,
+      "spearman": -0.03581,
+      "spearman_by_position": {
+        "DEF": -0.06908,
+        "FWD": 0.04854,
+        "GKP": -0.02023,
+        "MID": -0.03486
+      },
+      "spearman_by_price_band": {
+        "<10.0": 0.0743,
+        "<5.0": -0.06708,
+        "<7.5": -0.01419,
+        ">=10.0": 0.20374
+      },
+      "spearman_by_fixture_band": {
+        "average": -0.02168,
+        "easy": -0.02043,
+        "hard": -0.06064
+      },
+      "calibration_by_fixture_band": {
+        "average": -1.67144,
+        "easy": -2.94229,
+        "hard": -4.23716
+      },
+      "top_n_precision": 0.07279,
+      "top_n_precision_by_position": {
+        "DEF": 0.07983,
+        "FWD": 0.125,
+        "GKP": 0.14706,
+        "MID": 0.04832
+      },
+      "captaincy_hit_rate": 0.01471,
+      "calibration_slope": -3.32994,
+      "calibration_slope_by_position": {
+        "DEF": -8.16901,
+        "FWD": 7.13718,
+        "GKP": -1.53707,
+        "MID": -2.83143
+      },
+      "minutes_brier": null
+    },
+    "monolith": {
+      "name": "monolith (shadow, GBM)",
+      "observations": 20573,
+      "mae": 1.98467,
+      "rmse": 2.93364,
+      "mae_skill_score": -0.04122,
+      "spearman": 0.32637,
+      "spearman_by_position": {
+        "DEF": 0.25088,
+        "FWD": 0.41909,
+        "GKP": 0.10376,
+        "MID": 0.37561
+      },
+      "spearman_by_price_band": {
+        "<10.0": 0.16697,
+        "<5.0": 0.27401,
+        "<7.5": 0.30067,
+        ">=10.0": 0.25187
+      },
+      "spearman_by_fixture_band": {
+        "average": 0.28893,
+        "easy": 0.33471,
+        "hard": 0.28194
+      },
+      "calibration_by_fixture_band": {
+        "average": 0.49135,
+        "easy": 0.56708,
+        "hard": 0.48745
+      },
+      "top_n_precision": 0.16618,
+      "top_n_precision_by_position": {
+        "DEF": 0.10714,
+        "FWD": 0.23162,
+        "GKP": 0.18137,
+        "MID": 0.17227
+      },
+      "captaincy_hit_rate": 0.10294,
+      "calibration_slope": 0.56638,
+      "calibration_slope_by_position": {
+        "DEF": 0.48884,
+        "FWD": 0.61104,
+        "GKP": 0.19313,
+        "MID": 0.63374
+      },
+      "minutes_brier": null
+    },
+    "explainability_gap": {
+      "top_n_precision": 0.04118,
+      "top_n_precision_by_position": {
+        "DEF": -0.01471,
+        "FWD": 0.02206,
+        "GKP": -0.04902,
+        "MID": 0.03571
+      },
+      "statement": "**The explainability trade, measured (E10-S5).** At the head of the ranking \u2014 top-20 precision within a gameweek \u2014 a gradient-boosted model on exactly the same features scores **0.166** against the chain's **0.125**, a gap of **+0.041**. On overall rank correlation the same comparison is 0.326 against 0.283, +0.044. So the interpretable chain is **not** free at the head: this is what the project pays for a forecast whose every number decomposes into components a human can challenge. The monolith is a benchmark and never a candidate \u2014 it does not reach `optimise`, the decision layer or the published ranking, and promoting it would be an explicit DP-10 decision weighing that gap against losing the decomposition entirely. Per position the gap is widest at **MID** (+0.036). A gap concentrated in one position is a statement about that position's formulation, not about interpretability in general (E10 \u00a70).",
+      "monolith_model": {
+        "name": "monolith",
+        "library": "sklearn.ensemble.HistGradientBoostingRegressor",
+        "training_rows": 55096,
+        "features": [
+          "goals_scored_per90_last3",
+          "assists_per90_last3",
+          "clean_sheets_per90_last3",
+          "saves_per90_last3",
+          "bonus_per90_last3",
+          "bps_per90_last3",
+          "defensive_contribution_per90_last3",
+          "expected_goals_per90_last3",
+          "expected_assists_per90_last3",
+          "total_points_per90_last3",
+          "yellow_cards_per90_last3",
+          "goals_scored_per90_last6",
+          "assists_per90_last6",
+          "clean_sheets_per90_last6",
+          "saves_per90_last6",
+          "bonus_per90_last6",
+          "bps_per90_last6",
+          "defensive_contribution_per90_last6",
+          "expected_goals_per90_last6",
+          "expected_assists_per90_last6",
+          "total_points_per90_last6",
+          "yellow_cards_per90_last6",
+          "goals_scored_per90_last12",
+          "assists_per90_last12",
+          "clean_sheets_per90_last12",
+          "saves_per90_last12",
+          "bonus_per90_last12",
+          "bps_per90_last12",
+          "defensive_contribution_per90_last12",
+          "expected_goals_per90_last12",
+          "expected_assists_per90_last12",
+          "total_points_per90_last12",
+          "yellow_cards_per90_last12",
+          "minutes_mean_last3",
+          "minutes_mean_last6",
+          "minutes_mean_last12",
+          "starts_rate",
+          "appearance_rate",
+          "matches_observed",
+          "days_since_last_match",
+          "matches_last14d",
+          "absence_share_last4",
+          "price",
+          "was_home",
+          "fixture_team_id",
+          "fixture_opponent_team_id",
+          "fixture_at_home",
+          "position"
+        ],
+        "categorical": [
+          "fixture_opponent_team_id",
+          "fixture_team_id",
+          "position"
+        ],
+        "degraded": null
+      },
+      "never_promoted": "The monolith is a shadow benchmark. It does not reach optimise, the decision layer or the published ranking, and never will without an explicit DP-10 decision (E10-S5, DL-53)."
+    },
+    "minutes_calibration": {
+      "observations": 51404,
+      "baseline_name": "b_status_haircut",
+      "brier": 0.32943,
+      "baseline_brier": 0.42578,
+      "skill_score": 0.22631,
+      "beats_baseline": true,
+      "by_position": {
+        "DEF": 0.33505,
+        "FWD": 0.36247,
+        "GKP": 0.13076,
+        "MID": 0.36603
+      },
+      "baseline_by_position": {
+        "DEF": 0.4211,
+        "FWD": 0.44933,
+        "GKP": 0.29622,
+        "MID": 0.45534
+      },
+      "by_band": {
+        "long": 0.43088,
+        "none": 0.14593,
+        "short": 0.97076
+      },
+      "baseline_by_band": {
+        "long": 0.2775,
+        "none": 0.36285,
+        "short": 1.03223
+      }
+    },
+    "warnings": []
+  },
+  {
+    "strategy": {
+      "id": "a",
+      "digest": "7d4945253972e35f16ab2c05ef68f46ec99166d4e18ed9923b113cecab4926da"
+    },
+    "role": "challenger",
+    "training_window": "all_seasons",
+    "run_id": "20261023T025830Z-e93622d9",
+    "recorded_at": "2026-10-23T02:58:30.872895+00:00",
+    "config_digest": "93b003897a4e15caf3a4c79b441a5a323f423258eed6e5f1ef880bdced7d0b76",
+    "data_window": {
+      "seasons": [
+        "2024/25",
+        "2025/26"
+      ],
+      "first": {
+        "season": "2024/25",
+        "gameweek": 5
+      },
+      "last": {
+        "season": "2025/26",
+        "gameweek": 38
+      },
+      "folds": 68
+    },
+    "metrics": {
+      "name": "a",
+      "observations": 20573,
+      "mae": 1.90471,
+      "rmse": 2.89769,
+      "mae_skill_score": 0.02758,
+      "spearman": 0.36334,
+      "spearman_by_position": {
+        "DEF": 0.28708,
+        "FWD": 0.45435,
+        "GKP": 0.08964,
+        "MID": 0.41401
+      },
+      "spearman_by_price_band": {
+        "<10.0": 0.1867,
+        "<5.0": 0.31869,
+        "<7.5": 0.33689,
+        ">=10.0": 0.20596
+      },
+      "spearman_by_fixture_band": {
+        "average": 0.34082,
+        "easy": 0.37042,
+        "hard": 0.33015
+      },
+      "calibration_by_fixture_band": {
+        "average": 0.67647,
+        "easy": 0.74408,
+        "hard": 0.59699
+      },
+      "top_n_precision": 0.17794,
+      "top_n_precision_by_position": {
+        "DEF": 0.12395,
+        "FWD": 0.21691,
+        "GKP": 0.21078,
+        "MID": 0.16387
+      },
+      "captaincy_hit_rate": 0.05882,
+      "calibration_slope": 0.71916,
+      "calibration_slope_by_position": {
+        "DEF": 0.71571,
+        "FWD": 0.68889,
+        "GKP": 0.18851,
+        "MID": 0.77602
+      },
+      "minutes_brier": null
+    },
+    "paired_vs_champion": {
+      "mae": {
+        "gameweeks": 68,
+        "mean": -0.00155,
+        "ci_low": -0.01499,
+        "ci_high": 0.01181,
+        "significant": false
+      },
+      "spearman": {
+        "gameweeks": 68,
+        "mean": 0.0767,
+        "ci_low": 0.0614,
+        "ci_high": 0.09213,
+        "significant": true
+      },
+      "top_n_precision": {
+        "gameweeks": 68,
+        "mean": 0.05294,
+        "ci_low": 0.02792,
+        "ci_high": 0.07868,
+        "significant": true
+      }
+    }
+  },
+  {
+    "strategy": {
+      "id": "a_odds",
+      "digest": "7ea019f93d2bebe7bf76aab3aa46b0579468c432070e0a826b360b92fda482d1"
+    },
+    "role": "challenger",
+    "training_window": "all_seasons",
+    "run_id": "20261023T025830Z-e93622d9",
+    "recorded_at": "2026-10-23T02:58:30.872895+00:00",
+    "config_digest": "93b003897a4e15caf3a4c79b441a5a323f423258eed6e5f1ef880bdced7d0b76",
+    "data_window": {
+      "seasons": [
+        "2024/25",
+        "2025/26"
+      ],
+      "first": {
+        "season": "2024/25",
+        "gameweek": 5
+      },
+      "last": {
+        "season": "2025/26",
+        "gameweek": 38
+      },
+      "folds": 68
+    },
+    "metrics": {
+      "name": "a_odds",
+      "observations": 20573,
+      "mae": 2.01854,
+      "rmse": 2.85449,
+      "mae_skill_score": -0.03054,
+      "spearman": 0.35139,
+      "spearman_by_position": {
+        "DEF": 0.30332,
+        "FWD": 0.39443,
+        "GKP": 0.1216,
+        "MID": 0.38845
+      },
+      "spearman_by_price_band": {
+        "<10.0": 0.18623,
+        "<5.0": 0.3198,
+        "<7.5": 0.30188,
+        ">=10.0": 0.2251
+      },
+      "spearman_by_fixture_band": {
+        "average": 0.31667,
+        "easy": 0.33615,
+        "hard": 0.33236
+      },
+      "calibration_by_fixture_band": {
+        "average": 0.60651,
+        "easy": 0.62252,
+        "hard": 0.60133
+      },
+      "top_n_precision": 0.17941,
+      "top_n_precision_by_position": {
+        "DEF": 0.14496,
+        "FWD": 0.20956,
+        "GKP": 0.21078,
+        "MID": 0.17227
+      },
+      "captaincy_hit_rate": 0.07353,
+      "calibration_slope": 0.64632,
+      "calibration_slope_by_position": {
+        "DEF": 0.65776,
+        "FWD": 0.62843,
+        "GKP": 0.21828,
+        "MID": 0.68381
+      },
+      "minutes_brier": null
+    },
+    "paired_vs_champion": {
+      "mae": {
+        "gameweeks": 68,
+        "mean": 0.11223,
+        "ci_low": 0.09663,
+        "ci_high": 0.12918,
+        "significant": true
+      },
+      "spearman": {
+        "gameweeks": 68,
+        "mean": 0.06745,
+        "ci_low": 0.05392,
+        "ci_high": 0.08073,
+        "significant": true
+      },
+      "top_n_precision": {
+        "gameweeks": 68,
+        "mean": 0.05441,
+        "ci_low": 0.03307,
+        "ci_high": 0.075,
+        "significant": true
+      }
+    }
+  },
+  {
+    "strategy": {
+      "id": "c1",
+      "digest": "6548c75455e9e6752b6b93caa6e9536eaf612fc3e62c70c396006ef321cf41f4"
+    },
+    "role": "challenger",
+    "training_window": "all_seasons",
+    "run_id": "20261023T025830Z-e93622d9",
+    "recorded_at": "2026-10-23T02:58:30.872895+00:00",
+    "config_digest": "93b003897a4e15caf3a4c79b441a5a323f423258eed6e5f1ef880bdced7d0b76",
+    "data_window": {
+      "seasons": [
+        "2024/25",
+        "2025/26"
+      ],
+      "first": {
+        "season": "2024/25",
+        "gameweek": 5
+      },
+      "last": {
+        "season": "2025/26",
+        "gameweek": 38
+      },
+      "folds": 68
+    },
+    "metrics": {
+      "name": "c1",
+      "observations": 20573,
+      "mae": 1.93351,
+      "rmse": 2.88892,
+      "mae_skill_score": 0.01287,
+      "spearman": 0.3488,
+      "spearman_by_position": {
+        "DEF": 0.26858,
+        "FWD": 0.43747,
+        "GKP": 0.1012,
+        "MID": 0.40442
+      },
+      "spearman_by_price_band": {
+        "<10.0": 0.17613,
+        "<5.0": 0.29765,
+        "<7.5": 0.32369,
+        ">=10.0": 0.14471
+      },
+      "spearman_by_fixture_band": {
+        "average": 0.32271,
+        "easy": 0.35013,
+        "hard": 0.31734
+      },
+      "calibration_by_fixture_band": {
+        "average": 0.6514,
+        "easy": 0.68572,
+        "hard": 0.58283
+      },
+      "top_n_precision": 0.17206,
+      "top_n_precision_by_position": {
+        "DEF": 0.12185,
+        "FWD": 0.20956,
+        "GKP": 0.17647,
+        "MID": 0.18487
+      },
+      "captaincy_hit_rate": 0.08824,
+      "calibration_slope": 0.68313,
+      "calibration_slope_by_position": {
+        "DEF": 0.57891,
+        "FWD": 0.76534,
+        "GKP": 0.19544,
+        "MID": 0.76922
+      },
+      "minutes_brier": null
+    },
+    "paired_vs_champion": {
+      "mae": {
+        "gameweeks": 68,
+        "mean": 0.0271,
+        "ci_low": 0.01467,
+        "ci_high": 0.03999,
+        "significant": true
+      },
+      "spearman": {
+        "gameweeks": 68,
+        "mean": 0.06399,
+        "ci_low": 0.04896,
+        "ci_high": 0.07863,
+        "significant": true
+      },
+      "top_n_precision": {
+        "gameweeks": 68,
+        "mean": 0.04706,
+        "ci_low": 0.02721,
+        "ci_high": 0.06838,
+        "significant": true
+      }
+    }
+  },
+  {
+    "strategy": {
+      "id": "engine",
+      "digest": "9813811f35fef95f30a9e9c7a83d376811ca05713c76319b82f989dc5df8634a"
+    },
+    "role": "challenger",
+    "training_window": "current_season",
+    "run_id": "20261023T025830Z-e93622d9",
+    "recorded_at": "2026-10-23T02:58:30.872895+00:00",
+    "config_digest": "93b003897a4e15caf3a4c79b441a5a323f423258eed6e5f1ef880bdced7d0b76",
+    "data_window": {
+      "seasons": [
+        "2024/25",
+        "2025/26"
+      ],
+      "first": {
+        "season": "2024/25",
+        "gameweek": 5
+      },
+      "last": {
+        "season": "2025/26",
+        "gameweek": 38
+      },
+      "folds": 68
+    },
+    "metrics": {
+      "name": "engine",
+      "observations": 20573,
+      "mae": 1.9073,
+      "rmse": 3.0295,
+      "mae_skill_score": 0.02625,
+      "spearman": 0.27813,
+      "spearman_by_position": {
+        "DEF": 0.22893,
+        "FWD": 0.33161,
+        "GKP": 0.08773,
+        "MID": 0.31052
+      },
+      "spearman_by_price_band": {
+        "<10.0": 0.11163,
+        "<5.0": 0.22868,
+        "<7.5": 0.23849,
+        ">=10.0": 0.27941
+      },
+      "spearman_by_fixture_band": {
+        "average": 0.2235,
+        "easy": 0.27622,
+        "hard": 0.24611
+      },
+      "calibration_by_fixture_band": {
+        "average": 0.60844,
+        "easy": 0.74765,
+        "hard": 0.63061
+      },
+      "top_n_precision": 0.12206,
+      "top_n_precision_by_position": {
+        "DEF": 0.11975,
+        "FWD": 0.19118,
+        "GKP": 0.2402,
+        "MID": 0.13866
+      },
+      "captaincy_hit_rate": 0.02941,
+      "calibration_slope": 0.74886,
+      "calibration_slope_by_position": {
+        "DEF": 0.66538,
+        "FWD": 0.85262,
+        "GKP": 0.17377,
+        "MID": 0.99211
+      },
+      "minutes_brier": null
+    },
+    "paired_vs_champion": {
+      "mae": {
+        "gameweeks": 68,
+        "mean": 0.00124,
+        "ci_low": -0.0011,
+        "ci_high": 0.00359,
+        "significant": false
+      },
+      "spearman": {
+        "gameweeks": 68,
+        "mean": -0.00574,
+        "ci_low": -0.00823,
+        "ci_high": -0.0033,
+        "significant": true
+      },
+      "top_n_precision": {
+        "gameweeks": 68,
+        "mean": -0.00294,
+        "ci_low": -0.01029,
+        "ci_high": 0.00515,
+        "significant": false
+      }
+    }
+  },
+  {
+    "strategy": {
+      "id": "c3_f1",
+      "digest": "e0bcb6a9b46c028a97a77bea2b5b5f6394d01bfae7be988481d37036cbad8670"
+    },
+    "role": "experiment",
+    "training_window": "current_season",
+    "run_id": "20261023T025830Z-e93622d9",
+    "recorded_at": "2026-10-23T02:58:30.872895+00:00",
+    "config_digest": "93b003897a4e15caf3a4c79b441a5a323f423258eed6e5f1ef880bdced7d0b76",
+    "data_window": {
+      "seasons": [
+        "2024/25",
+        "2025/26"
+      ],
+      "first": {
+        "season": "2024/25",
+        "gameweek": 5
+      },
+      "last": {
+        "season": "2025/26",
+        "gameweek": 38
+      },
+      "folds": 68
+    },
+    "metrics": {
+      "name": "c3_f1",
+      "observations": 20573,
+      "mae": 1.90559,
+      "rmse": 3.05798,
+      "mae_skill_score": 0.02713,
+      "spearman": 0.28229,
+      "spearman_by_position": {
+        "DEF": 0.23346,
+        "FWD": 0.34398,
+        "GKP": 0.08357,
+        "MID": 0.31401
+      },
+      "spearman_by_price_band": {
+        "<10.0": 0.1209,
+        "<5.0": 0.23258,
+        "<7.5": 0.24521,
+        ">=10.0": 0.27944
+      },
+      "spearman_by_fixture_band": {
+        "average": 0.22915,
+        "easy": 0.27994,
+        "hard": 0.25246
+      },
+      "calibration_by_fixture_band": {
+        "average": 0.62036,
+        "easy": 0.74791,
+        "hard": 0.65106
+      },
+      "top_n_precision": 0.12353,
+      "top_n_precision_by_position": {
+        "DEF": 0.11975,
+        "FWD": 0.20956,
+        "GKP": 0.21569,
+        "MID": 0.13655
+      },
+      "captaincy_hit_rate": 0.02941,
+      "calibration_slope": 0.75758,
+      "calibration_slope_by_position": {
+        "DEF": 0.68399,
+        "FWD": 0.87885,
+        "GKP": 0.16536,
+        "MID": 0.99947
+      },
+      "minutes_brier": null
+    },
+    "paired_vs_champion": {
+      "mae": {
+        "gameweeks": 68,
+        "mean": -0.00052,
+        "ci_low": -0.00121,
+        "ci_high": 0.00021,
+        "significant": false
+      },
+      "spearman": {
+        "gameweeks": 68,
+        "mean": -2e-05,
+        "ci_low": -0.00094,
+        "ci_high": 0.00089,
+        "significant": false
+      },
+      "top_n_precision": {
+        "gameweeks": 68,
+        "mean": -0.00147,
+        "ci_low": -0.00735,
+        "ci_high": 0.00368,
+        "significant": false
+      }
+    }
+  },
+  {
+    "strategy": {
+      "id": "c3_f3",
+      "digest": "a718a38da62370dafd4070d5df4c4ce2816858558221d781e5999252fef2c1e5"
+    },
+    "role": "experiment",
+    "training_window": "all_seasons",
+    "run_id": "20261023T025830Z-e93622d9",
+    "recorded_at": "2026-10-23T02:58:30.872895+00:00",
+    "config_digest": "93b003897a4e15caf3a4c79b441a5a323f423258eed6e5f1ef880bdced7d0b76",
+    "data_window": {
+      "seasons": [
+        "2024/25",
+        "2025/26"
+      ],
+      "first": {
+        "season": "2024/25",
+        "gameweek": 5
+      },
+      "last": {
+        "season": "2025/26",
+        "gameweek": 38
+      },
+      "folds": 68
+    },
+    "metrics": {
+      "name": "c3_f3",
+      "observations": 20573,
+      "mae": 1.91812,
+      "rmse": 3.08192,
+      "mae_skill_score": 0.02073,
+      "spearman": 0.2636,
+      "spearman_by_position": {
+        "DEF": 0.22496,
+        "FWD": 0.29408,
+        "GKP": 0.09383,
+        "MID": 0.29077
+      },
+      "spearman_by_price_band": {
+        "<10.0": 0.11056,
+        "<5.0": 0.21922,
+        "<7.5": 0.21201,
+        ">=10.0": 0.26226
+      },
+      "spearman_by_fixture_band": {
+        "average": 0.2114,
+        "easy": 0.26227,
+        "hard": 0.23096
+      },
+      "calibration_by_fixture_band": {
+        "average": 0.60733,
+        "easy": 0.70282,
+        "hard": 0.59151
+      },
+      "top_n_precision": 0.125,
+      "top_n_precision_by_position": {
+        "DEF": 0.11765,
+        "FWD": 0.1875,
+        "GKP": 0.2451,
+        "MID": 0.14286
+      },
+      "captaincy_hit_rate": 0.02941,
+      "calibration_slope": 0.71547,
+      "calibration_slope_by_position": {
+        "DEF": 0.67299,
+        "FWD": 0.78251,
+        "GKP": 0.17659,
+        "MID": 0.8899
+      },
+      "minutes_brier": null
+    },
+    "paired_vs_champion": {
+      "mae": {
+        "gameweeks": 68,
+        "mean": 0.01199,
+        "ci_low": 0.00725,
+        "ci_high": 0.0167,
+        "significant": true
+      },
+      "spearman": {
+        "gameweeks": 68,
+        "mean": -0.0168,
+        "ci_low": -0.02406,
+        "ci_high": -0.00954,
+        "significant": true
+      },
+      "top_n_precision": {
+        "gameweeks": 68,
+        "mean": 0.0,
+        "ci_low": -0.01103,
+        "ci_high": 0.01029,
+        "significant": false
+      }
+    }
+  }
+]
