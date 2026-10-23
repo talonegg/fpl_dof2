@@ -69,7 +69,6 @@ def select_team(
     candidates: Mapping[int, Candidate],
     rules: GameRules,
     *,
-    captain_multiplier: int = 2,
     start_probability_floor: float = 0.0,
     locked_player_ids: frozenset[int] = frozenset(),
 ) -> Selection:
@@ -139,7 +138,7 @@ def select_team(
         formation=_formation_label(formation),
         # The captain's points count once as a starter and again for each extra multiplier.
         expected_points=round(
-            total + captain.expected_points * (captain_multiplier - 1),
+            total + captain.expected_points * (rules.chips.captain_multiplier - 1),
             4,
         ),
     )

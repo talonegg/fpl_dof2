@@ -209,6 +209,23 @@ class SupplementaryScoring(_Section):
 class SupplementaryTransfers(_Section):
     max_free_transfers: int = Field(default=5, gt=0)
     extra_transfer_cost: int = -4
+    free_transfers_per_gameweek: int = Field(
+        default=1,
+        gt=0,
+        description=(
+            "Free transfers earned each gameweek, and the allowance going into GW2: transfers "
+            "before the GW1 deadline are unlimited and none carries over. Not in the API."
+        ),
+    )
+
+
+class SupplementaryChips(_Section):
+    """What each chip does to a score. See config/defaults/rules.yaml for why it is configured."""
+
+    captain_multiplier: int = Field(default=2, gt=0)
+    captain_multiplier_by_chip: dict[str, int] = Field(default_factory=lambda: {"3xc": 3})
+    bench_scores_with: tuple[str, ...] = ("bboost",)
+    transfers_free_with: tuple[str, ...] = ("wildcard", "freehit")
 
 
 class RulesConfig(_Section):
@@ -217,6 +234,7 @@ class RulesConfig(_Section):
     season: str = "2026/27"
     scoring: SupplementaryScoring = SupplementaryScoring()
     transfers: SupplementaryTransfers = SupplementaryTransfers()
+    chips: SupplementaryChips = SupplementaryChips()
 
 
 class MinutesConfig(_Section):
@@ -1657,6 +1675,17 @@ class BacktestConfig(_Section):
             "its timeout."
         ),
     )
+    strategy_workers: int = Field(
+        default=4,
+        ge=1,
+        description=(
+            "Processes the standing backtest grades strategies across, one strategy each with its "
+            "own folds (ORC-09, ORC-06), capped at the machine's cores and the strategy count. "
+            "Four because the hosted runner has four cores; each worker holds its own copy of the "
+            "history, a few hundred MB at most. The walks share nothing, so the grades are the "
+            "sequential ones whatever this is; 1 walks them one after another in this process."
+        ),
+    )
     bootstrap_draws: int = Field(
         default=2000,
         gt=0,
@@ -1715,7 +1744,6 @@ class OptimiserConfig(_Section):
             "bench that never plays is still four squad places and real money."
         ),
     )
-    captain_multiplier: int = Field(default=2, ge=1)
     solve_time_limit_seconds: int = Field(default=60, gt=0)
     scenario_workers: int = Field(
         default=4,
@@ -1901,15 +1929,6 @@ class ChipConfig(_Section):
         description=(
             "Mean fixtures per squad club below which Bench Boost is not even enumerated. A Bench "
             "Boost in a blank gameweek is not a candidate."
-        ),
-    )
-    captain_multiplier_by_chip: dict[str, int] = Field(
-        default_factory=lambda: {"3xc": 3},
-        description=(
-            "Captain multiplier a chip imposes, overriding the ordinary one. Configuration rather "
-            "than a literal 3 in the solver (Invariant 2). The game exposes this as "
-            "`overrides.pick_multiplier` on each chip; until the silver chip table carries that "
-            "field (D-15) this is the seeded value, and it is here so it is one line to correct."
         ),
     )
     force_chip_gameweek: dict[str, int] = Field(

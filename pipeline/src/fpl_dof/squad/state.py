@@ -131,17 +131,19 @@ def free_transfers_after(
 ) -> int:
     """Free transfers going into the next gameweek.
 
-    One is earned per gameweek, unused ones accumulate to the configured maximum, and using more
-    than you had does not put you in debt — you simply start the next week on one.
+    ``free_transfers_per_gameweek`` is earned per gameweek, unused ones accumulate to the
+    configured maximum, and using more than you had does not put you in debt — you simply start
+    the next week on one week's allowance.
 
-    A wildcard or free hit makes the week's transfers free and does not consume the allowance,
-    which is why the chip has to be passed in rather than inferred from the transfer count. Getting
-    this wrong understates next week's flexibility and quietly biases the tool toward taking hits.
+    A chip that makes the week's transfers free (Wildcard, Free Hit) does not consume the
+    allowance, which is why the chip has to be passed in rather than inferred from the transfer
+    count. Getting this wrong understates next week's flexibility and quietly biases the tool
+    toward taking hits.
     """
-    maximum = rules.transfers.max_free_transfers
-    free_week = chip_played in {"wildcard", FREE_HIT}
+    earned = rules.transfers.free_transfers_per_gameweek
+    free_week = chip_played in rules.chips.transfers_free_with
     remaining = previous if free_week else previous - transfers_made
-    return max(1, min(maximum, remaining + 1))
+    return max(earned, min(rules.transfers.max_free_transfers, remaining + earned))
 
 
 def load_squad_state(
@@ -445,8 +447,9 @@ def _free_transfers(
 ) -> int:
     """Recompute the allowance from the transfer log rather than assuming it.
 
-    Walked forward from the first gameweek because the count is path-dependent: two transfers in
-    one week and none in the next does not leave you where none-then-two does.
+    Walked forward from GW2 because the count is path-dependent: two transfers in one week and
+    none in the next does not leave you where none-then-two does. GW2 starts on one week's
+    allowance: transfers before the GW1 deadline are unlimited and none carries over (D-36).
     """
     by_gameweek: dict[int, int] = {}
     if transfers is not None and not transfers.empty:
@@ -454,8 +457,8 @@ def _free_transfers(
         by_gameweek = {as_int(gw): as_int(n) for gw, n in counts.items()}
     chip_by_gameweek = chips_by_gameweek(chips)
 
-    available = 1
-    for gameweek in range(1, max(next_gameweek, latest + 1)):
+    available = rules.transfers.free_transfers_per_gameweek
+    for gameweek in range(2, max(next_gameweek, latest + 1)):
         available = free_transfers_after(
             available,
             by_gameweek.get(gameweek, 0),

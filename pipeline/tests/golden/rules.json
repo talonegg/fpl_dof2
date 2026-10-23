@@ -87,6 +87,7 @@
  },
  "transfers": {
   "extra_transfer_cost": -4,
+  "free_transfers_per_gameweek": 1,
   "max_free_transfers": 5
  }
 }

@@ -27,6 +27,7 @@ from fpl_dof.forecast.backtest import (
     MODEL_COLUMN,
     OUTCOME_COLUMNS,
     BacktestResult,
+    ChampionNotGradedError,
     Entrant,
     StrategyPredictor,
     deadlines_for,
@@ -314,9 +315,9 @@ def test_the_harness_never_hands_a_model_the_answer() -> None:
     """The leakage test that matters most.
 
     A predictor that simply returns the target column can only succeed if the harness gave it the
-    target. It must not be able to.
+    target. It must not be able to: its failure is the champion's, so nothing is graded (D-32).
     """
-    with pytest.raises(AssertionError, match="handed a model the answer"):
+    with pytest.raises(ChampionNotGradedError, match="handed a model the answer"):
         _walk(Cheater())
 
 

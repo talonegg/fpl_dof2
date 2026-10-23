@@ -8,15 +8,16 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
 
+import pandas as pd
 import pytest
 
 from fpl_dof.config.models import ModelsArtefactConfig, SourcesConfig
 from fpl_dof.paths import DataLayout
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
 from fpl_dof.publish.models_compare import build_models
-from fpl_dof.rules.models import GameRules, Position
+from fpl_dof.rules.models import GameRules
 from fpl_dof.stages import publish
-from fpl_dof.week.score_advice import PlayerPerformance
+from fpl_dof.week.evaluation import Evidence, build_evaluation
 
 #: The frozen harness's own model keys, as its records carry them.
 HARNESS_KEYS = ("C3", "C1", "engine", "A", "A_odds")
@@ -197,13 +198,32 @@ def test_missing_check_fails_closed() -> None:
 # --- the switch to the live ledger (MOD-06) ---------------------------------------------------
 
 
-def _perfs() -> dict[int, PlayerPerformance]:
-    positions = [Position.GKP] + [Position.DEF] * 4 + [Position.MID] * 4 + [Position.FWD] * 2
-    positions += [Position.GKP] + [Position.DEF] * 3
-    return {
-        i + 1: PlayerPerformance(player_id=i + 1, position=p, minutes=90, points=i + 1)
-        for i, p in enumerate(positions)
-    }
+def _evaluated(gw: int, entry: dict[str, Any], rules: GameRules) -> dict[str, Any]:
+    """The gameweek's evaluation (ORC-05): player i played 90 minutes and scored i points."""
+    positions = ["GKP"] + ["DEF"] * 4 + ["MID"] * 4 + ["FWD"] * 2 + ["GKP"] + ["DEF"] * 3
+    rows = pd.DataFrame(
+        [
+            {
+                "season": "2026/27",
+                "gameweek": gw,
+                "player_id": i + 1,
+                "position": p,
+                "minutes": 90,
+                "total_points": i + 1,
+            }
+            for i, p in enumerate(positions)
+        ]
+    )
+    return build_evaluation(
+        gw,
+        evidence=Evidence(season="2026/27", player_gameweek=rows, players=None),
+        advice=entry,
+        predictions={},
+        rules=rules,
+        entry_id=None,
+        as_of=dt.datetime(2026, 10, 30, tzinfo=dt.UTC),
+        run_id="r",
+    )
 
 
 def _ledger_entry(gw: int, transfers: int, free: int) -> dict[str, Any]:
@@ -258,8 +278,7 @@ def test_the_switch_gameweek_follows_the_last_frozen_decision(game_rules: GameRu
             9: _ledger_entry(9, 2, 2),
             10: _ledger_entry(10, 2, 1),
         },
-        performances={9: _perfs()},
-        rules=game_rules,
+        evaluations={9: _evaluated(9, _ledger_entry(9, 2, 2), game_rules)},
         names={3: "Out", 16: "In", 11: "Cap"},
     )
     assert p is not None
@@ -296,8 +315,7 @@ def test_an_unscored_frozen_decision_gives_way_to_the_live_ledger(game_rules: Ga
         contract_version=CONTRACT_VERSION,
         statuses={7: _ok(), 8: _ok()},
         ledger={8: _ledger_entry(8, 0, 1)},
-        performances={8: _perfs()},
-        rules=game_rules,
+        evaluations={8: _evaluated(8, _ledger_entry(8, 0, 1), game_rules)},
     )
     assert p is not None and p["switch_gameweek"] == 8
     assert [(g["gameweek"], g["record"]) for g in p["gameweeks"]] == [(7, "frozen"), (8, "live")]
@@ -312,8 +330,7 @@ def test_two_moves_on_one_free_transfer_cost_a_hit(game_rules: GameRules) -> Non
         frozen_tag=None,
         contract_version=CONTRACT_VERSION,
         ledger={5: _ledger_entry(5, 2, 1)},
-        performances={5: _perfs()},
-        rules=game_rules,
+        evaluations={5: _evaluated(5, _ledger_entry(5, 2, 1), game_rules)},
     )
     assert p is not None and p["switch_gameweek"] is None
     assert p["gameweeks"][0]["actual"]["c1"]["hit_points"] == 4

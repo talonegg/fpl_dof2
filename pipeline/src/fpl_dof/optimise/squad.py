@@ -22,7 +22,8 @@ Binary ``x_i`` selects player *i* into the 15; ``y_i`` starts them; ``c_i`` capt
 * players below the start-probability floor may be selected but not started, unless locked
 
 The objective is horizon expected points for starters, the same discounted by ``bench_weight`` for
-the bench, plus the captain's *next-gameweek* expected points times ``captain_multiplier - 1``.
+the bench, plus the captain's *next-gameweek* expected points times the rules' armband multiplier
+less one.
 Captaincy is a single-gameweek decision, so it is scored on a single gameweek; the squad is a
 multi-gameweek asset, so it is scored on the horizon.
 """
@@ -269,7 +270,7 @@ def optimise_squad(
     # --- objective ---
     problem += pulp.lpSum(
         as_float(by_id[i].xp_horizon) * (start[i] + config.bench_weight * (select[i] - start[i]))
-        + as_float(by_id[i].xp_next) * (config.captain_multiplier - 1) * captain[i]
+        + as_float(by_id[i].xp_next) * (rules.chips.captain_multiplier - 1) * captain[i]
         for i in ids
     )
 

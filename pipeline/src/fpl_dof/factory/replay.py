@@ -22,13 +22,13 @@ from fpl_dof.config.models import (
     OptimiserConfig,
 )
 from fpl_dof.forecast.backtest import deadlines_for, fold_rows, training_rows
-from fpl_dof.forecast.features import TARGET
 from fpl_dof.forecast.fit import ColdStartError, fit_as_of
-from fpl_dof.frames import as_float, as_int
+from fpl_dof.frames import as_int
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.optimise.plan import DecisionPlan, build_plan
 from fpl_dof.optimise.squad import InfeasibleError, optimise_squad
 from fpl_dof.rules.models import GameRules
+from fpl_dof.rules.realised import Lineup, PlayerPerformance, performances, score_lineup
 from fpl_dof.squad.state import HeldPlayer, Provenance, SquadState
 
 log = get_logger(__name__)
@@ -303,8 +303,8 @@ def _replay_one(
         without_rerank=without.chips_recommended,
         with_label=with_rerank.recommended.label,
         without_label=without.recommended.label,
-        actual_points_with=_scored_chip_week(with_rerank, actuals, decision),
-        actual_points_without=_scored_chip_week(without, actuals, decision),
+        actual_points_with=_scored_chip_week(with_rerank, actuals, rules),
+        actual_points_without=_scored_chip_week(without, actuals, rules),
         seconds=time.monotonic() - started,
     )
 
@@ -386,22 +386,19 @@ def _squad_at(
     )
 
 
-def _actual_points(history: pd.DataFrame, season: str) -> dict[tuple[int, int], float]:
-    """(gameweek, player_code) -> the points that player actually scored. The ground truth."""
+def _actual_points(history: pd.DataFrame, season: str) -> dict[int, dict[int, PlayerPerformance]]:
+    """gameweek -> player_code -> what that player actually did. The ground truth."""
     window = history[history["season"] == season]
-    grouped = (
-        window.groupby(["gameweek", "player_code"])[TARGET].sum().reset_index(name="actual_points")
-    )
     return {
-        (as_int(row.gameweek), as_int(row.player_code)): as_float(row.actual_points)
-        for row in grouped.itertuples()
+        as_int(gameweek): performances(rows, key="player_code")
+        for gameweek, rows in window.groupby("gameweek")
     }
 
 
 def _scored_chip_week(
     plan: DecisionPlan,
-    actuals: Mapping[tuple[int, int], float],
-    decision: DecisionConfig,
+    actuals: Mapping[int, Mapping[int, PlayerPerformance]],
+    rules: GameRules,
 ) -> float | None:
     """What the recommended chip week actually scored, with that week's real fielded squad."""
     assignments = plan.chips_recommended
@@ -412,16 +409,18 @@ def _scored_chip_week(
     if week is None:
         return None
 
-    multiplier = decision.chips.captain_multiplier_by_chip.get(chip, 2)
-    starting = set(week.starting)
-    total = 0.0
-    for player_id in week.fielded:
-        points = actuals.get((gameweek, player_id), 0.0)
-        if player_id == week.captain_id:
-            total += points * multiplier
-        elif player_id in starting or chip == "bboost":
-            total += points
-    return round(total, 2)
+    outfield_bench = set(week.bench_order)
+    lineup = Lineup(
+        starting=week.starting,
+        bench_order=week.bench_order,
+        bench_gkp=next(
+            (i for i in week.fielded if i not in week.starting and i not in outfield_bench), None
+        ),
+        captain=week.captain_id,
+        vice_captain=week.vice_captain_id,
+        chip=chip,
+    )
+    return float(score_lineup(lineup, actuals.get(gameweek, {}), rules).points_before_hits)
 
 
 __all__ = [

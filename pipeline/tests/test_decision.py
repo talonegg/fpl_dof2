@@ -169,7 +169,9 @@ def test_set_one_chips_are_gone_after_their_published_expiry(bootstrap: dict[str
     assert all(window.stop_gameweek > stop for window in after.values())
 
 
-def test_a_chip_already_played_is_not_enumerated_again(bootstrap: dict[str, object]) -> None:
+def test_a_chip_already_played_is_not_enumerated_again(
+    game_rules: GameRules, bootstrap: dict[str, object]
+) -> None:
     windows = chip_windows(chip_table(bootstrap))
     players = pool()
     shapes = gameweek_shapes(fixture_table(players, GAMEWEEKS), players["team_id"])
@@ -180,13 +182,41 @@ def test_a_chip_already_played_is_not_enumerated_again(bootstrap: dict[str, obje
         shapes=shapes,
         squad_team_ids=sorted({int(t) for t in players["team_id"]}),
         config=decision().chips,
+        rules=game_rules.chips,
     )
     played = {chip for scenario in scenarios for chip in scenario.chips}
     assert "bboost" not in played
     assert ChipScenario() in scenarios, "playing nothing is always a candidate"
 
 
-def test_a_forced_chip_removes_the_do_nothing_scenario(bootstrap: dict[str, object]) -> None:
+def test_the_bench_chip_is_the_one_the_rules_name(
+    game_rules: GameRules, bootstrap: dict[str, object]
+) -> None:
+    """DP-05: which chip fields the bench is read from the rules, not from its name."""
+    windows = chip_windows(chip_table(bootstrap))
+    players = pool()
+    shapes = gameweek_shapes(fixture_table(players, GAMEWEEKS), players["team_id"])
+    unreachable = decision().chips.model_copy(update={"bench_boost_minimum_fixtures": 99.0})
+
+    def enumerated(bench: tuple[str, ...]) -> set[str]:
+        scenarios = enumerate_scenarios(
+            horizon=GAMEWEEKS,
+            windows=windows,
+            chips_used=(),
+            shapes=shapes,
+            squad_team_ids=sorted({int(t) for t in players["team_id"]}),
+            config=unreachable,
+            rules=game_rules.chips.model_copy(update={"bench_scores_with": bench}),
+        )
+        return {chip for scenario in scenarios for chip in scenario.chips}
+
+    assert "bboost" not in enumerated(game_rules.chips.bench_scores_with)
+    assert "bboost" in enumerated(())  # no longer the bench chip, so not pruned as one
+
+
+def test_a_forced_chip_removes_the_do_nothing_scenario(
+    game_rules: GameRules, bootstrap: dict[str, object]
+) -> None:
     """E4-S5. Forcing a chip is an instruction, so "play no chip" must stop being an answer."""
     windows = chip_windows(chip_table(bootstrap))
     players = pool()
@@ -199,12 +229,15 @@ def test_a_forced_chip_removes_the_do_nothing_scenario(bootstrap: dict[str, obje
         shapes=shapes,
         squad_team_ids=sorted({int(t) for t in players["team_id"]}),
         config=config,
+        rules=game_rules.chips,
     )
     assert scenarios
     assert all(scenario.assignments == ((3, "wildcard"),) for scenario in scenarios)
 
 
-def test_a_forbidden_gameweek_is_never_enumerated(bootstrap: dict[str, object]) -> None:
+def test_a_forbidden_gameweek_is_never_enumerated(
+    game_rules: GameRules, bootstrap: dict[str, object]
+) -> None:
     windows = chip_windows(chip_table(bootstrap))
     players = pool()
     shapes = gameweek_shapes(fixture_table(players, GAMEWEEKS), players["team_id"])
@@ -216,6 +249,7 @@ def test_a_forbidden_gameweek_is_never_enumerated(bootstrap: dict[str, object]) 
         shapes=shapes,
         squad_team_ids=sorted({int(t) for t in players["team_id"]}),
         config=config,
+        rules=game_rules.chips,
     )
     assert not any("wildcard" in scenario.chips for scenario in scenarios)
 
@@ -251,7 +285,7 @@ def test_the_parallel_chip_plan_is_the_sequential_one(
 
 
 def test_the_calendar_finds_a_double_gameweek_and_carries_the_expiry(
-    bootstrap: dict[str, object],
+    game_rules: GameRules, bootstrap: dict[str, object]
 ) -> None:
     players = pool()
     shapes = gameweek_shapes(fixture_table(players, GAMEWEEKS), players["team_id"])
@@ -261,6 +295,7 @@ def test_the_calendar_finds_a_double_gameweek_and_carries_the_expiry(
         chips_used=(),
         shapes=shapes,
         config=decision().chips,
+        rules=game_rules.chips,
     )
     doubles = [entry for entry in calendar.entries if entry.is_double]
     assert doubles, "a gameweek where two clubs play twice must appear as a window"

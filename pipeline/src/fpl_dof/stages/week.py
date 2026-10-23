@@ -20,8 +20,8 @@ as its advice of record (NFR-15, DL-94). A champion week failure fails the run, 
 Every payload carries its snapshot's ``as_of`` and the run's ``trigger`` (ORC-03).
 
 What it does is asked of each gameweek's state (ORC-01), never of the clock alone: the Open
-gameweek is advised, a Finished one is due its evaluation (ORC-05's step, a logged no-op until
-then), and nothing else is done here. Once no gameweek is Open, the stage is skipped with a reason.
+gameweek is advised, a Finished one is evaluated once (ORC-05, :func:`evaluate`), and nothing else
+is done here. Once no gameweek is Open, the stage is skipped with a reason.
 
 It is skipped, with a reason, when no squad can be established. That is the normal preseason state
 (DL-20) and must not fail a run that is otherwise fine — the forecast and the E0 squad are still
@@ -73,8 +73,14 @@ from fpl_dof.squad.state import (
 )
 from fpl_dof.week.alerts import Alert, collect_alerts
 from fpl_dof.week.deadline import DeadlineView, describe_deadline, next_deadline, to_contract
-from fpl_dof.week.evaluation import evaluate, evaluated
-from fpl_dof.week.ledger import read_advice, record_advice, record_predictions
+from fpl_dof.week.evaluation import (
+    Evidence,
+    build_evaluation,
+    evaluated,
+    record_evaluation,
+    unready,
+)
+from fpl_dof.week.ledger import read_advice, read_predictions, record_advice, record_predictions
 from fpl_dof.week.reconcile import Reconciliation, reconcile
 
 log = get_logger(__name__)
@@ -120,13 +126,14 @@ def run(ctx: StageContext) -> StageResult:
     tables = SilverTables(
         gameweeks, read_table_optional(silver, season, Table.FIXTURE), entry_chips
     )
-    states = season_states(tables, evaluated(ctx.layout), ctx.as_of)
-    for finished in (s for s in states if s.due is Due.EVALUATE):
-        evaluate(finished, ctx.layout)
+    states = season_states(tables, evaluated(ctx.layout, ctx.config.entry.team_id), ctx.as_of)
+    judged = evaluate(ctx, rules, [s.gameweek for s in states if s.due is Due.EVALUATE])
     if not any(s.due is Due.ADVISE for s in states):
         reason = "no gameweek is open: every deadline has passed"
         log.info("week.nothing_due", extra={"reason": reason})
-        return StageResult(metrics={"status": "skipped", SKIPPED_REASON_KEY: reason})
+        return StageResult(
+            metrics={"status": "skipped", SKIPPED_REASON_KEY: reason}, outputs=judged
+        )
 
     players = read_table(silver, season, Table.PLAYER)
     deadline = next_deadline(
@@ -160,7 +167,7 @@ def run(ctx: StageContext) -> StageResult:
         }
         return StageResult(
             metrics={"status": "skipped", SKIPPED_REASON_KEY: str(exc)},
-            outputs=_write_all(gold, skipped, published),
+            outputs=[*judged, *_write_all(gold, skipped, published)],
         )
 
     champion_frame = pd.read_parquet(gold / XP_FILENAME)
@@ -238,7 +245,7 @@ def run(ctx: StageContext) -> StageResult:
             "strategies": len(published),
             "strategies_without_advice": sum(1 for w, _ in advice.values() if w["skipped"]),
         },
-        outputs=outputs,
+        outputs=[*judged, *outputs],
     )
 
 
@@ -531,6 +538,64 @@ def _run_stamp(as_of: dt.datetime, config: Config) -> dict[str, str]:
         "as_of": as_of.astimezone(dt.UTC).isoformat().replace("+00:00", "Z"),
         "trigger": config.runtime.trigger,
     }
+
+
+def evaluate(ctx: StageContext, rules: GameRules, gameweeks: Sequence[int]) -> list[Output]:
+    """ORC-05's evaluation of each Finished gameweek, to ``ledger:evaluation/entry-<id>/gwNN.json``.
+
+    A gameweek whose evidence is not yet complete waits for a later run, and one whose evaluation
+    fails is logged and left Finished, to be tried again: judging the past never costs this week's
+    advice (DP-15).
+    """
+    if not gameweeks:
+        return []
+    silver, season, entry_id = ctx.layout.silver, rules.season, ctx.config.entry.team_id
+
+    def owners(table: Table) -> pd.DataFrame | None:
+        frame = read_table_optional(silver, season, table)
+        if frame is None or entry_id is None:
+            return frame
+        return frame[frame["entry_id"] == entry_id]
+
+    evidence = Evidence(
+        season=season,
+        player_gameweek=read_table_optional(silver, season, Table.PLAYER_GAMEWEEK),
+        players=read_table_optional(silver, season, Table.PLAYER),
+        fixtures=read_table_optional(silver, season, Table.FIXTURE),
+        picks=owners(Table.ENTRY_PICK),
+        entry_gameweeks=owners(Table.ENTRY_GAMEWEEK),
+        chips=owners(Table.ENTRY_CHIP),
+        transfers=owners(Table.ENTRY_TRANSFER),
+        gameweeks=read_table_optional(silver, season, Table.GAMEWEEK),
+        price_history=read_table_optional(silver, season, Table.PRICE_HISTORY),
+    )
+    written: list[Output] = []
+    for gameweek in gameweeks:
+        reason = unready(
+            gameweek,
+            evidence,
+            entry_id=entry_id,
+            lagging_share=ctx.config.quality.maximum_lagging_player_share,
+        )
+        if reason is not None:
+            log.info("evaluation.waiting", extra={"gameweek": gameweek, "reason": reason})
+            continue
+        try:
+            evaluation = build_evaluation(
+                gameweek,
+                evidence=evidence,
+                advice=read_advice(ctx.layout, gameweek),
+                predictions=read_predictions(ctx.layout, gameweek),
+                rules=rules,
+                entry_id=entry_id,
+                as_of=ctx.as_of,
+                run_id=ctx.run_id,
+            )
+        except Exception as exc:
+            log.warning("evaluation.failed", extra={"gameweek": gameweek, "error": repr(exc)})
+            continue
+        written.append(Output(path=record_evaluation(ctx.layout, evaluation)))
+    return written
 
 
 def _reconcile_previous(

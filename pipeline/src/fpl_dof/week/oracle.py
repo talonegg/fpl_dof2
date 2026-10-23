@@ -115,7 +115,6 @@ def solve_hindsight_optimal(
     opt_cfg = OptimiserConfig(
         enforce_start_probability_floor=False,
         bench_weight=0.001,
-        captain_multiplier=2,
     )
     transfer_cfg = TransferConfig(
         max_transfers=max_transfers,

@@ -1,5 +1,5 @@
 /**
- * Per-GW all-player xP MAE (web/public/static/xp_accuracy.json).
+ * Per-GW all-player xP MAE: the 2025/26 backtest (web/public/static/xp_accuracy.json) and the live season.
  * Types are generated from contracts/v1/xp_accuracy.schema.json into contract/types.ts.
  */
 import type { XpAccuracy, XpAccuracyGameweek, XpAccuracySeason } from "../../contract/types";

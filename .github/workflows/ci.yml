@@ -85,7 +85,7 @@ jobs:
           started="$(date -u +%FT%TZ)"
           python -m pytest -q -n auto --shard ${{ matrix.shard }}/2
           if [ "${{ matrix.shard }}" = "0" ]; then
-            python -m pytest -q --cov=fpl_dof.rules --cov-fail-under=100 tests/test_rules_build.py tests/test_rules_scoring.py tests/test_rules_legality.py
+            python -m pytest -q --cov=fpl_dof.rules --cov-fail-under=100 tests/test_rules_build.py tests/test_rules_scoring.py tests/test_rules_legality.py tests/test_rules_realised.py
           fi
           python scripts/ci_runs.py budget python_tests_budget_seconds --since "$started"
 

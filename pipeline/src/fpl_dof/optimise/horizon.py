@@ -9,10 +9,10 @@ What is actually hard here
 --------------------------
 Not the squad constraints — those are E0's, repeated per gameweek. The two that bite are:
 
-**Free-transfer accrual.** ``ft[w] = min(5, remaining + 1)`` is a ``min`` inside an integer program,
-so it needs linearising with an auxiliary binary. An off-by-one in that linearisation compounds over
-eight weeks into a plan built on transfers that do not exist, and nothing about the output looks
-wrong. It is property-tested, not eyeballed.
+**Free-transfer accrual.** ``ft[w] = min(max, remaining + earned)`` is a ``min`` inside an integer
+program, so it needs linearising with an auxiliary binary. An off-by-one in that linearisation
+compounds over eight weeks into a plan built on transfers that do not exist, and nothing about the
+output looks wrong. It is property-tested, not eyeballed.
 
 **Chips must not consume free transfers (C15).** A Wildcard costing no *hit* is the obvious half of
 the rule. The half that gets missed is that a Wildcard or Free Hit does not *spend* the balance
@@ -307,6 +307,7 @@ class _Model:
     def _build(self, problem: pulp.LpProblem) -> None:
         ids, weeks = self.ids, self.weeks
         max_ft = self.rules.transfers.max_free_transfers
+        earned = self.rules.transfers.free_transfers_per_gameweek
 
         self.own = pulp.LpVariable.dicts("own", (ids, list(weeks)), cat="Binary")
         self.tin = pulp.LpVariable.dicts("tin", (ids, list(weeks)), cat="Binary")
@@ -324,7 +325,7 @@ class _Model:
             self.field = self.own
 
         self.ft = pulp.LpVariable.dicts(
-            "ft", list(weeks), lowBound=1, upBound=max_ft, cat="Integer"
+            "ft", list(weeks), lowBound=earned, upBound=max_ft, cat="Integer"
         )
         self.hits = pulp.LpVariable.dicts("hits", list(weeks), lowBound=0, cat="Integer")
         self.charged = pulp.LpVariable.dicts("charged", list(weeks), lowBound=0, cat="Integer")
@@ -354,7 +355,7 @@ class _Model:
             discount = horizon.discount**index
             chip = self.scenario.chip_in(week)
             multiplier = self._captain_multiplier(chip)
-            bench = 1.0 if chip == "bboost" else horizon.bench_weight
+            bench = 1.0 if chip in self.rules.chips.bench_scores_with else horizon.bench_weight
 
             weekly = []
             for i in self.ids:
@@ -378,12 +379,8 @@ class _Model:
         problem += pulp.lpSum(terms)
 
     def _captain_multiplier(self, chip: str | None) -> int:
-        """The captain multiplier in force. Configuration, never a literal (Invariant 2)."""
-        if chip is None:
-            return self.optimiser.captain_multiplier
-        return self.decision.chips.captain_multiplier_by_chip.get(
-            chip, self.optimiser.captain_multiplier
-        )
+        """The captain multiplier in force: the rules' own, never a literal (Invariant 2)."""
+        return self.rules.chips.armband(chip)
 
     def _squad_constraints(self, problem: pulp.LpProblem, week: int) -> None:
         rules = self.squad_rules
@@ -527,16 +524,17 @@ class _Model:
         single distinction is the whole of C15, and without it the model believes a Wildcard burns
         up to five banked transfers.
         """
+        earned = self.rules.transfers.free_transfers_per_gameweek
         for index, week in enumerate(self.weeks):
             made = pulp.lpSum(self.tin[i][week] for i in self.ids)
-            if self.scenario.chip_in(week) in {"wildcard", "freehit"}:
+            if self.scenario.chip_in(week) in self.rules.chips.transfers_free_with:
                 problem += self.charged[week] == 0, f"chip_free_transfers_{week}"
             else:
                 problem += self.charged[week] == made, f"charged_{week}"
 
             if index == 0:
                 problem += (
-                    self.ft[week] == min(max_ft, max(1, self.inputs.state.free_transfers)),
+                    self.ft[week] == min(max_ft, max(earned, self.inputs.state.free_transfers)),
                     f"opening_ft_{week}",
                 )
             problem += self.hits[week] >= self.charged[week] - self.ft[week], f"hit_{week}"
@@ -551,17 +549,21 @@ class _Model:
             if index + 1 >= len(self.weeks):
                 continue
             following = self.weeks[index + 1]
-            # C8 linearised: ft[w+1] = min(max_ft, remaining[w] + 1). Both upper bounds, plus one
-            # binary choosing which of them is tight, which is what turns `<= min` into `= min`.
-            big_m = max_ft + 1
+            # C8 linearised: ft[w+1] = min(max_ft, remaining[w] + earned). Both upper bounds, plus
+            # one binary choosing which is tight, which is what turns `<= min` into `= min`.
+            big_m = max_ft + earned
             problem += self.ft[following] <= max_ft, f"ft_cap_{following}"
-            problem += self.ft[following] <= self.remaining[week] + 1, f"ft_accrual_{following}"
+            problem += (
+                self.ft[following] <= self.remaining[week] + earned,
+                f"ft_accrual_{following}",
+            )
             problem += (
                 self.ft[following] >= max_ft - big_m * self.at_cap[week],
                 f"ft_min_a_{following}",
             )
             problem += (
-                self.ft[following] >= self.remaining[week] + 1 - big_m * (1 - self.at_cap[week]),
+                self.ft[following]
+                >= self.remaining[week] + earned - big_m * (1 - self.at_cap[week]),
                 f"ft_min_b_{following}",
             )
 
@@ -632,7 +634,11 @@ class _Model:
         previous_squad: set[int],
     ) -> PlannedWeek:
         multiplier = self._captain_multiplier(chip)
-        bench_weight = 1.0 if chip == "bboost" else self.decision.horizon.bench_weight
+        bench_weight = (
+            1.0
+            if chip in self.rules.chips.bench_scores_with
+            else self.decision.horizon.bench_weight
+        )
         bench = [i for i in fielded if i not in set(starting)]
 
         points = sum(self.mu[(i, week)] for i in starting)
@@ -732,8 +738,10 @@ class _Model:
 
         weeks: list[PlannedWeek] = []
         objective = 0.0
+        transfers = self.rules.transfers
         free = min(
-            self.rules.transfers.max_free_transfers, max(1, self.inputs.state.free_transfers)
+            transfers.max_free_transfers,
+            max(transfers.free_transfers_per_gameweek, self.inputs.state.free_transfers),
         )
         for index, week in enumerate(self.weeks):
             starting, captain = self._greedy_lineup(held, week)
@@ -752,7 +760,7 @@ class _Model:
                 free_transfers=free,
                 bank_after=round(self.inputs.state.bank, 1),
             )
-            free = min(self.rules.transfers.max_free_transfers, free + 1)
+            free = min(transfers.max_free_transfers, free + transfers.free_transfers_per_gameweek)
             objective += (self.decision.horizon.discount**index) * planned.expected_points
             weeks.append(planned)
 

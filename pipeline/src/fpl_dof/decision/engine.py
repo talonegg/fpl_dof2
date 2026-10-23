@@ -85,15 +85,13 @@ def decide(
     scores = policy.captain_line.scores(frame) if policy.captain_line is not None else None
     if scores is not None:
         recommendation = apply_price_position_captain(
-            recommendation, frame, scores, policy.optimiser.captain_multiplier
+            recommendation, frame, scores, rules.chips.captain_multiplier
         )
     selection, warnings = _select(frame, recommendation, rules, policy)
     if scores is not None:
         pairs = zip(frame["player_id"], frame["xp_next"], strict=True)
         xp_next = {as_int(i): as_float(v) for i, v in pairs}
-        selection = relabel_selection(
-            selection, scores, xp_next, policy.optimiser.captain_multiplier
-        )
+        selection = relabel_selection(selection, scores, xp_next, rules.chips.captain_multiplier)
 
     plan: DecisionPlan | None = None
     reason: str | None = None
@@ -176,7 +174,6 @@ def _select(
         selection = select_team(
             candidates,
             rules,
-            captain_multiplier=optimiser.captain_multiplier,
             start_probability_floor=floor,
             locked_player_ids=locked,
         )
@@ -188,7 +185,6 @@ def _select(
         selection = select_team(
             candidates,
             rules,
-            captain_multiplier=optimiser.captain_multiplier,
             start_probability_floor=0.0,
             locked_player_ids=locked,
         )
