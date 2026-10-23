@@ -159,6 +159,7 @@ def run(ctx: StageContext) -> StageResult:
             as_of=ctx.as_of,
             player_gameweek=player_gameweek,
             metrics=read_table_optional(silver, season, Table.PLAYER_METRIC),
+            match_odds=read_table_optional(silver, season, Table.TEAM_MATCH_EXPECTATION),
         ),
         champion=Forecast(
             frame=champion_frame,

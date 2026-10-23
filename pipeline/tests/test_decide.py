@@ -199,8 +199,14 @@ def _history(players: pd.DataFrame, fixtures: pd.DataFrame, season: str) -> pd.D
                         "expected_goals": 0.1 * (as_int(p.player_id) % 3),
                         "expected_assists": 0.05,
                         "expected_goals_conceded": 1.0,
-                        "bonus": 0,
+                        "bonus": (as_int(p.player_id) + as_int(fx.gameweek)) % 4 // 3,
                         "bps": 10,
+                        # The counts A models (shadow/a.py), in deterministic patterns.
+                        "goals_scored": int(minutes >= 60 and as_int(p.player_id) % 4 == 0),
+                        "assists": int(minutes > 0 and as_int(p.player_id) % 5 == 1),
+                        "saves": (as_int(p.player_id) + as_int(fx.gameweek)) % 5 if minutes else 0,
+                        "goals_conceded": as_int(fx.gameweek) % 3,
+                        "defensive_contribution": (as_int(p.player_id) * 7) % 15,
                     }
                 )
     return pd.DataFrame(rows)
@@ -219,17 +225,68 @@ def _snapshot(rules: GameRules) -> tuple[ForecastInputs, Forecast]:
             "finished": [g in PLAYED for g in PLAYED + HORIZON],
         }
     )
+    team_ids = sorted(set(players["team_id"]))
+    teams = pd.DataFrame(
+        {
+            "team_id": team_ids,
+            "code": [100 + t for t in team_ids],
+            "name": [_club(t) for t in team_ids],
+        }
+    )
+    as_of = deadlines + pd.Timedelta(weeks=HORIZON[0] - 1, hours=-1)
     inputs = ForecastInputs(
         players=players,
-        teams=pd.DataFrame({"team_id": sorted(set(players["team_id"]))}),
+        teams=teams,
         fixtures=fixtures,
         gameweeks=gameweeks,
         history=pd.DataFrame(),
-        as_of=(deadlines + pd.Timedelta(weeks=HORIZON[0] - 1, hours=-1)).to_pydatetime(),
+        as_of=as_of.to_pydatetime(),
         player_gameweek=_history(players, fixtures, rules.season),
+        match_odds=match_odds(
+            fixtures[fixtures["gameweek"] == HORIZON[0]], rules.season, as_of - pd.Timedelta(days=1)
+        ),
     )
     frame = forecast(players, HORIZON, mean=_mean(players))
     return inputs, Forecast(frame=frame, model="xp_v1", fallback_reason=None, captain_line=LINE)
+
+
+def _club(team_id: int) -> str:
+    """A club name club resolution can tell apart: it compares letters only."""
+    return f"Club {chr(ord('A') + int(team_id) - 1)}"
+
+
+def match_odds(
+    fixtures: pd.DataFrame,
+    season: str,
+    captured_at: pd.Timestamp,
+    *,
+    home_goals: float = 1.5,
+    away_goals: float = 1.1,
+) -> pd.DataFrame:
+    """Silver ``team_match_expectation`` rows for ``fixtures``, clubs by name only, as the odds
+    source writes the current season's (what A_odds reads)."""
+    import math
+
+    return pd.DataFrame(
+        {
+            "season": season,
+            "source": "market",
+            "captured_at": captured_at,
+            "kickoff_time": pd.to_datetime(fixtures["kickoff_time"], utc=True).to_numpy(),
+            "home_team": [_club(t) for t in fixtures["home_team_id"]],
+            "away_team": [_club(t) for t in fixtures["away_team_id"]],
+            "home_team_id": pd.array([None] * len(fixtures), dtype="Int64"),
+            "away_team_id": pd.array([None] * len(fixtures), dtype="Int64"),
+            "expected_goals_home": home_goals,
+            "expected_goals_away": away_goals,
+            "clean_sheet_probability_home": math.exp(-away_goals),
+            "clean_sheet_probability_away": math.exp(-home_goals),
+            "home_win_probability": 0.45,
+            "draw_probability": 0.27,
+            "away_win_probability": 0.28,
+            "total_goals": home_goals + away_goals,
+        }
+    )
 
 
 def _forecast_config() -> Config:
@@ -547,4 +604,4 @@ def test_each_strategy_has_its_own_week_and_plan_file() -> None:
     assert artefact_paths(champion()) == {"week": "week.json", "plan": "plan.json"}
     # C1 plans only once MOD-05 gives it its own means beyond the next gameweek.
     assert artefact_paths(load_strategy("c1")) == {"week": "week_c1.json", "plan": None}
-    assert artefact_paths(load_strategy("a")) == {"week": None, "plan": None}  # unpublished
+    assert artefact_paths(load_strategy("a")) == {"week": "week_a.json", "plan": None}

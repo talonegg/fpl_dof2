@@ -183,9 +183,33 @@ config, `training_window` (`current_season` or `all_seasons`) filters the histor
 is enforced in `Strategy.forecast`. `c1` is rebuilt behind the frame contract (MOD-05): its own
 variance, `FeatureSpec` features checked by `assert_no_look_ahead`, hyperparameters and seed in
 `forecast.c1`, trained on `all_seasons` keyed by `player_code`, one gameweek with `plan: false`
-([04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)). Still target: `a` and
-`a_odds` go live in R1.2.2, ported from the frozen bundle (they train on prior seasons and A_odds
-reads odds, so the live run enables the archive and football-data.co.uk). The frozen harness is
+([04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)). `a` is ported from the
+frozen bundle's `comp_A` (MOD-05, [DL-89](../decisions/DL-89.md) item 7, `shadow/a.py`): on C1's
+features plus rolling goals, assists, saves and award, per-position HistGBMs give P(play), P(a full
+appearance | play), the Poisson rates of bonus, goals and assists (saves for goalkeepers) and
+P(defensive-contribution award); clean sheets and goals conceded come from C1's club xG; every
+event is priced by the rules config; its variance sums each event's (independent events) inside
+the two-state mixture; one gameweek, `plan: false`, `all_seasons`, tunables and seed in
+`forecast.a`. Its deviations from the frozen original: points from `GameRules`, not literals
+(goals conceded priced by position as the rules say, the award's threshold and points by
+position); the award gated on recorded defensive contributions, not on the 2025/26 label; tunables
+from config and every fit seeded; refitted every run, not every fourth gameweek, and stopping at
+the first unfinished gameweek; its own variance and availability-scaled P(play), where the frozen
+frame carried a mean; a constant where a component has nothing to learn. `a_odds` is ported from
+`comp_ot` (`shadow/a_odds.py`): A, with the market's club layer for every player whose club has odds
+for each of its fixtures in the gameweek: clean sheets from the market's P(clean sheet), goals
+conceded and goalkeeper saves from its expected goals against, goals and assists as the club's
+market goals times the player's xG and xA share, shrunk to his position and price band's share;
+A's estimate elsewhere. It reads silver `team_match_expectation` through the forecast inputs'
+`match_odds`, keeps a fixture's latest capture at or before its gameweek's deadline
+(`gold/match_odds.knowable`, the rule gold applies; a past season's deadline is its gameweek's
+first kickoff) and no capture after the run's `as_of`; it `requires` the table, and with no odds
+for the gameweek being decided it records "no advice". Its deviations from the frozen original:
+odds de-vigged by the source adapter, not the bundle's Pinnacle-first Shin reading, with the
+source's P(clean sheet) rather than exp(-lambda); saves per goal conceded from goalkeepers'
+gameweeks, since silver has no shots on target; no advice without odds, where the frozen harness
+fell back to A silently (the backtest predictor still falls back per club-gameweek); points from
+`GameRules`, tunables in `forecast.a_odds`, and A's deviations beneath it. The frozen harness is
 retired (MOD-06, 2026-10-23, no parity check): `pipeline.yml` has no `prospective` job and the `run` job
 only restores the harness's last record from `ledger`, read-only. `models.json` carries its records for
 gameweeks before the switch gameweek (the last it decided, plus one) and, from the switch, every published

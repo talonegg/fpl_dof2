@@ -34,13 +34,14 @@ the live fit stops at the first unfinished gameweek (REM-08).
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 import numpy as np
 import pandas as pd
 
-from fpl_dof.config.models import C1Config, ForecastConfig
+from fpl_dof.config.models import BoostedFeatureConfig, C1Config, ForecastConfig
 from fpl_dof.forecast import baselines, live
 from fpl_dof.forecast.baselines import FittedBaseline
 from fpl_dof.forecast.entry import Forecast, price_position_line
@@ -75,15 +76,15 @@ ROLL_SRC = (
     "bps",
 )
 #: Marks the rows being forecast, as opposed to played rows, through the feature build.
-_UPCOMING = "_upcoming"
+UPCOMING = "_upcoming"
 
 
-def _rolling_names(config: C1Config) -> tuple[str, ...]:
+def _rolling_names(config: BoostedFeatureConfig) -> tuple[str, ...]:
     suffixes = (*(f"l{w}" for w in config.rolling_windows), "sea", "ewm")
     return tuple(f"{stat}_{suffix}" for stat in ROLL_SRC for suffix in suffixes)
 
 
-def specs(config: C1Config) -> tuple[FeatureSpec, ...]:
+def specs(config: BoostedFeatureConfig) -> tuple[FeatureSpec, ...]:
     """C1's features, each declared with the moment it becomes knowable (the feature store seam)."""
     before, at = Knowability.BEFORE_DEADLINE, Knowability.AT_DEADLINE
 
@@ -120,12 +121,16 @@ def specs(config: C1Config) -> tuple[FeatureSpec, ...]:
     )
 
 
-def input_features(config: C1Config) -> tuple[str, ...]:
+def input_features(config: BoostedFeatureConfig) -> tuple[str, ...]:
     return tuple(s.name for s in specs(config) if s.is_input)
 
 
 def build_features(
-    past: pd.DataFrame, upcoming: pd.DataFrame, *, as_of: pd.Timestamp, config: C1Config
+    past: pd.DataFrame,
+    upcoming: pd.DataFrame,
+    *,
+    as_of: pd.Timestamp,
+    config: BoostedFeatureConfig,
 ) -> pd.DataFrame:
     """One row per player per gameweek: played rows in ``past``, forecast rows in ``upcoming``.
 
@@ -134,7 +139,7 @@ def build_features(
     year earlier, by ``player_code``. Rows are stamped ``as_of`` (see the module docstring).
     """
     rows = pd.concat(
-        [past.assign(**{_UPCOMING: False}), upcoming.assign(**{_UPCOMING: True})],
+        [past.assign(**{UPCOMING: False}), upcoming.assign(**{UPCOMING: True})],
         ignore_index=True,
     )
     year = rows["season"].map(season_start_year)
@@ -150,7 +155,7 @@ def build_features(
     d["key"] = d.season + "|" + d.player_code.astype(str)
     agg: dict[str, str] = dict.fromkeys(ROLL_SRC, "sum")
     agg.update(price="last", was_home="mean", fixture_id="count", kickoff_time="max")
-    agg[_UPCOMING] = "max"
+    agg[UPCOMING] = "max"
     keys = ["key", "season", "sidx", "gameweek", "t", "player_code", "position", "team_id"]
     g = (
         d.groupby(keys, as_index=False)
@@ -205,12 +210,12 @@ def build_features(
     g["nfix"] = g.nfix.astype(float)
     g[["prev_pts", "prev_min"]] = g[["prev_pts", "prev_min"]].fillna(-1)
     g["was_home"] = g.was_home.astype(float)
-    g[_UPCOMING] = g[_UPCOMING].astype(bool)
-    g["as_of"] = g.pop("kickoff_time").where(~g[_UPCOMING], pd.Timestamp(as_of))
+    g[UPCOMING] = g[UPCOMING].astype(bool)
+    g["as_of"] = g.pop("kickoff_time").where(~g[UPCOMING], pd.Timestamp(as_of))
     return g
 
 
-def _deadline(moment: pd.Timestamp | Any) -> pd.Timestamp:
+def utc_deadline(moment: pd.Timestamp | Any) -> pd.Timestamp:
     ts = pd.Timestamp(moment)
     return ts.tz_localize("UTC") if ts.tzinfo is None else ts.tz_convert("UTC")
 
@@ -231,7 +236,7 @@ class FittedC1:
         ``upcoming`` (one gameweek, a row per fixture). A position with no fitted model reads 0."""
         g = build_features(self.past, upcoming, as_of=self.as_of, config=self.config)
         assert_no_look_ahead(g, self.past, as_of=self.as_of)
-        rows = g[g[_UPCOMING]].reset_index(drop=True)
+        rows = g[g[UPCOMING]].reset_index(drop=True)
         out = pd.DataFrame(
             {
                 "player_code": rows["player_code"],
@@ -255,7 +260,7 @@ def fit_as_of(past: pd.DataFrame, as_of: pd.Timestamp, config: C1Config) -> Fitt
     """Fit C1 on ``past``, every row of which must have kicked off before ``as_of``."""
     from sklearn.ensemble import HistGradientBoostingClassifier, HistGradientBoostingRegressor
 
-    moment = _deadline(as_of)
+    moment = utc_deadline(as_of)
     g = build_features(past, past.iloc[:0], as_of=moment, config=config)
     assert_no_look_ahead(g, past, as_of=moment)
     train = g[g.gp > 0]
@@ -327,16 +332,46 @@ def upcoming_rows(
     return rows.assign(season=season, gameweek=gameweek, **dict.fromkeys(ROLL_SRC, np.nan))
 
 
+class Fitted(Protocol):
+    """A forecaster fitted before a deadline, as :func:`forecast_with` and :class:`C1Predictor`
+    use it: B0 on its training rows, the history it was fitted on, and a one-gameweek predict."""
+
+    @property
+    def past(self) -> pd.DataFrame: ...
+
+    @property
+    def b0(self) -> FittedBaseline: ...
+
+    def predict(self, upcoming: pd.DataFrame) -> pd.DataFrame:
+        """``player_code``, ``p_play``, ``mean_if_play`` and ``sd_if_play`` per player."""
+        ...
+
+
 def forecast(inputs: ForecastInputs, rules: GameRules, config: ForecastConfig) -> Forecast:
     """C1's forecast frame for the gameweek being decided, fitted on history before its cutoff."""
+    return forecast_with(
+        inputs, rules, config, MODEL_NAME, lambda past, cutoff: fit_as_of(past, cutoff, config.c1)
+    )
+
+
+def forecast_with(
+    inputs: ForecastInputs,
+    rules: GameRules,
+    config: ForecastConfig,
+    model: str,
+    fit: Callable[[pd.DataFrame, pd.Timestamp], Fitted],
+) -> Forecast:
+    """The one-gameweek frame of a forecaster that predicts P(play) and points given play (C1, A,
+    A_odds): fitted on the history knowable before the cutoff, scaled by availability news, with
+    the two-state mixture's variance and its own B0 line."""
     gameweek, cutoff, _ = live.next_deadline(inputs.gameweeks, config, as_of=inputs.as_of)
     history = inputs.player_gameweek
     if history is None or history.empty:
-        raise ColdStartError("C1 has no per-gameweek history to learn from")
+        raise ColdStartError(f"{model} has no per-gameweek history to learn from")
     deadlines = inputs.gameweeks
     fit_gameweek = as_int(deadlines.loc[deadlines["deadline_time"] >= cutoff, "gameweek"].min())
     past = knowable_history(history, rules.season, before_gameweek=fit_gameweek)
-    fitted = fit_as_of(past, cutoff, config.c1)
+    fitted = fit(past, cutoff)
     upcoming = upcoming_rows(inputs.players, inputs.fixtures, rules.season, gameweek)
     predicted = fitted.predict(upcoming).set_index("player_code")
 
@@ -364,11 +399,11 @@ def forecast(inputs: ForecastInputs, rules: GameRules, config: ForecastConfig) -
         p_no_appearance=(1.0 - p).astype(float),
         next_gameweek=gameweek,
         horizon_gameweeks=1,
-        model=MODEL_NAME,
+        model=model,
     )
     return Forecast(
         frame=validate_forecast_frame(frame),
-        model=MODEL_NAME,
+        model=model,
         fallback_reason=None,
         captain_line=price_position_line(fitted.b0),
     )
@@ -388,8 +423,11 @@ class C1Predictor:
     def __init__(self, config: ForecastConfig, rules: GameRules) -> None:
         self.config = config
         self.rules = rules
-        self.fitted: FittedC1 | None = None
+        self.fitted: Fitted | None = None
         self.season: str | None = None
+
+    def _fit(self, past: pd.DataFrame, moment: pd.Timestamp) -> Fitted:
+        return fit_as_of(past, moment, self.config.c1)
 
     def fit_as_of(
         self,
@@ -399,8 +437,8 @@ class C1Predictor:
         training: pd.DataFrame | None = None,
         season: str,
     ) -> None:
-        moment = _deadline(deadline)
-        self.fitted = fit_as_of(history[history["kickoff_time"] < moment], moment, self.config.c1)
+        moment = utc_deadline(deadline)
+        self.fitted = self._fit(history[history["kickoff_time"] < moment], moment)
         self.season = season
 
     def predict(self, features: pd.DataFrame) -> pd.Series:
@@ -439,13 +477,17 @@ class C1Predictor:
 
 __all__ = [
     "MODEL_NAME",
+    "UPCOMING",
     "C1Predictor",
+    "Fitted",
     "FittedC1",
     "build_features",
     "fit_as_of",
     "forecast",
+    "forecast_with",
     "input_features",
     "knowable_history",
     "specs",
     "upcoming_rows",
+    "utc_deadline",
 ]

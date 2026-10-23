@@ -16,6 +16,7 @@ import pandas as pd
 
 from fpl_dof.gold.match_odds import (
     build_team_match_odds,
+    club_coded,
     read_team_match_odds,
 )
 from fpl_dof.gold.player_career import (
@@ -309,3 +310,19 @@ def test_team_match_odds_unification(tmp_path: Path) -> None:
     queried = read_team_match_odds(gold, season="2026/27")
     assert len(queried) == 1
     assert queried.iloc[0]["home_team_code"] == 3
+
+
+def test_a_current_season_row_without_ids_is_matched_by_club_name() -> None:
+    """The odds sources write the current season's clubs by name only: gold resolves them."""
+    teams = pd.DataFrame({"team_id": [1, 2], "code": [3, 7], "name": ["Arsenal", "Aston Villa"]})
+    odds = pd.DataFrame(
+        {
+            "season": ["2026/27", "2025/26"],
+            "home_team": ["Arsenal", "Arsenal"],
+            "away_team": ["Aston Villa", "Nowhere"],
+            "home_team_id": pd.array([None, 3], dtype="Int64"),
+            "away_team_id": pd.array([None, 99], dtype="Int64"),
+        }
+    )
+    coded = club_coded(odds, "2026/27", teams)
+    assert coded[["home_team_code", "away_team_code"]].to_numpy().tolist() == [[3, 7], [3, 99]]

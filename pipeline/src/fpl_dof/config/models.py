@@ -429,6 +429,17 @@ class TeamStrengthConfig(_Section):
     place preseason, when there is no current-season evidence at all (DP-15).
     """
 
+    half_life_matches: float = Field(
+        default=20.0,
+        gt=0,
+        description=(
+            "Half-life, in matches (a nominal week each), of the time decay on the goals M2 fits "
+            "its ratings, league mean and home advantage from: a match twenty weeks old counts "
+            "half as much as this week's. Inherited from the original M2, not measured; the "
+            "home-advantage prior below was measured at it (DL-55), so changing it is a model "
+            "change graded in the backtest (E8 §5). Moved here from the dataclass (03 §12.6 F4)."
+        ),
+    )
     home_advantage_prior: float = Field(
         default=1.09,
         gt=1.0,
@@ -1122,15 +1133,10 @@ class FeatureConfig(_Section):
     prior_season: PriorSeasonConfig = PriorSeasonConfig()
 
 
-class C1Config(_Section):
-    """C1's tunables: the boosted xG-and-minutes challenger (``shadow/c1.py``, MOD-05, DP-06).
-
-    The model values are the frozen candidate's (``backtest/vector_models.py``, kind ``xg2``), the
-    configuration that scored +6.70 XI points per gameweek over the engine in the walk-forward
-    backtest; changing one is a model change, graded before it ships (E8 §5). ``seed`` and
-    ``early_stopping`` are new: the frozen fits were unseeded, so two fits on the same data could
-    differ.
-    """
+class BoostedFeatureConfig(_Section):
+    """What every boosted-tree challenger shares: the HistGBM fit and C1's rolling feature build
+    (``shadow/c1.py``'s ``build_features``, which A reuses). Each challenger has its own section, so
+    tuning one never moves another (DP-06)."""
 
     max_iter: int = Field(
         default=200,
@@ -1178,6 +1184,18 @@ class C1Config(_Section):
         gt=0,
         description="Half-life, in a club's matches, of its rolling xG for and against.",
     )
+
+
+class C1Config(BoostedFeatureConfig):
+    """C1's tunables: the boosted xG-and-minutes challenger (``shadow/c1.py``, MOD-05, DP-06).
+
+    The model values are the frozen candidate's (``backtest/vector_models.py``, kind ``xg2``), the
+    configuration that scored +6.70 XI points per gameweek over the engine in the walk-forward
+    backtest; changing one is a model change, graded before it ships (E8 §5). ``seed`` and
+    ``early_stopping`` are new: the frozen fits were unseeded, so two fits on the same data could
+    differ.
+    """
+
     conditional_sd_floor: float = Field(
         default=1.0,
         gt=0,
@@ -1185,6 +1203,144 @@ class C1Config(_Section):
             "Lowest standard deviation of points given the player plays, per position. The sd is "
             "the regressor's in-sample residual spread, which understates the out-of-sample one; "
             "the floor stops a thin position reading as near-certain (Invariant 6)."
+        ),
+    )
+
+
+class AConfig(BoostedFeatureConfig):
+    """Model A's tunables: component expected points from per-position HistGBMs (``shadow/a.py``,
+    MOD-05, DP-06).
+
+    The values are the frozen candidate's (``backtest/comp_model.py``); changing one is a model
+    change, graded before it ships (E8 §5). ``seed`` is new, as for C1.
+    """
+
+    max_iter: int = Field(
+        default=150,
+        gt=0,
+        description="Boosting stages per component HistGBM, the frozen candidate's.",
+    )
+    early_stopping: bool = Field(
+        default=False,
+        description="Off, as the frozen candidate fitted its components: every stage is used.",
+    )
+    component_window: int = Field(
+        default=6,
+        gt=0,
+        description=(
+            "Trailing gameweeks for the goals, assists, saves and defensive-contribution rolling "
+            "means, and the window A_odds reads a player's share of his club's xG over. Must be "
+            "one of `rolling_windows`, whose features the share reads. The frozen candidate's."
+        ),
+    )
+    defensive_contribution_minimum_rows: int = Field(
+        default=500,
+        ge=0,
+        description=(
+            "Played rows with a recorded defensive contribution a position needs before its "
+            "P(award) classifier is fitted; with fewer, A adds no award. The frozen candidate's."
+        ),
+    )
+    team_goals_prior: float = Field(
+        default=1.4,
+        gt=0,
+        description=(
+            "Goals per match a club is taken to score and concede before it has an earlier match "
+            "this season: roughly the league's mean. The frozen candidate's."
+        ),
+    )
+    fixture_goals_minimum: float = Field(
+        default=0.2,
+        gt=0,
+        description="Lowest goals expected against a side in one fixture, so P(clean sheet) < 1.",
+    )
+    fixture_goals_maximum: float = Field(
+        default=4.0,
+        gt=0,
+        description="Highest goals expected against a side in one fixture: bounds a thin rate.",
+    )
+    poisson_support: int = Field(
+        default=15,
+        gt=0,
+        description=(
+            "Counts summed over when taking E[floor(N / k)] of a Poisson count (saves, goals "
+            "conceded). The frozen candidate's; it leaves a negligible tail for the rates A sees."
+        ),
+    )
+
+    @model_validator(mode="after")
+    def _window_is_a_rolling_window(self) -> AConfig:
+        if self.component_window not in self.rolling_windows:
+            raise ValueError(
+                f"component_window {self.component_window} is not one of rolling_windows "
+                f"{self.rolling_windows}"
+            )
+        return self
+
+
+class AOddsConfig(_Section):
+    """A_odds' team layer: where the betting market replaces A's club xG (``shadow/a_odds.py``,
+    MOD-05, DP-06). A's own tunables are ``forecast.a``. The values are the frozen candidate's
+    (``backtest/ot_models.py``) unless a field says otherwise; changing one is a model change."""
+
+    share_shrinkage: float = Field(
+        default=3.0,
+        ge=0,
+        description=(
+            "Gameweeks of a player's own xG (and xA) share that weigh as much as his position and "
+            "price band's mean share: the share is shrunk toward that prior until he has played."
+        ),
+    )
+    assist_fraction: float = Field(
+        default=0.75,
+        ge=0,
+        le=1,
+        description="Share of a club's goals that carry an FPL assist, applied to its odds goals.",
+    )
+    team_xg_floor: float = Field(
+        default=0.1,
+        gt=0,
+        description="Lowest club xG a share is divided by, so a club's blank week reads no share.",
+    )
+    minimum_play_fraction: float = Field(
+        default=0.1,
+        gt=0,
+        le=1,
+        description=(
+            "Lowest fraction of a match a player's recent minutes are taken to cover, so a "
+            "cameo's share of his club's xG is not scaled up into a full match's."
+        ),
+    )
+    match_minutes: float = Field(
+        default=90.0,
+        gt=0,
+        description="Minutes in a match, which a player's recent minutes are a fraction of.",
+    )
+    price_band_edges: tuple[float, ...] = Field(
+        default=(4.75, 5.75, 7.25, 9.25),
+        min_length=1,
+        description="Price edges, in £m, of the bands a share's prior is a mean over, by position.",
+    )
+    saves_per_goal_conceded_default: float = Field(
+        default=2.0,
+        gt=0,
+        description=(
+            "Goalkeeper saves per goal conceded where the history is too thin to measure it: the "
+            "frozen candidate's 3.0 shots on target per goal less the goal itself. Silver has no "
+            "shots on target, so the rate is measured from saves instead (the documented proxy)."
+        ),
+    )
+    saves_per_goal_conceded_floor: float = Field(
+        default=0.5,
+        gt=0,
+        description="Lowest saves per goal conceded used, the frozen candidate's floor.",
+    )
+    saves_rate_minimum_appearances: int = Field(
+        default=40,
+        ge=0,
+        description=(
+            "Goalkeeper appearances before the deadline needed to measure saves per goal "
+            "conceded: two keepers a fixture over the frozen candidate's 20 fixtures."
         ),
     )
 
@@ -1298,6 +1454,8 @@ class ForecastConfig(_Section):
 
     published: PublishedModelConfig = PublishedModelConfig()
     c1: C1Config = C1Config()
+    a: AConfig = AConfig()
+    a_odds: AOddsConfig = AOddsConfig()
 
 
 class ChipReplayConfig(_Section):

@@ -1,1 +1,1 @@
-"""Challenger forecasters outside the champion's component chain (C1; MOD-05)."""
+"""Challenger forecasters outside the champion's component chain (C1, A, A_odds; MOD-05)."""
