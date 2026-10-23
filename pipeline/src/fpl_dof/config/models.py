@@ -1715,6 +1715,16 @@ class OptimiserConfig(_Section):
     )
     captain_multiplier: int = Field(default=2, ge=1)
     solve_time_limit_seconds: int = Field(default=60, gt=0)
+    scenario_workers: int = Field(
+        default=4,
+        ge=1,
+        description=(
+            "Processes the chip plan solves its scenarios across (ORC-09), capped at the machine's "
+            "cores. Four because the hosted runner has four cores. Each scenario is an independent "
+            "MILP over the same inputs, so the plan is the sequential one whatever this is; 1 "
+            "solves them one after another in this process."
+        ),
+    )
     solver: str = Field(default="CBC", description="PuLP's bundled solver. HiGHS arrives in E4.")
     enforce_start_probability_floor: bool = Field(
         default=True,
@@ -2430,6 +2440,26 @@ class ScheduleConfig(_Section):
             "deadline (R-09). Scheduled runs are best-effort and can be delayed under platform "
             "load; the deadline is not. Manual dispatch remains the fallback."
         ),
+    )
+    pipeline_run_budget_seconds: int = Field(
+        default=300,
+        gt=0,
+        description=(
+            "Wall clock a pipeline.yml run may take, from its start to its last job (DL-94 Q9). "
+            "A dispatched run must finish well inside the freeze, and every extra run per "
+            "gameweek multiplies each minute (ORC-09). Over it, a CI step fails, so a slow change "
+            "is seen when it lands."
+        ),
+    )
+    ci_workflow_budget_seconds: int = Field(
+        default=180,
+        gt=0,
+        description="Wall clock a CI workflow run may take, every job included (DL-94 Q9).",
+    )
+    python_tests_budget_seconds: int = Field(
+        default=90,
+        gt=0,
+        description="Wall clock the Python test step may take in CI (DL-94 Q9).",
     )
 
     @model_validator(mode="after")

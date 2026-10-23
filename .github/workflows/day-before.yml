@@ -47,10 +47,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
-          cache: pip
-          cache-dependency-path: pipeline/requirements.lock
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.19"
+          enable-cache: true
+          cache-dependency-glob: pipeline/requirements.lock
       - name: Install fpl-dof
-        run: python -m pip install -c pipeline/requirements.lock -e pipeline
+        run: uv pip install --system -c pipeline/requirements.lock -e pipeline
       # Always exits 0 — an unreadable FPL API or run list is a logged skip, never a partial run.
       - name: First firing from 07:00 Sydney the day before the deadline, once per GW?
         id: gate

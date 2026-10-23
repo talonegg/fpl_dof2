@@ -71,9 +71,15 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
-          cache: pip
-          cache-dependency-path: pipeline/requirements.lock
-      - run: python -m pip install -c pipeline/requirements.lock -e pipeline
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.19"
+          enable-cache: true
+          cache-dependency-glob: pipeline/requirements.lock
+      # Only what the schedule decision and the restore import (ORC-09): no solver, no models.
+      - run: |
+          uv pip install --system -c pipeline/requirements.lock pandas pandera pyarrow pydantic pyyaml httpx
+          uv pip install --system -c pipeline/requirements.lock --no-deps -e pipeline
       - name: Restore data from the `data` branch
         run: python pipeline/scripts/retention.py restore data
 
@@ -133,15 +139,19 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
-          cache: pip
-          cache-dependency-path: pipeline/requirements.lock
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.19"
+          enable-cache: true
+          cache-dependency-glob: pipeline/requirements.lock
 
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
 
       - name: Install fpl-dof
-        run: python -m pip install -c pipeline/requirements.lock -e "pipeline[dev]"
+        run: uv pip install --system -c pipeline/requirements.lock -e pipeline
 
       - name: Restore data from the `data` branch
         run: python pipeline/scripts/retention.py restore data
@@ -251,8 +261,31 @@ jobs:
       id-token: write
       issues: write # deploy.yml's own failure alert
 
+  # From the run's start to its last job, against schedule.pipeline_run_budget_seconds (ORC-09).
+  budget:
+    needs: [run]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.19"
+          enable-cache: true
+          cache-dependency-glob: pipeline/requirements.lock
+      - run: uv pip install --system -c pipeline/requirements.lock pandas pydantic pyyaml
+      - name: Pipeline run within its budget
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python pipeline/scripts/ci_runs.py budget pipeline_run_budget_seconds
+
   alert:
-    needs: [guard, run]
+    needs: [guard, run, budget]
     if: failure()
     uses: ./.github/workflows/alert-on-failure.yml
     with:

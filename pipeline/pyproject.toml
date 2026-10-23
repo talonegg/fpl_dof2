@@ -35,6 +35,8 @@ dev = [
     "pytest>=8.3",
     "pytest-cov>=6.0",
     "pytest-timeout>=2.3",
+    # Parallel tests, so the suite stays inside its budget (ORC-09, DL-94 Q9).
+    "pytest-xdist>=3.6",
     "respx>=0.22",
     "ruff>=0.9",
     "types-jsonschema>=4.23",
