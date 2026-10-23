@@ -95,7 +95,7 @@
    "label": "C3 before card rates (F1 control)",
    "plan": true,
    "published": false,
-   "role": "experiment"
+   "role": "retired"
   },
   {
    "aliases": [],
@@ -109,7 +109,7 @@
    "label": "C3 on all seasons (F3)",
    "plan": true,
    "published": false,
-   "role": "experiment"
+   "role": "retired"
   }
  ]
 }
