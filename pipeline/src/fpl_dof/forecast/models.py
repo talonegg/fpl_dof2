@@ -321,7 +321,6 @@ class TeamStrengthModel:
     attack: dict[int, float] = field(default_factory=dict)
     defence: dict[int, float] = field(default_factory=dict)
     league_mean_goals: float = 1.4
-    half_life_matches: float = 20.0
     config: TeamStrengthConfig = field(default_factory=TeamStrengthConfig)
     home_advantage: float = float("nan")
     """The venue multiplier actually in use. ``nan`` at construction means "not supplied", and
@@ -438,7 +437,7 @@ class TeamStrengthModel:
         newest = frame["kickoff_time"].max()
         age_days = (newest - frame["kickoff_time"]).dt.total_seconds() / 86400.0
         # Half-life expressed in matches, converted through a nominal 7-day week.
-        frame["_weight"] = 0.5 ** (age_days / (self.half_life_matches * 7.0))
+        frame["_weight"] = 0.5 ** (age_days / (self.config.half_life_matches * 7.0))
 
         weighted_total = float((frame["goals_for"] * frame["_weight"]).sum())
         weight_total = float(frame["_weight"].sum())
@@ -585,7 +584,7 @@ class TeamStrengthModel:
             "home_advantage_source": ("fitted" if self.home_advantage_is_fitted else "prior"),
             "home_advantage_matches": round(self.home_advantage_matches, 1),
             "home_advantage_prior": self.config.home_advantage_prior,
-            "half_life_matches": self.half_life_matches,
+            "half_life_matches": self.config.half_life_matches,
             "rating_prior_matches": self.config.rating_prior_matches,
             "promoted_prior_matches": self.config.promoted_prior_matches,
             "promoted_teams": sorted(self.promoted_teams),

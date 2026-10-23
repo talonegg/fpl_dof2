@@ -194,3 +194,17 @@ def test_describe_reports_the_shrinkage_configuration_and_named_clubs() -> None:
     assert description["rating_prior_matches"] == 8.0
     assert description["promoted_prior_matches"] == 20.0
     assert description["promoted_teams"] == [1, 3]
+
+
+def test_the_half_life_is_read_from_config() -> None:
+    """03 §12.6 F4 (DP-06): a shorter half-life weights the recent match more."""
+    matches = _matches(
+        [
+            (1, "old", 0.0, 0.0, True, "2026-01-01T15:00:00Z"),
+            (1, "new", 3.0, 0.0, True, "2026-08-01T15:00:00Z"),
+        ]
+    )
+    slow = TeamStrengthModel(config=TeamStrengthConfig(half_life_matches=100.0)).fit(matches)
+    fast = TeamStrengthModel(config=TeamStrengthConfig(half_life_matches=1.0)).fit(matches)
+    assert fast.league_mean_goals > slow.league_mean_goals
+    assert fast.describe()["half_life_matches"] == 1.0

@@ -22,6 +22,38 @@
   },
   {
    "aliases": [
+    "A"
+   ],
+   "artefacts": {
+    "plan": null,
+    "week": "week_a.json"
+   },
+   "description": "Component xPts model (goals, assists, clean sheets, bonus, appearance). Comparison only.",
+   "digest": "<masked>",
+   "id": "a",
+   "label": "Model A",
+   "plan": false,
+   "published": true,
+   "role": "challenger"
+  },
+  {
+   "aliases": [
+    "A_odds"
+   ],
+   "artefacts": {
+    "plan": null,
+    "week": "week_a_odds.json"
+   },
+   "description": "Model A with the bookmaker-odds team layer where every fixture of a club's gameweek is priced; no advice without odds.",
+   "digest": "<masked>",
+   "id": "a_odds",
+   "label": "A + odds",
+   "plan": false,
+   "published": true,
+   "role": "challenger"
+  },
+  {
+   "aliases": [
     "C1",
     "challenger"
    ],
@@ -49,38 +81,6 @@
    "label": "Engine",
    "plan": false,
    "published": true,
-   "role": "challenger"
-  },
-  {
-   "aliases": [
-    "A"
-   ],
-   "artefacts": {
-    "plan": null,
-    "week": null
-   },
-   "description": "Component xPts model (goals, assists, clean sheets, bonus, appearance). Comparison only.",
-   "digest": "<masked>",
-   "id": "a",
-   "label": "Model A",
-   "plan": false,
-   "published": false,
-   "role": "challenger"
-  },
-  {
-   "aliases": [
-    "A_odds"
-   ],
-   "artefacts": {
-    "plan": null,
-    "week": null
-   },
-   "description": "Model A with the bookmaker-odds team layer. Currently duplicates A until odds rows flow; no saved backtest xP.",
-   "digest": "<masked>",
-   "id": "a_odds",
-   "label": "A + odds",
-   "plan": false,
-   "published": false,
    "role": "challenger"
   }
  ]
