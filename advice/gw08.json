@@ -1,20 +1,20 @@
 {
   "gameweek": 8,
-  "run_id": "20261023T100854Z-59e97274",
-  "recorded_at": "2026-10-23T10:08:54.612262Z",
+  "run_id": "20261023T112538Z-ec875573",
+  "recorded_at": "2026-10-23T11:25:38.074401Z",
   "advised": {
     "gameweek": 8,
     "squad": [
       8,
+      31,
       68,
       109,
       115,
       124,
       165,
-      175,
       237,
       277,
-      334,
+      330,
       399,
       411,
       426,
@@ -23,51 +23,51 @@
     ],
     "starting": [
       109,
-      115,
-      334,
       8,
-      399,
       411,
+      31,
+      330,
+      115,
       124,
       426,
-      277,
-      237,
-      68
+      68,
+      399,
+      237
     ],
     "bench_order": [
+      277,
       464,
-      165,
-      175
+      165
     ],
     "reserve_goalkeeper": 496,
     "captain": 411,
     "vice_captain": 426,
     "formation": "1-4-5-1",
-    "expected_points": 39.239
+    "expected_points": 40.944
   },
   "recommendation": {
-    "rationale": "1 free transfer(s) gain 1.18 expected points",
+    "rationale": "1 free transfer(s) gain 1.07 expected points",
     "is_roll": false,
     "transfers": 1,
     "hit_points": 0,
-    "net_expected_points": 39.239,
-    "gain_over_roll": 1.1838,
-    "bank_after": 0.6,
+    "net_expected_points": 40.9445,
+    "gain_over_roll": 1.0692,
+    "bank_after": 0.2,
     "moves": [
       {
         "out": {
-          "player_id": 31,
-          "web_name": "Konsa",
-          "price": 4.6,
-          "xp_next": 2.116,
-          "form_points_per_match": 3.2
+          "player_id": 175,
+          "web_name": "van Ewijk",
+          "price": 3.9,
+          "xp_next": 2.252,
+          "form_points_per_match": 2.167
         },
         "in": {
-          "player_id": 334,
-          "web_name": "Muharemovi\u0107",
-          "price": 5.0,
-          "xp_next": 3.663,
-          "form_points_per_match": 4.833
+          "player_id": 330,
+          "web_name": "Bogle",
+          "price": 4.7,
+          "xp_next": 3.715,
+          "form_points_per_match": 6.5
         }
       }
     ],
@@ -75,27 +75,27 @@
       {
         "transfers": 0,
         "hit_points": 0,
-        "net_expected_points": 38.0552,
+        "net_expected_points": 39.8753,
         "gain_over_roll": 0.0,
         "moves": []
       },
       {
         "transfers": 1,
         "hit_points": 0,
-        "net_expected_points": 39.239,
-        "gain_over_roll": 1.1838,
+        "net_expected_points": 40.9445,
+        "gain_over_roll": 1.0692,
         "moves": [
-          "Konsa (\u00a34.6m) -> Muharemovi\u0107 (\u00a35.0m)"
+          "van Ewijk (\u00a33.9m) -> Bogle (\u00a34.7m)"
         ]
       },
       {
         "transfers": 2,
         "hit_points": -4,
-        "net_expected_points": 36.2086,
-        "gain_over_roll": -1.8466,
+        "net_expected_points": 37.0801,
+        "gain_over_roll": -2.7952,
         "moves": [
-          "Konsa (\u00a34.6m) -> Justin (\u00a34.5m)",
-          "van Ewijk (\u00a33.9m) -> Muharemovi\u0107 (\u00a35.0m)"
+          "Egan (\u00a34.1m) -> Elvedi (\u00a34.5m)",
+          "Kinsky (\u00a34.5m) -> Trafford (\u00a35.0m)"
         ]
       }
     ],
@@ -117,21 +117,21 @@
       "role": "champion",
       "strategy": {
         "id": "c3",
-        "digest": "58fe367727c6a419090b7cb6aba971e055ccae308fd63e322c3b33730253c386"
+        "digest": "7355ed7facb6256351a001fc739a6811df7d31e299b8697bdfe5321cb4c46bf7"
       },
       "advised": {
         "gameweek": 8,
         "squad": [
           8,
+          31,
           68,
           109,
           115,
           124,
           165,
-          175,
           237,
           277,
-          334,
+          330,
           399,
           411,
           426,
@@ -140,51 +140,51 @@
         ],
         "starting": [
           109,
-          115,
-          334,
           8,
-          399,
           411,
+          31,
+          330,
+          115,
           124,
           426,
-          277,
-          237,
-          68
+          68,
+          399,
+          237
         ],
         "bench_order": [
+          277,
           464,
-          165,
-          175
+          165
         ],
         "reserve_goalkeeper": 496,
         "captain": 411,
         "vice_captain": 426,
         "formation": "1-4-5-1",
-        "expected_points": 39.239
+        "expected_points": 40.944
       },
       "recommendation": {
-        "rationale": "1 free transfer(s) gain 1.18 expected points",
+        "rationale": "1 free transfer(s) gain 1.07 expected points",
         "is_roll": false,
         "transfers": 1,
         "hit_points": 0,
-        "net_expected_points": 39.239,
-        "gain_over_roll": 1.1838,
-        "bank_after": 0.6,
+        "net_expected_points": 40.9445,
+        "gain_over_roll": 1.0692,
+        "bank_after": 0.2,
         "moves": [
           {
             "out": {
-              "player_id": 31,
-              "web_name": "Konsa",
-              "price": 4.6,
-              "xp_next": 2.116,
-              "form_points_per_match": 3.2
+              "player_id": 175,
+              "web_name": "van Ewijk",
+              "price": 3.9,
+              "xp_next": 2.252,
+              "form_points_per_match": 2.167
             },
             "in": {
-              "player_id": 334,
-              "web_name": "Muharemovi\u0107",
-              "price": 5.0,
-              "xp_next": 3.663,
-              "form_points_per_match": 4.833
+              "player_id": 330,
+              "web_name": "Bogle",
+              "price": 4.7,
+              "xp_next": 3.715,
+              "form_points_per_match": 6.5
             }
           }
         ],
@@ -192,27 +192,27 @@
           {
             "transfers": 0,
             "hit_points": 0,
-            "net_expected_points": 38.0552,
+            "net_expected_points": 39.8753,
             "gain_over_roll": 0.0,
             "moves": []
           },
           {
             "transfers": 1,
             "hit_points": 0,
-            "net_expected_points": 39.239,
-            "gain_over_roll": 1.1838,
+            "net_expected_points": 40.9445,
+            "gain_over_roll": 1.0692,
             "moves": [
-              "Konsa (\u00a34.6m) -> Muharemovi\u0107 (\u00a35.0m)"
+              "van Ewijk (\u00a33.9m) -> Bogle (\u00a34.7m)"
             ]
           },
           {
             "transfers": 2,
             "hit_points": -4,
-            "net_expected_points": 36.2086,
-            "gain_over_roll": -1.8466,
+            "net_expected_points": 37.0801,
+            "gain_over_roll": -2.7952,
             "moves": [
-              "Konsa (\u00a34.6m) -> Justin (\u00a34.5m)",
-              "van Ewijk (\u00a33.9m) -> Muharemovi\u0107 (\u00a35.0m)"
+              "Egan (\u00a34.1m) -> Elvedi (\u00a34.5m)",
+              "Kinsky (\u00a34.5m) -> Trafford (\u00a35.0m)"
             ]
           }
         ],
@@ -224,7 +224,7 @@
       "role": "challenger",
       "strategy": {
         "id": "a",
-        "digest": "33c418f5bb10b122611d472e528c76ca6bf23825a7cb00683737caaf398185b9"
+        "digest": "96ee7c35de9ecaff49439102f24c194ad84d039809471e0742d900d3f11b5856"
       },
       "advised": {
         "gameweek": 8,
@@ -232,13 +232,13 @@
           8,
           31,
           68,
-          87,
           109,
           115,
           124,
-          165,
+          175,
           237,
           277,
+          346,
           399,
           411,
           426,
@@ -246,52 +246,52 @@
           496
         ],
         "starting": [
-          87,
-          115,
-          31,
           411,
-          165,
-          109,
+          346,
+          68,
           426,
-          124,
-          399,
+          237,
           464,
-          8
+          124,
+          31,
+          8,
+          115,
+          109
         ],
         "bench_order": [
           277,
-          68,
-          237
+          175,
+          399
         ],
         "reserve_goalkeeper": 496,
         "captain": 411,
         "vice_captain": 426,
-        "formation": "1-4-3-3",
-        "expected_points": 42.651
+        "formation": "1-3-4-3",
+        "expected_points": 56.405
       },
       "recommendation": {
-        "rationale": "1 free transfer(s) gain 3.32 expected points",
+        "rationale": "1 free transfer(s) gain 2.49 expected points",
         "is_roll": false,
         "transfers": 1,
         "hit_points": 0,
-        "net_expected_points": 42.6509,
-        "gain_over_roll": 2.2958,
-        "bank_after": 0.4,
+        "net_expected_points": 56.4054,
+        "gain_over_roll": 2.4894,
+        "bank_after": 2.6,
         "moves": [
           {
             "out": {
-              "player_id": 175,
-              "web_name": "van Ewijk",
-              "price": 3.9,
-              "xp_next": 2.345,
-              "form_points_per_match": 2.4
+              "player_id": 165,
+              "web_name": "Jo\u00e3o Pedro",
+              "price": 7.7,
+              "xp_next": 3.408,
+              "form_points_per_match": 7.833
             },
             "in": {
-              "player_id": 87,
-              "web_name": "Ajer",
-              "price": 4.5,
-              "xp_next": 4.728,
-              "form_points_per_match": 4.5
+              "player_id": 346,
+              "web_name": "Calvert-Lewin",
+              "price": 6.1,
+              "xp_next": 5.897,
+              "form_points_per_match": 5.333
             }
           }
         ],
@@ -299,27 +299,27 @@
           {
             "transfers": 0,
             "hit_points": 0,
-            "net_expected_points": 40.3551,
+            "net_expected_points": 53.916,
             "gain_over_roll": 0.0,
             "moves": []
           },
           {
             "transfers": 1,
             "hit_points": 0,
-            "net_expected_points": 42.6509,
-            "gain_over_roll": 2.2958,
+            "net_expected_points": 56.4054,
+            "gain_over_roll": 2.4894,
             "moves": [
-              "van Ewijk (\u00a33.9m) -> Ajer (\u00a34.5m)"
+              "Jo\u00e3o Pedro (\u00a37.7m) -> Calvert-Lewin (\u00a36.1m)"
             ]
           },
           {
             "transfers": 2,
             "hit_points": -4,
-            "net_expected_points": 40.1331,
-            "gain_over_roll": -0.222,
+            "net_expected_points": 54.9729,
+            "gain_over_roll": 1.0569,
             "moves": [
-              "van Ewijk (\u00a33.9m) -> Ajer (\u00a34.5m)",
-              "B.Fernandes (\u00a311.8m) -> Palmer (\u00a39.8m)"
+              "De Cuyper (\u00a35.0m) -> Bassey (\u00a34.5m)",
+              "Jo\u00e3o Pedro (\u00a37.7m) -> Isak (\u00a39.0m)"
             ]
           }
         ],
@@ -331,7 +331,7 @@
       "role": "challenger",
       "strategy": {
         "id": "a_odds",
-        "digest": "d78830a45a48b68892a5355fad88e5a3a407286b6c3ddf5180bb130146551165"
+        "digest": "f7d0691bbd22a08405ce0f3da37e375e0325844a20252b038e11a856831fe15b"
       },
       "no_advice": "no advice: MissingOddsError: no match odds knowable before the gameweek 8 deadline"
     },
@@ -339,7 +339,7 @@
       "role": "challenger",
       "strategy": {
         "id": "c1",
-        "digest": "df941cc50cb9a910436dbf03b21a5128e32a055a33808393ddb934794ed41027"
+        "digest": "669ff7c08fc159bfd59044897cb2e18bdd3941d3f17c20850204a465691744f5"
       },
       "advised": {
         "gameweek": 8,
@@ -353,44 +353,44 @@
           165,
           175,
           237,
+          334,
           399,
           411,
           426,
-          447,
           464,
           496
         ],
         "starting": [
-          447,
-          399,
-          426,
-          115,
-          124,
-          464,
-          165,
-          109,
           411,
+          334,
+          165,
+          68,
+          426,
+          237,
+          464,
+          115,
           8,
-          31
+          124,
+          109
         ],
         "bench_order": [
-          237,
-          175,
-          68
+          31,
+          399,
+          175
         ],
         "reserve_goalkeeper": 496,
         "captain": 411,
         "vice_captain": 426,
-        "formation": "1-4-3-3",
-        "expected_points": 45.579
+        "formation": "1-3-4-3",
+        "expected_points": 53.855
       },
       "recommendation": {
-        "rationale": "1 free transfer(s) gain 3.73 expected points",
+        "rationale": "1 free transfer(s) gain 2.42 expected points",
         "is_roll": false,
         "transfers": 1,
         "hit_points": 0,
-        "net_expected_points": 45.5792,
-        "gain_over_roll": 2.9458,
+        "net_expected_points": 53.8554,
+        "gain_over_roll": 2.4203,
         "bank_after": 0.1,
         "moves": [
           {
@@ -398,15 +398,15 @@
               "player_id": 277,
               "web_name": "Egan",
               "price": 4.1,
-              "xp_next": 2.255,
-              "form_points_per_match": 4.5
+              "xp_next": 1.814,
+              "form_points_per_match": 3.833
             },
             "in": {
-              "player_id": 447,
-              "web_name": "Botman",
+              "player_id": 334,
+              "web_name": "Muharemovi\u0107",
               "price": 5.0,
-              "xp_next": 5.521,
-              "form_points_per_match": 3.833
+              "xp_next": 5.238,
+              "form_points_per_match": 4.667
             }
           }
         ],
@@ -414,27 +414,27 @@
           {
             "transfers": 0,
             "hit_points": 0,
-            "net_expected_points": 42.6334,
+            "net_expected_points": 51.4351,
             "gain_over_roll": 0.0,
             "moves": []
           },
           {
             "transfers": 1,
             "hit_points": 0,
-            "net_expected_points": 45.5792,
-            "gain_over_roll": 2.9458,
+            "net_expected_points": 53.8554,
+            "gain_over_roll": 2.4203,
             "moves": [
-              "Egan (\u00a34.1m) -> Botman (\u00a35.0m)"
+              "Egan (\u00a34.1m) -> Muharemovi\u0107 (\u00a35.0m)"
             ]
           },
           {
             "transfers": 2,
             "hit_points": -4,
-            "net_expected_points": 44.28,
-            "gain_over_roll": 1.6466,
+            "net_expected_points": 51.9251,
+            "gain_over_roll": 0.49,
             "moves": [
-              "van Ewijk (\u00a33.9m) -> Thomas (\u00a34.0m)",
-              "Egan (\u00a34.1m) -> Botman (\u00a35.0m)"
+              "van Ewijk (\u00a33.9m) -> Bogle (\u00a34.7m)",
+              "Cherki (\u00a37.8m) -> Rogers (\u00a38.0m)"
             ]
           }
         ],
@@ -446,12 +446,13 @@
       "role": "challenger",
       "strategy": {
         "id": "engine",
-        "digest": "f92fdb7e91d0140460dbef2d8b40a97df8e49903a75a999c2e5a7fe8e5d491e7"
+        "digest": "a2b4d23fb90dd1bb82b567a4531e17e8fcdc1beea3a70d5c9d19c63f9192f39f"
       },
       "advised": {
         "gameweek": 8,
         "squad": [
           8,
+          31,
           68,
           109,
           115,
@@ -459,7 +460,6 @@
           165,
           175,
           237,
-          277,
           334,
           399,
           411,
@@ -469,51 +469,51 @@
         ],
         "starting": [
           109,
-          115,
-          334,
           8,
-          399,
           411,
+          334,
+          31,
+          115,
+          399,
           124,
+          165,
           426,
-          277,
-          237,
           68
         ],
         "bench_order": [
-          464,
-          165,
-          175
+          237,
+          175,
+          464
         ],
         "reserve_goalkeeper": 496,
         "captain": 109,
-        "vice_captain": 115,
-        "formation": "1-4-5-1",
-        "expected_points": 40.8524
+        "vice_captain": 8,
+        "formation": "1-4-4-2",
+        "expected_points": 42.0914
       },
       "recommendation": {
-        "rationale": "1 free transfer(s) gain 1.18 expected points",
+        "rationale": "1 free transfer(s) gain 1.10 expected points",
         "is_roll": false,
         "transfers": 1,
         "hit_points": 0,
-        "net_expected_points": 40.8524,
-        "gain_over_roll": 1.1838,
-        "bank_after": 0.6,
+        "net_expected_points": 42.0914,
+        "gain_over_roll": 1.103,
+        "bank_after": 0.1,
         "moves": [
           {
             "out": {
-              "player_id": 31,
-              "web_name": "Konsa",
-              "price": 4.6,
-              "xp_next": 2.116,
-              "form_points_per_match": 3.2
+              "player_id": 277,
+              "web_name": "Egan",
+              "price": 4.1,
+              "xp_next": 2.646,
+              "form_points_per_match": 3.833
             },
             "in": {
               "player_id": 334,
               "web_name": "Muharemovi\u0107",
               "price": 5.0,
-              "xp_next": 3.663,
-              "form_points_per_match": 4.833
+              "xp_next": 3.761,
+              "form_points_per_match": 4.667
             }
           }
         ],
@@ -521,27 +521,27 @@
           {
             "transfers": 0,
             "hit_points": 0,
-            "net_expected_points": 39.6686,
+            "net_expected_points": 40.9884,
             "gain_over_roll": 0.0,
             "moves": []
           },
           {
             "transfers": 1,
             "hit_points": 0,
-            "net_expected_points": 40.8524,
-            "gain_over_roll": 1.1838,
+            "net_expected_points": 42.0914,
+            "gain_over_roll": 1.103,
             "moves": [
-              "Konsa (\u00a34.6m) -> Muharemovi\u0107 (\u00a35.0m)"
+              "Egan (\u00a34.1m) -> Muharemovi\u0107 (\u00a35.0m)"
             ]
           },
           {
             "transfers": 2,
             "hit_points": -4,
-            "net_expected_points": 37.822,
-            "gain_over_roll": -1.8466,
+            "net_expected_points": 38.462,
+            "gain_over_roll": -2.5264,
             "moves": [
-              "Konsa (\u00a34.6m) -> Justin (\u00a34.5m)",
-              "van Ewijk (\u00a33.9m) -> Muharemovi\u0107 (\u00a35.0m)"
+              "Egan (\u00a34.1m) -> Elvedi (\u00a34.5m)",
+              "Kinsky (\u00a34.5m) -> Trafford (\u00a35.0m)"
             ]
           }
         ],
