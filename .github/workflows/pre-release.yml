@@ -36,14 +36,16 @@ jobs:
           set -eu
           mkdir -p web/public/data/v1
           # shortcut: mirrors deploy.yml's fallback loop; fold both into one step with 03 §12 O3.
-          for run_id in $(gh run list --workflow=pipeline.yml --status=success --limit=20 \
-              --json databaseId --jq '.[].databaseId'); do
-            if gh run download "$run_id" --name web-data-contract --dir web/public/data/v1; then
-              echo "contract from pipeline run $run_id"
+          artefacts="repos/${{ github.repository }}/actions/artifacts"
+          for artefact in $(gh api "$artefacts?name=web-data-contract&per_page=100" \
+              --jq '.artifacts | map(select(.expired | not)) | sort_by(.created_at) | reverse | .[].id'); do
+            if gh api "$artefacts/$artefact/zip" > "$RUNNER_TEMP/contract.zip" \
+                && unzip -oq "$RUNNER_TEMP/contract.zip" -d web/public/data/v1; then
+              echo "contract artefact $artefact"
               exit 0
             fi
           done
-          echo "::error::no published contract found in the last 20 successful pipeline runs"
+          echo "::error::no pipeline run has an unexpired published contract"
           exit 1
 
       - uses: actions/setup-node@v4

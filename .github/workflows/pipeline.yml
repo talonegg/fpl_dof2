@@ -118,7 +118,7 @@ jobs:
       group: pipeline
       cancel-in-progress: false
     runs-on: ubuntu-latest
-    # Measured 2026-10-23: local run 360 s, of which the week stage 271 s; the runner is slower.
+    # A local run took about 100 s after ORC-09 (its commits give the figures); the runner is slower.
     timeout-minutes: 45
     permissions:
       contents: write # appends this run's advice to the `ledger` branch (DL-69)
@@ -278,9 +278,12 @@ jobs:
       id-token: write
       issues: write # deploy.yml's own failure alert
 
-  # From the run's start to its last job, against schedule.pipeline_run_budget_seconds (ORC-09).
+  # From the run's start to its last job, deploy included, against
+  # schedule.pipeline_run_budget_seconds (ORC-09). Over budget the run ends red and alerts; its
+  # contract is already uploaded, and deploy.yml's fallback still finds it.
   budget:
-    needs: [run]
+    needs: [run, deploy]
+    if: ${{ !cancelled() && needs.run.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

@@ -274,18 +274,22 @@ def test_ci_runs_script_says_not_done_when_github_is_unreachable(
 def test_a_run_over_its_schedule_budget_fails_the_budget_step(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """ORC-09: from the run's start to its last finished job, against `schedule` config."""
+    """ORC-09: the time the run's finished jobs ran, against `schedule` config."""
     mod = _script("ci_runs")
-    run = {"run_started_at": "2026-10-23T10:00:00Z"}
     jobs = [
-        {"completed_at": "2026-10-23T10:02:00Z"},
-        {"completed_at": "2026-10-23T10:03:30Z"},
-        {"completed_at": None},  # the budget job itself, still running
+        {"started_at": "2026-10-23T10:00:00Z", "completed_at": "2026-10-23T10:02:00Z"},
+        {"started_at": "2026-10-23T10:01:00Z", "completed_at": "2026-10-23T10:03:30Z"},
+        {"started_at": "2026-10-23T10:03:35Z", "completed_at": None},  # the budget job itself
     ]
-    assert mod.run_seconds(run, jobs) == 210
-    monkeypatch.setattr(
-        mod, "gh_json", lambda *a: {"jobs": jobs} if a[-1].endswith("/jobs") else run
-    )
+    assert mod.run_seconds(jobs) == 210
+    # The run job waited behind another run's from 10:01 to 10:06: not this run's own time.
+    queued = [
+        {"started_at": "2026-10-23T10:00:00Z", "completed_at": "2026-10-23T10:01:00Z"},
+        {"started_at": "2026-10-23T10:06:00Z", "completed_at": "2026-10-23T10:08:00Z"},
+        {"started_at": "2026-10-23T10:08:05Z", "completed_at": "2026-10-23T10:09:05Z"},  # deploy
+    ]
+    assert mod.run_seconds(queued) == 240
+    monkeypatch.setattr(mod, "gh_json", lambda *a: {"jobs": jobs})
     monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
     monkeypatch.setenv("GITHUB_RUN_ID", "1")
     assert mod.main(["budget", "ci_workflow_budget_seconds"]) == 1  # 210 s > 180 s
@@ -363,6 +367,26 @@ def test_deploy_runs_only_after_a_pipeline_run_that_published() -> None:
         build["Restore the newest pipeline run's contract"]["if"] == "${{ !inputs.from_pipeline }}"
     )
     assert deploy["jobs"]["deploy"]["permissions"] == {"pages": "write", "id-token": "write"}
+
+
+def test_an_over_budget_run_stays_findable_and_the_budget_spans_its_deploy() -> None:
+    """ORC-09: the budget fails a run after it published; the fallbacks then take the newest
+    run that uploaded a contract, whatever its conclusion, from a list ticks cannot crowd."""
+    wf = REPO / ".github" / "workflows"
+    deploy = yaml.safe_load((wf / "deploy.yml").read_text())
+    fallback = next(
+        s["run"]
+        for s in deploy["jobs"]["build"]["steps"]
+        if s.get("name") == "Restore the newest pipeline run's contract"
+    )
+    pre_release = (wf / "pre-release.yml").read_text()
+    for text in (fallback, pre_release):
+        assert "/actions/artifacts" in text and "?name=web-data-contract" in text
+        assert "map(select(.expired | not))" in text
+        assert "--status" not in text and "gh run list" not in text
+    budget = yaml.safe_load((wf / "pipeline.yml").read_text())["jobs"]["budget"]
+    assert budget["needs"] == ["run", "deploy"]
+    assert budget["if"] == "${{ !cancelled() && needs.run.result == 'success' }}"
 
 
 # --- fail-closed contract check --------------------------------------------------------------

@@ -10,7 +10,7 @@
 #   publish (`must_publish`, the day-before refresh) also requires the contract to be fresh
 #   (`contract_fresh.py`, #39: fail closed).
 # - **push to main or manual dispatch**, to ship web changes until WEB-01 separates the app from the
-#   data. It takes the newest successful pipeline run that uploaded a contract.
+#   data. It takes the newest pipeline run that uploaded a contract, whatever its conclusion.
 #
 # If no contract can be restored, the build fails so actions/deploy-pages leaves the previous site
 # live (DP-15, architecture §10.3).
@@ -61,8 +61,10 @@ jobs:
         if: inputs.must_publish
         run: python pipeline/scripts/contract_fresh.py web/public/data/v1 --max-age-hours 6
 
-      # push/dispatch only. The `data` branch has never carried a `web/v1` copy (DL-68), so the
-      # contract comes from a recent successful pipeline run that actually uploaded one.
+      # push/dispatch only. The `data` branch has never carried a contract (DL-68), so it comes from
+      # the newest pipeline run that uploaded one, whatever that run's conclusion: a run over its
+      # budget ends red after it published (ORC-09). Only a run whose `run` job reached the upload
+      # has the artefact, so guard-only ticks never crowd the list.
       - name: Restore the newest pipeline run's contract
         if: ${{ !inputs.from_pipeline }}
         env:
@@ -70,15 +72,18 @@ jobs:
         run: |
           set -eu
           restored=""
-          while read -r run_id; do
-            [ -z "$run_id" ] && continue
-            if gh run download "$run_id" --name web-data-contract --dir web/public/data/v1; then
-              echo "restored contract from pipeline run $run_id"
+          artefacts="repos/${{ github.repository }}/actions/artifacts"
+          while read -r artefact; do
+            [ -z "$artefact" ] && continue
+            if gh api "$artefacts/$artefact/zip" > "$RUNNER_TEMP/contract.zip" \
+                && unzip -oq "$RUNNER_TEMP/contract.zip" -d web/public/data/v1; then
+              echo "restored contract artefact $artefact"
               restored=1
               break
             fi
-            echo "::warning::pipeline run $run_id has no downloadable contract artefact"
-          done < <(gh run list --workflow=pipeline.yml --status=success --limit=20 --json databaseId --jq '.[].databaseId')
+            echo "::warning::contract artefact $artefact could not be downloaded"
+          done < <(gh api "$artefacts?name=web-data-contract&per_page=100" \
+            --jq '.artifacts | map(select(.expired | not)) | sort_by(.created_at) | reverse | .[].id')
           if [ -z "$restored" ] || [ -z "$(ls -A web/public/data/v1 2>/dev/null)" ]; then
             echo "::error::no published contract found; failing so the previous Pages site stays live"
             exit 1
