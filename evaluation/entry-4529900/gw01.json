@@ -1,0 +1,100 @@
+{
+  "gameweek": 1,
+  "season": "2026/27",
+  "evaluation_version": "3",
+  "evaluated_at": "2026-10-23T21:45:16.291102Z",
+  "run_id": "20261023T214516Z-7b10fd30",
+  "entry_id": 4529900,
+  "log": {
+    "gameweek": 1,
+    "played": {
+      "squad": [
+        496,
+        423,
+        259,
+        8,
+        426,
+        427,
+        368,
+        237,
+        411,
+        165,
+        552,
+        109,
+        124,
+        152,
+        175
+      ],
+      "starting": [
+        496,
+        423,
+        259,
+        8,
+        426,
+        427,
+        368,
+        237,
+        411,
+        165,
+        552
+      ],
+      "bench_order": [
+        109,
+        124,
+        152,
+        175
+      ],
+      "captain": 411,
+      "vice_captain": 426
+    },
+    "score": {
+      "points": 52,
+      "total_points": 52,
+      "rank": 3770915,
+      "overall_rank": 3770910,
+      "points_on_bench": 9,
+      "transfers": 0,
+      "transfers_cost": 0
+    },
+    "chip": null,
+    "advised": null,
+    "reconciliation": null,
+    "hindsight": {
+      "rankings": [
+        {
+          "model_name": "played",
+          "rank": 1,
+          "score": {
+            "final_starting": [
+              496,
+              423,
+              259,
+              8,
+              426,
+              427,
+              368,
+              237,
+              411,
+              165,
+              552
+            ],
+            "points_before_hits": 52,
+            "hit_points": 0,
+            "net_points": 52,
+            "captain_id": 411,
+            "vice_used": false,
+            "armband_points": 4,
+            "autosubs_in": [],
+            "autosubs_out": [],
+            "expected_points": 0.0,
+            "prediction_delta": 52.0
+          }
+        }
+      ],
+      "optimal": null,
+      "optimal_unavailable_reason": "no squad was held before this gameweek",
+      "diagnostics": []
+    }
+  },
+  "strategies": {}
+}
