@@ -14,6 +14,7 @@ first slice of the modular platform, is tagged; R1.2.1 is a hotfix and **R1.2.2*
 | **R1.2.1** — hotfix | The prospective job's scoring step creates `raw/` before the frozen `score.py` writes into it ([DL-88](../../decisions/DL-88.md)) | Hotfix from `main` |
 | **R1.2.2** — five models live | The same backlog §2, second drop: the archive and football-data.co.uk live, MOD-05, MOD-08, MOD-09, MOD-06; MOD-01 closed | Tagged 2026-10-23: all five strategies live, the frozen harness retired (switch GW8), F1 shipped ([DL-90](../../decisions/DL-90.md)), F3 rejected ([DL-91](../../decisions/DL-91.md)) |
 | **R1.2.3** — hotfix | Purchase prices are what was paid; an unknown one never overstates the budget ([DL-92](../../decisions/DL-92.md)) | Tagged 2026-10-23 |
+| **R1.2.4** — hotfix | Training rows refresh once a gameweek is checked; a warning gate for lagging rows; dependencies pinned in `pipeline/requirements.lock` ([DL-93](../../decisions/DL-93.md)) | Tagged 2026-10-23 |
 | **R1.3.0** — gameweek orchestration | [Modular platform backlog](R1.2.0-modular-platform-backlog.md) §3, ORC-01 … ORC-06, epic level | Open on `dev/R1.3.0`; not started |
 | **R1.4.0** — independent web | [Modular platform backlog](R1.2.0-modular-platform-backlog.md) §4, WEB-01 … WEB-06, epic level | Planned after R1.3.0 |
 | Ongoing, every season | [E8 — ongoing in-season monitoring](E8-ongoing-in-season-monitoring.md): the season state and decision points (rewritten each gameweek), the weekly loop, the bar for changing the model mid-season | Live, GW1 → 30 May 2027; updated weekly |
