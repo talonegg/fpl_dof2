@@ -12,8 +12,9 @@ Three provenances, in descending order of how much they should be trusted:
     A finished gameweek's picks with no transfers made since. Nothing is inferred.
 
 ``RECONSTRUCTED``
-    Picks, plus transfers applied in order. Purchase prices come from the transfer log for players
-    bought since, and from the gameweek price for players held since the start.
+    Picks, plus transfers applied in order. Under both, purchase prices come from the transfer log
+    for players bought in, and from the price in the first held gameweek for players held since
+    the start.
 
 ``DECLARED``
     Stated in configuration. Before GW1 is scored this is the *only* possible answer (DL-20), so it
@@ -150,9 +151,10 @@ def load_squad_state(
     """Establish the current squad, preferring what was read over what was inferred.
 
     ``gameweek_prices`` maps ``(gameweek, player_id)`` to the price at that gameweek, and is how a
-    player held since the start gets a purchase price. Without it those players fall back to their
-    current price, which is recorded as a warning rather than passed off as fact: it overstates
-    sell value for anyone who has risen.
+    player held since the start gets a purchase price: the price in the first gameweek they were
+    held. A player bought in is priced from the transfer log. Where neither is known the lowest
+    price seen this season is assumed, recorded as a warning rather than passed off as fact: it
+    can understate the sell value, never overstate it.
     """
     catalogue = _player_catalogue(players)
 
@@ -272,6 +274,9 @@ def _from_picks(
     latest = as_int(picks["gameweek"].max())
     base = picks[picks["gameweek"] == latest]
 
+    bought_for = _transfer_costs(transfers)
+    first_held = picks.groupby("player_id")["gameweek"].min()
+
     holdings: dict[int, float] = {}
     slots: dict[int, int] = {}
     captain: int | None = None
@@ -279,8 +284,14 @@ def _from_picks(
     for _, row in base.iterrows():
         player_id = as_int(row["player_id"])
         slots[player_id] = as_int(row["slot"])
-        holdings[player_id] = _purchase_price_at(
-            player_id, latest, gameweek_prices, catalogue, row, warnings
+        holdings[player_id] = _purchase_price(
+            player_id,
+            row,
+            bought_for,
+            as_int(first_held[player_id]),
+            gameweek_prices,
+            catalogue,
+            warnings,
         )
         if bool(row["is_captain"]):
             captain = player_id
@@ -347,26 +358,49 @@ def _from_picks(
     return state
 
 
-def _purchase_price_at(
+def _transfer_costs(transfers: pd.DataFrame | None) -> dict[int, float]:
+    """``player_id -> player_in_cost`` of the most recent transfer that brought each player in."""
+    if transfers is None or transfers.empty:
+        return {}
+    ordered = transfers.sort_values(["gameweek", "made_at"], na_position="first")
+    return {
+        as_int(row["player_in_id"]): as_float(row["player_in_cost"])
+        for _, row in ordered.iterrows()
+    }
+
+
+def _purchase_price(
     player_id: int,
-    gameweek: int,
+    row: pd.Series,
+    bought_for: Mapping[int, float],
+    first_held: int,
     gameweek_prices: Mapping[tuple[int, int], float],
     catalogue: Mapping[int, _CataloguedPlayer],
-    row: pd.Series,
     warnings: list[str],
 ) -> float:
-    """What this player cost. Read where possible, warned about where not."""
+    """What this player cost: published, else the transfer that bought him, else the price in the
+    first gameweek he was held (held since the start, never bought in). Warned about where none is
+    known, and then the lowest price seen this season — no higher than what was paid, so the sell
+    value is understated rather than overstated (a current-price fallback overstates it for anyone
+    who has risen)."""
     published = row.get("purchase_price")
     if published is not None and not pd.isna(published):
         return as_float(published)
-    at_gameweek = gameweek_prices.get((gameweek, player_id))
-    if at_gameweek is not None:
-        return at_gameweek
-    warnings.append(
-        f"no purchase price for player {player_id}; using the current price, which understates "
-        "the sell-on fee for anyone who has risen"
+    if player_id in bought_for:
+        return bought_for[player_id]
+    at_start = gameweek_prices.get((first_held, player_id))
+    if at_start is not None:
+        return at_start
+    current = _require(catalogue, player_id).price
+    lowest = min(
+        (price for (_, pid), price in gameweek_prices.items() if pid == player_id),
+        default=current,
     )
-    return _require(catalogue, player_id).price
+    warnings.append(
+        f"no purchase price for player {player_id}; assuming £{lowest:.1f}m, the lowest price "
+        "seen this season, so the sell value is understated rather than overstated"
+    )
+    return lowest
 
 
 def _transfers_since(transfers: pd.DataFrame | None, gameweek: int) -> pd.DataFrame:
