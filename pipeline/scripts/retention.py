@@ -266,7 +266,9 @@ def restore_rolling_branch(
         print(f"could not check {remote}/{branch}: {exc}; starting from an empty store")
         return False
 
-    _run_git(["fetch", "--depth=1", remote, f"{branch}:refs/fpl-dof/data-staging"], cwd=work_cwd)
+    # `+`: the rolling branch is rewritten on every run, so a ref left by an earlier restore is
+    # never its ancestor, and a plain fetch would refuse the non-fast-forward update.
+    _run_git(["fetch", "--depth=1", remote, f"+{branch}:refs/fpl-dof/data-staging"], cwd=work_cwd)
     worktree_dir = target_data_dir.parent / f".worktree-{branch}"
     if worktree_dir.exists():
         _rmtree(worktree_dir)
