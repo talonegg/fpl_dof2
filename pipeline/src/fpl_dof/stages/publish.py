@@ -43,14 +43,14 @@ from fpl_dof.publish.models_compare import build_models
 from fpl_dof.publish.season_log import build_log
 from fpl_dof.publish.strategies import artefact_paths, build_strategies
 from fpl_dof.publish.typescript import write_types
-from fpl_dof.rules.models import GameRules
+from fpl_dof.rules.models import GameRules, Position
+from fpl_dof.rules.realised import performances as performances_of
 from fpl_dof.silver.store import read_table, read_table_optional
 from fpl_dof.silver.tables import Table
 from fpl_dof.sources import BronzeStore, supplying
 from fpl_dof.week.cadence import current_gameweek
 from fpl_dof.week.ledger import read_all_advice
 from fpl_dof.week.schedule import next_fast_ingest
-from fpl_dof.week.score_advice import performances as performances_of
 
 log = get_logger(__name__)
 
@@ -307,7 +307,9 @@ def _run_stamp(ctx: StageContext) -> dict[str, str]:
 
 def _rules(rules: GameRules) -> dict[str, Any]:
     """Publish the rules the pipeline actually used, so the browser obeys the same numbers."""
-    payload: dict[str, Any] = json.loads(rules.model_dump_json())
+    # The chip rules only score finished gameweeks, which the browser never does; not published.
+    payload: dict[str, Any] = json.loads(rules.model_dump_json(exclude={"chips"}))
+    payload["derived"].pop("chips", None)
     payload["contract_version"] = CONTRACT_VERSION
     return payload
 
@@ -621,8 +623,13 @@ def _models(
             weeks = read_table(silver, season, Table.GAMEWEEK)
             finished = {as_int(g) for g in weeks.loc[weeks["finished"], "gameweek"]}
             current = player_gameweek[player_gameweek["season"] == season]
+            positions = (
+                None
+                if players is None
+                else {as_int(r.player_id): Position(str(r.position)) for r in players.itertuples()}
+            )
             performances = {
-                as_int(g): performances_of(rows)
+                as_int(g): performances_of(rows, positions=positions)
                 for g, rows in current.groupby("gameweek")
                 if as_int(g) in finished
             }

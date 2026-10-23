@@ -9,6 +9,7 @@ from __future__ import annotations
 from fpl_dof.config.models import RulesConfig
 from fpl_dof.rules.models import (
     ApiRules,
+    ChipRules,
     GameRules,
     Position,
     PositionMap,
@@ -88,11 +89,18 @@ def build_game_rules(
         scoring=scoring,
         squad=squad,
         transfers=transfers,
+        chips=ChipRules(
+            captain_multiplier=config.chips.captain_multiplier,
+            captain_multiplier_by_chip=config.chips.captain_multiplier_by_chip,
+            bench_scores_with=config.chips.bench_scores_with,
+            transfers_free_with=config.chips.transfers_free_with,
+        ),
         derived={
             "scoring.events": "api",
             "scoring.thresholds": "config",
             "squad": "api",
             "transfers": "config",
+            "chips": "config",
             "season": "config",
         },
         source_snapshot_sha256=source_snapshot_sha256,

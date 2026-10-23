@@ -29,14 +29,13 @@ from fpl_dof.config.models import OptimiserConfig, TransferConfig
 from fpl_dof.factory.registry import champion, resolve_alias
 from fpl_dof.frames import as_int
 from fpl_dof.rules.models import GameRules, Position
+from fpl_dof.rules.realised import Lineup, performances
 from fpl_dof.squad.state import HeldPlayer, Provenance, SquadState
 from fpl_dof.week.diagnose import diagnose_oracle_gap
 from fpl_dof.week.oracle import solve_hindsight_optimal
 from fpl_dof.week.reconcile import reconcile
 from fpl_dof.week.score_advice import (
-    AdvisedLineup,
     lineup_from_advice,
-    performances,
     recorded_free_transfers,
     score_model_recommendations,
 )
@@ -84,6 +83,8 @@ def build_log(
             transfer_config=transfer_config,
             optimiser_config=optimiser_config,
             prior_picks=prior_picks,
+            chip=chip_by_gameweek.get(gameweek),
+            hit_points=(scored.get(gameweek) or {}).get("transfers_cost"),
         )
         rows.append(
             {
@@ -236,17 +237,25 @@ def _hindsight(
     transfer_config: TransferConfig | None,
     optimiser_config: OptimiserConfig | None,
     prior_picks: pd.DataFrame | None,
+    chip: str | None = None,
+    hit_points: int | None = None,
 ) -> dict[str, Any] | None:
+    """``chip`` and ``hit_points`` are what the game recorded for the played team (D-30)."""
     if rules is None or player_gameweek is None or player_gameweek.empty:
         return None
     gw_perf = player_gameweek[player_gameweek["gameweek"] == gameweek]
     if gw_perf.empty:
         return None
 
-    perfs = performances(gw_perf)
+    positions = (
+        {as_int(r.player_id): Position(str(r.position)) for r in player_pool.itertuples()}
+        if player_pool is not None and "position" in player_pool.columns
+        else None
+    )
+    perfs = performances(gw_perf, positions=positions)
     player_actuals = {pid: perf.points for pid, perf in perfs.items()}
 
-    lineups: dict[str, AdvisedLineup] = {}
+    lineups: dict[str, Lineup] = {}
     models_xp: dict[str, dict[int, float]] = {}
     models_captains: dict[str, int] = {}
     champ_id = champion().id
@@ -256,15 +265,14 @@ def _hindsight(
     played_cap = played.get("captain") or (played_starting[0] if played_starting else 1)
     played_vice = played.get("vice_captain") or played_cap
     if played_starting:
-        lineups["played"] = AdvisedLineup(
+        lineups["played"] = Lineup(
             starting=played_starting,
             bench_order=played_bench[1:] if len(played_bench) > 1 else (),
             bench_gkp=played_bench[0] if played_bench else None,
             captain=played_cap,
             vice_captain=played_vice,
-            transfers_made=0,
-            free_transfers=None,
-            expected_points=0.0,
+            chip=chip,
+            hit_points=hit_points,
         )
         models_captains["played"] = played_cap
 

@@ -9,7 +9,7 @@ retired prospective harness: its advice (``decisions/GW{n}.json``, recorded *bef
 and its points (``scores.csv``), taken as written, never re-derived. S is the last gameweek it
 scored, plus one (a decision it never scored gives way to the ledger).
 Gameweeks from S come from the live ledger: every published strategy's
-advice, scored on the owner's real squad by ``week.score_advice``, the scorer the season log uses.
+advice, scored on the owner's real squad by ``rules.realised``, the scorer the season log uses.
 The two quantities differ (a virtual season versus real-squad advice); ``record`` marks which.
 
 Pure: no I/O, no clock. The stage reads the files and hands their contents in (DP-03).
@@ -22,8 +22,8 @@ from typing import Any
 
 from fpl_dof.factory.registry import champion, resolve_alias, strategies
 from fpl_dof.rules.models import GameRules
+from fpl_dof.rules.realised import PlayerPerformance
 from fpl_dof.week.score_advice import (
-    PlayerPerformance,
     lineup_from_advice,
     recorded_free_transfers,
     score_model_recommendations,

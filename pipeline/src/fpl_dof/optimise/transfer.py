@@ -268,7 +268,7 @@ def _solve_for(
     captain = pulp.LpVariable.dicts("captain", ids, cat="Binary")
 
     problem += pulp.lpSum(
-        as_float(by_id[i].xp_next) * (start[i] + captain[i] * (config.captain_multiplier - 1))
+        as_float(by_id[i].xp_next) * (start[i] + captain[i] * (rules.chips.captain_multiplier - 1))
         + config.bench_weight * as_float(by_id[i].xp_next) * (select[i] - start[i])
         for i in ids
     )
@@ -470,7 +470,7 @@ def _build_option(
         formation[position] = formation.get(position, 0) + 1
 
     gross = sum(as_float(by_id[i].xp_next) for i in starting)
-    gross += as_float(by_id[captain_id].xp_next) * (config.captain_multiplier - 1)
+    gross += as_float(by_id[captain_id].xp_next) * (rules.chips.captain_multiplier - 1)
 
     return TransferOption(
         transfers=transfers,

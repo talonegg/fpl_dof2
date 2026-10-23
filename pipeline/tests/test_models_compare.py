@@ -15,8 +15,8 @@ from fpl_dof.paths import DataLayout
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
 from fpl_dof.publish.models_compare import build_models
 from fpl_dof.rules.models import GameRules, Position
+from fpl_dof.rules.realised import PlayerPerformance
 from fpl_dof.stages import publish
-from fpl_dof.week.score_advice import PlayerPerformance
 
 #: The frozen harness's own model keys, as its records carry them.
 HARNESS_KEYS = ("C3", "C1", "engine", "A", "A_odds")

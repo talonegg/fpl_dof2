@@ -209,12 +209,22 @@ class SupplementaryTransfers(_Section):
     extra_transfer_cost: int = -4
 
 
+class SupplementaryChips(_Section):
+    """What each chip does to a score. See config/defaults/rules.yaml for why it is configured."""
+
+    captain_multiplier: int = Field(default=2, gt=0)
+    captain_multiplier_by_chip: dict[str, int] = Field(default_factory=lambda: {"3xc": 3})
+    bench_scores_with: tuple[str, ...] = ("bboost",)
+    transfers_free_with: tuple[str, ...] = ("wildcard", "freehit")
+
+
 class RulesConfig(_Section):
     """The supplementary half of the rules. The rest is seeded from the source snapshot."""
 
     season: str = "2026/27"
     scoring: SupplementaryScoring = SupplementaryScoring()
     transfers: SupplementaryTransfers = SupplementaryTransfers()
+    chips: SupplementaryChips = SupplementaryChips()
 
 
 class MinutesConfig(_Section):
@@ -1713,7 +1723,6 @@ class OptimiserConfig(_Section):
             "bench that never plays is still four squad places and real money."
         ),
     )
-    captain_multiplier: int = Field(default=2, ge=1)
     solve_time_limit_seconds: int = Field(default=60, gt=0)
     scenario_workers: int = Field(
         default=4,
@@ -1899,15 +1908,6 @@ class ChipConfig(_Section):
         description=(
             "Mean fixtures per squad club below which Bench Boost is not even enumerated. A Bench "
             "Boost in a blank gameweek is not a candidate."
-        ),
-    )
-    captain_multiplier_by_chip: dict[str, int] = Field(
-        default_factory=lambda: {"3xc": 3},
-        description=(
-            "Captain multiplier a chip imposes, overriding the ordinary one. Configuration rather "
-            "than a literal 3 in the solver (Invariant 2). The game exposes this as "
-            "`overrides.pick_multiplier` on each chip; until the silver chip table carries that "
-            "field (D-15) this is the seeded value, and it is here so it is one line to correct."
         ),
     )
     force_chip_gameweek: dict[str, int] = Field(
