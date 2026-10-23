@@ -28,10 +28,10 @@ jobs:
   backtest:
     runs-on: ubuntu-latest
     # Measured locally 2026-10-23: c3, engine and c1 over 2024/25-2025/26 (68 folds, refit every
-    # fold) took 27 min, ~24 s a fold, mostly C1. `a` and `a_odds` add theirs once ported, and a
-    # runner is slower than the workstation, so the walk alone may reach ~100 min. If it outgrows
+    # fold) took 27 min, ~24 s a fold, mostly C1. `a`, `a_odds` and the experiment variants add theirs, and a
+    # runner is slower than the workstation, so the walk may reach ~150 min. If it outgrows
     # this, raise `backtest.refit_every_gameweeks` in config/ci-backtest.yaml (a decision, DP-06).
-    timeout-minutes: 150
+    timeout-minutes: 240
     steps:
       - uses: actions/checkout@v4
 

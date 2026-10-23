@@ -366,6 +366,48 @@ def test_a_named_ledger_record_is_appended_and_never_overwritten(tmp_path: Path)
     assert (records / "20261103T161700Z-bbbb.json").read_text(encoding="utf-8") == "[2]"
 
 
+def test_a_ledger_append_that_loses_a_push_race_appends_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The backtest and the pipeline both append to `ledger`; the loser retries, nothing is lost."""
+    retention = _scripts_retention()
+    bare = tmp_path / "remote.git"
+    _git("init", "--bare", str(bare), cwd=tmp_path)
+
+    def append(checkout: str, source: str, body: str) -> bool:
+        payload = tmp_path / f"{checkout}.json"
+        payload.write_text(body, encoding="utf-8")
+        appended: bool = retention.append_permanent_snapshot(
+            checkout_dir=tmp_path / checkout,
+            payload_path=payload,
+            remote=str(bare),
+            branch="ledger",
+            source=source,
+            name="r1",
+        )
+        return appended
+
+    append("seed", "seed", "[0]")
+    real_push = retention._push
+    raced: list[bool] = []
+
+    def push_after_a_rival(*args: object) -> None:
+        if not raced:
+            raced.append(True)
+            monkeypatch.setattr(retention, "_push", real_push)
+            append("rival", "advice", "[1]")  # lands while this run is between checkout and push
+            monkeypatch.setattr(retention, "_push", push_after_a_rival)
+        real_push(*args)
+
+    monkeypatch.setattr(retention, "_push", push_after_a_rival)
+    assert append("mine", "experiments", "[2]")
+    assert "appending again (1)" in capsys.readouterr().out
+    clone = tmp_path / "clone"
+    _git("clone", "--branch", "ledger", str(bare), str(clone), cwd=tmp_path)
+    assert (clone / "advice" / "r1.json").read_text(encoding="utf-8") == "[1]"
+    assert (clone / "experiments" / "r1.json").read_text(encoding="utf-8") == "[2]"
+
+
 def _price_rows(day: int) -> pd.DataFrame:
     return pd.DataFrame(
         {

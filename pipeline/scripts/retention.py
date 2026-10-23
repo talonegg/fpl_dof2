@@ -318,35 +318,44 @@ def append_permanent_snapshot(
         raise ValueError("give exactly one of gameweek and name")
     key = f"gw{gameweek:02d}" if gameweek is not None else str(name)
     destination_relative = f"{source}/{key}{payload_path.suffix}"
-    branch_exists = _checkout_branch(checkout_dir, remote, branch)
+    # The backtest and the pipeline both append to `ledger`: a push that loses the race starts
+    # again from the moved branch rather than failing the job.
+    for attempt in range(1, PUSH_ATTEMPTS + 1):
+        branch_exists = _checkout_branch(checkout_dir, remote, branch)
 
-    destination = checkout_dir / destination_relative
-    if destination.exists() and destination.read_bytes() == payload_path.read_bytes():
-        return False  # already recorded, identical bytes — nothing to append
-    if destination.exists() and name is not None:
-        raise FileExistsError(f"{branch}:{destination_relative} exists with other bytes")
+        destination = checkout_dir / destination_relative
+        if destination.exists() and destination.read_bytes() == payload_path.read_bytes():
+            return False  # already recorded, identical bytes — nothing to append
+        if destination.exists() and name is not None:
+            raise FileExistsError(f"{branch}:{destination_relative} exists with other bytes")
 
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(payload_path, destination)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(payload_path, destination)
 
-    if dry_run:
-        return True
+        if dry_run:
+            return True
 
-    try:
-        _commit_all(checkout_dir, f"snapshots: {source} {key}")
-    except GitError as exc:
-        # `git commit` on a clean tree is the same fact the byte-comparison above already checks
-        # for, reached by a different path (e.g. `git add` normalising line endings or file mode
-        # so the working tree ends up byte-identical to what was already committed even though the
-        # two `read_bytes()` calls above compared unequal). Belt and braces: the append-only
-        # contract is "this exact snapshot ends up recorded once", not "this exact code path was
-        # the one that achieved it".
-        if "nothing to commit" not in str(exc):
-            raise
-        return False
+        try:
+            _commit_all(checkout_dir, f"snapshots: {source} {key}")
+        except GitError as exc:
+            # `git commit` on a clean tree is the same fact the byte-comparison above already
+            # checks for, reached by a different path (e.g. `git add` normalising line endings or
+            # file mode so the working tree ends up byte-identical to what was already committed
+            # even though the two `read_bytes()` calls above compared unequal). Belt and braces:
+            # the append-only contract is "this exact snapshot ends up recorded once", not "this
+            # exact code path was the one that achieved it".
+            if "nothing to commit" not in str(exc):
+                raise
+            return False
 
-    _push(checkout_dir, remote, branch, branch_exists)
-    return True
+        try:
+            _push(checkout_dir, remote, branch, branch_exists)
+            return True
+        except GitError as exc:
+            if "rejected" not in str(exc) and "fetch first" not in str(exc):
+                raise
+            print(f"permanent: {branch} moved during this run; appending again ({attempt})")
+    raise GitError(f"{branch} kept moving; gave up after {PUSH_ATTEMPTS} attempts")
 
 
 def _checkout_branch(checkout_dir: Path, remote: str, branch: str) -> bool:
