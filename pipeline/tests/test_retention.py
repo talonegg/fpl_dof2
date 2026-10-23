@@ -423,6 +423,37 @@ def test_a_named_ledger_record_is_appended_and_never_overwritten(tmp_path: Path)
     assert (records / "20261103T161700Z-bbbb.json").read_text(encoding="utf-8") == "[2]"
 
 
+def test_a_replaceable_named_record_takes_the_newer_success(tmp_path: Path) -> None:
+    """ORC-08: a predictions file is replaced by its next success, and only on request."""
+    retention = _scripts_retention()
+    bare = tmp_path / "remote.git"
+    _git("init", "--bare", str(bare), cwd=tmp_path)
+
+    def append(body: bytes, *, replace: bool) -> bool:
+        payload = tmp_path / "a.parquet"
+        payload.write_bytes(body)
+        appended: bool = retention.append_permanent_snapshot(
+            checkout_dir=tmp_path / "checkout",
+            payload_path=payload,
+            remote=str(bare),
+            branch="ledger",
+            source="predictions/gw09",
+            name="a",
+            replace=replace,
+        )
+        return appended
+
+    assert append(b"first", replace=True)
+    assert not append(b"first", replace=True)  # the same bytes again: a no-op
+    with pytest.raises(FileExistsError):
+        append(b"second", replace=False)
+    assert append(b"second", replace=True)
+
+    clone = tmp_path / "clone"
+    _git("clone", "--branch", "ledger", str(bare), str(clone), cwd=tmp_path)
+    assert (clone / "predictions" / "gw09" / "a.parquet").read_bytes() == b"second"
+
+
 def test_a_ledger_append_that_loses_a_push_race_appends_again(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
