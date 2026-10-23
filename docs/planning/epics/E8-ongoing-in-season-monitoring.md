@@ -95,6 +95,7 @@ into `reconcile(overrides=...)`.
 | At each dated decision point | Answer it and record the outcome in the decision-points table |
 | January | Re-plan chips for the run-in; second set opens |
 | Feb–Apr | Blanks and doubles dominate; fixture-structure modelling matters most |
+| After the first double gameweek, blank gameweek and Free Hit are played | Add their entries to the realised-points corpus with `python scripts/realised_corpus.py` (see `contracts/conformance/README.md`) and run `tests/test_rules_realised.py`: the one scorer must reproduce FPL's points, or the failing rule is a defect (ORC-04, [DL-39](../../decisions/DL-39.md)) |
 
 ## 5. The bar for changing the model mid-season
 
