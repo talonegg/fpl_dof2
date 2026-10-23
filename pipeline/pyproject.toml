@@ -83,7 +83,9 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 # No -q here: CI passes -q itself, and -q twice (-qq) suppresses the summary line.
-addopts = "--strict-markers"
+# --dist loadgroup: under -n, the tests sharing an expensive fixture run on one worker (conftest's
+# SHARED_FIXTURES, ORC-09); without -n it does nothing.
+addopts = "--strict-markers --dist loadgroup"
 # Generous per-test ceiling so a genuine hang fails with a traceback instead of stalling the job.
 timeout = 120
 markers = [

@@ -13,6 +13,8 @@ targeted probe rather than by a suspicious-looking score.
 
 from __future__ import annotations
 
+import copy
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -291,8 +293,14 @@ def _walk(predictor: StrategyPredictor) -> BacktestResult:
     )
 
 
-def test_the_walk_produces_folds_and_every_baseline() -> None:
-    result = _walk(RateFromFeatures())
+@pytest.fixture(scope="session")
+def rate_walk() -> BacktestResult:
+    """One walk of the features-only predictor, for the tests that only read its result."""
+    return _walk(RateFromFeatures())
+
+
+def test_the_walk_produces_folds_and_every_baseline(rate_walk: BacktestResult) -> None:
+    result = rate_walk
 
     assert len(result.folds) > 0
     predictions = result.predictions
@@ -335,42 +343,54 @@ class ColumnRecorder:
         return pd.Series(0.0, index=features.index, dtype=float)
 
 
-def test_no_outcome_column_of_any_kind_reaches_a_prediction() -> None:
+@pytest.fixture(scope="session")
+def recorded_walk() -> ColumnRecorder:
+    """What one walk showed a predictor, for the tests that read it."""
+    recorded = ColumnRecorder()
+    _walk(recorded)
+    return recorded
+
+
+def test_no_outcome_column_of_any_kind_reaches_a_prediction(recorded_walk: ColumnRecorder) -> None:
     """Not just the target: every column describing the gameweek being predicted.
 
     Widened when D-24 was found. The fold frame now carries the raw per-gameweek statistics so the
     component models can actually fit on them, which makes the drop list the only thing standing
     between a fitted model and a leaking one — so it is asserted rather than assumed.
     """
-    recorder = ColumnRecorder()
-    _walk(recorder)
 
-    assert not recorder.seen & set(OUTCOME_COLUMNS)
+    assert not recorded_walk.seen & set(OUTCOME_COLUMNS)
 
 
-def test_the_training_frame_carries_the_statistics_the_components_fit_on() -> None:
+def test_the_training_frame_carries_the_statistics_the_components_fit_on(
+    recorded_walk: ColumnRecorder,
+) -> None:
     """D-24. Without these columns ``RateModel.fit`` silently fits nothing.
 
     The failure it guards against is invisible in every metric: the models still predict, the
     backtest still runs, and every rate is shrunk toward zero rather than toward a position prior.
     """
-    recorder = ColumnRecorder()
-    _walk(recorder)
 
     for column in RATE_COMPONENTS:
-        assert column in recorder.fitted
+        assert column in recorded_walk.fitted
+
+
+@pytest.fixture(scope="session")
+def component_walk(game_rules: GameRules) -> tuple[ComponentPredictor, BacktestResult]:
+    """The real predictor walked once. A test that changes the fitted models deep-copies first."""
+    predictor = ComponentPredictor(ForecastConfig(), game_rules)
+    return predictor, _walk(predictor)
 
 
 def test_the_components_actually_fit_a_position_prior_in_the_harness(
-    game_rules: GameRules,
+    component_walk: tuple[ComponentPredictor, BacktestResult],
 ) -> None:
     """The end-to-end version of the check above, through the real predictor.
 
     Asserting on the fitted object rather than on its inputs, because "the column was present" and
     "the model learned from it" are different claims and D-24 was the gap between them.
     """
-    predictor = ComponentPredictor(ForecastConfig(), game_rules)
-    result = _walk(predictor)
+    predictor, result = component_walk
 
     assert result.model.observations > 0
     assert predictor.models is not None
@@ -379,13 +399,13 @@ def test_the_components_actually_fit_a_position_prior_in_the_harness(
     assert predictor.models.team_strength.attack
 
 
-def test_every_fold_is_stamped_at_its_own_deadline() -> None:
+def test_every_fold_is_stamped_at_its_own_deadline(rate_walk: BacktestResult) -> None:
     """Each fold's features must claim to have been knowable exactly at that fold's deadline.
 
     A fold carrying a stamp from another deadline is the signature of a cached feature frame being
     reused across folds, which is the most plausible way this harness could start leaking.
     """
-    result = _walk(RateFromFeatures())
+    result = rate_walk
     deadlines = set()
     for fold in result.folds:
         stamps = pd.to_datetime(fold.predictions["as_of"], utc=True)
@@ -397,14 +417,14 @@ def test_every_fold_is_stamped_at_its_own_deadline() -> None:
 # --- fixtures in the fold frames (E9-S2) ------------------------------------------------------
 
 
-def test_every_fold_row_carries_the_fixture_it_was_played_under() -> None:
+def test_every_fold_row_carries_the_fixture_it_was_played_under(rate_walk: BacktestResult) -> None:
     """E9-S2's premise. Without this the harness cannot see M2 at all.
 
     Checked against the calendar rather than against itself: the opponent on the row must be the
     opponent that club actually faced in that gameweek, and the venue must be the one the fixture
     gave the two sides opposite answers to.
     """
-    result = _walk(RateFromFeatures())
+    result = rate_walk
     predictions = result.predictions
 
     for column in FIXTURE_COLUMNS:
@@ -437,15 +457,15 @@ def test_the_fixture_columns_are_declared_knowable_at_the_deadline() -> None:
     assert "was_home" not in FIXTURE_COLUMNS
 
 
-def test_the_fixture_columns_reach_the_predictor_and_the_outcome_still_does_not() -> None:
+def test_the_fixture_columns_reach_the_predictor_and_the_outcome_still_does_not(
+    recorded_walk: ColumnRecorder,
+) -> None:
     """The two halves of the same claim: the fixture is an input, the result is never one."""
-    recorder = ColumnRecorder()
-    _walk(recorder)
 
-    assert set(FIXTURE_COLUMNS) <= recorder.seen
-    assert not recorder.seen & set(OUTCOME_COLUMNS)
+    assert set(FIXTURE_COLUMNS) <= recorded_walk.seen
+    assert not recorded_walk.seen & set(OUTCOME_COLUMNS)
     # `team_id` stays an outcome column and stays stripped; the alias is what survives.
-    assert "team_id" not in recorder.seen
+    assert "team_id" not in recorded_walk.seen
 
 
 def test_a_double_gameweek_is_scored_once_per_fixture() -> None:
@@ -483,15 +503,16 @@ def test_a_double_gameweek_is_scored_once_per_fixture() -> None:
     assert rows[FIXTURE_OPPONENT].notna().all()
 
 
-def test_real_opposition_moves_the_prediction(game_rules: GameRules) -> None:
+def test_real_opposition_moves_the_prediction(
+    component_walk: tuple[ComponentPredictor, BacktestResult],
+) -> None:
     """The companion to E9-S1's "the parity test can fail".
 
     A fixture join that reached the frame but never reached the arithmetic would pass every test
     above and change nothing. So: the same players, the same fitted components, two fixtures — the
     numbers must differ, and in the direction the ratings imply.
     """
-    predictor = ComponentPredictor(ForecastConfig(), game_rules)
-    _walk(predictor)
+    predictor = copy.deepcopy(component_walk[0])  # the ratings are rewritten below
     models = predictor.models
     assert models is not None
     models.team_strength.attack[1] = 2.0
@@ -523,9 +544,9 @@ def test_real_opposition_moves_the_prediction(game_rules: GameRules) -> None:
     assert float(easy.sum()) > float(hard.sum())
 
 
-def test_the_report_carries_a_fixture_conditioned_breakdown() -> None:
+def test_the_report_carries_a_fixture_conditioned_breakdown(rate_walk: BacktestResult) -> None:
     """E9-S2's acceptance criterion, and the gate E11 depends on."""
-    result = _walk(RateFromFeatures())
+    result = rate_walk
 
     bands = result.model.spearman_by_fixture_band
     assert len(bands) >= 2, bands
@@ -567,17 +588,17 @@ def test_an_unresolvable_fixture_falls_back_visibly_rather_than_silently() -> No
     assert set(result.model.spearman_by_fixture_band) == {UNRESOLVED_FIXTURE_BAND}
 
 
-def test_a_model_with_real_signal_beats_the_constant_baseline() -> None:
+def test_a_model_with_real_signal_beats_the_constant_baseline(rate_walk: BacktestResult) -> None:
     """Sanity in the opposite direction: the harness must be *able* to detect an edge.
 
     Without this, the leakage tests above would pass on a harness that returns noise for everyone.
     """
-    result = _walk(RateFromFeatures())
+    result = rate_walk
     assert result.model.mae < result.mean_baseline.mae
 
 
-def test_the_verdict_names_the_finding_rather_than_a_score() -> None:
-    result = _walk(RateFromFeatures())
+def test_the_verdict_names_the_finding_rather_than_a_score(rate_walk: BacktestResult) -> None:
+    result = rate_walk
     verdict = result.verdict()
     assert isinstance(verdict, str) and verdict
     assert ("B0" in verdict) or ("model-free" in verdict)

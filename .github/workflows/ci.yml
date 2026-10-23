@@ -70,12 +70,16 @@ jobs:
       - name: Install fpl-dof (pipeline[dev])
         run: uv pip install --system -c pipeline/requirements.lock -e "pipeline[dev]"
 
-      # In parallel (ORC-09), then held to schedule.python_tests_budget_seconds.
+      # In parallel (ORC-09), then held to schedule.python_tests_budget_seconds. The coverage gate
+      # is its own run of the three rules test files, exactly as CLAUDE.md states it: measured over
+      # the whole suite it would pass on coverage those files do not give, and tracing every
+      # worker cost the suite more than this second run takes.
       - name: pytest & rules coverage gate (must be 100%)
         working-directory: pipeline
         run: |
           started="$(date -u +%FT%TZ)"
-          python -m pytest -q -n auto --cov=fpl_dof.rules --cov-fail-under=100
+          python -m pytest -q -n auto
+          python -m pytest -q --cov=fpl_dof.rules --cov-fail-under=100 tests/test_rules_build.py tests/test_rules_scoring.py tests/test_rules_legality.py
           python scripts/ci_runs.py budget python_tests_budget_seconds --since "$started"
 
   web:
