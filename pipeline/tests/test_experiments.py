@@ -11,6 +11,8 @@ from __future__ import annotations
 import dataclasses
 import datetime as dt
 import json
+import multiprocessing
+import os
 from pathlib import Path
 from typing import Any
 
@@ -455,6 +457,42 @@ def test_a_strategy_that_raises_at_a_later_fold_is_not_graded_and_the_others_are
     at = dt.datetime(2026, 10, 24, tzinfo=dt.UTC)
     records = experiment_records(graded, strategies(), config, run_id="r", recorded_at=at)
     assert {r["strategy"]["id"]: r.get("not_graded") for r in records}["c1"] == graded.skipped["c1"]
+
+
+class CrashesInAWorker(RateFromFeatures):
+    """A forecaster whose worker process dies outright, as one killed for memory does. In the
+    parent process it fits normally, so an in-process retry succeeds."""
+
+    def fit_as_of(
+        self,
+        history: pd.DataFrame,
+        deadline: pd.Timestamp,
+        *,
+        training: pd.DataFrame | None = None,
+        season: str,
+    ) -> None:
+        if multiprocessing.parent_process() is not None:
+            os._exit(1)
+        super().fit_as_of(history, deadline, training=training, season=season)
+
+
+def test_a_crashed_worker_costs_no_strategy_and_the_champion_is_walked_again() -> None:
+    """ORC-09 item 4: the champion's worker calls ``os._exit``, which breaks the pool and loses
+    every pending walk. Each lost walk is retried here, once: the result is the sequential one."""
+    history = make_history(gameweeks=8)
+
+    def walk(workers: int) -> BacktestResult:
+        return walk_forward(
+            history,
+            [Entrant("c3", CrashesInAWorker()), Entrant("engine", Offset())],
+            forecast_config=ForecastConfig(),
+            backtest_config=BACKTEST,
+            workers=workers,
+        )
+
+    crashed = walk(2)
+    assert crashed.not_graded == {}
+    assert crashed.as_dict()["strategies"] == walk(1).as_dict()["strategies"]
 
 
 @pytest.mark.parametrize("workers", [1, 2])

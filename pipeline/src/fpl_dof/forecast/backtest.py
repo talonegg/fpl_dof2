@@ -23,9 +23,11 @@ to base on it.
 from __future__ import annotations
 
 import os
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures.process import BrokenProcessPool
 from dataclasses import dataclass, field, replace
+from functools import partial
 from typing import Any, Literal, Protocol, runtime_checkable
 
 import numpy as np
@@ -731,30 +733,51 @@ def _walks(
     """Every entrant's walk, champion first, across up to ``workers`` processes (ORC-09 item 4).
 
     A walk shares nothing with another, so the walks are the ones a single process gives; an
-    entrant whose walk raises, the champion included, is recorded with why (D-32).
+    entrant whose walk raises, the champion included, is recorded with why (D-32), and one lost
+    to a crashed worker is walked again here (:func:`run_isolated`).
     """
-    jobs = [(entrant, index == 0) for index, entrant in enumerate(entrants)]
-    count = min(workers, os.process_cpu_count() or 1, len(jobs))
+    calls = [
+        partial(_walk_one, frame, entrant, harness=index == 0, **common)
+        for index, entrant in enumerate(entrants)
+    ]
+    return {
+        entrant.id: outcome
+        if isinstance(outcome, _Walk)
+        else _Walk(failure=f"its walk failed: {type(outcome).__name__}: {outcome}")
+        for entrant, outcome in zip(entrants, run_isolated(calls, workers), strict=True)
+    }
 
-    def failed(exc: Exception) -> _Walk:
-        return _Walk(failure=f"its walk failed: {type(exc).__name__}: {exc}")
 
-    walks: dict[str, _Walk] = {}
-    if count <= 1:
-        for entrant, harness in jobs:
+def run_isolated[T](calls: Sequence[Callable[[], T]], workers: int) -> list[T | Exception]:
+    """Each call's result, or the exception it raised, in order, across up to ``workers``
+    processes (ORC-09 item 4).
+
+    A worker that dies outright (``BrokenProcessPool``: killed for memory, a native crash) breaks
+    the pool, and every future still pending in it is lost, not only its own. Those calls are run
+    again in this process, one at a time and once, so a crash costs no other job and never marks
+    the champion failed blindly. With one worker everything runs here.
+    """
+    count = min(workers, os.process_cpu_count() or 1, len(calls))
+    outcomes: dict[int, T | Exception] = {}
+    if count > 1:
+        with ProcessPoolExecutor(count) as pool:
+            futures = [pool.submit(call) for call in calls]
+            for index, future in enumerate(futures):
+                try:
+                    outcomes[index] = future.result()
+                except BrokenProcessPool:
+                    continue  # lost with the pool: run again below
+                except Exception as exc:
+                    outcomes[index] = exc
+        if len(outcomes) < len(calls):
+            log.warning("workers.lost", extra={"jobs": len(calls) - len(outcomes)})
+    for index, call in enumerate(calls):
+        if index not in outcomes:
             try:
-                walks[entrant.id] = _walk_one(frame, entrant, harness=harness, **common)
+                outcomes[index] = call()
             except Exception as exc:
-                walks[entrant.id] = failed(exc)
-        return walks
-    with ProcessPoolExecutor(count) as pool:
-        futures = [(e, pool.submit(_walk_one, frame, e, harness=h, **common)) for e, h in jobs]
-        for entrant, future in futures:
-            try:
-                walks[entrant.id] = future.result()
-            except Exception as exc:
-                walks[entrant.id] = failed(exc)
-    return walks
+                outcomes[index] = exc
+    return [outcomes[index] for index in range(len(calls))]
 
 
 def _walk_one(
@@ -1110,6 +1133,7 @@ __all__ = [
     "fold_rows",
     "minutes_columns",
     "prediction_column",
+    "run_isolated",
     "training_rows",
     "walk_forward",
 ]

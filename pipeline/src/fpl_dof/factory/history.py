@@ -11,25 +11,24 @@ The forecast is the walk's own: each fold's prediction was made from data strict
 deadline (Invariant 5), and the captain rule's B0 is fitted on the strategy's training window
 before it. Its spread is the strategy's own error over its earlier folds, by position, so it too is
 knowable at the deadline (Invariant 6). Pure: frames in, rows out (DP-03). Strategies are
-simulated in parallel, one process each (``backtest.strategy_workers``); one whose season cannot be simulated is recorded with the
-reason and the others finish (D-32).
+simulated in parallel, one process each (``backtest.strategy_workers``); one whose season cannot be
+simulated is recorded with the reason and the others finish (D-32), and one lost to a crashed
+worker is simulated again in this process.
 """
 
 from __future__ import annotations
 
 import dataclasses
-import os
 from collections.abc import Mapping, Sequence
-from concurrent.futures import ProcessPoolExecutor
+from functools import partial
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
 from fpl_dof.config.models import Config, UncertaintyConfig
 from fpl_dof.decision import decide
 from fpl_dof.factory.registry import Strategy
-from fpl_dof.forecast.backtest import deadlines_for, prediction_column
+from fpl_dof.forecast.backtest import deadlines_for, prediction_column, run_isolated
 from fpl_dof.forecast.baselines import fit_b0
 from fpl_dof.forecast.entry import price_position_line
 from fpl_dof.forecast.features import TARGET
@@ -84,34 +83,17 @@ def season_histories(
     frames = {
         s.id: predictions[[*_PREDICTION_KEYS, prediction_column(s.id)]].dropna() for s in jobs
     }
-    workers = min(config.backtest.strategy_workers, os.process_cpu_count() or 1, len(jobs))
+    calls = [partial(simulate, frames[s.id], played, s, rules, config) for s in jobs]
+    outcomes = run_isolated(calls, config.backtest.strategy_workers)
     results: dict[str, dict[str, list[dict[str, Any]]]] = {}
     failures: dict[str, str] = {}
-
-    def record(strategy: Strategy, outcome: dict[str, list[dict[str, Any]]] | Exception) -> None:
+    for strategy, outcome in zip(jobs, outcomes, strict=True):
         if isinstance(outcome, Exception):
             failures[strategy.id] = (
                 f"its season could not be simulated: {type(outcome).__name__}: {outcome}"
             )
         else:
             results[strategy.id] = outcome
-
-    if workers <= 1:
-        for strategy in jobs:
-            try:
-                record(strategy, simulate(frames[strategy.id], played, strategy, rules, config))
-            except Exception as exc:
-                record(strategy, exc)
-    else:
-        with ProcessPoolExecutor(workers) as pool:
-            futures = [
-                (s, pool.submit(simulate, frames[s.id], played, s, rules, config)) for s in jobs
-            ]
-            for strategy, future in futures:
-                try:
-                    record(strategy, future.result())
-                except Exception as exc:
-                    record(strategy, exc)
 
     by_season: dict[str, dict[str, list[dict[str, Any]]]] = {}
     for sid, seasons_rows in results.items():
@@ -259,10 +241,9 @@ def _frame(
     shortcut: the spread is per position, not per player, and the one-gameweek week step reads
     none of it; model it per player if the history ever weighs risk.
     """
-    band = np.maximum(
-        week[column].abs() * uncertainty.coefficient_of_variation["none"], uncertainty.floor
-    )
-    sd = np.maximum(week["position"].map(spread).fillna(band), uncertainty.floor)
+    floor = uncertainty.floor
+    band = (week[column].abs() * uncertainty.coefficient_of_variation["none"]).clip(lower=floor)
+    sd = week["position"].map(spread).fillna(band).clip(lower=floor)
     pool = (
         week.assign(variance=sd**2)
         .groupby("player_code", sort=True)
@@ -293,7 +274,7 @@ def _frame(
     frame["price"] = frame["price"].astype(float)
     frame["xp_next"] = frame["xp_next"].astype(float)
     frame["xp_horizon"] = frame["xp_next"]
-    frame["xp_next_sd"] = np.sqrt(frame.pop("variance").astype(float))
+    frame["xp_next_sd"] = frame.pop("variance").astype(float) ** 0.5
     frame["xp_horizon_sd"] = frame["xp_next_sd"]
     # The archive carries no availability news, so the start-probability floor never binds.
     frame["start_probability"] = 1.0
