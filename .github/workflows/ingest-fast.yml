@@ -11,6 +11,9 @@
 # The rolling `data` branch (E7-S4, R-13) is rebuilt and force-pushed at the end of every ingest
 # that actually fetched, by pipeline/scripts/retention.py — see pipeline/src/fpl_dof/retention.py
 # for why the mechanism is "rebuild from nothing", not "delete the old file".
+#
+# A fetch that moved a price, a status or news line, a fixture, or priced the Open gameweek for the
+# first time then dispatches pipeline.yml with those kinds (ORC-02, DL-94). The cadence is unchanged.
 
 name: Ingest (fast)
 
@@ -25,6 +28,7 @@ concurrency:
 
 permissions:
   contents: write # pushes the rebuilt `data` branch (R-13)
+  actions: write # dispatches pipeline.yml on a material change (ORC-02)
 
 jobs:
   ingest:
@@ -71,6 +75,15 @@ jobs:
           # The window is RetentionConfig.bronze_days, read by the script; immutable prior-season
           # snapshots are kept whatever their age (REM-10).
           python pipeline/scripts/retention.py rolling data/bronze --remote "$remote"
+
+      # After `data` is pushed, so the run restores what this ingest fetched (ORC-02, DL-94).
+      # Nothing moved, nothing dispatched; the pipeline's guard applies the freeze.
+      - name: Start the pipeline on a material change
+        if: steps.schedule.outputs.run == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: python pipeline/scripts/dispatch_pipeline.py
 
   alert:
     needs: [ingest]

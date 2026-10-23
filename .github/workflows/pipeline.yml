@@ -1,36 +1,51 @@
 # E7-S2: transform → gates → forecast → optimise → week (every strategy's week and plan, MOD-04)
 # → publish → deploy (deploy.yml, called as the last job only when this run published, ORC-03).
-# Deliberately *not* ingest (that is ingest-fast.yml / ingest-slow.yml's job) and
-# deliberately not run after every fast ingest — re-solving because a price moved £0.10 is waste (architecture §9).
+# Deliberately *not* ingest (that is ingest-fast.yml / ingest-slow.yml's job). An ingest starts a
+# run when its change manifest moved anything material, with no thresholds (DL-94 item 4).
 #
-# Triggers: nightly, after ingest-slow, at T-3h/T-45m before a deadline, and manual dispatch. The
-# deadline-relative trigger is a static 15-minute cron plus a guard step, for the same reason
-# ingest-fast.yml is hourly-plus-a-guard: GitHub Actions cron cannot itself depend on when the next
-# deadline is. See pipeline/src/fpl_dof/week/schedule.py — R-09's freeze and the one-sided window
-# shape that keeps the T-45m trigger from ever landing inside it are enforced there, not here.
+# Triggers (ORC-02): one scheduled tick, and dispatch with typed inputs. Nothing here follows
+# another workflow by name, title or cron string (test_dispatch.py pins that):
 #
-# **Nothing here may run inside 45 minutes of a deadline (R-09).** The guard enforces this; this
-# workflow file does not duplicate that logic and must not be changed to bypass it under pressure.
+# - **The tick** (`7,23,41,53 * * * *`) asks fpl-dof-schedule whether the Open gameweek is in a
+#   pre-deadline window (T-6h, T-3h, T-90m, T-45m). GitHub Actions cron cannot itself depend on when
+#   the next deadline is, so it fires often and the guard decides, as ingest-fast.yml does.
+# - **`change`**: an ingest whose change manifest moved a price, a status or news line, a fixture,
+#   or priced the Open gameweek for the first time dispatches a run with those kinds (DL-94).
+# - **`schedule`**: the slow ingest's daily refresh, dispatched after it pushed `data`.
+# - **`day-before`**: the slow ingest that day-before.yml started; `must_publish` makes deploy fail
+#   closed on a stale contract.
+# - **`manual`**: the owner, from the Actions tab.
+#
+# **Nothing here may run inside 45 minutes of a deadline (R-09), whatever started it.** The guard
+# (`fpl_dof.week.schedule.dispatch_decision`) enforces this for every trigger; this workflow file
+# does not duplicate that logic and must not be changed to bypass it under pressure.
 
 name: Pipeline
-# A run that follows the day-before ingest carries "[day-before]"; its `deploy` job applies the
-# stricter fail-closed freshness check (see day-before.yml).
-run-name: >-
-  ${{ github.event_name == 'workflow_run' && contains(github.event.workflow_run.display_title, '[day-before')
-  && 'Pipeline [day-before]' || 'Pipeline' }}
+run-name: ${{ inputs.trigger && format('Pipeline [{0}]', inputs.trigger) || 'Pipeline' }}
 
 on:
   schedule:
-    # Schedule hardening (2026-10-14): GitHub drops and delays cron firings on this repo, worst at
-    # :00/:30. Every cron is on odd minutes, and the nightly run has a fallback firing.
-    - cron: "11 1 * * *" # nightly, unconditional
-    - cron: "47 3 * * *" # nightly fallback: no-op if today's nightly `run` job already succeeded
-    - cron: "7,23,41,53 * * * *" # deadline-relative guard (longest gap 18 min) — see ScheduleConfig
-  workflow_run:
-    workflows: ["Ingest (slow)"]
-    types: [completed]
+    # Odd minutes, off the :00/:30 peaks GitHub sheds (schedule hardening, 2026-10-14).
+    - cron: "7,23,41,53 * * * *" # the tick: longest gap 18 min, see ScheduleConfig
   workflow_dispatch:
     inputs:
+      trigger:
+        description: "What started this run (ORC-02). The ingests send change, schedule or day-before."
+        type: choice
+        options: [manual, change, schedule, day-before]
+        default: manual
+      kinds:
+        description: "For change: the change manifest's kinds, comma-separated (prices,status,fixtures,odds)."
+        required: false
+        type: string
+      gameweek:
+        description: "The gameweek this run was started for; refused unless it is still the Open one. Blank for any."
+        required: false
+        type: string
+      must_publish:
+        description: "This run must publish a fresh contract, or deploy fails closed (the day-before refresh)."
+        type: boolean
+        default: false
       team_id:
         description: "FPL team ID override for this run only (E13-S3). Leave blank to use the FPL_DOF_TEAM_ID repository variable."
         required: false
@@ -55,17 +70,14 @@ permissions:
 
 jobs:
   guard:
-    # Always runs; the decide step below is what actually branches. Only the 15-minute
-    # deadline-relative cron consults fpl-dof-schedule — the nightly cron, the post-ingest-slow
-    # trigger, and manual dispatch proceed unconditionally (they are not deadline-relative, so
-    # there is no window to be inside or outside of).
+    # Every trigger passes through the guard (ORC-02): it validates the typed inputs, refuses
+    # unknown values, and applies the freeze and the Open-gameweek check to a dispatched run too.
     permissions:
       contents: read
-      actions: read # gh run view/list for the upstream-ingest and fallback checks
     runs-on: ubuntu-latest
     outputs:
       run: ${{ steps.decide.outputs.run }}
-      day_before: ${{ steps.decide.outputs.day_before }}
+      trigger: ${{ steps.decide.outputs.trigger }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -83,45 +95,22 @@ jobs:
       - name: Restore data from the `data` branch
         run: python pipeline/scripts/retention.py restore data
 
+      # An invalid input fails this step, and so alerts: a wiring fault, never a silent skip.
       - name: Decide whether to run
         id: decide
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          EVENT: ${{ github.event_name }}
-          SCHEDULE: ${{ github.event.schedule }}
-          DAY_BEFORE: ${{ github.event_name == 'workflow_run' && contains(github.event.workflow_run.display_title, '[day-before') }}
-          UPSTREAM_ID: ${{ github.event.workflow_run.id }}
+          TRIGGER: ${{ inputs.trigger }}
+          KINDS: ${{ inputs.kinds }}
+          GAMEWEEK: ${{ inputs.gameweek }}
         run: |
-          echo "day_before=$DAY_BEFORE" >> "$GITHUB_OUTPUT"
-          if [ "$EVENT" = "workflow_run" ]; then
-            # What the triggering Ingest (slow) run's `ingest` job actually did. A fallback firing
-            # that found today's ingest already done skips that job: nothing new, so no rerun.
-            ingest="$(gh run view "$UPSTREAM_ID" --repo "${{ github.repository }}" --json jobs \
-              --jq '.jobs[] | select(.name == "ingest") | .conclusion' 2>/dev/null || echo unknown)"
-            echo "upstream ingest job: ${ingest:-none}"
-            if [ "$ingest" = "skipped" ]; then
-              echo "upstream ingest was a fallback no-op; nothing to refresh"
-              echo "run=false" >> "$GITHUB_OUTPUT"
-            elif [ "$DAY_BEFORE" = "true" ] && [ "$ingest" != "success" ]; then
-              # Fail closed: never refresh models on a failed (or unknown) day-before ingest.
-              echo "::warning title=Day-before refresh skipped::the day-before ingest job concluded '${ingest:-none}'; not running the pipeline"
-              echo "run=false" >> "$GITHUB_OUTPUT"
-            else
-              echo "run=true" >> "$GITHUB_OUTPUT"
-            fi
-          elif [ "$EVENT" = "schedule" ] && [ "$SCHEDULE" = "7,23,41,53 * * * *" ]; then
-            echo "run=$(fpl-dof-schedule --decide pipeline)" >> "$GITHUB_OUTPUT"
-          elif [ "$EVENT" = "schedule" ] && [ "$SCHEDULE" = "47 3 * * *" ]; then
-            python pipeline/scripts/ci_runs.py today-done --workflow pipeline.yml --job run
-            if grep -q '^done=true$' "$GITHUB_OUTPUT"; then
-              echo "nightly already succeeded today; fallback is a no-op"
-              echo "run=false" >> "$GITHUB_OUTPUT"
-            else
-              echo "run=true" >> "$GITHUB_OUTPUT"
-            fi
-          else
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          fi
+          run="$(fpl-dof-schedule --decide pipeline --trigger "$TRIGGER" --kinds "$KINDS" --gameweek "$GAMEWEEK")"
+          echo "run=$run" >> "$GITHUB_OUTPUT"
+          case "$TRIGGER" in
+            "") stamp=schedule ;;
+            change) stamp="change:$KINDS" ;;
+            *) stamp="$TRIGGER" ;;
+          esac
+          echo "trigger=$stamp" >> "$GITHUB_OUTPUT"
 
   run:
     needs: [guard]
@@ -198,8 +187,8 @@ jobs:
           FPL_DOF_TEAM_ID: ${{ inputs.team_id || vars.FPL_DOF_TEAM_ID }}
           FPL_DOF_LEAGUE_ID: ${{ inputs.league_id || vars.FPL_DOF_LEAGUE_ID }}
           FPL_DOF_MODELS_SOURCE_DIR: ${{ runner.temp }}/prospective-record
-          # Stamped on every advice (ORC-03, DL-94); ORC-02 will pass it as a typed dispatch input.
-          FPL_DOF_TRIGGER: ${{ needs.guard.outputs.day_before == 'true' && 'day-before' || github.event_name == 'workflow_dispatch' && 'manual' || 'schedule' }}
+          # Stamped on every advice (ORC-03, DL-94): the guard's reading of the typed inputs.
+          FPL_DOF_TRIGGER: ${{ needs.guard.outputs.trigger }}
         run: >
           fpl-dof run
           --only transform quality forecast optimise week publish
@@ -259,7 +248,7 @@ jobs:
     uses: ./.github/workflows/deploy.yml
     with:
       from_pipeline: true
-      day_before: ${{ needs.guard.outputs.day_before == 'true' }}
+      must_publish: ${{ inputs.must_publish == true }}
     secrets: inherit
     permissions:
       contents: read

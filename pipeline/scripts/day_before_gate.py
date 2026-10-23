@@ -2,7 +2,7 @@
 
     python pipeline/scripts/day_before_gate.py [--manual]
 
-Reads the game's state once, through the source layer (REM-06), and lists recent Ingest (slow)
+Reads the game's state once, through the source layer (REM-06), and lists recent ingest-slow.yml
 runs with ``gh`` (read-only GITHUB_TOKEN) for the idempotency check. Any failure to read either
 is a logged skip (``::warning::``), never a partial refresh. Logic and tests:
 ``fpl_dof.week.day_before``.
@@ -24,7 +24,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from fpl_dof.sources import LiveFeed
 from fpl_dof.week.day_before import gate
 
-FIELDS = "databaseId,displayTitle,status,conclusion,createdAt"
+FIELDS = "databaseId,event,status,conclusion,createdAt"
 
 
 def fetch() -> tuple[dict[str, Any] | None, str | None]:

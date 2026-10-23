@@ -209,13 +209,10 @@ def succeeded_since(
     since: dt.datetime,
     *,
     exclude_id: int | None = None,
-    title_contains: str | None = None,
 ) -> Mapping[str, Any] | None:
     """The first completed-successfully run created at or after ``since``."""
     for run in runs:
         if exclude_id is not None and int(run.get("databaseId", -1)) == exclude_id:
-            continue
-        if title_contains and title_contains not in str(run.get("displayTitle", "")):
             continue
         if run.get("conclusion") == "success" and _created(run) >= since:
             return run
@@ -223,13 +220,17 @@ def succeeded_since(
 
 
 def active_or_succeeded(
-    runs: Iterable[Mapping[str, Any]], *, title_contains: str, exclude_id: int | None = None
+    runs: Iterable[Mapping[str, Any]],
+    *,
+    since: dt.datetime,
+    event: str = "workflow_dispatch",
 ) -> Mapping[str, Any] | None:
-    """A run with this title that is queued/in progress or succeeded."""
+    """A run started by ``event`` at or after ``since`` that is queued, in progress or succeeded.
+
+    The event is typed; a run's title is never read (ORC-02).
+    """
     for run in runs:
-        if exclude_id is not None and int(run.get("databaseId", -1)) == exclude_id:
-            continue
-        if title_contains not in str(run.get("displayTitle", "")):
+        if run.get("event") != event or _created(run) < since:
             continue
         if run.get("status") != "completed" or run.get("conclusion") == "success":
             return run
@@ -241,11 +242,6 @@ def start_of_utc_day(now: dt.datetime) -> dt.datetime:
 
 
 # --- Day-Before Gate ---
-
-
-def marker(gameweek: int) -> str:
-    """The run-title marker of a day-before ingest for this gameweek."""
-    return f"[day-before GW{gameweek}]"
 
 
 @dataclass(frozen=True)
@@ -302,7 +298,9 @@ def gate(
             gw,
             deadline,
         )
-    earlier = active_or_succeeded(prior_runs, title_contains=marker(gw))
+    # Any dispatch of the slow ingest since midnight Sydney: the gate's own, or the owner's.
+    since = dt.datetime.combine(local.date(), dt.time(), SYDNEY)
+    earlier = active_or_succeeded(prior_runs, since=since)
     if earlier is not None:
         state = earlier.get("conclusion") or earlier.get("status")
         return GateDecision(
@@ -335,7 +333,6 @@ __all__ = [
     "describe_deadline",
     "find_next_deadline_event",
     "gate",
-    "marker",
     "next_deadline",
     "next_deadline_dataframe",
     "start_of_utc_day",

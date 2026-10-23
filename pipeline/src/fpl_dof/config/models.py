@@ -2436,9 +2436,10 @@ class ScheduleConfig(_Section):
         default=45.0,
         ge=0,
         description=(
-            "Nothing that produces a recommendation is scheduled inside this many minutes of a "
-            "deadline (R-09). Scheduled runs are best-effort and can be delayed under platform "
-            "load; the deadline is not. Manual dispatch remains the fallback."
+            "Nothing that produces a recommendation runs inside this many minutes of a deadline "
+            "(R-09), whatever started it: the tick, a change, the day-before or a manual dispatch "
+            "(ORC-02). Runs are best-effort and can be delayed under platform load; the deadline "
+            "is not."
         ),
     )
     pipeline_run_budget_seconds: int = Field(
