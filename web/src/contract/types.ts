@@ -6,7 +6,7 @@
 
 export const CONTRACT_VERSION = 1;
 
-export const CONTRACT_MINOR = 1;
+export const CONTRACT_MINOR = 2;
 
 /** What this publication is, when it was made, and what produced it. The browser reads this first and can render an honest 'as at' line without trusting anything else. */
 export interface Meta {
@@ -18,6 +18,10 @@ export interface Meta {
   generated_at: string;
   /** Traces back to the run manifest. */
   run_id: string;
+  /** UTC instant of the input snapshot the advice was decided on (ORC-03, DL-94). Absent before R1.3.0. */
+  as_of?: string;
+  /** What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0. */
+  trigger?: string;
   git_sha?: string | null;
   season: string;
   next_gameweek: number;
@@ -177,6 +181,10 @@ export interface MoveSide {
 export interface Week {
   contract_version: 1;
   run_id: string;
+  /** UTC instant of the input snapshot the advice was decided on (ORC-03, DL-94). Absent before R1.3.0. */
+  as_of?: string;
+  /** What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0. */
+  trigger?: string;
   /** True when no squad could be established. Before the first gameweek is scored there is no picks endpoint to read (DL-20), so this is a normal state and not a failure. */
   skipped: boolean;
   skipped_reason?: string;
@@ -201,6 +209,11 @@ export interface Week {
     decide_by_utc: string;
     local_zone: string;
     uk_zone: string;
+  };
+  /** This run's strategy failed after an earlier success for the gameweek; the file shows that success, the advice of record, stamped with its own as_of (ORC-03, DL-94). Absent when this run succeeded. */
+  last_failure?: {
+    as_of: string;
+    reason: string;
   };
   squad_state?: {
     /** How much was read versus inferred. Reported, never hidden. */
@@ -447,6 +460,10 @@ export interface PruningReport {
 export interface Plan {
   contract_version: 1;
   run_id: string;
+  /** UTC instant of the input snapshot the advice was decided on (ORC-03, DL-94). Absent before R1.3.0. */
+  as_of?: string;
+  /** What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0. */
+  trigger?: string;
   /** True when no squad could be established, or when no legal plan exists. Both are normal states before the season starts (DL-20) and neither is a failure. */
   skipped: boolean;
   skipped_reason?: string;
@@ -975,6 +992,10 @@ export interface ModelAdvice {
   n_transfers: number;
   hit_points: number;
   starting: number[];
+  /** UTC instant of the input snapshot the advice was decided on (ORC-03, DL-94). Absent before R1.3.0. */
+  as_of?: string;
+  /** What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0. */
+  trigger?: string;
   starting_names: string[];
   bench_order: number[];
   bench_names: string[];
@@ -1025,6 +1046,10 @@ export interface ModelSeason {
 export interface Models {
   contract_version: 1;
   season: string;
+  /** UTC instant of the input snapshot the advice was decided on (ORC-03, DL-94). Absent before R1.3.0. */
+  as_of?: string;
+  /** What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0. */
+  trigger?: string;
   /** The model id whose advice is live. */
   champion: string;
   /** The first gameweek recorded live. Earlier gameweeks are the retired frozen harness's virtual seasons; later ones are each strategy's advice on the owner's real squad (DL-87, DL-89). Null when the frozen record decided nothing. Absent means null. */

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
 from fpl_dof.week.ci_runs import active_or_succeeded, start_of_utc_day, succeeded_since
 from fpl_dof.week.day_before import CRON, SYDNEY, gate, marker
@@ -275,6 +276,29 @@ def test_ci_runs_script_says_not_done_when_github_is_unreachable(
     assert out.read_text() == "done=false\n"
 
 
+def test_a_run_over_its_schedule_budget_fails_the_budget_step(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ORC-09: from the run's start to its last finished job, against `schedule` config."""
+    mod = _script("ci_runs")
+    run = {"run_started_at": "2026-10-23T10:00:00Z"}
+    jobs = [
+        {"completed_at": "2026-10-23T10:02:00Z"},
+        {"completed_at": "2026-10-23T10:03:30Z"},
+        {"completed_at": None},  # the budget job itself, still running
+    ]
+    assert mod.run_seconds(run, jobs) == 210
+    monkeypatch.setattr(
+        mod, "gh_json", lambda *a: {"jobs": jobs} if a[-1].endswith("/jobs") else run
+    )
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    monkeypatch.setenv("GITHUB_RUN_ID", "1")
+    assert mod.main(["budget", "ci_workflow_budget_seconds"]) == 1  # 210 s > 180 s
+    assert mod.main(["budget", "pipeline_run_budget_seconds"]) == 0  # 210 s <= 300 s
+    recent = (dt.datetime.now(UTC) - dt.timedelta(seconds=5)).isoformat()
+    assert mod.main(["budget", "python_tests_budget_seconds", "--since", recent]) == 0
+
+
 # --- no early prospective decisions ----------------------------------------------------------
 
 
@@ -302,10 +326,48 @@ def test_workflows_wire_the_fail_closed_paths_and_the_frozen_harness_is_gone() -
     # Only the decision records (gwNN.tgz), never a future gwNNz-state.tgz, are restored.
     assert "prospective/gw[0-9][0-9].tgz" in pipeline and "prospective/gw*.tgz" not in pipeline
     assert "needs: [guard]" in pipeline and "prospective:\n" not in pipeline
-    deploy = (wf / "deploy.yml").read_text()
-    assert "contract_fresh.py" in deploy and "if: env.DAY_BEFORE != 'true'" in deploy
     day = (wf / "day-before.yml").read_text()
     assert f'"{CRON}"' in day and "group: day-before" in day
+
+
+def test_deploy_runs_only_after_a_pipeline_run_that_published() -> None:
+    """ORC-03: deploy is pipeline.yml's last job, gated on the run having published.
+
+    A guard-only run never starts `run`, and a failed `run` fails the implicit `success()` in the
+    deploy job's `if`; either way nothing deploys. A published run deploys its own contract, with
+    no fallback to an older run's, and a day-before run's must also be fresh.
+    """
+    wf = REPO / ".github" / "workflows"
+    pipeline = yaml.safe_load((wf / "pipeline.yml").read_text())
+    run = pipeline["jobs"]["run"]
+    assert run["outputs"]["published"] == "${{ steps.published.outputs.published }}"
+    marker_step = next(s for s in run["steps"] if s.get("id") == "published")
+    assert "test -f data/web/v1/meta.json" in marker_step["run"]
+    steps = [s.get("name") or s.get("uses") for s in run["steps"]]
+    assert steps.index(marker_step["name"]) > steps.index(
+        "Run the pipeline (transform through publish)"
+    )
+    job = pipeline["jobs"]["deploy"]
+    assert job["needs"] == ["guard", "run"]
+    assert job["if"] == "needs.run.outputs.published == 'true'"  # no always(): success() applies
+    assert job["uses"] == "./.github/workflows/deploy.yml"
+    assert job["with"]["from_pipeline"] is True
+    assert job["with"]["day_before"] == "${{ needs.guard.outputs.day_before == 'true' }}"
+    assert {"pages": "write", "id-token": "write"}.items() <= job["permissions"].items()
+
+    deploy = yaml.safe_load((wf / "deploy.yml").read_text())
+    triggers = deploy[True]  # YAML 1.1 reads the `on:` key as a boolean
+    assert "workflow_run" not in triggers and {"push", "workflow_call"} <= set(triggers)
+    build = {s.get("name"): s for s in deploy["jobs"]["build"]["steps"]}
+    own = build["Download this pipeline run's contract"]
+    assert own["if"] == "inputs.from_pipeline" and "run-id" not in own["with"]
+    assert "continue-on-error" not in own
+    fresh = build["Day-before - require the fresh contract"]
+    assert fresh["if"] == "inputs.day_before" and "contract_fresh.py" in fresh["run"]
+    assert (
+        build["Restore the newest pipeline run's contract"]["if"] == "${{ !inputs.from_pipeline }}"
+    )
+    assert deploy["jobs"]["deploy"]["permissions"] == {"pages": "write", "id-token": "write"}
 
 
 # --- fail-closed contract check --------------------------------------------------------------

@@ -255,7 +255,7 @@ def test_each_position_gets_a_head_as_deep_as_it_goes_into_a_squad() -> None:
     assert head_size_by_position(20, {}) == {}
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def adaptive_walk_result(game_rules: GameRules) -> BacktestResult:
     history = make_history(players=40, gameweeks=10)
     return walk_forward(

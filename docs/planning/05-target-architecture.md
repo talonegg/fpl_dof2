@@ -286,8 +286,10 @@ advice file records each strategy's advice, or its "no advice" reason, under `mo
 
 The last successful recommendation before the deadline is each strategy's advice of record for that
 gameweek, written to `ledger`. A strategy that produced nothing records "no advice" with the reason,
-fail-closed, rather than carrying last week's forward; within a run this is built (MOD-04), and the
-deadline rule is ORC-03. The scheduler's freeze guard (`schedule.freeze_minutes`) only stops a run
+fail-closed, rather than carrying last week's forward. A strategy's entry is replaced only by a
+newer success; a later failure is noted beside it as `last_failure {as_of, reason}`, and the ledger
+writer refuses a write after the deadline (ORC-03, [DL-94](../decisions/DL-94.md)). Every advice carries its snapshot's
+`as_of` and the run's `trigger`, and deploy follows only a run that published. The scheduler's freeze guard (`schedule.freeze_minutes`) only stops a run
 starting too close to the deadline.
 
 ### 6.4 Evaluation

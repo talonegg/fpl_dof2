@@ -10,9 +10,9 @@
 #
 # It reuses the existing chain rather than duplicating it: the gate dispatches `Ingest (slow)` with
 # reason="day-before GW{n}" (its run is titled "[day-before GW{n}]"); that run's completion triggers `Pipeline`
-# (workflow_run), whose success triggers `Deploy` (workflow_run). Both recognise the title and fail
-# closed: Pipeline does not run on a failed ingest,
-# and Deploy skips rather than redeploying an older contract when the new one is missing or stale.
+# (workflow_run), whose last job deploys only when that run published (deploy.yml, ORC-03). Both
+# fail closed: Pipeline does not run on a failed ingest, and its deploy job fails rather than
+# deploying when the run's own contract is missing or stale.
 #
 # Concurrency: its own group. 19:07–22:47 UTC is clear of the nightly pipeline (01:11 UTC, fallback
 # 03:47), ingest-slow (02:23, fallback 05:41) and — the deadline being > 14 h away — of every
@@ -47,10 +47,13 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
-          cache: pip
-          cache-dependency-path: pipeline/requirements.lock
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.19"
+          enable-cache: true
+          cache-dependency-glob: pipeline/requirements.lock
       - name: Install fpl-dof
-        run: python -m pip install -c pipeline/requirements.lock -e pipeline
+        run: uv pip install --system -c pipeline/requirements.lock -e pipeline
       # Always exits 0 — an unreadable FPL API or run list is a logged skip, never a partial run.
       - name: First firing from 07:00 Sydney the day before the deadline, once per GW?
         id: gate
@@ -68,7 +71,7 @@ jobs:
     permissions:
       actions: write # dispatch Ingest (slow); GITHUB_TOKEN-dispatched runs do start workflows
     steps:
-      - name: Start the full ingest (Pipeline and Deploy follow via workflow_run)
+      - name: Start the full ingest (Pipeline follows via workflow_run, and deploys)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |

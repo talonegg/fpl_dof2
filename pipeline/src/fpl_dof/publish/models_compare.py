@@ -142,7 +142,9 @@ def _live_gameweek(
             availability[sid] = {"available": False, "reason": reason}
             continue
         availability[sid] = {"available": True, "reason": None}
-        advice[sid] = _live_advice(advised, m.get("recommendation") or {}, names)
+        # The advice of record's own stamp (ORC-03); a pre-R1.3.0 entry has none.
+        stamp = {k: m[k] for k in ("as_of", "trigger") if m.get(k)}
+        advice[sid] = _live_advice(advised, m.get("recommendation") or {}, names) | stamp
         lineup = lineup_from_advice(
             advised,
             transfers_made=int(m.get("transfers") or 0),

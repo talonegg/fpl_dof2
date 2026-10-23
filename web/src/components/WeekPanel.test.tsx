@@ -4,6 +4,24 @@ import { WeekPanel } from "./WeekPanel";
 import { skippedWeek, week } from "../test/fixtures";
 
 describe("WeekPanel", () => {
+  it("notes a later failure beside the advice of record (ORC-03)", () => {
+    const failed = {
+      ...week,
+      as_of: "2026-08-20T09:00:00Z",
+      last_failure: { as_of: "2026-08-20T10:00:00Z", reason: "no advice: boom" },
+    };
+    render(<WeekPanel week={failed} />);
+    const note = screen.getByTestId("week-last-failure").textContent ?? "";
+    expect(note).toContain("no advice: boom");
+    expect(note).toContain("advice of record");
+    expect(screen.getByTestId("week-rationale")).toBeTruthy();
+  });
+
+  it("shows no failure note when the run succeeded", () => {
+    render(<WeekPanel week={week} />);
+    expect(screen.queryByTestId("week-last-failure")).toBeNull();
+  });
+
   it("shows both the UK and the local deadline", () => {
     // The reason this exists at all: FPL publishes in UK time, the owner is on AEST, and the gap
     // between them changes twice a season on different dates. Doing that conversion in your head

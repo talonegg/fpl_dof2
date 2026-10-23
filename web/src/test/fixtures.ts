@@ -19,7 +19,7 @@ import type {
 
 export const meta: Meta = {
   contract_version: 1,
-  contract_minor: 1,
+  contract_minor: 2,
   generated_at: "2026-08-10T10:15:58.217761Z",
   run_id: "20260810T101557Z-d705a43f",
   git_sha: "14c97bc018cebb4fa8b7ac525097ca54d402af75",

@@ -57,6 +57,9 @@ class StageContext:
     run_id: str
     options: StageOptions = field(default=StageOptions())
     as_of: dt.datetime = field(default_factory=utcnow)
+    clock: Callable[[], dt.datetime] = field(default=utcnow)
+    """The real time, for effects only, never for a number: the ledger refuses a write once the
+    deadline has passed while the run was going, or in a replay at an earlier ``as_of`` (ORC-03)."""
 
 
 @dataclass(frozen=True, slots=True)
