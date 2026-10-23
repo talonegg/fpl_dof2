@@ -162,6 +162,7 @@ def build_plan(
         shapes=shapes,
         squad_team_ids=_squad_clubs(players, state),
         config=decision.chips,
+        rules=rules.chips,
     )
 
     warnings: list[str] = list(cap_warnings)
@@ -202,6 +203,7 @@ def build_plan(
         chips_used=state.chips_used,
         shapes=shapes,
         config=decision.chips,
+        rules=rules.chips,
     )
     bet = _ownership(players, state, recommended, decision, most_captained_id)
     explanation = _explain(
@@ -430,7 +432,9 @@ def _draws(
     """One gameweek of a plan, as sampling entries. Discounted exactly as the objective is."""
     discount = decision.horizon.discount ** weeks.index(week.gameweek)
     captain_multiplier = rules.chips.armband(week.chip)
-    bench_weight = 1.0 if week.chip == "bboost" else decision.horizon.bench_weight
+    bench_weight = (
+        1.0 if week.chip in rules.chips.bench_scores_with else decision.horizon.bench_weight
+    )
     starting = set(week.starting)
 
     entries: list[PlayerDraw] = []

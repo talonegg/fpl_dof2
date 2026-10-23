@@ -32,9 +32,7 @@ import pandas as pd
 
 from fpl_dof.config.models import ChipConfig
 from fpl_dof.frames import as_int
-
-#: Chips that change how a gameweek is *scored*, as opposed to how it is transferred.
-SCORING_CHIPS = frozenset({"bboost", "3xc"})
+from fpl_dof.rules.models import ChipRules
 
 CHIP_LABELS = {
     "wildcard": "Wildcard",
@@ -268,6 +266,7 @@ def enumerate_scenarios(
     shapes: Mapping[int, GameweekShape],
     squad_team_ids: Iterable[int],
     config: ChipConfig,
+    rules: ChipRules,
 ) -> tuple[ChipScenario, ...]:
     """The ``(chip, gameweek)`` assignments worth solving, always including "play nothing".
 
@@ -302,7 +301,7 @@ def enumerate_scenarios(
                 continue
             shape = shapes.get(gameweek)
             if (
-                chip == "bboost"
+                chip in rules.bench_scores_with
                 and shape is not None
                 and shape.mean_fixtures(teams) < config.bench_boost_minimum_fixtures
             ):
@@ -327,6 +326,7 @@ def build_calendar(
     chips_used: Iterable[str],
     shapes: Mapping[int, GameweekShape],
     config: ChipConfig,
+    rules: ChipRules,
 ) -> ChipCalendar:
     """Project likely chip windows across the rest of the season (FR-20).
 
@@ -346,7 +346,7 @@ def build_calendar(
             shape = shapes.get(gameweek)
             if shape is None:
                 continue
-            if not _is_window(chip, shape):
+            if not _is_window(chip, shape, rules):
                 continue
             entries.append(
                 ChipCalendarEntry(
@@ -372,7 +372,7 @@ def build_calendar(
     )
 
 
-def _is_window(chip: str, shape: GameweekShape) -> bool:
+def _is_window(chip: str, shape: GameweekShape, rules: ChipRules) -> bool:
     """Whether a gameweek's fixture structure makes it interesting for this chip.
 
     Doubles favour the chips that multiply what you own — Bench Boost and Triple Captain — and
@@ -380,7 +380,8 @@ def _is_window(chip: str, shape: GameweekShape) -> bool:
     a *window*; it is just a week, and listing every week would make the calendar unreadable, which
     is the same as not having one.
     """
-    if chip in SCORING_CHIPS:
+    # The chips that change how a gameweek is scored, the bench or the armband, as the rules say.
+    if chip in rules.bench_scores_with or chip in rules.captain_multiplier_by_chip:
         return shape.is_double
     return shape.is_blank or shape.is_double
 
@@ -401,7 +402,6 @@ def _calendar_note(chip: str, shape: GameweekShape, window: ChipWindow, from_gam
 
 __all__ = [
     "CHIP_LABELS",
-    "SCORING_CHIPS",
     "ChipCalendar",
     "ChipCalendarEntry",
     "ChipScenario",
