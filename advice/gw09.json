@@ -1,0 +1,567 @@
+{
+  "gameweek": 9,
+  "run_id": "20261023T214516Z-7b10fd30",
+  "recorded_at": "2026-10-23T21:45:16.291102Z",
+  "trigger": "change:status",
+  "advised": {
+    "gameweek": 9,
+    "squad": [
+      8,
+      31,
+      68,
+      90,
+      109,
+      115,
+      124,
+      165,
+      237,
+      277,
+      399,
+      411,
+      426,
+      464,
+      496
+    ],
+    "starting": [
+      411,
+      90,
+      109,
+      8,
+      31,
+      68,
+      124,
+      277,
+      426,
+      399,
+      165
+    ],
+    "bench_order": [
+      115,
+      237,
+      464
+    ],
+    "reserve_goalkeeper": 496,
+    "captain": 411,
+    "vice_captain": 426,
+    "formation": "1-4-4-2",
+    "expected_points": 38.441
+  },
+  "recommendation": {
+    "rationale": "1 free transfer(s) gain 1.24 expected points",
+    "is_roll": false,
+    "transfers": 1,
+    "hit_points": 0,
+    "net_expected_points": 38.441,
+    "gain_over_roll": 1.24,
+    "bank_after": 0.4,
+    "moves": [
+      {
+        "out": {
+          "player_id": 257,
+          "web_name": "Bassey",
+          "price": 4.5,
+          "xp_next": 2.548,
+          "form_points_per_match": 4.167
+        },
+        "in": {
+          "player_id": 90,
+          "web_name": "Hickey",
+          "price": 4.5,
+          "xp_next": 3.823,
+          "form_points_per_match": 1.0
+        }
+      }
+    ],
+    "options": [
+      {
+        "transfers": 0,
+        "hit_points": 0,
+        "net_expected_points": 37.201,
+        "gain_over_roll": 0.0,
+        "moves": []
+      },
+      {
+        "transfers": 1,
+        "hit_points": 0,
+        "net_expected_points": 38.441,
+        "gain_over_roll": 1.24,
+        "moves": [
+          "Bassey (\u00a34.5m) -> Hickey (\u00a34.5m)"
+        ]
+      },
+      {
+        "transfers": 2,
+        "hit_points": -4,
+        "net_expected_points": 35.7372,
+        "gain_over_roll": -1.4638,
+        "moves": [
+          "De Cuyper (\u00a35.0m) -> Hickey (\u00a34.5m)",
+          "Kinsky (\u00a34.5m) -> Kelleher (\u00a35.0m)"
+        ]
+      }
+    ],
+    "warnings": []
+  },
+  "squad_state": {
+    "provenance": "reconstructed",
+    "entry_id": 4529900,
+    "as_of_gameweek": 7,
+    "bank": 0.4,
+    "sell_value": 99.6,
+    "budget": 100.0,
+    "free_transfers": 1,
+    "chips_used": [],
+    "warnings": []
+  },
+  "models": {
+    "c3": {
+      "role": "champion",
+      "strategy": {
+        "id": "c3",
+        "digest": "25b63ccec298d0eb3e5497455b58d1178036e7621c8baa465a09bbd5a5cbe3d4"
+      },
+      "as_of": "2026-10-23T21:45:16.291102Z",
+      "trigger": "change:status",
+      "advised": {
+        "gameweek": 9,
+        "squad": [
+          8,
+          31,
+          68,
+          90,
+          109,
+          115,
+          124,
+          165,
+          237,
+          277,
+          399,
+          411,
+          426,
+          464,
+          496
+        ],
+        "starting": [
+          411,
+          90,
+          109,
+          8,
+          31,
+          68,
+          124,
+          277,
+          426,
+          399,
+          165
+        ],
+        "bench_order": [
+          115,
+          237,
+          464
+        ],
+        "reserve_goalkeeper": 496,
+        "captain": 411,
+        "vice_captain": 426,
+        "formation": "1-4-4-2",
+        "expected_points": 38.441
+      },
+      "recommendation": {
+        "rationale": "1 free transfer(s) gain 1.24 expected points",
+        "is_roll": false,
+        "transfers": 1,
+        "hit_points": 0,
+        "net_expected_points": 38.441,
+        "gain_over_roll": 1.24,
+        "bank_after": 0.4,
+        "moves": [
+          {
+            "out": {
+              "player_id": 257,
+              "web_name": "Bassey",
+              "price": 4.5,
+              "xp_next": 2.548,
+              "form_points_per_match": 4.167
+            },
+            "in": {
+              "player_id": 90,
+              "web_name": "Hickey",
+              "price": 4.5,
+              "xp_next": 3.823,
+              "form_points_per_match": 1.0
+            }
+          }
+        ],
+        "options": [
+          {
+            "transfers": 0,
+            "hit_points": 0,
+            "net_expected_points": 37.201,
+            "gain_over_roll": 0.0,
+            "moves": []
+          },
+          {
+            "transfers": 1,
+            "hit_points": 0,
+            "net_expected_points": 38.441,
+            "gain_over_roll": 1.24,
+            "moves": [
+              "Bassey (\u00a34.5m) -> Hickey (\u00a34.5m)"
+            ]
+          },
+          {
+            "transfers": 2,
+            "hit_points": -4,
+            "net_expected_points": 35.7372,
+            "gain_over_roll": -1.4638,
+            "moves": [
+              "De Cuyper (\u00a35.0m) -> Hickey (\u00a34.5m)",
+              "Kinsky (\u00a34.5m) -> Kelleher (\u00a35.0m)"
+            ]
+          }
+        ],
+        "warnings": []
+      },
+      "transfers": 1
+    },
+    "a": {
+      "role": "challenger",
+      "strategy": {
+        "id": "a",
+        "digest": "36385801420858680711a9bc0c3aeacd7afcd470323070858f3e6a4f8ea873f0"
+      },
+      "as_of": "2026-10-23T21:45:16.291102Z",
+      "trigger": "change:status",
+      "advised": {
+        "gameweek": 9,
+        "squad": [
+          8,
+          31,
+          68,
+          109,
+          115,
+          124,
+          165,
+          237,
+          257,
+          277,
+          411,
+          426,
+          464,
+          496,
+          542
+        ],
+        "starting": [
+          411,
+          542,
+          68,
+          426,
+          237,
+          124,
+          257,
+          31,
+          8,
+          165,
+          109
+        ],
+        "bench_order": [
+          464,
+          277,
+          115
+        ],
+        "reserve_goalkeeper": 496,
+        "captain": 411,
+        "vice_captain": 426,
+        "formation": "1-3-5-2",
+        "expected_points": 52.871
+      },
+      "recommendation": {
+        "rationale": "1 free transfer(s) gain 1.65 expected points",
+        "is_roll": false,
+        "transfers": 1,
+        "hit_points": 0,
+        "net_expected_points": 52.8711,
+        "gain_over_roll": 1.649,
+        "bank_after": 2.5,
+        "moves": [
+          {
+            "out": {
+              "player_id": 399,
+              "web_name": "Cherki",
+              "price": 7.8,
+              "xp_next": 2.179,
+              "form_points_per_match": 7.333
+            },
+            "in": {
+              "player_id": 542,
+              "web_name": "E.Le F\u00e9e",
+              "price": 5.7,
+              "xp_next": 5.071,
+              "form_points_per_match": 3.667
+            }
+          }
+        ],
+        "options": [
+          {
+            "transfers": 0,
+            "hit_points": 0,
+            "net_expected_points": 51.2221,
+            "gain_over_roll": 0.0,
+            "moves": []
+          },
+          {
+            "transfers": 1,
+            "hit_points": 0,
+            "net_expected_points": 52.8711,
+            "gain_over_roll": 1.649,
+            "moves": [
+              "Cherki (\u00a37.8m) -> E.Le F\u00e9e (\u00a35.7m)"
+            ]
+          },
+          {
+            "transfers": 2,
+            "hit_points": -4,
+            "net_expected_points": 52.0447,
+            "gain_over_roll": 0.8226,
+            "moves": [
+              "Jo\u00e3o Pedro (\u00a37.7m) -> Isak (\u00a39.0m)",
+              "Cherki (\u00a37.8m) -> E.Le F\u00e9e (\u00a35.7m)"
+            ]
+          }
+        ],
+        "warnings": []
+      },
+      "transfers": 1
+    },
+    "a_odds": {
+      "role": "challenger",
+      "strategy": {
+        "id": "a_odds",
+        "digest": "b98077d2bc3b4c54ccb56ce39c1805a59ad4168fa6ffe8c54f7cc004e79bd158"
+      },
+      "as_of": "2026-10-23T21:45:16.291102Z",
+      "trigger": "change:status",
+      "no_advice": "no advice: MissingOddsError: no match odds knowable before the gameweek 9 deadline",
+      "missing": [
+        "team_match_expectation"
+      ]
+    },
+    "c1": {
+      "role": "challenger",
+      "strategy": {
+        "id": "c1",
+        "digest": "701496efd08af06ea3345a488280557681bdadb9dbd3f70d5f8005e941b4d6cc"
+      },
+      "as_of": "2026-10-23T21:45:16.291102Z",
+      "trigger": "change:status",
+      "advised": {
+        "gameweek": 9,
+        "squad": [
+          8,
+          31,
+          68,
+          109,
+          115,
+          124,
+          165,
+          237,
+          257,
+          277,
+          411,
+          426,
+          464,
+          496,
+          542
+        ],
+        "starting": [
+          411,
+          542,
+          426,
+          68,
+          115,
+          165,
+          109,
+          237,
+          124,
+          8,
+          257
+        ],
+        "bench_order": [
+          464,
+          31,
+          277
+        ],
+        "reserve_goalkeeper": 496,
+        "captain": 411,
+        "vice_captain": 426,
+        "formation": "1-3-5-2",
+        "expected_points": 52.484
+      },
+      "recommendation": {
+        "rationale": "1 free transfer(s) gain 2.51 expected points",
+        "is_roll": false,
+        "transfers": 1,
+        "hit_points": 0,
+        "net_expected_points": 52.4838,
+        "gain_over_roll": 2.5127,
+        "bank_after": 2.5,
+        "moves": [
+          {
+            "out": {
+              "player_id": 399,
+              "web_name": "Cherki",
+              "price": 7.8,
+              "xp_next": 3.182,
+              "form_points_per_match": 7.333
+            },
+            "in": {
+              "player_id": 542,
+              "web_name": "E.Le F\u00e9e",
+              "price": 5.7,
+              "xp_next": 5.591,
+              "form_points_per_match": 3.667
+            }
+          }
+        ],
+        "options": [
+          {
+            "transfers": 0,
+            "hit_points": 0,
+            "net_expected_points": 49.9711,
+            "gain_over_roll": 0.0,
+            "moves": []
+          },
+          {
+            "transfers": 1,
+            "hit_points": 0,
+            "net_expected_points": 52.4838,
+            "gain_over_roll": 2.5127,
+            "moves": [
+              "Cherki (\u00a37.8m) -> E.Le F\u00e9e (\u00a35.7m)"
+            ]
+          },
+          {
+            "transfers": 2,
+            "hit_points": -4,
+            "net_expected_points": 50.6361,
+            "gain_over_roll": 0.665,
+            "moves": [
+              "Konsa (\u00a34.6m) -> Gu\u00e9hi (\u00a36.0m)",
+              "Cherki (\u00a37.8m) -> E.Le F\u00e9e (\u00a35.7m)"
+            ]
+          }
+        ],
+        "warnings": []
+      },
+      "transfers": 1
+    },
+    "engine": {
+      "role": "challenger",
+      "strategy": {
+        "id": "engine",
+        "digest": "d15b3e73e448078423743360cb3662bdacb9a6d16c59a77218939392a1b7334e"
+      },
+      "as_of": "2026-10-23T21:45:16.291102Z",
+      "trigger": "change:status",
+      "advised": {
+        "gameweek": 9,
+        "squad": [
+          8,
+          31,
+          68,
+          90,
+          109,
+          115,
+          124,
+          165,
+          237,
+          277,
+          399,
+          411,
+          426,
+          464,
+          496
+        ],
+        "starting": [
+          411,
+          90,
+          109,
+          8,
+          31,
+          399,
+          68,
+          124,
+          165,
+          277,
+          426
+        ],
+        "bench_order": [
+          115,
+          237,
+          464
+        ],
+        "reserve_goalkeeper": 496,
+        "captain": 411,
+        "vice_captain": 90,
+        "formation": "1-4-4-2",
+        "expected_points": 39.0397
+      },
+      "recommendation": {
+        "rationale": "1 free transfer(s) gain 1.24 expected points",
+        "is_roll": false,
+        "transfers": 1,
+        "hit_points": 0,
+        "net_expected_points": 39.0397,
+        "gain_over_roll": 1.24,
+        "bank_after": 0.4,
+        "moves": [
+          {
+            "out": {
+              "player_id": 257,
+              "web_name": "Bassey",
+              "price": 4.5,
+              "xp_next": 2.548,
+              "form_points_per_match": 4.167
+            },
+            "in": {
+              "player_id": 90,
+              "web_name": "Hickey",
+              "price": 4.5,
+              "xp_next": 3.823,
+              "form_points_per_match": 1.0
+            }
+          }
+        ],
+        "options": [
+          {
+            "transfers": 0,
+            "hit_points": 0,
+            "net_expected_points": 37.7997,
+            "gain_over_roll": 0.0,
+            "moves": []
+          },
+          {
+            "transfers": 1,
+            "hit_points": 0,
+            "net_expected_points": 39.0397,
+            "gain_over_roll": 1.24,
+            "moves": [
+              "Bassey (\u00a34.5m) -> Hickey (\u00a34.5m)"
+            ]
+          },
+          {
+            "transfers": 2,
+            "hit_points": -4,
+            "net_expected_points": 37.3755,
+            "gain_over_roll": -0.4242,
+            "moves": [
+              "De Cuyper (\u00a35.0m) -> Hickey (\u00a34.5m)",
+              "Kinsky (\u00a34.5m) -> Kelleher (\u00a35.0m)"
+            ]
+          }
+        ],
+        "warnings": []
+      },
+      "transfers": 1
+    }
+  }
+}
