@@ -86,7 +86,7 @@ class Forecaster(_Entry):
     @field_validator("config")
     @classmethod
     def _config_overrides_the_shipped_forecast_config(cls, value: dict[str, Any]) -> dict[str, Any]:
-        _forecast_config(ForecastConfig(), value)  # unknown keys or bad values raise here
+        effective_forecast_config(ForecastConfig(), value)  # unknown keys or bad values raise here
         return value
 
 
@@ -142,7 +142,7 @@ class Strategy(_Entry):
             inputs = dataclasses.replace(
                 inputs, player_gameweek=history[history["season"] == rules.season]
             )
-        forecast_config = _forecast_config(config.forecast, recipe.config)
+        forecast_config = effective_forecast_config(config.forecast, recipe.config)
         if (module := _CHALLENGERS.get(recipe.model)) is not None:
             run: Callable[[ForecastInputs, GameRules, ForecastConfig], Forecast] = module.forecast
             result = run(inputs, rules, forecast_config)
@@ -163,7 +163,7 @@ class Strategy(_Entry):
         """
         if (problem := unrunnable(self)) is not None:
             raise NotImplementedError(f"{self.id}: {problem}")
-        forecast_config = _forecast_config(config.forecast, self.forecaster.config)
+        forecast_config = effective_forecast_config(config.forecast, self.forecaster.config)
         if self.forecaster.model == c1.MODEL_NAME:
             return c1.C1Predictor(forecast_config, rules)
         if self.forecaster.model == a.MODEL_NAME:
@@ -209,7 +209,7 @@ def _deep_merge(base: dict[str, Any], over: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _forecast_config(base: ForecastConfig, overrides: dict[str, Any]) -> ForecastConfig:
+def effective_forecast_config(base: ForecastConfig, overrides: dict[str, Any]) -> ForecastConfig:
     """``base`` with ``overrides`` deep-merged and re-validated: an unknown key is an error."""
     if not overrides:
         return base
@@ -362,6 +362,7 @@ __all__ = [
     "Strategy",
     "champion",
     "digest",
+    "effective_forecast_config",
     "load_registry",
     "load_strategy",
     "published_strategies",

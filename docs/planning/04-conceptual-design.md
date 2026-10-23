@@ -231,7 +231,7 @@ A source added mid-season is backdated by `sources/retrospective.py` and held to
 
 `forecast/features.py` builds one frame for the live forecast, the backtest, the chip replay and the
 monolith, so training and inference share definitions: per-90s over the last 3/6/12 matches of goals,
-assists, clean sheets, saves, bonus, BPS, defensive contribution, xG, xA and total points
+assists, clean sheets, saves, bonus, BPS, defensive contribution, xG, xA, total points and yellow cards
 (`forecast.features.rolling_statistics`; the chain reads the six-match window); minutes; appearance and start rates; matches observed; rest;
 congestion and recent absence; price; venue and opponent; prior-season ratios (off, D-22).
 
@@ -323,7 +323,7 @@ graph LR
 | M4 | Per-90 count; P(threshold) by Poisson survival | — |
 | M5 | From M2's goals against | — |
 | M6 | Shrunk per-90 saves | Pressure-normalised keeper off (DL-51) |
-| M7 | Position prior per-90 only: no rolling yellow-card rate is built, so no player's own record is read | No referee or red-card model |
+| M7 | Shrunk per-90 yellow cards from the player's own record (F1, DL-90) | No referee or red-card model |
 | M8 | Expected BPS ranked against a population distribution | Not ranked within the match |
 
 Live, the backtest and the chip replay fit through one interface, `fit_as_of` (`forecast/fit.py`);
@@ -369,8 +369,9 @@ linear in M2's goals against.
 
 ### M6 — Saves · M7 — Cards
 
-Shrunk per-90 saves. Cards take the position's per-90 prior for every player, because
-`yellow_cards` is not in `forecast.features.rolling_statistics`; both are small contributors.
+Shrunk per-90 saves. Cards are the player's own shrunk per-90 yellow-card rate (before
+[DL-90](../decisions/DL-90.md) every player took the position prior, because `yellow_cards` had no
+rolling feature); both are small contributors.
 
 ### M8 — Bonus points
 

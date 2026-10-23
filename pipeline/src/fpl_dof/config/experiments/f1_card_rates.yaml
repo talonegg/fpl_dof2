@@ -1,0 +1,25 @@
+# A declared experiment (MOD-09, 05 section 5.3). The loader is fpl_dof.factory.experiments.load_declared.
+id: f1_card_rates
+hypothesis: >
+  M7 never reads a player's own card record because yellow_cards has no rolling feature, so every
+  player of a position gets the position prior. Adding the feature lets the observed rate through
+  the shrinkage and sharpens the card term of expected points.
+falsifier: >
+  c3_f1 degrades the held-out season against c3: the paired mean delta in MAE or Spearman is worse
+  with a 95% bootstrap interval that excludes zero, or its mean MAE skill score is below c3's.
+baseline: c3
+variant: c3_f1
+metrics: [mae, spearman]
+decision_rule: >
+  A bug fix (DL-89 item 2, E8 section 5 exception). Ships if the held-out season does not degrade
+  (E8 section 5 condition 1); stops and goes to the owner if it does.
+length: walk-forward over backtest.training_seasons (every deadline of the window)
+graded_by: backtest
+decision: shipped
+results: >
+  Local walk-forward, 2024/25 to 2025/26, 68 folds, 20,573 scored rows, archive seasons in silver
+  (2026-10-23). c3_f1 minus c3, mean per gameweek with 95% bootstrap interval - MAE +0.00052
+  [-0.00021, +0.00121], Spearman +0.00002 [-0.00089, +0.00094], top-N precision +0.00147
+  [-0.00368, +0.00735]; none significant. Pooled MAE 1.9061 against 1.9056, RMSE 3.0566 against
+  3.0580, Spearman 0.2826 against 0.2823. Not degraded, so shipped as a bug fix (DL-90). The CI
+  backtest's record on the ledger branch is still to come.

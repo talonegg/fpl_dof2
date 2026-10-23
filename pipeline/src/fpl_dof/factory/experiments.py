@@ -16,15 +16,60 @@ from __future__ import annotations
 import datetime as dt
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
-from typing import Any
+from pathlib import Path
+from typing import Any, Literal
 
 import pandas as pd
+import yaml
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from fpl_dof.config import config_digest
 from fpl_dof.config.models import Config
-from fpl_dof.factory.registry import Strategy, stamp, unrunnable
+from fpl_dof.factory.registry import Strategy, effective_forecast_config, stamp, unrunnable
 from fpl_dof.forecast.backtest import BacktestResult, Entrant, walk_forward
 from fpl_dof.rules.models import GameRules
+
+EXPERIMENTS_DIR = Path(__file__).resolve().parents[1] / "config" / "experiments"
+
+
+class Experiment(BaseModel):
+    """A declared experiment (05 section 5.3): the claim, what would falsify it, and how it ends.
+
+    ``decision`` stays ``open`` until the owner records the outcome in a DL entry.
+    """
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    id: str
+    hypothesis: str
+    falsifier: str
+    baseline: str
+    variant: str
+    metrics: tuple[Literal["mae", "spearman", "top_n_precision"], ...]
+    decision_rule: str
+    length: str
+    graded_by: Literal["backtest", "shadow", "both"]
+    decision: Literal["open", "promoted", "rejected", "extended", "shipped"]
+    results: str = ""
+
+
+def load_declared(
+    registered: Iterable[Strategy], directory: Path = EXPERIMENTS_DIR
+) -> tuple[Experiment, ...]:
+    """Every declared experiment, validated; its baseline and variant must be registered."""
+    known = {s.id for s in registered}
+    out = []
+    for path in sorted(directory.glob("*.yaml")):
+        try:
+            exp = Experiment.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
+        except (ValidationError, yaml.YAMLError) as exc:
+            raise ValueError(f"{path.name}: {exc}") from exc
+        if exp.id != path.stem or not {exp.baseline, exp.variant} <= known:
+            raise ValueError(
+                f"{path.name}: id must match the file and both strategies be registered"
+            )
+        out.append(exp)
+    return tuple(out)
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,6 +98,7 @@ def entrants(
                 strategy.id,
                 strategy.predictor(rules, config),
                 strategy.forecaster.training_window,
+                effective_forecast_config(config.forecast, strategy.forecaster.config).features,
             )
         )
     if not graded or ordered[0].role != "champion" or graded[0].id != ordered[0].id:
@@ -175,10 +221,12 @@ def latest_verdict(
 
 
 __all__ = [
+    "Experiment",
     "Graded",
     "entrants",
     "experiment_records",
     "grade",
     "latest_verdict",
+    "load_declared",
     "run_config_digest",
 ]
