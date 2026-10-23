@@ -80,6 +80,7 @@ def build_game_rules(
     transfers = TransferRules(
         max_free_transfers=config.transfers.max_free_transfers,
         extra_transfer_cost=config.transfers.extra_transfer_cost,
+        free_transfers_per_gameweek=config.transfers.free_transfers_per_gameweek,
     )
 
     _cross_check(scoring)

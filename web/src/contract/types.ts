@@ -74,6 +74,7 @@ export interface Rules {
   transfers: {
     max_free_transfers: number;
     extra_transfer_cost: number;
+    free_transfers_per_gameweek?: number;
   };
 }
 

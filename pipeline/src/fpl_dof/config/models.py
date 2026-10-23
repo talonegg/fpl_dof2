@@ -207,6 +207,14 @@ class SupplementaryScoring(_Section):
 class SupplementaryTransfers(_Section):
     max_free_transfers: int = Field(default=5, gt=0)
     extra_transfer_cost: int = -4
+    free_transfers_per_gameweek: int = Field(
+        default=1,
+        gt=0,
+        description=(
+            "Free transfers earned each gameweek, and the allowance going into GW2: transfers "
+            "before the GW1 deadline are unlimited and none carries over. Not in the API."
+        ),
+    )
 
 
 class SupplementaryChips(_Section):

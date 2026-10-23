@@ -147,6 +147,9 @@ class TransferRules(_Frozen):
     extra_transfer_cost: int = Field(
         description="Points deducted per transfer beyond the free ones."
     )
+    free_transfers_per_gameweek: int = Field(
+        default=1, gt=0, description="Earned each gameweek; the allowance going into GW2."
+    )
 
 
 class ChipRules(_Frozen):

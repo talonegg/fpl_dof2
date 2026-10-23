@@ -34,7 +34,7 @@ from fpl_dof.rules.models import GameRules, Position
 
 #: Stamped on every stored evaluation (ORC-05). Bump it with any change to what this module scores,
 #: or to how an evaluation judges a gameweek: every Finished gameweek is then evaluated again.
-SCORER_VERSION = "1"
+SCORER_VERSION = "2"  # 2: GW2 starts on one free transfer (D-36)
 
 
 @dataclass(frozen=True, slots=True)

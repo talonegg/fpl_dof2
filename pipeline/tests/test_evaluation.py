@@ -153,7 +153,7 @@ def _advice() -> dict[str, Any]:
         "recorded_at": "2026-08-28T08:00:00Z",
         "advised": advised,
         "recommendation": {"transfers": 0, "hit_points": 0, "moves": []},
-        "squad_state": {"bank": 0.0, "free_transfers": 2},
+        "squad_state": {"bank": 0.0, "free_transfers": 1},
     }
 
 
@@ -192,7 +192,8 @@ def test_the_hindsight_optimum_honours_the_deadline_clubs_and_selling_prices(
     assert set(moves) == {(8, 16), (13, 18)}
     assert moves[(8, 16)]["selling_price"] == pytest.approx(5.2)
     assert moves[(8, 16)]["player_out_name"] == "P8"
-    assert optimal["hit_points"] == 0  # two free transfers going into GW2
+    # GW2 starts on one free transfer (D-36), so the second move costs a hit, and is worth it.
+    assert optimal["hit_points"] == game_rules.transfers.extra_transfer_cost
 
     # The placeholders this replaces choose otherwise: £5.0m buys 17, not 16, and 18's club today
     # lets 15 make way for him.
@@ -203,7 +204,7 @@ def test_the_hindsight_optimum_honours_the_deadline_clubs_and_selling_prices(
             HeldPlayer(pid, Position(POSITIONS[pid]), 1, 5.0, 5.0) for pid in range(1, 16)
         ),
         bank=0.0,
-        free_transfers=2,
+        free_transfers=1,
         chips_used=(),
         provenance=Provenance.RECONSTRUCTED,
     )
