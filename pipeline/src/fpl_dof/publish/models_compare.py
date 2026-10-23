@@ -6,8 +6,9 @@ is finished, and a season-to-date table.
 
 **Two records, one switch (DL-87, DL-89).** Gameweeks before the switch gameweek S come from the
 retired prospective harness: its advice (``decisions/GW{n}.json``, recorded *before* each deadline)
-and its points (``scores.csv``), taken as written, never re-derived. S is the last gameweek the
-harness decided, plus one. Gameweeks from S come from the live ledger: every published strategy's
+and its points (``scores.csv``), taken as written, never re-derived. S is the last gameweek it
+scored, plus one (a decision it never scored gives way to the ledger).
+Gameweeks from S come from the live ledger: every published strategy's
 advice, scored on the owner's real squad by ``week.score_advice``, the scorer the season log uses.
 The two quantities differ (a virtual season versus real-squad advice); ``record`` marks which.
 
@@ -24,6 +25,7 @@ from fpl_dof.rules.models import GameRules
 from fpl_dof.week.score_advice import (
     PlayerPerformance,
     lineup_from_advice,
+    recorded_free_transfers,
     score_model_recommendations,
 )
 
@@ -128,8 +130,7 @@ def _live_gameweek(
     names: Mapping[int, str],
 ) -> dict[str, Any]:
     """One live gameweek from a ledger entry; scored on the real squad once ``perfs`` exist."""
-    state = entry.get("squad_state")
-    free = int(state.get("free_transfers") or 1) if isinstance(state, Mapping) else 1
+    free = recorded_free_transfers(entry)
     availability: dict[str, dict[str, Any]] = {}
     advice: dict[str, Any] = {}
     lineups = {}
@@ -143,7 +144,10 @@ def _live_gameweek(
         availability[sid] = {"available": True, "reason": None}
         advice[sid] = _live_advice(advised, m.get("recommendation") or {}, names)
         lineup = lineup_from_advice(
-            advised, transfers_made=int(m.get("transfers") or 0), free_transfers=free
+            advised,
+            transfers_made=int(m.get("transfers") or 0),
+            free_transfers=free,
+            recommendation=m.get("recommendation"),
         )
         if lineup is not None:
             lineups[sid] = lineup
@@ -197,7 +201,9 @@ def build_models(
     unavailable: no check is not the same as a passed check.
     """
     decided = {int(d["gw"]) for d in decisions}
-    switch = max(decided) + 1 if decided else None
+    scored = decided & {int(r["gw"]) for r in scores}
+    # The frozen record yields from the first gameweek it never scored: the live ledger scores it.
+    switch = max(scored) + 1 if scored else (min(decided) if decided else None)
     live = {
         gw: e
         for gw, e in (ledger or {}).items()
@@ -205,7 +211,14 @@ def build_models(
     }
     if not decisions and not live:
         return None
-    by_gw = sorted(decisions, key=lambda d: int(d["gw"]))
+    by_gw = sorted(
+        (
+            d
+            for d in decisions
+            if not (switch is not None and int(d["gw"]) >= switch and int(d["gw"]) in live)
+        ),
+        key=lambda d: int(d["gw"]),
+    )
     actual_by_gw: dict[int, dict[str, Any]] = {}
     for row in scores:
         sid = resolve_alias(str(row.get("model", "")))

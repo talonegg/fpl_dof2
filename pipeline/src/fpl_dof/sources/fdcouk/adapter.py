@@ -157,8 +157,8 @@ class FdcoukAdapter(SourceAdapter):
         "Bookmaker odds for upcoming fixtures, de-vigged into team goal expectations."
     )
     health_disabled_reason: ClassVar[str] = (
-        "Off in the pipeline run. The prospective harness fetches upcoming odds through it in "
-        "the hours before each deadline, and those are shown under Upcoming match odds."
+        "Off in the pipeline run. The day-before job fetches upcoming odds through it in the "
+        "hours before each deadline, and those are shown under Upcoming match odds."
     )
     contributes: ClassVar[tuple[str, ...]] = (
         "expected_goals_home",
