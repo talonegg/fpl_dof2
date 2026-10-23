@@ -274,7 +274,7 @@ jobs:
           version: "0.12.19"
           enable-cache: true
           cache-dependency-glob: pipeline/requirements.lock
-      - run: uv pip install --system -c pipeline/requirements.lock pandas pydantic pyyaml
+      - run: uv pip install --system -c pipeline/requirements.lock pandas pandera pyarrow pydantic pyyaml httpx
       - name: Pipeline run within its budget
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

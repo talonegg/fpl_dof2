@@ -145,7 +145,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: pipeline/requirements.lock
       # Only what the script imports; it reads pipeline/src from the checkout.
-      - run: uv pip install --system -c pipeline/requirements.lock pandas pydantic pyyaml
+      - run: uv pip install --system -c pipeline/requirements.lock pandas pandera pyarrow pydantic pyyaml httpx
       - name: CI workflow within its budget (ORC-09)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
