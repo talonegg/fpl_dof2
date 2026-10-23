@@ -42,6 +42,7 @@ Python lives in `.venv` at the repo root, created with `uv`. `uv` is installed a
 | Single pipeline stage | `.venv\Scripts\fpl-dof ingest\|transform\|quality\|forecast\|optimise\|week\|publish` |
 | This week's decision only | `.venv\Scripts\fpl-dof week` |
 | Walk-forward backtest — **not** part of `run` | `.venv\Scripts\fpl-dof backtest`. The archive and its `sources.backfill_seasons` are on by default (DL-87); CI adds the training seasons from the committed `config/ci-backtest.yaml` via `FPL_DOF_CONFIG_FILE` (DL-68) |
+| Rebuild the models history from a clean checkout (ORC-06) | `$env:FPL_DOF_CONFIG_FILE="config/ci-backtest.yaml"; .venv\Scripts\fpl-dof run --only ingest transform backtest` — writes `data/ledger/models_history/<run_id>.json`; the next `publish` serves it as `models_history.json` |
 | Re-run ignoring caches | `.venv\Scripts\fpl-dof run --force-refresh` |
 | Check bronze for corrupt or torn snapshots | `.venv\Scripts\fpl-dof bronze verify`; `--quarantine` moves bad files to `data/quarantine/` (CI runs it before transform); `--contract` also checks each snapshot against its source's contract, the one-off sweep of history (ORC-10) |
 | Rebuild silver after a schema change (transform names it when needed) | `.venv\Scripts\fpl-dof silver rebuild` — the old silver is moved to `data/quarantine/`, not deleted |

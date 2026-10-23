@@ -1,10 +1,10 @@
-"""The 2025/26 model-history artefact (``models_history_2526.json``).
+"""The models history (``models_history.json``, ORC-06).
 
-How the five frozen models would have played 2025/26 in the realistic walk-forward backtest (FPL
-auto-subs, vice-captain fallback, deadline availability, hits). CI cannot run the backtest, so the
-artefact is built once, offline, from the backtest's per-GW decision rows and checked in. This
-module is the pure assembly step: ranks, cumulative totals, and paired deltas against the champion
-with a seeded GW bootstrap. It scores nothing itself (DP-03).
+How every registered strategy would have played an archive season in the standing backtest (FPL
+auto-subs, vice-captain fallback, hits, no chips): the weekly backtest simulates each strategy's
+season (:mod:`fpl_dof.factory.history`), records the history on ``ledger`` and the pipeline
+publishes the latest. This module is the pure assembly step: ranks, cumulative totals, and paired
+deltas against the champion with a seeded GW bootstrap. It scores nothing itself (DP-03).
 """
 
 from __future__ import annotations
@@ -43,7 +43,7 @@ def build_models_history(
     """
     rows = {sid: v for k, v in rows.items() if (sid := resolve_alias(k)) is not None}
     unavailable = {sid: v for k, v in unavailable.items() if (sid := resolve_alias(k)) is not None}
-    registered = strategies()
+    registered = [s for s in strategies() if s.role != "retired"]
     champ_id = champion().id
     present = [s.id for s in registered if rows.get(s.id)]
     by_model = {m: {int(r["gw"]): r for r in rows[m]} for m in present}
@@ -117,7 +117,7 @@ def build_models_history(
             "available": s.id in present,
             "unavailable_reason": None
             if s.id in present
-            else unavailable.get(s.id, "No realistic 2025/26 run"),
+            else unavailable.get(s.id, f"Not simulated in {season}"),
         }
         for s in registered
     ]
@@ -126,9 +126,9 @@ def build_models_history(
         "season": season,
         "kind": "backtest",
         "caveat": (
-            "Backtest, not real play: a walk-forward replay of the frozen models over a finished "
-            "season. Each model starts 2025/26 with its own fresh squad, uses no chips, and sees "
-            "only data from before each deadline. Real results will differ."
+            f"Backtest, not real play: a walk-forward replay of each strategy over {season}. Each "
+            "starts at its first graded gameweek with its own fresh squad, uses no chips, and "
+            "sees only data from before each deadline. Real results will differ."
         ),
         "champion": champ_id,
         "provenance": dict(provenance),

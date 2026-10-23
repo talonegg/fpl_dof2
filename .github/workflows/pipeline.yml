@@ -151,7 +151,8 @@ jobs:
       # not persisted between runs; this branch is. `evaluation/` holds each finished gameweek's
       # judgement, made once (ORC-05): restored, a gameweek is Evaluated and is not judged again.
       # `experiments/` holds the standing backtest's records, which the model card reads for the
-      # champion's current digest (MOD-08).
+      # champion's current digest (MOD-08), and `models_history/` the seasons it simulated, which
+      # publish turns into models_history.json (ORC-06).
       - name: Restore the advice ledger and experiments from the `ledger` branch
         run: |
           set -eu
@@ -159,7 +160,7 @@ jobs:
           if git ls-remote --exit-code --heads origin ledger >/dev/null 2>&1; then
             git fetch --depth=1 origin ledger:refs/remotes/origin/ledger
             git worktree add /tmp/ledger-branch origin/ledger
-            for kept in advice predictions evaluation experiments; do
+            for kept in advice predictions evaluation experiments models_history; do
               if [ -d "/tmp/ledger-branch/$kept" ]; then
                 mkdir -p "data/ledger/$kept"
                 cp -r "/tmp/ledger-branch/$kept/." "data/ledger/$kept/"

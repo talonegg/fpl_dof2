@@ -31,7 +31,7 @@ describe("Models page", () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it("has summary, details, accuracy and history sections with one summary row per model", async () => {
-    installFetchStub({ bodies: { models_history_2526: historyFixture, xp_accuracy: accuracy, strategies: strategiesFixture } });
+    installFetchStub({ bodies: { models_history: historyFixture, xp_accuracy: accuracy, strategies: strategiesFixture } });
     renderApp("/models");
     const page = await screen.findByTestId("models-page");
     for (const s of ["compare", "summary", "details", "accuracy", "hindsight", "history"]) expect(within(page).getByTestId(`models-jump-${s}`)).toBeTruthy();
@@ -53,7 +53,7 @@ describe("Models page", () => {
   });
 
   it("degrades when the static files are missing", async () => {
-    installFetchStub({ missing: ["models_history_2526", "xp_accuracy", "models_history_2627_replay"] as never });
+    installFetchStub({ missing: ["models_history", "xp_accuracy", "models_history_2627_replay"] as never });
     renderApp("/models");
     expect(await screen.findByTestId("accuracy-absent")).toBeTruthy();
     expect(await screen.findByTestId("history-absent")).toBeTruthy();
@@ -71,7 +71,7 @@ describe("Models page", () => {
         { ...strategiesFixture.strategies[2], id: "old_c2", label: "Old (C2)", role: "retired", published: false },
       ],
     };
-    installFetchStub({ bodies: { models_history_2526: historyFixture, xp_accuracy: accuracy, strategies } });
+    installFetchStub({ bodies: { models_history: historyFixture, xp_accuracy: accuracy, strategies } });
     renderApp("/models");
     await screen.findByTestId("models-page");
     const summary = screen.getByTestId("models-summary");
@@ -83,7 +83,7 @@ describe("Models page", () => {
   });
 
   it("redirects the old /history tab to the Models page", async () => {
-    installFetchStub({ bodies: { models_history_2526: historyFixture, xp_accuracy: accuracy, strategies: strategiesFixture } });
+    installFetchStub({ bodies: { models_history: historyFixture, xp_accuracy: accuracy, strategies: strategiesFixture } });
     renderApp("/history");
     expect(await screen.findByTestId("models-page")).toBeTruthy();
     expect(await screen.findByTestId("model-history")).toBeTruthy();

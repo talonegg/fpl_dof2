@@ -128,7 +128,8 @@ def grade(
     metrics: pd.DataFrame | None = None,
     inputs: ForecastInputs | None = None,
 ) -> Graded:
-    """Walk every gradeable strategy forward over ``backtest.training_seasons``."""
+    """Walk every gradeable strategy forward over ``backtest.training_seasons``, one process
+    per strategy (``backtest.strategy_workers``); one whose fit raises is not graded (D-32)."""
     graded, skipped = entrants(strategies, rules, config, inputs)
     result = walk_forward(
         history,
@@ -137,8 +138,9 @@ def grade(
         backtest_config=config.backtest,
         seasons=config.backtest.training_seasons or None,
         metrics=metrics,
+        workers=config.backtest.strategy_workers,
     )
-    return Graded(result=result, skipped=skipped)
+    return Graded(result=result, skipped={**skipped, **result.not_graded})
 
 
 def run_config_digest(config: Config) -> str:

@@ -33,9 +33,6 @@ import type { WarmOptions, WarmResult } from "./offline";
 /** Base for published data files. Never points outside this origin (Invariant 8). */
 export const DATA_BASE = `${import.meta.env.BASE_URL}${DATA_DIR}`;
 
-/** The checked-in 2025/26 model-history backtest. Static, shipped with the app. */
-export const MODELS_HISTORY_URL = `${import.meta.env.BASE_URL}static/models_history_2526.json`;
-
 /** The checked-in 2026/27 GW1–6 replay. Static, shipped with the app. */
 export const SEASON_REPLAY_URL = `${import.meta.env.BASE_URL}static/models_history_2627_replay.json`;
 
@@ -57,7 +54,7 @@ export interface ArtefactMap {
   league: League | null;
   health: Health | null;
   log: Log | null;
-  models_history_2526: ModelsHistory | null;
+  models_history: ModelsHistory | null;
   models_history_2627_replay: SeasonReplay | null;
   xp_accuracy: XpAccuracy | null;
 }
@@ -181,7 +178,6 @@ function isXpAccuracy(body: unknown): body is XpAccuracy {
 
 class DataStore {
   readonly DATA_BASE = DATA_BASE;
-  readonly MODELS_HISTORY_URL = MODELS_HISTORY_URL;
   readonly SEASON_REPLAY_URL = SEASON_REPLAY_URL;
   readonly XP_ACCURACY_URL = XP_ACCURACY_URL;
 
@@ -309,7 +305,7 @@ class DataStore {
       "league",
       "health",
       "log",
-      "models_history_2526",
+      "models_history",
       "models_history_2627_replay",
       "xp_accuracy",
     ];
@@ -354,8 +350,9 @@ class DataStore {
       case "health":
       case "log":
         return fetchLazy(`${key}.json`);
-      case "models_history_2526":
-        return this.normalised(fetchStaticSafe(this.MODELS_HISTORY_URL, isModelsHistory), normaliseHistory);
+      case "models_history":
+        // Published by the pipeline from the weekly backtest's record (ORC-06); absent until one ran.
+        return this.normalised(fetchStaticSafe(`${this.DATA_BASE}/models_history.json`, isModelsHistory), normaliseHistory);
       case "models_history_2627_replay":
         return this.normalised(fetchStaticSafe(this.SEASON_REPLAY_URL, isSeasonReplay), normaliseReplay);
       case "xp_accuracy":

@@ -19,7 +19,13 @@ from typing import Any
 
 import pandas as pd
 
-from fpl_dof.artefacts import QUALITY_REPORT_FILENAME, SQUAD_FILENAME, XP_FILENAME, read_rules
+from fpl_dof.artefacts import (
+    MODELS_HISTORY_DIRNAME,
+    QUALITY_REPORT_FILENAME,
+    SQUAD_FILENAME,
+    XP_FILENAME,
+    read_rules,
+)
 from fpl_dof.factory import (
     TeamStrengthModel,
     form_by_player_id,
@@ -142,6 +148,20 @@ def run(ctx: StageContext) -> StageResult:
         outputs.append(Output(path=contract.write("xp_accuracy", accuracy, destination)))
     else:
         removed.append("xp_accuracy.json")
+
+    # The models history (ORC-06): the latest season the weekly backtest simulated, from `ledger`.
+    # Absent until a backtest has recorded one; like models.json it never fails the publish.
+    models_history = _models_history(ctx)
+    published_history = False
+    if models_history is not None:
+        try:
+            path = contract.write("models_history", models_history, destination)
+            outputs.append(Output(path=path, rows=len(models_history["gameweeks"])))
+            published_history = True
+        except Exception as exc:
+            log.warning("publish.models_history_dropped", extra={"error": repr(exc)})
+    if not published_history:
+        removed.append("models_history.json")
 
     # The five-model comparison: absent until the prospective harness has recorded a decision.
     models_payload = _models(ctx, season, gameweeks, evaluations)
@@ -580,6 +600,23 @@ def _season_log(
         evaluations=evaluations,
         contract_version=CONTRACT_VERSION,
     )
+
+
+def _models_history(ctx: StageContext) -> dict[str, Any] | None:
+    """The newest backtest record's latest season under ``ledger/models_history/`` (ORC-06).
+
+    Run ids sort by time, so the last readable file is the newest run; an unreadable one is logged
+    and the one before it is used.
+    """
+    for path in sorted((ctx.layout.ledger / MODELS_HISTORY_DIRNAME).glob("*.json"), reverse=True):
+        try:
+            documents = json.loads(path.read_text(encoding="utf-8"))
+        except OSError, json.JSONDecodeError:
+            log.warning("publish.models_history_unreadable", extra={"path": str(path)})
+            continue
+        if isinstance(documents, list) and documents and isinstance(documents[-1], dict):
+            return {**documents[-1], "contract_version": CONTRACT_VERSION}
+    return None
 
 
 def _models(

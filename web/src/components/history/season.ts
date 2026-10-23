@@ -29,7 +29,7 @@ export interface Season {
   totals: Partial<Record<ModelChoice, { replay: number; prospective: number; total: number }>>;
 }
 
-/** The checked-in 2026/27 GW1-6 replay (scripts/models_history/build_replay_2627.py). Retrospective:
+/** The checked-in 2026/27 GW1-6 replay, a frozen-era record (its builder is gone, ORC-06). Retrospective:
  * the frozen models run after these gameweeks were played. Static app data, not a pipeline contract,
  * so it is typed here rather than in the generated contract/types.ts. */
 export interface SeasonReplay {

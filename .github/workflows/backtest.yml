@@ -6,9 +6,13 @@
 # pipeline/src/fpl_dof/stages/backtest.py: it is slow, needs the historical backfill, and produces a
 # finding rather than an artefact the weekly decision consumes.
 #
-# It grades every registered strategy against the champion (MOD-08) and appends one record per run
-# to the `ledger` branch under `experiments/`, keyed by run id and never overwritten; the Pipeline
-# run restores that directory so the model card names the champion's verdict for its digest.
+# It grades every registered strategy against the champion (MOD-08), one process per strategy
+# (`backtest.strategy_workers`), and appends one record per run to the `ledger` branch under
+# `experiments/`, keyed by run id and never overwritten; the Pipeline run restores that directory so
+# the model card names the champion's verdict for its digest. It also simulates every graded
+# strategy's season and appends the models history under `models_history/` (ORC-06), which the
+# Pipeline run publishes as models_history.json. Locally, from a clean checkout, the same rebuild is
+# one command: `fpl-dof run --only ingest transform backtest` with this config file (CLAUDE.md).
 
 name: Backtest
 
@@ -74,20 +78,23 @@ jobs:
           path: |
             data/gold/**/backtest.json
             data/ledger/experiments/*.json
+            data/ledger/models_history/*.json
           retention-days: 90
           if-no-files-found: warn
 
-      - name: Record this run on the `ledger` branch (MOD-08)
+      - name: Record this run on the `ledger` branch (MOD-08, ORC-06)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
           remote="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
           shopt -s nullglob
-          for file in data/ledger/experiments/*.json; do
-            python pipeline/scripts/retention.py permanent "$file" \
-              --remote "$remote" --branch ledger --source experiments \
-              --name "$(basename "$file" .json)" --checkout-dir .ledger-staging
+          for source in experiments models_history; do
+            for file in data/ledger/$source/*.json; do
+              python pipeline/scripts/retention.py permanent "$file" \
+                --remote "$remote" --branch ledger --source "$source" \
+                --name "$(basename "$file" .json)" --checkout-dir .ledger-staging
+            done
           done
 
   alert:

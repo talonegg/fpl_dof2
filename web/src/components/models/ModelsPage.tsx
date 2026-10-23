@@ -105,13 +105,13 @@ function SummaryTable({ history, accuracy, models }: { history: ModelsHistory | 
 
 /**
  * `/models` — every frozen model on one page: (a) summary, (b) per-model details, (c) xP accuracy,
- * (d) history (2025/26 backtest, 2026/27 replay then live). `/history` redirects to the History
+ * (d) history (the backtest's models history, 2026/27 replay then live). `/history` redirects to the History
  * section. Every part degrades on its own: a missing file hides or explains its section only.
  */
 export function ModelsPage() {
   const { state } = useDataState();
   const data = state.status === "ready" ? state.data : null;
-  const history = useArtefact("models_history_2526");
+  const history = useArtefact("models_history");
   const replay = useArtefact("models_history_2627_replay");
   const accuracy = useArtefact("xp_accuracy");
   const { state: logState } = useLog();
@@ -204,7 +204,7 @@ export function ModelsPage() {
         ) : history.data ? (
           <ModelHistoryView history={history.data} />
         ) : (
-          <p data-testid="history-absent">The 2025/26 backtest file could not be loaded.</p>
+          <p data-testid="history-absent">The models history has not been published yet.</p>
         )}
       </section>
     </div>

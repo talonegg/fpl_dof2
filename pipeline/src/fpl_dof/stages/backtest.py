@@ -11,22 +11,35 @@ construction and no expensive decision should rest on it.
 It grades every registered strategy, champion first, through the model factory (MOD-08), and writes
 one stamped record per strategy to ``ledger/experiments/<run_id>.json``; CI appends that file to the
 ``ledger`` branch, and the pipeline's model card reads the champion's verdict from there.
+
+It also simulates every graded strategy's season over the same folds and writes the models history
+to ``ledger/models_history/<run_id>.json`` (ORC-06), which the pipeline publishes.
 """
 
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
+from typing import Any
+
+import pandas as pd
 
 from fpl_dof.artefacts import (
     BACKTEST_PREDICTIONS_FILENAME,
     BACKTEST_REPORT_FILENAME,
     EXPERIMENTS_DIRNAME,
+    MODELS_HISTORY_DIRNAME,
     read_rules,
 )
-from fpl_dof.factory import BacktestResult, ForecastInputs, experiment_records, grade
-from fpl_dof.factory.registry import strategies
+from fpl_dof.factory import BacktestResult, ForecastInputs, Graded, experiment_records, grade
+from fpl_dof.factory.experiments import run_config_digest
+from fpl_dof.factory.history import SETTINGS, season_histories
+from fpl_dof.factory.registry import Strategy, strategies
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.pipeline import Output, StageContext, StageResult
+from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
+from fpl_dof.publish.models_history import build_models_history
+from fpl_dof.rules.models import GameRules
 from fpl_dof.silver.store import read_table_optional
 from fpl_dof.silver.tables import Table
 
@@ -107,6 +120,11 @@ def run(ctx: StageContext) -> StageResult:
     record_path.parent.mkdir(parents=True, exist_ok=True)
     record_path.write_text(json.dumps(records, indent=2), encoding="utf-8")
 
+    histories = _models_history(ctx, graded, history, registered, rules)
+    history_path = ctx.layout.ledger / MODELS_HISTORY_DIRNAME / f"{ctx.run_id}.json"
+    history_path.parent.mkdir(parents=True, exist_ok=True)
+    history_path.write_text(json.dumps(histories, indent=1, ensure_ascii=False), encoding="utf-8")
+
     # Logged at warning when the model loses, because that is the headline finding and it must not
     # scroll past as routine output.
     if not result.beats_b0 or not result.beats_model_free:
@@ -163,8 +181,48 @@ def run(ctx: StageContext) -> StageResult:
             Output(path=predictions_path, rows=len(result.predictions)),
             Output(path=card_path),
             Output(path=record_path, rows=len(records)),
+            Output(path=history_path, rows=len(histories)),
         ],
     )
+
+
+def _models_history(
+    ctx: StageContext,
+    graded: Graded,
+    history: pd.DataFrame,
+    registered: Sequence[Strategy],
+    rules: GameRules,
+) -> list[dict[str, Any]]:
+    """Every graded strategy's season over the backtest's folds, one document per season (ORC-06).
+
+    Each is validated against the published schema here, so a history the app cannot read never
+    reaches ``ledger``. A strategy not graded, or whose season could not be simulated, is listed as
+    unavailable with the reason.
+    """
+    by_season, failures = season_histories(
+        graded.result.predictions, history, registered, rules, ctx.config
+    )
+    for sid, reason in failures.items():
+        log.warning("backtest.history_not_simulated", extra={"strategy": sid, "reason": reason})
+    provenance = {
+        "run_id": ctx.run_id,
+        "config_digest": run_config_digest(ctx.config),
+        "refit_every_gameweeks": str(ctx.config.backtest.refit_every_gameweeks),
+        **SETTINGS,
+    }
+    contract = Contract(root=find_contracts_root())
+    documents = []
+    for season, rows in sorted(by_season.items()):
+        document = build_models_history(
+            season=season,
+            rows=rows,
+            unavailable={**graded.skipped, **failures},
+            provenance=provenance,
+            contract_version=CONTRACT_VERSION,
+        )
+        contract.validate("models_history", document)
+        documents.append(document)
+    return documents
 
 
 def _round(value: float) -> float:

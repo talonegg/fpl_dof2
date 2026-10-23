@@ -1,19 +1,26 @@
-"""The checked-in 2025/26 model-history artefact and the pure assembly that builds it."""
+"""The models history (ORC-06): each strategy's simulated season, the assembly, and its round trip
+through ``ledger`` from the backtest stage to the published contract."""
 
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from typing import Any
 
+import pandas as pd
 import pytest
 
+from fpl_dof.config.models import BacktestConfig, Config, ForecastConfig
+from fpl_dof.factory import Graded
+from fpl_dof.factory.history import season_histories
+from fpl_dof.factory.registry import strategies
+from fpl_dof.forecast.backtest import BacktestResult, Entrant, walk_forward
+from fpl_dof.paths import DataLayout
+from fpl_dof.pipeline import StageContext
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
 from fpl_dof.publish.models_history import build_models_history
-
-ARTEFACT = (
-    Path(__file__).resolve().parents[2] / "web" / "public" / "static" / "models_history_2526.json"
-)
+from fpl_dof.rules.models import GameRules
+from fpl_dof.stages import backtest, publish
+from test_backtest import SEASON, RateFromFeatures, make_history
 
 
 def _row(gw: int, points: float, hit: float = 0.0) -> dict[str, Any]:
@@ -86,15 +93,109 @@ def test_unavailable_models_are_marked_not_invented() -> None:
     assert p["kind"] == "backtest" and "not real play" in p["caveat"]
 
 
-def test_checked_in_artefact_is_valid_and_consistent() -> None:
-    payload = json.loads(ARTEFACT.read_text(encoding="utf-8"))
+class Doubtful(RateFromFeatures):
+    """A noisier forecaster, so two strategies pick differently."""
+
+    def predict(self, features: pd.DataFrame, *, gameweek: int | None = None) -> pd.Series:
+        base = super().predict(features, gameweek=gameweek)
+        return base * (1 + (features["player_code"] % 3) * 0.5)
+
+
+Simulated = tuple[pd.DataFrame, BacktestResult, tuple[dict[str, Any], dict[str, str]]]
+
+
+@pytest.fixture(scope="module")
+def simulated(game_rules: GameRules) -> Simulated:
+    """Sixty players over eight gameweeks (fifteen a position, ten a club): enough for a squad.
+    Walked and simulated once for the module, in this process."""
+    history, result = _season()
+    return (
+        history,
+        result,
+        season_histories(result.predictions, history, strategies(), game_rules, _config(1)),
+    )
+
+
+def _season() -> tuple[pd.DataFrame, BacktestResult]:
+    history = make_history(players=60, gameweeks=8)
+    history["total_points"] = history["total_points"].round()
+    result = walk_forward(
+        history,
+        [Entrant("c3", RateFromFeatures(), "current_season"), Entrant("engine", Doubtful())],
+        forecast_config=ForecastConfig(),
+        backtest_config=BacktestConfig(minimum_training_matches=3),
+    )
+    return history, result
+
+
+def _config(workers: int) -> Config:
+    backtest = BacktestConfig(training_seasons=(SEASON,), strategy_workers=workers)
+    return Config().model_copy(update={"backtest": backtest})
+
+
+def test_every_graded_strategy_plays_its_own_season(
+    game_rules: GameRules, simulated: Simulated
+) -> None:
+    _, result, (by_season, failures) = simulated
+    assert failures == {}
+    rows = by_season[SEASON]
+    assert set(rows) == {"c3", "engine"}  # only the strategies the walk graded
+    graded = sorted({f.gameweek for f in result.folds})
+    free, cost = 0, abs(game_rules.transfers.extra_transfer_cost)
+    for row in rows["c3"]:
+        assert row["points"] == row["points_before_hits"] + row["hit_points"]
+        # GW1 of the squad makes no transfer; after it one a week rolls, and extras are charged.
+        assert row["hit_points"] == -cost * max(0, row["n_transfers"] - free)
+        free = max(1, min(game_rules.transfers.max_free_transfers, free - row["n_transfers"] + 1))
+        assert row["captain"].startswith("P") and row["vice_captain"] != row["captain"]
+        assert len(row["transfers"]) == row["n_transfers"]
+        assert all(out.startswith("P") and into.startswith("P") for out, into in
+                   (move.split(" → ") for move in row["transfers"]))  # fmt: skip
+    assert [r["gw"] for r in rows["c3"]] == graded and rows["c3"][0]["n_transfers"] == 0
+    assert any(row["n_transfers"] for row in rows["c3"])  # it trades, so the names are checked
+    assert rows["c3"] != rows["engine"]  # their own squads, so their own seasons
+
+    payload = build_models_history(
+        season=SEASON,
+        rows=rows,
+        unavailable={"c1": "its fit raised at 2025/26 GW6: RuntimeError: diverged"},
+        provenance={"run_id": "r"},
+        contract_version=CONTRACT_VERSION,
+    )
     Contract(root=find_contracts_root()).validate("models_history", payload)
-    assert payload["season"] == "2025/26" and payload["kind"] == "backtest"
-    assert len(payload["gameweeks"]) == 38
-    for s in payload["summary"]:
-        pts = [g["models"][s["model"]]["points"] for g in payload["gameweeks"]]
-        assert s["total"] == sum(pts)
-        assert payload["gameweeks"][-1]["models"][s["model"]]["cumulative"] == s["total"]
-    totals = {s["model"]: s["total"] for s in payload["summary"]}
-    # Engine, C3 and C1 reproduce RESULTS_autosubs.md (L1, auto-subs, 2025/26 pts/GW x 38).
-    assert totals["engine"] == 1804 and totals["champion"] == 1818 and totals["challenger"] == 1929
+    c1 = next(m for m in payload["models"] if m["id"] == "c1")
+    assert c1["available"] is False and "GW6" in c1["unavailable_reason"]
+    assert all(m["role"] != "retired" for m in payload["models"])
+
+
+def test_the_parallel_history_is_the_sequential_one(
+    game_rules: GameRules, simulated: Simulated
+) -> None:
+    history, result, sequential = simulated
+    parallel = season_histories(result.predictions, history, strategies(), game_rules, _config(2))
+    assert parallel == sequential
+
+
+def test_the_backtest_records_it_and_the_pipeline_publishes_the_newest(
+    game_rules: GameRules,
+    simulated: Simulated,
+    config: Config,
+    layout: DataLayout,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    history, result, sequential = simulated
+    monkeypatch.setattr(backtest, "season_histories", lambda *_a: sequential)
+    ctx = StageContext(config=config, layout=layout, run_id="20261027T161700Z-b")
+    graded = Graded(result=result, skipped={"c1": "its fit raised at 2025/26 GW6: diverged"})
+    documents = backtest._models_history(ctx, graded, history, strategies(), game_rules)
+    assert [d["season"] for d in documents] == [SEASON]  # each validated against the schema
+    assert documents[0]["provenance"]["run_id"] == ctx.run_id
+
+    directory = layout.ledger / "models_history"
+    directory.mkdir(parents=True)
+    (directory / "20261020T161700Z-a.json").write_text(json.dumps([{"season": "older run"}]))
+    (directory / f"{ctx.run_id}.json").write_text(json.dumps(documents))
+    (directory / "20261028T000000Z-c.json").write_text("[{torn")
+    published = publish._models_history(ctx)
+    assert published is not None and published["season"] == SEASON
+    Contract(root=find_contracts_root()).validate("models_history", published)

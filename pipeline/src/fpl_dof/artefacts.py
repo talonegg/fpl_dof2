@@ -26,6 +26,9 @@ BACKTEST_PREDICTIONS_FILENAME = "backtest-predictions.parquet"
 #: Under ``DataLayout.ledger``: the standing backtest's records, one ``<run_id>.json`` per run, kept
 #: on the ``ledger`` branch in CI (MOD-08).
 EXPERIMENTS_DIRNAME = "experiments"
+#: Under ``DataLayout.ledger``: the models history the standing backtest simulated, one
+#: ``<run_id>.json`` per run (a list, one document per archive season), kept on ``ledger`` (ORC-06).
+MODELS_HISTORY_DIRNAME = "models_history"
 
 
 class NoBronzeError(RuntimeError):

@@ -82,7 +82,7 @@ describe("/models comparison", () => {
 
   it("compares the registry's real pair, with historical performance from the history file", async () => {
     installFetchStub({
-      bodies: { strategies: strategiesFixture, week_c1: challengerWeek, models_history_2526: historyFixture },
+      bodies: { strategies: strategiesFixture, week_c1: challengerWeek, models_history: historyFixture },
     });
     renderApp("/models");
     await screen.findByTestId("compare-advice");
@@ -111,7 +111,7 @@ describe("a strategy the TypeScript has never named, in every model view", () =>
     const history = JSON.parse(
       JSON.stringify(historyFixture).replace(/"champion"/g, '"zeta_1"').replace(/"challenger"/g, '"zeta_2"'),
     );
-    installFetchStub({ bodies: { ...bodies, models_history_2526: history } });
+    installFetchStub({ bodies: { ...bodies, models_history: history } });
     renderApp("/models");
     await screen.findByTestId("model-history");
     expect(screen.getByTestId("model-toggle-zeta_2").textContent).toBe("Zeta 2");

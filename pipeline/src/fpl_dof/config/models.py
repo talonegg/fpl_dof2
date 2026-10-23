@@ -1673,6 +1673,17 @@ class BacktestConfig(_Section):
             "its timeout."
         ),
     )
+    strategy_workers: int = Field(
+        default=4,
+        ge=1,
+        description=(
+            "Processes the standing backtest grades strategies across, one strategy each with its "
+            "own folds (ORC-09, ORC-06), capped at the machine's cores and the strategy count. "
+            "Four because the hosted runner has four cores; each worker holds its own copy of the "
+            "history, a few hundred MB at most. The walks share nothing, so the grades are the "
+            "sequential ones whatever this is; 1 walks them one after another in this process."
+        ),
+    )
     bootstrap_draws: int = Field(
         default=2000,
         gt=0,

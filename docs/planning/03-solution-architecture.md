@@ -334,7 +334,9 @@ The single most important seam in the system: the boundary between DL-04's two l
   publish removes any week or plan file no published strategy writes now), `history`, `models`,
   `health`, `league`, `log`, `xp_accuracy` (the live season's, from the evaluations, ORC-05),
   `strategies` (the strategy registry, [04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)),
-  and the static `models_history` and `xp_accuracy` series, which the app shows beside the live one. All JSON: ~700 rows needs no query engine.
+  `models_history` (the latest archive season the weekly backtest simulated, from
+  `ledger:models_history/`, ORC-06), and the checked-in 2026/27 GW1–6 replay and earlier
+  `xp_accuracy` seasons under `web/public/static/`, which the app shows beside the live ones. All JSON: ~700 rows needs no query engine.
 - **Versioned.** `/data/v1/`. A breaking change bumps to `v2` and publishes both during the transition.
 - **Behaviour pinned in both languages** by shared corpora in `contracts/conformance/`, read by pytest
   and vitest and never copied (DL-39). Today the legality corpus is the only one.

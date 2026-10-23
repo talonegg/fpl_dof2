@@ -6,7 +6,7 @@
 
 export const CONTRACT_VERSION = 1;
 
-export const CONTRACT_MINOR = 4;
+export const CONTRACT_MINOR = 5;
 
 /** What this publication is, when it was made, and what produced it. The browser reads this first and can render an honest 'as at' line without trusting anything else. */
 export interface Meta {
@@ -1126,21 +1126,21 @@ export interface ModelHistorySummary {
   model: string;
   total: number;
   mean_per_gameweek: number;
-  /** Gameweeks ranked first of the five (ties shared). */
+  /** Gameweeks ranked first among the strategies (ties shared). */
   gameweeks_won: number;
   hit_points: number;
   final_rank: number;
   delta_vs_champion: null | ModelHistoryDelta;
 }
 
-/** How the five frozen models would have played a finished season in the realistic walk-forward backtest (FPL auto-subs, vice-captain fallback, deadline availability, hits). A backtest, not real play. Built offline and checked in as a static file (web/public/static/models_history_2526.json) because CI cannot run the backtest; it is not written by `fpl-dof publish`. */
+/** How every registered strategy would have played an archive season in the standing backtest (FPL auto-subs, vice-captain fallback, hits, no chips), each on its own fresh squad, scored by the one realised-points scorer. A backtest, not real play. Simulated by the weekly `fpl-dof backtest`, recorded on the `ledger` branch under `models_history/`, and the latest season published by `fpl-dof publish` (ORC-06). */
 export interface ModelsHistory {
   contract_version: 1;
   season: string;
   kind: "backtest";
   caveat: string;
   champion: string;
-  /** Where the numbers came from: frozen tag, simulator commit, forecast caches, settings. */
+  /** Where the numbers came from: the backtest run, its config digest, the simulator, the scorer and the settings. */
   provenance: Record<string, string>;
   bootstrap: {
     draws: number;

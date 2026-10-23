@@ -420,7 +420,10 @@ strictly before it, strips every outcome column (DL-32), and predicts. Each stra
 `training_window`: a `current_season` strategy's features, training rows and fit come from the
 fold's season alone, as live (F3). Every strategy is graded on the same folds — those where every
 window holds `backtest.minimum_training_matches` gameweeks — and the same rows; each is refitted
-every `backtest.refit_every_gameweeks` folds (1) and at each new season. `fpl-dof backtest` is not
+every `backtest.refit_every_gameweeks` folds (1) and at each new season. Each strategy walks in its
+own process, up to `backtest.strategy_workers` at once, so the grades are the sequential ones; a
+strategy whose fit raises at any fold is recorded as not graded with the fold and the error, and
+the others are graded without it (D-32). `fpl-dof backtest` is not
 part of `run`; CI runs it weekly with the archive enabled (DL-68). Per fold on the 2024/25–2025/26
 archive (measured 2026-10-23 on a workstation): `c3`, `engine` and `c1` together ~24 s a fold, 68
 folds in 27 min, mostly `c1`; `backtest.yml` allows 150 min.
@@ -443,14 +446,22 @@ folds in 27 min, mostly `c1`; `backtest.yml` allows 150 min.
   experiments record `ledger/experiments/<run_id>.json`: one record per registered strategy —
   id and digest, role, training window, run id, config digest, data window, metrics, paired
   deltas against the champion; the champion's also carries DL-21's verdict and the baselines. CI
-  appends it to the `ledger` branch, keyed by run and never overwritten. On every forecast run
+  appends it to the `ledger` branch, keyed by run and never overwritten. Beside it,
+  `ledger/models_history/<run_id>.json`: each graded strategy's simulated season per archive
+  season (below), which publish turns into `models_history.json`. On every forecast run
   `model-card.md` — published model, fallback, guardrail, the latest verdict for the champion's
   current digest from `ledger/experiments/` (or a plain statement that none exists), weaknesses.
   **Read it before acting on a ranking** (DL-21): no −8 hit, chip or Wildcard on the chain alone
   (D-13).
-- **Not in the package:** a simulated season of the full optimiser. The chip replay
-  (`factory/replay.py`, DL-28) covers chip timing only; season replays of the frozen models are built
-  offline as `models_history`; the pre-registered comparison is
+- **Models history** (`factory/history.py`, ORC-06): every graded strategy plays each archive
+  season on its own squad over the backtest's folds — a fresh squad at its first graded gameweek,
+  then each week the decision engine's one-gameweek week on its walk-forward forecast (transfers
+  and hits, XI, its own captain rule), no chips — scored by `rules/realised.py`. In parallel like
+  the walks; a season that cannot be simulated is recorded with the reason. A backtest, not real
+  play. The frozen-era tables it replaced are records in
+  [`archive/R1.3.0/models-history-frozen-era/`](archive/R1.3.0/models-history-frozen-era/README.md).
+- **Not in the package:** a simulated season of the full multi-gameweek optimiser with chips. The
+  chip replay (`factory/replay.py`, DL-28) covers chip timing only; the pre-registered comparison is
   [`prospective/`](../../prospective/README.md).
 
 The question is **"does this beat doing something simple?"** So far it beats price on rank

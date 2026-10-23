@@ -22,9 +22,11 @@ to base on it.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Mapping, Sequence
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass, field, replace
-from typing import Literal, Protocol, runtime_checkable
+from typing import Any, Literal, Protocol, runtime_checkable
 
 import numpy as np
 import pandas as pd
@@ -186,6 +188,9 @@ class BacktestResult:
 
     paired: Mapping[str, Mapping[str, PairedDelta]] = field(default_factory=dict)
     """Each challenger minus the champion, per gameweek, with a seeded bootstrap CI (MOD-08)."""
+
+    not_graded: Mapping[str, str] = field(default_factory=dict)
+    """Challenger id -> why it is not graded: its fit or prediction raised at a fold (D-32)."""
 
     def data_window(self) -> dict[str, object]:
         """The seasons and gameweeks graded: the same folds for every entrant."""
@@ -460,12 +465,20 @@ def walk_forward(
     backtest_config: BacktestConfig,
     seasons: Sequence[str] | None = None,
     metrics: pd.DataFrame | None = None,
+    workers: int = 1,
 ) -> BacktestResult:
     """Replay the seasons one deadline at a time, refitting at each step, for every entrant.
 
     **The first entrant is the champion**: ``model`` measures it against the harness's baselines
     (DL-21's verdict), and every other entrant is paired against it gameweek by gameweek (MOD-08).
     Every entrant is graded on the same folds and the same rows, so the pairs are paired.
+
+    Each entrant walks in its own process, up to ``workers`` at once (ORC-09, ORC-06): its own
+    folds, fits and predictions, and the champion's walk also fits the harness's benchmarks. The
+    walks share nothing, so the result is the one ``workers=1`` gives in this process. A
+    challenger whose fit or prediction raises at any fold is recorded in ``not_graded`` with the
+    reason and the others are graded without it (D-32); the champion's failure fails the backtest,
+    as there is nothing to pair against.
 
     Each entrant sees only its training window: a ``current_season`` strategy's features, training
     rows and fit are built from the fold's own season, as they are live (F3). A fold is graded only
@@ -490,151 +503,42 @@ def walk_forward(
         raise ValueError(f"no history for seasons {list(seasons or ())}")
 
     champion = entrants[0]
-    columns = {entrant.id: prediction_column(entrant.id) for entrant in entrants}
     warnings: list[str] = []
+    windows: frozenset[TrainingWindow] = frozenset(
+        {"all_seasons", *(entrant.training_window for entrant in entrants)}
+    )
+    walks = _walks(
+        frame,
+        entrants,
+        windows=windows,
+        forecast_config=forecast_config,
+        backtest_config=backtest_config,
+        metrics=metrics,
+        workers=workers,
+    )
+    champion_walk = walks[champion.id]
+    not_graded = {sid: walk.failure for sid, walk in walks.items() if walk.failure is not None}
+    for sid, reason in not_graded.items():
+        log.warning("backtest.not_graded", extra={"strategy": sid, "reason": reason})
+    graded_entrants = [e for e in entrants if e.id not in not_graded]
+    columns = {entrant.id: prediction_column(entrant.id) for entrant in graded_entrants}
+
+    # The champion's fold frames carry the harness's columns; each challenger's predictions join
+    # them by player and fixture, and only rows every entrant predicted are graded.
+    joins = {entrant.id: walks[entrant.id].by_deadline for entrant in graded_entrants[1:]}
     folds: list[Fold] = []
-    # E10-S5. Constructed here rather than passed in, for the same reason the baselines are: it is
-    # not a model under test, it is part of what the harness reports, and a caller who could leave
-    # it out is a caller who eventually does.
-    monolith = MonolithPredictor(config=backtest_config.monolith, features=forecast_config.features)
-    schedule = deadlines_for(frame)
-    #: window -> deadline -> that deadline's feature/outcome rows. Built once, in order, and only
-    #: ever read by folds strictly later than the key. ``all_seasons`` is always built: it is what
-    #: is scored, and what the baselines are fitted on.
-    configs = {e.id: e.features or forecast_config.features for e in entrants}
-    base: View = ("all_seasons", forecast_config.features.model_dump_json())
-    views: dict[str, View] = {
-        e.id: (e.training_window, configs[e.id].model_dump_json()) for e in entrants
-    }
-    feature_configs = {views[e.id]: configs[e.id] for e in entrants}
-    feature_configs[base] = forecast_config.features
-    caches: dict[View, dict[pd.Timestamp, pd.DataFrame]] = {base: {}}
-    for view in views.values():
-        caches.setdefault(view, {})
-    graded = 0
-    fitted_season: str | None = None
-
-    for season, gameweek, deadline in schedule:
-        past = frame[frame["kickoff_time"] < deadline]
-
-        # Built and cached first, before any decision about whether this fold can be *scored*. An
-        # early gameweek is not scoreable — there is nothing to have learned from — but it is still
-        # evidence for every later fold, and skipping the cache would throw it away.
-        rows: dict[View, pd.DataFrame] = {}
-        for view, cache in caches.items():
-            rows[view] = fold_rows(
-                _window(frame, view[0], season),
-                season,
-                gameweek,
-                deadline,
-                forecast_config.model_copy(update={"features": feature_configs[view]}),
-                metrics=metrics,
-            )
-            cache[deadline] = rows[view]
-            assert_no_look_ahead(rows[view], past, as_of=deadline)
-        merged = rows[base]
-
-        played = min(
-            _window(past, view[0], season).groupby(["season", "gameweek"]).ngroups
-            for view in caches
-        )
-        if played < backtest_config.minimum_training_matches:
-            # Predicting from almost nothing measures the prior, not the model.
-            continue
-
-        training = {
-            view: _window(training_rows(cache, before=deadline), view[0], season)
-            for view, cache in caches.items()
-        }
-        if any(rows[v].empty or training[v].empty for v in caches):
-            continue
-
-        # Refitted every ``refit_every_gameweeks`` graded folds, and always at a new season, so a
-        # ``current_season`` fit never predicts the next season.
-        refit = graded % backtest_config.refit_every_gameweeks == 0 or season != fitted_season
-        graded += 1
-        fitted_season = season
-
-        # **The outcome must never reach a predictor.** A fold frame carries everything that
-        # happened in the gameweek, because the harness needs it to score with and the component
-        # models need it to fit on; handing that frame to a model would let it read the answer. A
-        # model doing so by accident — through a merge that pulled one column too many — would
-        # produce a superb backtest and a worthless season, and nothing in the metrics would look
-        # wrong. So predictors see inputs only.
-        visible = {
-            view: own.drop(columns=list(OUTCOME_COLUMNS), errors="ignore")
-            for view, own in rows.items()
-        }
-        for entrant in entrants:
-            view = views[entrant.id]
-            if refit:
-                entrant.predictor.fit_as_of(
-                    _window(frame, view[0], season),
-                    deadline,
-                    training=training[view],
-                    season=season,
-                )
-            predicted = entrant.predictor.predict(visible[view], gameweek=gameweek)
-            merged[columns[entrant.id]] = _place(predicted, rows, view, into=merged)
-        merged[MODEL_COLUMN] = merged[columns[champion.id]]
-
-        # Refitted every fold on the same frame the chain was fitted on, and predicting on the same
-        # stripped frame the chain saw. **Reusing the harness's own assembly is the look-ahead
-        # guarantee** — a monolith with its own training-set construction would be a second chance
-        # to leak, and a leaking benchmark reports a gap that is entirely its own (Invariant 5).
-        all_training, all_visible = training[base], visible[base]
-        monolith.fit(all_training)
-        merged[MONOLITH_COLUMN] = monolith.predict(all_visible).to_numpy()
-
-        b0 = baselines.fit_b0(all_training, TARGET)
-        mean = baselines.fit_mean_baseline(all_training, TARGET)
-        merged[B0_COLUMN] = b0.predict(all_visible).to_numpy()
-        merged[MEAN_COLUMN] = mean.predict(all_visible).to_numpy()
-
-        # Minutes calibration (E10-S1). Both distributions are computed from the champion's
-        # *visible* frame, so the calibrated model is exactly the one that produced the prediction
-        # above, and the observed band is attached afterwards from an outcome column the predictor
-        # never saw.
-        predictor = champion.predictor
-        if isinstance(predictor, MinutesReporting):
-            view = views[champion.id]
-            predicted_minutes = predictor.minutes_probabilities(visible[view])
-            haircut = baselines.status_flag_haircut_minutes(visible[view], forecast_config)
-            for band in MINUTES_BANDS:
-                merged[f"{MINUTES_PREFIX}{band}"] = _place(
-                    predicted_minutes[band], rows, view, into=merged
-                )
-                merged[f"{HAIRCUT_MINUTES_PREFIX}{band}"] = _place(
-                    haircut[band], rows, view, into=merged
-                )
-            merged[OBSERVED_MINUTES_BAND] = [
-                minutes_band(value, predictor.long_play_minutes) for value in merged["minutes"]
-            ]
-
-        # Only rows every entrant predicted are graded, so each pair compares the same rows. Rebinds
-        # rather than mutates, so the cached frame later folds train on keeps every row.
-        merged = merged.dropna(subset=list(columns.values()))
-        form = baselines.trailing_form_prediction(past, as_of=deadline)
-        merged = merged.merge(
-            form.rename(columns={"prediction": FORM_COLUMN}), on="player_code", how="left"
-        )
-
-        merged["season"] = season
-        merged["gameweek"] = gameweek
-        merged["played"] = (merged["minutes"] > 0).astype(float)
-        # Added after the prediction and after the rebinding merge above, so it reaches neither the
-        # predictor's view nor the cached frame later folds train on. It conditions the report, it
-        # is not an input to anything.
-        merged[FIXTURE_DIFFICULTY_COLUMN] = fixture_difficulty(merged, past)
-        folds.append(
-            Fold(
-                season=season,
-                gameweek=gameweek,
-                deadline=deadline,
-                training_rows=len(training[views[champion.id]]),
-                predictions=merged,
-            )
-        )
+    for fold in champion_walk.folds:
+        merged = fold.predictions
+        for entrant in graded_entrants[1:]:
+            own = joins[entrant.id].get(fold.deadline)
+            if own is None:
+                merged = merged.assign(**{columns[entrant.id]: np.nan})
+                continue
+            keys = [key for key in own.columns if key != columns[entrant.id]]
+            merged = merged.merge(own, on=keys, how="left")
+        merged = merged.dropna(subset=list(columns.values())).reset_index(drop=True)
+        if not merged.empty:
+            folds.append(replace(fold, predictions=merged))
 
     if not folds:
         raise ValueError(
@@ -661,11 +565,12 @@ def walk_forward(
             "and were predicted against league-average opposition"
         )
 
-    if monolith.degraded is not None:
+    degraded = champion_walk.monolith.get("degraded")
+    if degraded is not None:
         # The last fold's monolith fell back to a constant, so the gap below is a statement about a
         # constant. Never silent: an inert benchmark reports *no cost to explainability*, which is
         # the most reassuring possible way to have measured nothing (DP-15, E10-S5).
-        warnings.append(f"the shadow monolith degraded on the final fold: {monolith.degraded}")
+        warnings.append(f"the shadow monolith degraded on the final fold: {degraded}")
 
     # Each position's head goes as deep as that position goes into a squad, when the predictor can
     # say what a squad is made of. Without it the aggregate still reports and the split is absent.
@@ -734,17 +639,18 @@ def walk_forward(
         # Every other row in the ladder is graded against the next-simpler thing; this one is graded
         # against the thing whose interpretability it exists to price.
         monolith=measure("monolith (shadow, GBM)", MONOLITH_COLUMN, MODEL_COLUMN),
-        monolith_description=monolith.describe(),
+        monolith_description=champion_walk.monolith,
         top_n=backtest_config.top_n_precision,
         warnings=tuple(warnings),
         fixture_coverage=resolved,
         minutes_calibration=calibration,
         champion=champion.id,
+        not_graded=not_graded,
         strategies={
             champion.id: model_metrics,
-            **{e.id: measure(e.id, columns[e.id], B0_COLUMN) for e in entrants[1:]},
+            **{e.id: measure(e.id, columns[e.id], B0_COLUMN) for e in graded_entrants[1:]},
         },
-        training_windows={e.id: e.training_window for e in entrants},
+        training_windows={e.id: e.training_window for e in graded_entrants},
         paired={
             e.id: paired_deltas(
                 scored,
@@ -756,7 +662,7 @@ def walk_forward(
                 draws=backtest_config.bootstrap_draws,
                 seed=backtest_config.bootstrap_seed,
             )
-            for e in entrants[1:]
+            for e in graded_entrants[1:]
         },
     )
 
@@ -776,6 +682,215 @@ def walk_forward(
         },
     )
     return result
+
+
+@dataclass(frozen=True, slots=True)
+class _Walk:
+    """One entrant's walk: its graded folds, or why it stopped."""
+
+    folds: tuple[Fold, ...] = ()
+    """The champion's carry every harness column; a challenger's only the keys and its own."""
+    failure: str | None = None
+    monolith: dict[str, object] = field(default_factory=dict)
+    """The champion's: what the shadow monolith was on the last fold (E10-S5)."""
+
+    @property
+    def by_deadline(self) -> dict[pd.Timestamp, pd.DataFrame]:
+        return {fold.deadline: fold.predictions for fold in self.folds}
+
+
+def _walks(
+    frame: pd.DataFrame,
+    entrants: Sequence[Entrant],
+    *,
+    workers: int,
+    **common: Any,
+) -> dict[str, _Walk]:
+    """Every entrant's walk, champion first, across up to ``workers`` processes (ORC-09 item 4).
+
+    A walk shares nothing with another, so the walks are the ones a single process gives; a
+    challenger whose worker fails is recorded as not graded, the champion's fails the backtest.
+    """
+    jobs = [(entrant, index == 0) for index, entrant in enumerate(entrants)]
+    count = min(workers, os.process_cpu_count() or 1, len(jobs))
+    if count <= 1:
+        return {e.id: _walk_one(frame, e, harness=h, **common) for e, h in jobs}
+    walks: dict[str, _Walk] = {}
+    with ProcessPoolExecutor(count) as pool:
+        futures = [(e, h, pool.submit(_walk_one, frame, e, harness=h, **common)) for e, h in jobs]
+        for entrant, harness, future in futures:
+            try:
+                walks[entrant.id] = future.result()
+            except Exception as exc:
+                if harness:
+                    raise
+                walks[entrant.id] = _Walk(failure=f"its walk failed: {type(exc).__name__}: {exc}")
+    return walks
+
+
+def _walk_one(
+    frame: pd.DataFrame,
+    entrant: Entrant,
+    *,
+    harness: bool,
+    windows: frozenset[TrainingWindow],
+    forecast_config: ForecastConfig,
+    backtest_config: BacktestConfig,
+    metrics: pd.DataFrame | None,
+) -> _Walk:
+    """Walk one entrant over every deadline; with ``harness`` also fit the benchmarks on its folds.
+
+    ``windows`` are every entrant's training windows: a fold is graded only when each holds
+    ``minimum_training_matches`` played gameweeks, so every walk grades the same folds.
+    """
+    column = prediction_column(entrant.id)
+    base: View = ("all_seasons", forecast_config.features.model_dump_json())
+    features = entrant.features or forecast_config.features
+    view: View = (entrant.training_window, features.model_dump_json())
+    # ``all_seasons`` is always built: it is what is scored, and what the baselines are fitted on.
+    feature_configs = {base: forecast_config.features, view: features}
+    #: view -> deadline -> that deadline's feature/outcome rows. Built once, in order, and only ever
+    #: read by folds strictly later than the key.
+    caches: dict[View, dict[pd.Timestamp, pd.DataFrame]] = {v: {} for v in feature_configs}
+    # E10-S5. Constructed here rather than passed in, for the same reason the baselines are: it is
+    # not a model under test, it is part of what the harness reports, and a caller who could leave
+    # it out is a caller who eventually does.
+    monolith = MonolithPredictor(config=backtest_config.monolith, features=forecast_config.features)
+    folds: list[Fold] = []
+    graded = 0
+    fitted_season: str | None = None
+
+    for season, gameweek, deadline in deadlines_for(frame):
+        past = frame[frame["kickoff_time"] < deadline]
+
+        # Built and cached first, before any decision about whether this fold can be *scored*. An
+        # early gameweek is not scoreable — there is nothing to have learned from — but it is still
+        # evidence for every later fold, and skipping the cache would throw it away.
+        rows: dict[View, pd.DataFrame] = {}
+        for own, cache in caches.items():
+            rows[own] = fold_rows(
+                _window(frame, own[0], season),
+                season,
+                gameweek,
+                deadline,
+                forecast_config.model_copy(update={"features": feature_configs[own]}),
+                metrics=metrics,
+            )
+            cache[deadline] = rows[own]
+            assert_no_look_ahead(rows[own], past, as_of=deadline)
+        # A copy, so the cached rows later folds train on carry no prediction of this one.
+        merged = rows[base].copy()
+
+        played = min(
+            _window(past, window, season).groupby(["season", "gameweek"]).ngroups
+            for window in windows
+        )
+        if played < backtest_config.minimum_training_matches:
+            # Predicting from almost nothing measures the prior, not the model.
+            continue
+
+        training = {
+            own: _window(training_rows(cache, before=deadline), own[0], season)
+            for own, cache in caches.items()
+        }
+        if any(rows[v].empty or training[v].empty for v in caches):
+            continue
+
+        # Refitted every ``refit_every_gameweeks`` graded folds, and always at a new season, so a
+        # ``current_season`` fit never predicts the next season.
+        refit = graded % backtest_config.refit_every_gameweeks == 0 or season != fitted_season
+        graded += 1
+        fitted_season = season
+
+        # **The outcome must never reach a predictor.** A fold frame carries everything that
+        # happened in the gameweek, because the harness needs it to score with and the component
+        # models need it to fit on; handing that frame to a model would let it read the answer. A
+        # model doing so by accident — through a merge that pulled one column too many — would
+        # produce a superb backtest and a worthless season, and nothing in the metrics would look
+        # wrong. So predictors see inputs only.
+        visible = {
+            own: rows[own].drop(columns=list(OUTCOME_COLUMNS), errors="ignore") for own in rows
+        }
+        try:
+            if refit:
+                entrant.predictor.fit_as_of(
+                    _window(frame, view[0], season),
+                    deadline,
+                    training=training[view],
+                    season=season,
+                )
+            predicted = entrant.predictor.predict(visible[view], gameweek=gameweek)
+        except Exception as exc:
+            if harness:
+                raise
+            # D-32: one strategy's failure is its own; the others are graded without it.
+            reason = f"its fit raised at {season} GW{gameweek}: {type(exc).__name__}: {exc}"
+            return _Walk(failure=reason)
+        merged[column] = _place(predicted, rows, view, into=merged)
+        if not harness:
+            keys = [key for key in ("player_code", "fixture_id") if key in merged.columns]
+            fold = Fold(season, gameweek, deadline, len(training[view]), merged[[*keys, column]])
+            folds.append(fold)
+            continue
+        merged[MODEL_COLUMN] = merged[column]
+
+        # Refitted every fold on the same frame the chain was fitted on, and predicting on the same
+        # stripped frame the chain saw. **Reusing the harness's own assembly is the look-ahead
+        # guarantee** — a monolith with its own training-set construction would be a second chance
+        # to leak, and a leaking benchmark reports a gap that is entirely its own (Invariant 5).
+        all_training, all_visible = training[base], visible[base]
+        monolith.fit(all_training)
+        merged[MONOLITH_COLUMN] = monolith.predict(all_visible).to_numpy()
+
+        b0 = baselines.fit_b0(all_training, TARGET)
+        mean = baselines.fit_mean_baseline(all_training, TARGET)
+        merged[B0_COLUMN] = b0.predict(all_visible).to_numpy()
+        merged[MEAN_COLUMN] = mean.predict(all_visible).to_numpy()
+
+        # Minutes calibration (E10-S1). Both distributions are computed from the champion's
+        # *visible* frame, so the calibrated model is exactly the one that produced the prediction
+        # above, and the observed band is attached afterwards from an outcome column the predictor
+        # never saw.
+        predictor = entrant.predictor
+        if isinstance(predictor, MinutesReporting):
+            predicted_minutes = predictor.minutes_probabilities(visible[view])
+            haircut = baselines.status_flag_haircut_minutes(visible[view], forecast_config)
+            for band in MINUTES_BANDS:
+                merged[f"{MINUTES_PREFIX}{band}"] = _place(
+                    predicted_minutes[band], rows, view, into=merged
+                )
+                merged[f"{HAIRCUT_MINUTES_PREFIX}{band}"] = _place(
+                    haircut[band], rows, view, into=merged
+                )
+            merged[OBSERVED_MINUTES_BAND] = [
+                minutes_band(value, predictor.long_play_minutes) for value in merged["minutes"]
+            ]
+
+        # Only rows the champion predicted here; each challenger's unpredicted rows drop as it
+        # joins. Rebinds rather than mutates, so the cached frame later folds train on is untouched.
+        merged = merged.dropna(subset=[column])
+        form = baselines.trailing_form_prediction(past, as_of=deadline)
+        merged = merged.merge(
+            form.rename(columns={"prediction": FORM_COLUMN}), on="player_code", how="left"
+        )
+
+        merged["season"] = season
+        merged["gameweek"] = gameweek
+        merged["played"] = (merged["minutes"] > 0).astype(float)
+        # Added after the prediction and after the rebinding merge above, so it reaches neither the
+        # predictor's view nor the cached frame later folds train on. It conditions the report, it
+        # is not an input to anything.
+        merged[FIXTURE_DIFFICULTY_COLUMN] = fixture_difficulty(merged, past)
+        folds.append(
+            Fold(
+                season=season,
+                gameweek=gameweek,
+                deadline=deadline,
+                training_rows=len(training[view]),
+                predictions=merged,
+            )
+        )
+    return _Walk(folds=tuple(folds), monolith=monolith.describe() if harness else {})
 
 
 def fold_rows(

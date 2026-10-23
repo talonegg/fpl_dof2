@@ -58,7 +58,7 @@ module review is [03 §12](03-solution-architecture.md#12-module-design--review-
 | Two of the five compared models (A, A_odds) exist only inside the frozen prospective bundle, a parallel copy of the stack with its own ingest | `prospective/bundle/`, `pipeline.yml:207-216` |
 | Only the champion gets a plan and chips; C1 gets one gameweek, borrows the champion's variance and builds features outside the knowability seam | `shadow/c1.py:63,238-240` |
 | Tuning is a hand-edited flag and a hand-compared backtest; the backtest grades one predictor against fixed baselines; the CI model card never sees the backtest verdict. **Backtest and card parts closed by MOD-08** (§5.3) | `forecast/backtest.py:380,413-436`, `backtest.yml:60-65` |
-| The model-history tables are rebuilt by scripts that depend on branches and caches outside the repository | `scripts/models_history/README.md` |
+| The model-history tables are rebuilt by scripts that depend on branches and caches outside the repository | `scripts/models_history/README.md` (archived by ORC-06: [`archive/R1.3.0/models-history-frozen-era/`](archive/R1.3.0/models-history-frozen-era/README.md)) |
 
 ### 2.3 Web and contract
 

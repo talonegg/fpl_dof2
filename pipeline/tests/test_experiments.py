@@ -393,3 +393,55 @@ def test_a_reused_fit_predicts_the_folds_own_gameweek(game_rules: GameRules) -> 
     )
     assert seen == [f.gameweek for f in result.folds]
     assert len(fits) < len(seen)  # a fit was reused
+
+
+class FailsLater(RateFromFeatures):
+    """A forecaster whose third fit raises, as a fit diverging partway through the walk does."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.fits = 0
+
+    def fit_as_of(
+        self,
+        history: pd.DataFrame,
+        deadline: pd.Timestamp,
+        *,
+        training: pd.DataFrame | None = None,
+        season: str,
+    ) -> None:
+        self.fits += 1
+        if self.fits == 3:
+            raise RuntimeError("the fit diverged")
+        super().fit_as_of(history, deadline, training=training, season=season)
+
+
+@pytest.mark.parametrize("workers", [1, 2])
+def test_a_strategy_that_raises_at_a_later_fold_is_not_graded_and_the_others_are(
+    game_rules: GameRules, monkeypatch: pytest.MonkeyPatch, workers: int
+) -> None:
+    """D-32: c1's third fit raises; c3 and engine are graded on every fold and c1 is recorded as
+    not graded with the fold and the error, in this process and across worker processes alike."""
+    history = make_history(gameweeks=8)
+    stubs = [
+        Entrant("c3", RateFromFeatures()),
+        Entrant("engine", Offset()),
+        Entrant("c1", FailsLater()),
+    ]
+    monkeypatch.setattr(
+        "fpl_dof.factory.experiments.entrants", lambda *_a, **_k: (stubs, {"c3_f1": "retired"})
+    )
+    backtest = BacktestConfig(
+        minimum_training_matches=3, training_seasons=(SEASON,), strategy_workers=workers
+    )
+    config = Config().model_copy(update={"backtest": backtest})
+    graded = grade(history, strategies(), game_rules, config)
+
+    alone = _walk(history, Entrant("c3", RateFromFeatures()), Entrant("engine", Offset()))
+    assert list(graded.result.strategies) == ["c3", "engine"]
+    assert graded.result.as_dict()["strategies"] == alone.as_dict()["strategies"]
+    assert graded.skipped["c1"] == f"its fit raised at {SEASON} GW6: RuntimeError: the fit diverged"
+    assert graded.skipped["c3_f1"] == "retired"
+    at = dt.datetime(2026, 10, 24, tzinfo=dt.UTC)
+    records = experiment_records(graded, strategies(), config, run_id="r", recorded_at=at)
+    assert {r["strategy"]["id"]: r.get("not_graded") for r in records}["c1"] == graded.skipped["c1"]
