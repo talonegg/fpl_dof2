@@ -89,10 +89,10 @@
     "plan": null,
     "week": null
    },
-   "description": "The champion with the training window widened from the current season to all seasons.",
+   "description": "The champion without each player's own card rate, as before DL-90; graded against c3.",
    "digest": "<masked>",
-   "id": "c3_f3",
-   "label": "C3 on all seasons (F3)",
+   "id": "c3_f1",
+   "label": "C3 before card rates (F1 control)",
    "plan": true,
    "published": false,
    "role": "experiment"
@@ -103,13 +103,13 @@
     "plan": null,
     "week": null
    },
-   "description": "Retired. The champion with yellow_cards in the rolling statistics, now c3's default.",
+   "description": "The champion with the training window widened from the current season to all seasons.",
    "digest": "<masked>",
-   "id": "c3_f1",
-   "label": "C3 with card rates (F1)",
+   "id": "c3_f3",
+   "label": "C3 on all seasons (F3)",
    "plan": true,
    "published": false,
-   "role": "retired"
+   "role": "experiment"
   }
  ]
 }

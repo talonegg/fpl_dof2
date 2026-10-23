@@ -72,7 +72,7 @@ def test_shipped_registry_names_the_dl87_strategies() -> None:
         "a",
         "a_odds",
     }
-    assert {s.id for s in strategies() if s.role == "experiment"} == {"c3_f3"}
+    assert {s.id for s in strategies() if s.role == "experiment"} == {"c3_f1", "c3_f3"}
 
 
 def test_aliases_resolve_legacy_keys_to_registry_ids() -> None:
