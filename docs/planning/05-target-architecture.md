@@ -57,7 +57,7 @@ module review is [03 §12](03-solution-architecture.md#12-module-design--review-
 | Model ids are restated in at least six places, and `"engine"` names the live champion in `week.json` but the minutes_v2-off reference in `models.json` | `stages/week.py:57`, `publish/benchmark.py:18-24`, `prospective/xp_accuracy.py:24`, `contracts/v1/models.schema.json:33`, `web/src/data/model.ts:13-40` |
 | Two of the five compared models (A, A_odds) exist only inside the frozen prospective bundle, a parallel copy of the stack with its own ingest | `prospective/bundle/`, `pipeline.yml:207-216` |
 | Only the champion gets a plan and chips; C1 gets one gameweek, borrows the champion's variance and builds features outside the knowability seam | `shadow/c1.py:63,238-240` |
-| Tuning is a hand-edited flag and a hand-compared backtest; the backtest grades one predictor against fixed baselines; the CI model card never sees the backtest verdict | `forecast/backtest.py:380,413-436`, `backtest.yml:60-65` |
+| Tuning is a hand-edited flag and a hand-compared backtest; the backtest grades one predictor against fixed baselines; the CI model card never sees the backtest verdict. **Backtest and card parts closed by MOD-08** (§5.3) | `forecast/backtest.py:380,413-436`, `backtest.yml:60-65` |
 | The model-history tables are rebuilt by scripts that depend on branches and caches outside the repository | `scripts/models_history/README.md` |
 
 ### 2.3 Web and contract
@@ -143,7 +143,7 @@ packages, or per-module versions, waits until these rules prove insufficient (§
 | **Strategy registry** | Factory → orchestrator, web | Built ([04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)), with `Strategy.forecast` for `xp_v1` and C1 and `Strategy.decision_policy` for `decide` ([04 §6](04-conceptual-design.md#6-decision-engine), MOD-04). Still target: `forecast` for `a` and `a_odds` (MOD-05) | Digest of (entry, code, effective config): the entry with its training window, the source that decides advice, and the run config sections it reads |
 | **Forecast frame** | Forecaster → decision engine | Built: [04 §6](04-conceptual-design.md#6-decision-engine) (MOD-02) | `FORECAST_FRAME_VERSION` |
 | **Decision output** | Decision engine → orchestrator, web | Built (MOD-04): the `week` and `plan` schemas, one pair per published strategy | Web contract |
-| **Ledger records** | Orchestrator, factory → evaluation, web | `advice/gwNN.json` (advice of record per strategy), `evaluation/gwNN.json`, `experiments/<id>/…`, each stamped with strategy digest and `as_of` | Record schema version |
+| **Ledger records** | Orchestrator, factory → evaluation, web | `advice/gwNN.json` (advice of record per strategy), `evaluation/gwNN.json`, `experiments/<run_id>.json` (built, MOD-08: one record per strategy per backtest run), each stamped with strategy digest and `as_of` | Record schema version |
 | **Web contract and registries** | Publish → web | `contracts/v1/*.schema.json`, plus published `strategies` and `artefacts` registries and `ui` flags | `contract_version` major, `contract_minor` (§7.3) |
 
 A seam with a schema is tested at the seam: every forecaster's frame is validated before the engine
@@ -196,7 +196,14 @@ strategy, variant (a config or forecaster diff), metric, length in gameweeks, an
 graded by backtest, live shadow or both. The factory runs it locally or in CI on the same commands;
 every result is stamped with the strategy digest and data window and appended to `ledger` under
 `experiments/`. The weekly backtest is a standing experiment over every registered strategy,
-compared in pairs against the champion, and its verdict reaches the model card.
+compared in pairs against the champion, and its verdict reaches the model card. **Built (MOD-08):**
+`factory.grade` walks every non-retired strategy with live code forward on the same folds, each
+in its own training window; `experiment_records` writes one record per registered strategy (id
+and digest, role, window, run id, config digest, data window, metrics, per-gameweek paired deltas
+against the champion with a seeded bootstrap interval, or why it was not graded) to
+`experiments/<run_id>.json`, which `backtest.yml` appends to `ledger` and never overwrites; the
+pipeline restores it and the model card prints the latest verdict for the champion's current
+digest, or says none exists. The declared experiment files are MOD-09.
 
 Nothing promotes itself. Promotion is the owner's decision, recorded as a `DL-nn`, past the
 [E8 §5 bar](epics/E8-ongoing-in-season-monitoring.md#5-the-bar-for-changing-the-model-mid-season)

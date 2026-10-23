@@ -40,6 +40,7 @@ from fpl_dof.forecast.backtest import (
     MONOLITH_COLUMN,
     OUTCOME_COLUMNS,
     BacktestResult,
+    Entrant,
     walk_forward,
 )
 from fpl_dof.forecast.features import TARGET, input_features
@@ -71,7 +72,7 @@ def dense_history(**overrides: object) -> pd.DataFrame:
 def _walk(history: pd.DataFrame) -> BacktestResult:
     return walk_forward(
         history,
-        RateFromFeatures(),
+        [Entrant("model", RateFromFeatures())],
         forecast_config=ForecastConfig(),
         backtest_config=BacktestConfig(minimum_training_matches=3),
         seasons=(SEASON,),
@@ -415,7 +416,7 @@ def test_a_thin_training_window_degrades_to_a_constant_and_says_so() -> None:
 def test_a_harness_run_that_degrades_warns_rather_than_reporting_a_silent_zero() -> None:
     result = walk_forward(
         make_history(players=4, gameweeks=8),
-        RateFromFeatures(),
+        [Entrant("model", RateFromFeatures())],
         forecast_config=ForecastConfig(),
         backtest_config=BacktestConfig(minimum_training_matches=3),
         seasons=(SEASON,),

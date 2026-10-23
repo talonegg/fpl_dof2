@@ -9,6 +9,10 @@ was describing `xp_v1` whenever a `backtest.json` existed on disk, which is not 
 anything: the backtest is run separately, and its report survives runs of a completely different
 model. A card that names the wrong model is worse than one that names none, because it is read
 before a deadline by someone with no way to check it.
+
+**The measured accuracy is the standing backtest's record for the champion's current digest**
+(MOD-08), or a plain statement that none exists: a verdict on another digest graded a different
+entry, config or code.
 """
 
 from __future__ import annotations
@@ -55,9 +59,9 @@ BACKTESTED_WEAKNESS = (
     "closed and E3-S3's acceptance criterion is satisfied by an actual number rather than by a "
     "ticked box. Measuring it is not improving it: every other component is multiplied by these "
     "probabilities, so read the minutes section of the backtest report before trusting a forecast "
-    "for anyone whose minutes are in doubt. The candidate M1 that adds rotation, injury-return and "
-    "availability-split behaviour is flagged off by default and is not what produced this card "
-    "(DP-08, DL-47).",
+    "for anyone whose minutes are in doubt. The M1 that adds rotation, injury-return and "
+    "availability-split behaviour (`minutes_v2`) has been on in the champion since DL-76, so it "
+    "is what produced this card; the `engine` strategy keeps the earlier M1.",
 )
 
 #: True of whichever model ran.
@@ -159,11 +163,15 @@ def write_model_card(
     fallback_reason: str | None = None,
     backtest: Mapping[str, object] | None = None,
     component_description: Mapping[str, object] | None = None,
+    strategy_digest: str | None = None,
 ) -> Path:
     """Describe ``model``, which is the model that produced ``forecast``.
 
     ``model`` is a required argument rather than something worked out here: the card's whole job is
     provenance, and provenance that is deduced is provenance that can be wrong.
+
+    ``backtest`` is the champion's latest standing-backtest record for ``strategy_digest``, its
+    current digest (``factory.latest_verdict``); ``None`` means no record exists for that digest.
     """
     lines: list[str] = []
     add = lines.append
@@ -182,20 +190,45 @@ def write_model_card(
     add("")
     add(DL21_GUARDRAIL)
     add("")
-    # The backtest harness only ever grades xp_v1 (`stages/backtest.py` fits a single
-    # `ComponentPredictor`), so a `backtest.json` on disk is never evidence about xp_v0. Showing it
-    # under an xp_0 card's "This forecast" row would be the exact D-25 mismatch this card exists to
-    # prevent — the numbers on the card would belong to a different model than the one that ran.
+    # The record grades the champion's forecaster, `xp_v1`, never its xp_v0 cold-start fallback.
+    # Showing it under an xp_v0 card's "This forecast" row would be the exact D-25 mismatch this
+    # card exists to prevent — the numbers on the card would belong to a different model than the
+    # one that ran.
     graded_this_model = model == XP_V1 and backtest is not None
+    if model == XP_V1 and backtest is None and strategy_digest is not None:
+        add("## Measured accuracy")
+        add("")
+        add(
+            f"**No backtest verdict exists for the champion's current digest "
+            f"`{strategy_digest[:12]}`.** The weekly backtest has not yet graded this exact entry, "
+            "config and code; a verdict on an earlier digest describes something else, so none is "
+            "shown (MOD-08)."
+        )
+        add("")
     if graded_this_model:
         assert backtest is not None
         add("## Measured accuracy")
         add("")
         # The card is what a human actually reads before a deadline. A backtest finding that lives
-        # only in backtest.json is a finding nobody sees at the moment it matters (DL-21).
+        # only in the backtest's own report is a finding nobody sees at the moment it matters.
         add(str(backtest.get("verdict", "")))
         add("")
-        graded = backtest.get("model") or {}
+        window = backtest.get("data_window")
+        if isinstance(window, Mapping) and strategy_digest is not None:
+            first, last = window.get("first"), window.get("last")
+            span = (
+                f"{first.get('season')} GW{first.get('gameweek')} to "
+                f"{last.get('season')} GW{last.get('gameweek')}"
+                if isinstance(first, Mapping) and isinstance(last, Mapping)
+                else "an unrecorded window"
+            )
+            add(
+                f"Graded by backtest run `{backtest.get('run_id')}` over {span} "
+                f"({window.get('folds')} gameweeks), for this champion's digest "
+                f"`{strategy_digest[:12]}`."
+            )
+            add("")
+        graded = backtest.get("metrics") or {}
         b0 = backtest.get("b0") or {}
         free = backtest.get("model_free") or {}
         if isinstance(graded, Mapping) and isinstance(b0, Mapping) and isinstance(free, Mapping):

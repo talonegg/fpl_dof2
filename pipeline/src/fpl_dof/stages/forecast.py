@@ -11,18 +11,19 @@ from __future__ import annotations
 import json
 
 from fpl_dof.artefacts import (
-    BACKTEST_REPORT_FILENAME,
     CAPTAIN_LINE_FILENAME,
+    EXPERIMENTS_DIRNAME,
     XP_FILENAME,
     read_rules,
 )
 from fpl_dof.factory import (
     ForecastInputs,
     PriceDependence,
+    latest_verdict,
     regress_xp_on_price,
     write_model_card,
 )
-from fpl_dof.factory.registry import champion
+from fpl_dof.factory.registry import champion, digest
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.pipeline import Output, StageContext, StageResult
 from fpl_dof.silver.store import read_table, read_table_optional
@@ -51,7 +52,8 @@ def run(ctx: StageContext) -> StageResult:
         as_of=ctx.as_of,
     )
 
-    result = champion().forecast(inputs, rules, ctx.config)
+    strategy = champion()
+    result = strategy.forecast(inputs, rules, ctx.config)
     forecast = result.frame
     regression = regress_xp_on_price(forecast)
 
@@ -71,6 +73,7 @@ def run(ctx: StageContext) -> StageResult:
         line_path.write_text(result.captain_line.model_dump_json(indent=2), encoding="utf-8")
 
     card_path = xp_path.parent / MODEL_CARD_FILENAME
+    strategy_digest = digest(strategy, ctx.config)
     write_model_card(
         card_path,
         forecast=forecast,
@@ -80,7 +83,8 @@ def run(ctx: StageContext) -> StageResult:
         run_id=ctx.run_id,
         model=result.model,
         fallback_reason=result.fallback_reason,
-        backtest=_previous_backtest(ctx, season),
+        backtest=latest_verdict(_experiment_records(ctx), strategy.id, strategy_digest),
+        strategy_digest=strategy_digest,
         component_description=result.component_description,
     )
 
@@ -106,20 +110,21 @@ def run(ctx: StageContext) -> StageResult:
     )
 
 
-def _previous_backtest(ctx: StageContext, season: str) -> dict[str, object] | None:
-    """The most recent backtest report, if one has ever been run.
+def _experiment_records(ctx: StageContext) -> list[dict[str, object]]:
+    """Every standing-backtest record held under ``ledger/experiments/`` (MOD-08).
 
     Read rather than recomputed: the backtest is deliberately not part of ``run`` (it is slow and
     needs the historical backfill), but its verdict has to reach the card a human reads before a
-    deadline. A stale verdict is still the last thing that was actually measured; no verdict at all
-    is how an unvalidated model gets presented as a validated one.
+    deadline. In CI the directory is restored from the ``ledger`` branch. An unreadable file is
+    reported and skipped; no records at all is how the card learns to say no verdict exists.
     """
-    path = ctx.layout.gold_for(season) / BACKTEST_REPORT_FILENAME
-    if not path.exists():
-        return None
-    try:
-        loaded = json.loads(path.read_text(encoding="utf-8"))
-    except OSError, json.JSONDecodeError:
-        log.warning("forecast.backtest_unreadable", extra={"path": str(path)})
-        return None
-    return loaded if isinstance(loaded, dict) else None
+    records: list[dict[str, object]] = []
+    for path in sorted((ctx.layout.ledger / EXPERIMENTS_DIRNAME).glob("*.json")):
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+        except OSError, json.JSONDecodeError:
+            log.warning("forecast.experiment_unreadable", extra={"path": str(path)})
+            continue
+        if isinstance(loaded, list):
+            records.extend(r for r in loaded if isinstance(r, dict))
+    return records

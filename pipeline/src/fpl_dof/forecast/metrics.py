@@ -527,11 +527,88 @@ def evaluate(
     )
 
 
+def bootstrap_ci(deltas: Sequence[float], *, draws: int, seed: int) -> tuple[float, float]:
+    """95% iid gameweek-bootstrap CI of the mean of ``deltas``. Seeded, so a record is
+    reproducible from its inputs (DP-11). Empty input reads ``(0.0, 0.0)``."""
+    x = np.asarray(deltas, dtype=float)
+    if x.size == 0:
+        return (0.0, 0.0)
+    rng = np.random.default_rng(seed)
+    means = rng.choice(x, size=(draws, x.size), replace=True).mean(axis=1)
+    return (float(np.quantile(means, 0.025)), float(np.quantile(means, 0.975)))
+
+
+@dataclass(frozen=True, slots=True)
+class PairedDelta:
+    """One metric, a strategy minus the champion, per gameweek on the same rows (MOD-08).
+
+    For MAE a negative mean is the strategy doing better; for Spearman and top-N precision a
+    positive one is. ``significant`` says the 95% CI excludes zero, nothing about direction.
+    """
+
+    metric: str
+    gameweeks: int
+    mean: float
+    ci_low: float
+    ci_high: float
+
+    @property
+    def significant(self) -> bool:
+        return self.gameweeks > 0 and (self.ci_low > 0 or self.ci_high < 0)
+
+    def as_dict(self) -> dict[str, object]:
+        return {
+            "gameweeks": self.gameweeks,
+            "mean": _clean(self.mean),
+            "ci_low": _clean(self.ci_low),
+            "ci_high": _clean(self.ci_high),
+            "significant": self.significant,
+        }
+
+
+def paired_deltas(
+    frame: pd.DataFrame,
+    *,
+    champion: str,
+    challenger: str,
+    actual: str,
+    top_n: int,
+    group: Sequence[str],
+    draws: int,
+    seed: int,
+) -> dict[str, PairedDelta]:
+    """MAE, Spearman and top-N precision of ``challenger`` minus ``champion``, one value per
+    ``group`` (a gameweek), with a seeded bootstrap CI over the gameweeks. A gameweek where either
+    side cannot be measured (too few rows to rank) is left out of that metric, never counted as 0.
+    """
+    measures: dict[str, Callable[[pd.DataFrame, str], float]] = {
+        "mae": lambda rows, column: float((rows[column] - rows[actual]).abs().mean()),
+        "spearman": lambda rows, column: spearman(rows[column], rows[actual]),
+        "top_n_precision": lambda rows, column: top_n_precision(
+            rows, n=top_n, predicted=column, actual=actual
+        ),
+    }
+    usable = frame.dropna(subset=[champion, challenger, actual])
+    out: dict[str, PairedDelta] = {}
+    for metric, measure in measures.items():
+        deltas = [
+            delta
+            for _, rows in usable.groupby(list(group), sort=True)
+            if (delta := measure(rows, challenger) - measure(rows, champion)) == delta
+        ]
+        low, high = bootstrap_ci(deltas, draws=draws, seed=seed)
+        mean = float(np.mean(deltas)) if deltas else float("nan")
+        out[metric] = PairedDelta(metric, len(deltas), mean, low, high)
+    return out
+
+
 __all__ = [
     "MINUTES_BANDS",
     "UNRESOLVED_FIXTURE_BAND",
     "MetricSet",
     "MinutesCalibration",
+    "PairedDelta",
+    "bootstrap_ci",
     "brier_score",
     "calibration_slope",
     "captaincy_hit_rate",
@@ -541,6 +618,7 @@ __all__ = [
     "head_size_by_position",
     "minutes_band",
     "multiclass_brier",
+    "paired_deltas",
     "per_gameweek_mean",
     "price_band",
     "spearman",

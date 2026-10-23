@@ -326,18 +326,21 @@ jobs:
 
       # The advice ledger (DL-69): what earlier runs advised, per gameweek, so this run can
       # reconcile last week's advice against what was played and publish the season log. Gold is
-      # not persisted between runs; this branch is.
-      - name: Restore the advice ledger from the `ledger` branch
+      # not persisted between runs; this branch is. `experiments/` holds the standing backtest's
+      # records, which the model card reads for the champion's current digest (MOD-08).
+      - name: Restore the advice ledger and experiments from the `ledger` branch
         run: |
           set -eu
           mkdir -p data/ledger
           if git ls-remote --exit-code --heads origin ledger >/dev/null 2>&1; then
             git fetch --depth=1 origin ledger:refs/remotes/origin/ledger
             git worktree add /tmp/ledger-branch origin/ledger
-            if [ -d /tmp/ledger-branch/advice ]; then
-              mkdir -p data/ledger/advice
-              cp -r /tmp/ledger-branch/advice/. data/ledger/advice/
-            fi
+            for kept in advice experiments; do
+              if [ -d "/tmp/ledger-branch/$kept" ]; then
+                mkdir -p "data/ledger/$kept"
+                cp -r "/tmp/ledger-branch/$kept/." "data/ledger/$kept/"
+              fi
+            done
             git worktree remove /tmp/ledger-branch --force
           fi
 

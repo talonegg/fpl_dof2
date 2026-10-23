@@ -334,6 +334,38 @@ def test_append_permanent_snapshot_writes_no_index(tmp_path: Path) -> None:
     assert not (clone / "index.json").exists()
 
 
+def test_a_named_ledger_record_is_appended_and_never_overwritten(tmp_path: Path) -> None:
+    """MOD-08: experiments records are keyed by run, so a run never replaces another's record."""
+    retention = _scripts_retention()
+    bare = tmp_path / "remote.git"
+    _git("init", "--bare", str(bare), cwd=tmp_path)
+
+    def append(name: str, body: str) -> bool:
+        payload = tmp_path / "record.json"
+        payload.write_text(body, encoding="utf-8")
+        appended: bool = retention.append_permanent_snapshot(
+            checkout_dir=tmp_path / "checkout",
+            payload_path=payload,
+            remote=str(bare),
+            branch="ledger",
+            source="experiments",
+            name=name,
+        )
+        return appended
+
+    assert append("20261027T161700Z-aaaa", "[1]")
+    assert append("20261103T161700Z-bbbb", "[2]")
+    assert not append("20261103T161700Z-bbbb", "[2]")  # the same bytes again: a no-op
+    with pytest.raises(FileExistsError):
+        append("20261027T161700Z-aaaa", "[3]")
+
+    clone = tmp_path / "clone"
+    _git("clone", "--branch", "ledger", str(bare), str(clone), cwd=tmp_path)
+    records = clone / "experiments"
+    assert (records / "20261027T161700Z-aaaa.json").read_text(encoding="utf-8") == "[1]"
+    assert (records / "20261103T161700Z-bbbb.json").read_text(encoding="utf-8") == "[2]"
+
+
 def _price_rows(day: int) -> pd.DataFrame:
     return pd.DataFrame(
         {

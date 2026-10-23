@@ -32,7 +32,7 @@ from fpl_dof.config.models import (
     DiscriminationConfig,
     ForecastConfig,
 )
-from fpl_dof.forecast.backtest import BacktestResult, walk_forward
+from fpl_dof.forecast.backtest import BacktestResult, Entrant, walk_forward
 from fpl_dof.forecast.metrics import (
     evaluate,
     head_size_by_position,
@@ -260,7 +260,7 @@ def adaptive_walk_result(game_rules: GameRules) -> BacktestResult:
     history = make_history(players=40, gameweeks=10)
     return walk_forward(
         history,
-        ComponentPredictor(ForecastConfig(), game_rules),
+        [Entrant("c3", ComponentPredictor(ForecastConfig(), game_rules))],
         forecast_config=ForecastConfig(),
         backtest_config=BacktestConfig(top_n_precision=8),
         seasons=None,

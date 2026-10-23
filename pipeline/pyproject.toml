@@ -155,10 +155,7 @@ source_modules = [
 ]
 forbidden_modules = ["fpl_dof.forecast", "fpl_dof.shadow", "fpl_dof.prospective"]
 allow_indirect_imports = true
-ignore_imports = [
-    "fpl_dof.stages.backtest -> fpl_dof.forecast.backtest",  # MOD-08: the standing backtest runs strategies through the registry
-    "fpl_dof.stages.backtest -> fpl_dof.forecast.xp_v1",  # MOD-08: the standing backtest runs strategies through the registry
-]
+ignore_imports = []
 
 [[tool.importlinter.contracts]]
 name = "Only pipeline and cli import stages"

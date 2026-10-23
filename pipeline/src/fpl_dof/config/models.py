@@ -1461,14 +1461,44 @@ class BacktestConfig(_Section):
         default=4,
         ge=1,
         description=(
-            "Gameweeks of history required before a deadline is scored. Predicting gameweek 1 "
-            "from nothing measures the prior, not the model."
+            "Gameweeks of history required before a deadline is scored, counted inside each "
+            "strategy's training window: a fold is graded only when every strategy has this many "
+            "(MOD-08). Predicting gameweek 1 from nothing measures the prior, not the model."
         ),
     )
     top_n_precision: int = Field(
         default=20,
         gt=0,
         description="Charter tier-2 metric: precision within the top N predicted scorers.",
+    )
+    refit_every_gameweeks: int = Field(
+        default=1,
+        ge=1,
+        description=(
+            "How many graded folds each strategy's forecaster is reused for before it is refitted "
+            "(MOD-08); a new season always refits. 1 refits every fold, which is what every "
+            "strategy does live, so the graded model is the shipped one (F3). The frozen harness "
+            "refitted every 4 gameweeks to save time; between refits a forecaster that builds its "
+            "features inside its fit (C1) also predicts from that fit's features, so a larger "
+            "value grades a staler model than ships. Raise it only if the weekly job outgrows "
+            "its timeout."
+        ),
+    )
+    bootstrap_draws: int = Field(
+        default=2000,
+        gt=0,
+        description=(
+            "Resamples in the gameweek bootstrap of each strategy-minus-champion paired delta "
+            "(MOD-08). 2000 puts the 95% interval's Monte-Carlo error well below the deltas being "
+            "read, and matches the models-history artefact's bootstrap."
+        ),
+    )
+    bootstrap_seed: int = Field(
+        default=0,
+        description=(
+            "Seed of that bootstrap, so a recorded interval is reproducible from its inputs "
+            "(DP-11). Any fixed value does; 0 matches the models-history artefact."
+        ),
     )
     minimum_minutes_for_scoring: int = Field(
         default=1,
