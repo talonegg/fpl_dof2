@@ -151,6 +151,11 @@ export function HindsightSection({ log, players, status }: HindsightSectionProps
             </div>
 
             {/* 2. Oracle & Diagnostics Grid */}
+            {hindsight.optimal === null ? (
+              <p className="history-sub" data-testid="hindsight-no-optimal">
+                {hindsight.optimal_unavailable_reason ?? "The hindsight optimal is not available for this gameweek."}
+              </p>
+            ) : (
             <div className="hindsight-grid-oracle">
               {/* Optimal Hindsight Transfers & Team Selection */}
               <div className="hindsight-card" data-testid="hindsight-oracle-card">
@@ -242,6 +247,7 @@ export function HindsightSection({ log, players, status }: HindsightSectionProps
                 )}
               </div>
             </div>
+            )}
           </div>
         ) : (
           <div className="hindsight-empty-state" data-testid="hindsight-gw-empty">

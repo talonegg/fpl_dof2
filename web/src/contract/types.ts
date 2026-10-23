@@ -856,7 +856,10 @@ export interface LogReconciliation {
 
 export interface LogHindsight {
   rankings: LogModelRank[];
-  optimal: LogHindsightOptimal;
+  /** Null when the squad state (bank, free transfers) was not recorded for the gameweek: the rankings need neither, the optimal does. */
+  optimal: LogHindsightOptimal | null;
+  /** Why optimal is null, in words. Absent when optimal is present. */
+  optimal_unavailable_reason?: string;
   diagnostics: LogOracleDiagnostic[];
 }
 

@@ -170,7 +170,14 @@
           "type": "array",
           "items": { "$ref": "#/$defs/log_model_rank" }
         },
-        "optimal": { "$ref": "#/$defs/log_hindsight_optimal" },
+        "optimal": {
+          "description": "Null when the squad state (bank, free transfers) was not recorded for the gameweek: the rankings need neither, the optimal does.",
+          "oneOf": [{ "$ref": "#/$defs/log_hindsight_optimal" }, { "type": "null" }]
+        },
+        "optimal_unavailable_reason": {
+          "description": "Why optimal is null, in words. Absent when optimal is present.",
+          "type": "string"
+        },
         "diagnostics": {
           "type": "array",
           "items": { "$ref": "#/$defs/log_oracle_diagnostic" }

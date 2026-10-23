@@ -304,3 +304,76 @@ def test_hindsight_is_populated_and_validates_against_contract(
     ranked = {r["model_name"] for r in gw2["hindsight"]["rankings"]}
     assert "c3" in ranked and "xp_v1" not in ranked  # the champion is keyed by registry id (MOD-03)
     Contract(root=find_contracts_root()).validate("log", log)
+
+
+def _hindsight_log(tmp_path: Path, game_rules: GameRules, state: dict[str, float] | None) -> Any:
+    layout = DataLayout(root=tmp_path)
+    payload = _week_payload(2, captain=1)
+    if state is None:
+        del payload["squad_state"]
+    else:
+        payload["squad_state"] = state
+    record_advice(layout, payload, as_of=AS_OF)
+    positions = ["GKP"] * 2 + ["DEF"] * 5 + ["MID"] * 5 + ["FWD"] * 3 + ["MID"]
+    pool = pd.DataFrame(
+        [
+            {
+                "player_id": p,
+                "web_name": f"P{p}",
+                "position": positions[p - 1],
+                "team_id": (p % 5) + 1,
+                "price": 5.0,
+                "now_cost": 5.0,
+                "start_cost": 5.0,
+            }
+            for p in range(1, 17)
+        ]
+    )
+    perf = pd.DataFrame(
+        [
+            {
+                "season": "2026/27",
+                "gameweek": gw,
+                "player_id": p,
+                "web_name": f"P{p}",
+                "position": positions[p - 1],
+                "minutes": 90,
+                "total_points": 4,
+            }
+            for gw in (1, 2)
+            for p in range(1, 17)
+        ]
+    )
+    return build_log(
+        entry_id=7,
+        season="2026/27",
+        picks=pd.concat([_picks(1), _picks(2, captain=1)], ignore_index=True),
+        entry_gameweeks=_scores(1, 2),
+        chips=None,
+        advice=read_all_advice(layout),
+        contract_version=CONTRACT_VERSION,
+        player_gameweek=perf,
+        player_pool=pool,
+        rules=game_rules,
+    )
+
+
+def test_gameweek_without_recorded_state_keeps_rankings_and_has_no_invented_optimal(
+    tmp_path: Path, game_rules: GameRules
+) -> None:
+    log = _hindsight_log(tmp_path, game_rules, None)
+    for gw in log["gameweeks"]:  # GW1 has no ledger entry; GW2's entry lacks squad_state
+        h = gw["hindsight"]
+        assert h is not None
+        assert "played" in {r["model_name"] for r in h["rankings"]}
+        assert h["optimal"] is None and h["diagnostics"] == []
+        assert h["optimal_unavailable_reason"]
+    Contract(root=find_contracts_root()).validate("log", log)
+
+
+def test_real_zero_bank_and_free_transfers_are_kept_as_zeros(
+    tmp_path: Path, game_rules: GameRules
+) -> None:
+    log = _hindsight_log(tmp_path, game_rules, {"bank": 0.0, "free_transfers": 0})
+    assert log["gameweeks"][1]["hindsight"]["optimal"] is not None
+    assert log["gameweeks"][0]["hindsight"]["optimal"] is None
