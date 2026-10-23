@@ -127,7 +127,8 @@ settled DL-11, DL-72 and OD-04 and recorded DL-76 to DL-79.
 | The target design: orchestrator, model factory and web as independent modules, the 2026-10-22 code review | [Target architecture](planning/05-target-architecture.md) |
 | Each component's design: sources, data layer, models, the strategy registry, optimiser, UX, testing, extensibility; open questions (`Q-nn`) | [Conceptual design](planning/04-conceptual-design.md) |
 | Releases (`Rx.y.z`): what is being built now, how to choose what next, and the branching and release model | [Release register](planning/epics/README.md); the procedure is the `release` skill |
-| R1.2.0 and R1.2.2 (tagged), then R1.3.0 and R1.4.0: the modular platform's stories | [`planning/epics/R1.2.0-modular-platform-backlog.md`](planning/epics/R1.2.0-modular-platform-backlog.md) |
+| R1.2.0 and R1.2.2 (tagged): the modular platform's stories | [`planning/epics/R1.2.0-modular-platform-backlog.md`](planning/epics/R1.2.0-modular-platform-backlog.md) |
+| R1.3.0 and R1.4.0: gameweek orchestration and independent web, stories and owner questions | [`R1.3.0-gameweek-orchestration.md`](planning/epics/R1.3.0-gameweek-orchestration.md), [`R1.4.0-independent-web.md`](planning/epics/R1.4.0-independent-web.md) |
 | Where the season stands (rewritten each gameweek), the weekly loop, and the bar for changing the model mid-season | [E8 — ongoing in-season monitoring](planning/epics/E8-ongoing-in-season-monitoring.md) |
 | Environment variables and secrets handling | [`environment.md`](environment.md) |
 | FPL scoring, prices, chips; the FPL API | The `fpl-rules` and `fpl-api` skills in `.claude/skills/` |
