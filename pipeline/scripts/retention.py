@@ -12,6 +12,7 @@ Usage (run from the repo root, with `bronze_dir` pointing at a checked-out bronz
 
     python pipeline/scripts/retention.py rolling <bronze_dir> --remote <url>
     python pipeline/scripts/retention.py permanent <payload> --remote <url> --gameweek 3
+    python pipeline/scripts/retention.py permanent <payload> --remote <url> --name <run_id>
     python pipeline/scripts/retention.py archive <bronze_dir> --remote <url>
 
 Both subcommands push to a real remote. `--dry-run` runs the same planning and staging logic
@@ -83,14 +84,14 @@ def _bronze_paths(bronze_dir: Path) -> list[str]:
 
 
 def _immutable(bronze_dir: Path, paths: list[str]) -> frozenset[str]:
-    """Snapshots whose lineage says they can never change, with their sidecars."""
+    """Snapshots whose lineage says they never change or must be kept (`retain`), with sidecars."""
     keep: set[str] = set()
     for sidecar in (p for p in paths if p.endswith(META_SUFFIX)):
         try:
-            immutable = json.loads((bronze_dir / sidecar).read_text(encoding="utf-8"))["immutable"]
-        except OSError, ValueError, KeyError:
+            lineage = json.loads((bronze_dir / sidecar).read_text(encoding="utf-8"))
+        except OSError, ValueError:
             continue  # unreadable lineage proves nothing; the window decides
-        if immutable is True:
+        if lineage.get("immutable") is True or lineage.get("retain") is True:
             keep.update({sidecar, sidecar[: -len(META_SUFFIX)]})
     return frozenset(keep)
 
@@ -300,43 +301,61 @@ def append_permanent_snapshot(
     remote: str,
     branch: str,
     source: str,
-    gameweek: int,
     payload_path: Path,
+    gameweek: int | None = None,
+    name: str | None = None,
     dry_run: bool = False,
 ) -> bool:
-    """Append one source/gameweek snapshot to the append-only `snapshots` branch.
+    """Append one snapshot to an append-only branch, as ``{source}/gw{NN}`` or ``{source}/{name}``.
 
     Returns ``False`` (a no-op, not an error) if this exact snapshot is already present — running
-    the same gameweek twice must not grow the branch, since it is meant to be kept forever.
+    the same gameweek twice must not grow the branch, since it is meant to be kept forever. A
+    gameweek's file is rewritten when its bytes change (the advice ledger re-advises an open
+    gameweek); a named file never is: different bytes under an existing name raise (MOD-08's
+    experiments records, keyed by run).
     """
-    destination_relative = f"{source}/gw{gameweek:02d}{payload_path.suffix}"
-    branch_exists = _checkout_branch(checkout_dir, remote, branch)
+    if (gameweek is None) == (name is None):
+        raise ValueError("give exactly one of gameweek and name")
+    key = f"gw{gameweek:02d}" if gameweek is not None else str(name)
+    destination_relative = f"{source}/{key}{payload_path.suffix}"
+    # The backtest and the pipeline both append to `ledger`: a push that loses the race starts
+    # again from the moved branch rather than failing the job.
+    for attempt in range(1, PUSH_ATTEMPTS + 1):
+        branch_exists = _checkout_branch(checkout_dir, remote, branch)
 
-    destination = checkout_dir / destination_relative
-    if destination.exists() and destination.read_bytes() == payload_path.read_bytes():
-        return False  # already recorded, identical bytes — nothing to append
+        destination = checkout_dir / destination_relative
+        if destination.exists() and destination.read_bytes() == payload_path.read_bytes():
+            return False  # already recorded, identical bytes — nothing to append
+        if destination.exists() and name is not None:
+            raise FileExistsError(f"{branch}:{destination_relative} exists with other bytes")
 
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(payload_path, destination)
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(payload_path, destination)
 
-    if dry_run:
-        return True
+        if dry_run:
+            return True
 
-    try:
-        _commit_all(checkout_dir, f"snapshots: {source} gw{gameweek}")
-    except GitError as exc:
-        # `git commit` on a clean tree is the same fact the byte-comparison above already checks
-        # for, reached by a different path (e.g. `git add` normalising line endings or file mode
-        # so the working tree ends up byte-identical to what was already committed even though the
-        # two `read_bytes()` calls above compared unequal). Belt and braces: the append-only
-        # contract is "this exact snapshot ends up recorded once", not "this exact code path was
-        # the one that achieved it".
-        if "nothing to commit" not in str(exc):
-            raise
-        return False
+        try:
+            _commit_all(checkout_dir, f"snapshots: {source} {key}")
+        except GitError as exc:
+            # `git commit` on a clean tree is the same fact the byte-comparison above already
+            # checks for, reached by a different path (e.g. `git add` normalising line endings or
+            # file mode so the working tree ends up byte-identical to what was already committed
+            # even though the two `read_bytes()` calls above compared unequal). Belt and braces:
+            # the append-only contract is "this exact snapshot ends up recorded once", not "this
+            # exact code path was the one that achieved it".
+            if "nothing to commit" not in str(exc):
+                raise
+            return False
 
-    _push(checkout_dir, remote, branch, branch_exists)
-    return True
+        try:
+            _push(checkout_dir, remote, branch, branch_exists)
+            return True
+        except GitError as exc:
+            if "rejected" not in str(exc) and "fetch first" not in str(exc):
+                raise
+            print(f"permanent: {branch} moved during this run; appending again ({attempt})")
+    raise GitError(f"{branch} kept moving; gave up after {PUSH_ATTEMPTS} attempts")
 
 
 def _checkout_branch(checkout_dir: Path, remote: str, branch: str) -> bool:
@@ -477,12 +496,14 @@ def _build_parser() -> argparse.ArgumentParser:
     restore.add_argument("--remote", default="origin")
     restore.add_argument("--branch", default="data")
 
-    permanent = sub.add_parser("permanent", help="Append one snapshot to `snapshots`")
+    permanent = sub.add_parser("permanent", help="Append one snapshot to an append-only branch")
     permanent.add_argument("payload_path", type=Path)
     permanent.add_argument("--remote", required=True)
     permanent.add_argument("--branch", default="snapshots")
     permanent.add_argument("--source", required=True)
-    permanent.add_argument("--gameweek", type=int, required=True)
+    key = permanent.add_mutually_exclusive_group(required=True)
+    key.add_argument("--gameweek", type=int)
+    key.add_argument("--name", help="Key the file by name (a run id); never overwritten")
     permanent.add_argument("--checkout-dir", type=Path, default=Path(".snapshots-staging"))
     permanent.add_argument("--dry-run", action="store_true")
 
@@ -548,6 +569,7 @@ def main(argv: list[str] | None = None) -> int:
         branch=args.branch,
         source=args.source,
         gameweek=args.gameweek,
+        name=args.name,
         payload_path=args.payload_path,
         dry_run=args.dry_run,
     )

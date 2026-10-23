@@ -7,7 +7,11 @@ shares one schema and one accessor.
 - One row per fixture (season, home club, away club): the latest capture knowable when the fixture
   was decided — before its gameweek deadline where the gameweek is known, otherwise before kickoff.
   A later capture would be look-ahead (Invariant 5).
-- Clubs carry their permanent code, by each row's season (REM-05).
+- Clubs carry their permanent code, by each row's season (REM-05). A current-season row a source
+  wrote with club names only is matched to its club by name.
+
+:func:`club_coded` and :func:`knowable` are the rule itself, pure, so a forecaster that reads silver
+odds (A_odds, MOD-05) applies the same one (DP-14).
 """
 
 from __future__ import annotations
@@ -18,9 +22,10 @@ from pathlib import Path
 import pandas as pd
 
 from fpl_dof.frames import as_int
-from fpl_dof.gold.player_career import _season_from_path, club_codes, to_club_code
+from fpl_dof.gold.player_career import _season_from_path, to_club_code
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.silver.tables import Table
+from fpl_dof.sources import resolve_team
 
 log = get_logger(__name__)
 
@@ -58,6 +63,13 @@ MATCH_ODDS_COLUMNS: tuple[str, ...] = (
 _FIXTURE = ["season", "home_team_code", "away_team_code"]
 
 
+def _teams(partition: Path) -> pd.DataFrame:
+    path = partition / f"{Table.TEAM.value}.parquet"
+    if not path.exists():
+        return pd.DataFrame(columns=["team_id", "code", "name"])
+    return pd.read_parquet(path, columns=["team_id", "code", "name"])
+
+
 def _fixtures(partition: Path, season: str, codes: dict[int, int]) -> pd.DataFrame:
     """The partition season's fixtures by club code, with each one's gameweek deadline."""
     fixture_path = partition / f"{Table.FIXTURE.value}.parquet"
@@ -74,6 +86,43 @@ def _fixtures(partition: Path, season: str, codes: dict[int, int]) -> pd.DataFra
         home_team_code=fixtures["home_team_id"].map(codes).astype("Int64"),
         away_team_code=fixtures["away_team_id"].map(codes).astype("Int64"),
     )[[*_FIXTURE, "fixture_id", "gameweek", "deadline_time"]]
+
+
+def club_coded(odds: pd.DataFrame, season: str, teams: pd.DataFrame) -> pd.DataFrame:
+    """``odds`` with ``home_team_code`` and ``away_team_code``, rows with an unknown club dropped.
+
+    A row's ids are the archive's permanent codes in a past season and season-local ids in
+    ``season`` (D-26), mapped through ``teams`` (that season's ``team_id``, ``code``, ``name``). A
+    current-season row with no id is matched by its club name.
+    """
+    codes = {int(t): int(c) for t, c in zip(teams["team_id"], teams["code"], strict=True)}
+    named = [{"name": n, "id": c} for n, c in zip(teams["name"], teams["code"], strict=True)]
+    current = odds["season"] == season
+    out = odds.copy()
+    for side in ("home", "away"):
+        coded = to_club_code(odds[f"{side}_team_id"], odds["season"], season, codes)
+        names = odds.loc[current, f"{side}_team"].astype(str)
+        by_name = names.map({n: resolve_team(n, named) for n in names.unique()})
+        out[f"{side}_team_code"] = coded.fillna(by_name.astype("Int64")).astype("Int64")
+    return out.dropna(subset=["home_team_code", "away_team_code"])
+
+
+def knowable(odds: pd.DataFrame, fixtures: pd.DataFrame) -> pd.DataFrame:
+    """One row per fixture: its latest capture at or before its gameweek's deadline, or before
+    kickoff where the gameweek is unknown. A later capture would be look-ahead (Invariant 5).
+
+    ``odds`` are :func:`club_coded`; ``fixtures`` carry ``season``, ``home_team_code``,
+    ``away_team_code``, ``fixture_id``, ``gameweek`` and ``deadline_time``. Where two clubs meet
+    more than once in ``fixtures``, a capture belongs to their next meeting: the earliest whose
+    deadline it precedes.
+    """
+    joined = odds.assign(_capture=range(len(odds))).merge(fixtures, on=_FIXTURE, how="left")
+    cutoff = joined["deadline_time"].fillna(joined["kickoff_time"])
+    eligible = joined[joined["captured_at"] <= cutoff].sort_values("deadline_time", kind="stable")
+    eligible = eligible.drop_duplicates("_capture", keep="first")
+    latest = eligible.sort_values("captured_at", kind="stable")
+    latest = latest.drop_duplicates([*_FIXTURE, "fixture_id"], keep="last")
+    return latest.drop(columns="_capture").reset_index(drop=True)
 
 
 def build_team_match_odds(
@@ -94,15 +143,9 @@ def build_team_match_odds(
         if odds.empty:
             continue
 
-        codes = club_codes(partition)
-        odds["home_team_code"] = to_club_code(odds["home_team_id"], odds["season"], season, codes)
-        odds["away_team_code"] = to_club_code(odds["away_team_id"], odds["season"], season, codes)
-        odds = odds.dropna(subset=["home_team_code", "away_team_code"])
-        odds = odds.merge(_fixtures(partition, season, codes), on=_FIXTURE, how="left")
-
-        cutoff = odds["deadline_time"].fillna(odds["kickoff_time"])
-        knowable = odds[odds["captured_at"] <= cutoff]
-        latest = knowable.sort_values("captured_at").groupby(_FIXTURE, as_index=False).last()
+        teams = _teams(partition)
+        codes = {int(t): int(c) for t, c in zip(teams["team_id"], teams["code"], strict=True)}
+        latest = knowable(club_coded(odds, season, teams), _fixtures(partition, season, codes))
         frames.append(latest.rename(columns=_RENAMED)[list(MATCH_ODDS_COLUMNS)])
 
     odds_df = (

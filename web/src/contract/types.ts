@@ -856,7 +856,10 @@ export interface LogReconciliation {
 
 export interface LogHindsight {
   rankings: LogModelRank[];
-  optimal: LogHindsightOptimal;
+  /** Null when the squad state (bank, free transfers) was not recorded for the gameweek: the rankings need neither, the optimal does. */
+  optimal: LogHindsightOptimal | null;
+  /** Why optimal is null, in words. Absent when optimal is present. */
+  optimal_unavailable_reason?: string;
   diagnostics: LogOracleDiagnostic[];
 }
 
@@ -995,6 +998,8 @@ export interface ModelGameweek {
   advice: Record<string, ModelAdvice>;
   /** Null until the gameweek is finished and scored. */
   actual: Record<string, ModelActual> | null;
+  /** Where this gameweek's advice and points come from: the retired frozen harness, or the live ledger scored on the owner's real squad. Absent means frozen. */
+  record?: "frozen" | "live";
   /** A dry-run preview of current advice, published before the frozen decision exists and replaced by it at the decision window. Never scored. Absent means false. */
   provisional?: boolean;
 }
@@ -1016,6 +1021,8 @@ export interface Models {
   season: string;
   /** The model id whose advice is live. */
   champion: string;
+  /** The first gameweek recorded live. Earlier gameweeks are the retired frozen harness's virtual seasons; later ones are each strategy's advice on the owner's real squad (DL-87, DL-89). Null when the frozen record decided nothing. Absent means null. */
+  switch_gameweek?: number | null;
   frozen: {
     tag: string | null;
     code_commit: string | null;

@@ -40,5 +40,10 @@ class ForecastInputs:
     metrics: pd.DataFrame | None = None
     """The conformed advanced table, when a source supplies one. Feeds the prior-season prior."""
 
+    match_odds: pd.DataFrame | None = None
+    """Silver ``team_match_expectation``: every capture of every fixture's market expectations,
+    for this season and the seasons before it. What A_odds reads; absent unless an odds source
+    is enabled."""
+
 
 __all__ = ["ForecastInputs"]

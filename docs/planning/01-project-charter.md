@@ -3,7 +3,7 @@
 **Project:** FPL DOF — a decision-support platform for Fantasy Premier League
 **Season in scope:** 2026/27 (21 August 2026 – 30 May 2027)
 **Document status:** Baselined 2026-08-09 · **Version 1.2**, revised 2026-10-17 · R1.0 delivered;
-R1.1.0 and R1.1.1 tagged; R1.2.0 open ([release register](epics/README.md))
+R1.1.0, R1.1.1, R1.2.0 and R1.2.1 tagged; R1.2.2 open ([release register](epics/README.md))
 **Owner / sole stakeholder:** Repository owner (also the FPL manager whose team it serves)
 
 ---

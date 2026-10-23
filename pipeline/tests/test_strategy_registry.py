@@ -40,7 +40,7 @@ def _entry(sid: str, **over: Any) -> dict[str, Any]:
         "role": "challenger",
         "published": over.get("role") == "champion",
         "aliases": [],
-        "forecaster": {"type": "recipe", "model": "xp_v1", "training_window": "w"},
+        "forecaster": {"type": "recipe", "model": "xp_v1", "training_window": "current_season"},
         "policy": {"captain_rule": "price_position", "plan": False},
         "requires": ["player_gameweek"],
     }
@@ -63,8 +63,16 @@ def test_shipped_registry_has_exactly_one_champion_and_unique_ids() -> None:
 
 def test_shipped_registry_names_the_dl87_strategies() -> None:
     assert champion().id == "c3"
-    assert {s.id for s in published_strategies()} == {"c3", "c1"}
-    assert {s.id for s in strategies()} == {"c3", "c1", "engine", "a", "a_odds"}
+    assert {s.id for s in published_strategies()} == {"c3", "c1", "engine", "a", "a_odds"}
+    # Beside them, the MOD-09 experiments, retired once graded (DL-91): registered, never advised.
+    assert {s.id for s in strategies()} - {"c3_f1", "c3_f3"} == {
+        "c3",
+        "c1",
+        "engine",
+        "a",
+        "a_odds",
+    }
+    assert {s.id for s in strategies() if s.role == "experiment"} == set()
 
 
 def test_aliases_resolve_legacy_keys_to_registry_ids() -> None:
@@ -186,15 +194,9 @@ def test_an_unpublished_champion_is_refused(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     "forecaster",
     [
-        {"type": "frozen", "model": "xp_v1", "training_window": "w"},
-        {
-            "type": "recipe",
-            "model": "xp_v1",
-            "config": {"discrimination": {"minutes_v2": False}},
-            "training_window": "w",
-        },
+        {"type": "frozen", "model": "xp_v1", "training_window": "current_season"},
     ],
-    ids=["frozen", "config-overrides"],
+    ids=["frozen"],
 )
 def test_a_published_strategy_must_be_one_strategy_forecast_can_run(
     tmp_path: Path, forecaster: dict[str, Any]
@@ -210,6 +212,33 @@ def test_unpublished_strategy_may_name_a_model_not_yet_ported(tmp_path: Path) ->
     later = _entry("y")
     later["forecaster"] = later["forecaster"] | {"type": "frozen", "model": "not_ported"}
     assert len(load_registry(_write(tmp_path, _entry("x", role="champion"), later))) == 2
+
+
+def test_forecaster_config_overrides_are_validated_against_the_forecast_config(
+    tmp_path: Path,
+) -> None:
+    ok = _entry("y")
+    ok["forecaster"] = ok["forecaster"] | {"config": {"discrimination": {"minutes_v2": False}}}
+    assert len(load_registry(_write(tmp_path / "ok", _entry("x", role="champion"), ok))) == 2
+    bad = _entry("y")
+    bad["forecaster"] = bad["forecaster"] | {"config": {"discrimination": {"no_such_flag": 1}}}
+    with pytest.raises(RegistryError, match="no_such_flag"):
+        load_registry(_write(tmp_path / "bad", _entry("x", role="champion"), bad))
+
+
+def test_the_digest_covers_the_forecaster_config_overrides(config: Config) -> None:
+    engine = load_strategy("engine")
+    other = engine.model_copy(
+        update={"forecaster": engine.forecaster.model_copy(update={"config": {}})}
+    )
+    assert digest(engine, config) != digest(other, config)
+
+
+def test_an_unknown_training_window_is_refused(tmp_path: Path) -> None:
+    bad = _entry("x", role="champion")
+    bad["forecaster"] = bad["forecaster"] | {"training_window": "knowable_at_deadline"}
+    with pytest.raises(RegistryError, match="training_window"):
+        load_registry(_write(tmp_path, bad))
 
 
 def test_an_invalid_file_is_refused(tmp_path: Path) -> None:
@@ -246,6 +275,7 @@ def test_strategies_json_validates_and_lists_every_registry_file(config: Config)
     # The app reads each strategy's week and plan from here, never from a name it builds (MOD-07).
     assert listed["c3"]["artefacts"] == {"week": "week.json", "plan": "plan.json"}
     assert listed["c1"]["artefacts"] == {"week": "week_c1.json", "plan": None}
+    assert listed["engine"]["artefacts"] == {"week": "week_engine.json", "plan": None}
     unpublished = [s for s in payload["strategies"] if not s["published"]]
     assert all(s["artefacts"] == {"week": None, "plan": None} for s in unpublished)
 
@@ -258,19 +288,15 @@ def test_week_json_names_the_champion_by_registry_id_and_digest(config: Config) 
 
 
 def test_publish_finds_strategy_files_nothing_writes_any_more(tmp_path: Path) -> None:
-    # The pre-MOD-04 challenger file, an unpublished strategy's pair, one no longer registered, and
-    # C1's plan now that its policy does not plan: each a false statement about the present.
-    stale = ["week_challenger.json", "week_a.json", "plan_a.json", "week_gone.json", "plan_c1.json"]
+    # The pre-MOD-04 challenger file, one no longer registered, and the plans of strategies whose
+    # policy does not plan (A, C1): each a false statement about the present.
+    stale = ["week_challenger.json", "plan_a.json", "week_gone.json", "plan_c1.json"]
     for name in ["week.json", "plan.json", "week_c1.json", "players.json", *stale]:
         (tmp_path / name).write_text("{}", encoding="utf-8")
     assert sorted(publish.stale_strategy_files(tmp_path)) == sorted(stale)
 
 
 # --- one home: no model id or label is defined outside the registry -------------------------
-
-#: The frozen harness keeps its own keys until MOD-06 switches it off (DL-87): its input check
-#: names each frozen model's needs by harness key, and the bundle is a byte-frozen copy.
-FROZEN_HARNESS = {SRC / "prospective" / "freshness.py"}
 
 
 def _names() -> set[str]:
@@ -300,11 +326,7 @@ def _all_strings(path: Path) -> set[str]:
 
 
 def _python() -> list[Path]:
-    return [
-        p
-        for p in SRC.rglob("*.py")
-        if "factory" not in p.relative_to(SRC).parts and p not in FROZEN_HARNESS
-    ]
+    return [p for p in SRC.rglob("*.py") if "factory" not in p.relative_to(SRC).parts]
 
 
 def test_no_python_module_defines_a_strategy_id_or_alias() -> None:

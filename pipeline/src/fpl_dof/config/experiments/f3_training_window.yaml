@@ -1,0 +1,27 @@
+# A declared experiment (MOD-09, 05 section 5.3). The loader is fpl_dof.factory.experiments.load_declared.
+id: f3_training_window
+hypothesis: >
+  The champion trains on the current season only, while the backtest it is judged by pools prior
+  seasons. Training live on every season would add rows early in the season, when the current
+  season has few, and make the graded model the shipped model.
+falsifier: >
+  c3_f3 does not improve on c3 in the held-out season: the paired mean delta in MAE or Spearman is
+  not better with a 95% bootstrap interval that excludes zero.
+baseline: c3
+variant: c3_f3
+metrics: [mae, spearman]
+decision_rule: >
+  A model change (E8 section 5): promoted only if condition 1 (held-out regression improves),
+  condition 2 (six shadow gameweeks live without degrading) and condition 3 (explicable in advance)
+  all hold; otherwise rejected, or extended while the shadow gameweeks accrue. The owner decides.
+length: walk-forward over backtest.training_seasons, then at least six live shadow gameweeks
+graded_by: both
+decision: rejected
+results: >
+  Local walk-forward, 2024/25 to 2025/26, 68 folds, 20,573 scored rows (2026-10-23). c3_f3 minus
+  c3, mean per gameweek with 95% bootstrap interval - MAE +0.01189 [+0.00712, +0.01665] (worse),
+  Spearman -0.01736 [-0.02466, -0.01006] (worse), top-N precision -0.00221 [-0.01176, +0.00588].
+  Pooled MAE 1.9175 against 1.9056, Spearman 0.2628 against 0.2823, calibration slope 0.718
+  against 0.758. All-seasons training is significantly worse on the held-out seasons.
+  CI record ledger:experiments/20261023T025830Z-e93622d9.json reproduces it (MAE +0.01199, Spearman -0.01680, both
+  significant). Rejected by the owner (DL-91).

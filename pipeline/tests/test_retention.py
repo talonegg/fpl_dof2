@@ -334,6 +334,80 @@ def test_append_permanent_snapshot_writes_no_index(tmp_path: Path) -> None:
     assert not (clone / "index.json").exists()
 
 
+def test_a_named_ledger_record_is_appended_and_never_overwritten(tmp_path: Path) -> None:
+    """MOD-08: experiments records are keyed by run, so a run never replaces another's record."""
+    retention = _scripts_retention()
+    bare = tmp_path / "remote.git"
+    _git("init", "--bare", str(bare), cwd=tmp_path)
+
+    def append(name: str, body: str) -> bool:
+        payload = tmp_path / "record.json"
+        payload.write_text(body, encoding="utf-8")
+        appended: bool = retention.append_permanent_snapshot(
+            checkout_dir=tmp_path / "checkout",
+            payload_path=payload,
+            remote=str(bare),
+            branch="ledger",
+            source="experiments",
+            name=name,
+        )
+        return appended
+
+    assert append("20261027T161700Z-aaaa", "[1]")
+    assert append("20261103T161700Z-bbbb", "[2]")
+    assert not append("20261103T161700Z-bbbb", "[2]")  # the same bytes again: a no-op
+    with pytest.raises(FileExistsError):
+        append("20261027T161700Z-aaaa", "[3]")
+
+    clone = tmp_path / "clone"
+    _git("clone", "--branch", "ledger", str(bare), str(clone), cwd=tmp_path)
+    records = clone / "experiments"
+    assert (records / "20261027T161700Z-aaaa.json").read_text(encoding="utf-8") == "[1]"
+    assert (records / "20261103T161700Z-bbbb.json").read_text(encoding="utf-8") == "[2]"
+
+
+def test_a_ledger_append_that_loses_a_push_race_appends_again(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The backtest and the pipeline both append to `ledger`; the loser retries, nothing is lost."""
+    retention = _scripts_retention()
+    bare = tmp_path / "remote.git"
+    _git("init", "--bare", str(bare), cwd=tmp_path)
+
+    def append(checkout: str, source: str, body: str) -> bool:
+        payload = tmp_path / f"{checkout}.json"
+        payload.write_text(body, encoding="utf-8")
+        appended: bool = retention.append_permanent_snapshot(
+            checkout_dir=tmp_path / checkout,
+            payload_path=payload,
+            remote=str(bare),
+            branch="ledger",
+            source=source,
+            name="r1",
+        )
+        return appended
+
+    append("seed", "seed", "[0]")
+    real_push = retention._push
+    raced: list[bool] = []
+
+    def push_after_a_rival(*args: object) -> None:
+        if not raced:
+            raced.append(True)
+            monkeypatch.setattr(retention, "_push", real_push)
+            append("rival", "advice", "[1]")  # lands while this run is between checkout and push
+            monkeypatch.setattr(retention, "_push", push_after_a_rival)
+        real_push(*args)
+
+    monkeypatch.setattr(retention, "_push", push_after_a_rival)
+    assert append("mine", "experiments", "[2]")
+    assert "appending again (1)" in capsys.readouterr().out
+    clone = tmp_path / "clone"
+    _git("clone", "--branch", "ledger", str(bare), str(clone), cwd=tmp_path)
+    assert (clone / "advice" / "r1.json").read_text(encoding="utf-8") == "[1]"
+    assert (clone / "experiments" / "r1.json").read_text(encoding="utf-8") == "[2]"
+
+
 def _price_rows(day: int) -> pd.DataFrame:
     return pd.DataFrame(
         {
@@ -454,6 +528,32 @@ def test_immutable_prior_season_bronze_outlives_the_window(tmp_path: Path) -> No
         "2024-25__x.csv.gz.meta.json",
     ]
     assert counts["pruned"] == 2
+
+
+def test_retained_captures_outlive_the_window_and_unretained_ones_do_not(tmp_path: Path) -> None:
+    """DL-87: every fdcouk capture is kept whatever its age; an old non-retained one is pruned."""
+    rebuild_rolling_branch = _scripts_retention().rebuild_rolling_branch
+    day = tmp_path / "data" / "bronze" / "fdcouk" / "fixtures" / "2026-07-01"
+    day.mkdir(parents=True)
+    for name, retain in (("kept__x.csv.gz", True), ("pruned__x.csv.gz", False)):
+        (day / name).write_bytes(b"payload")
+        (day / f"{name}.meta.json").write_text(
+            json.dumps({"immutable": False, "retain": retain}), encoding="utf-8"
+        )
+    staging = tmp_path / "staging"
+    rebuild_rolling_branch(
+        bronze_dir=tmp_path / "data" / "bronze",
+        staging_dir=staging,
+        remote="dummy",
+        window_days=30,
+        today=dt.date(2026, 10, 20),
+        dry_run=True,
+    )
+    staged = staging / "bronze" / "fdcouk" / "fixtures" / "2026-07-01"
+    assert sorted(p.name for p in staged.iterdir()) == [
+        "kept__x.csv.gz",
+        "kept__x.csv.gz.meta.json",
+    ]
 
 
 def test_the_rolling_window_is_read_from_configuration(

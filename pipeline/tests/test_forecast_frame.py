@@ -21,7 +21,7 @@ from conftest import before_next_deadline
 from decisions import OPTIMISER, decision, fixture_table, forecast, pool, state
 from fpl_dof.config.models import Config, TransferConfig
 from fpl_dof.factory.registry import champion, digest, load_strategy
-from fpl_dof.forecast import Forecast, ForecastInputs, publishable
+from fpl_dof.forecast import ForecastInputs, publishable
 from fpl_dof.forecast.xp_v0 import MODEL_NAME as XP_V0
 from fpl_dof.forecast.xp_v1 import MODEL_NAME as XP_V1
 from fpl_dof.optimise.captain import PricePositionLine, pick_captains
@@ -30,7 +30,6 @@ from fpl_dof.optimise.plan import build_plan
 from fpl_dof.optimise.squad import optimise_squad
 from fpl_dof.optimise.transfer import recommend_transfers
 from fpl_dof.rules.models import GameRules
-from fpl_dof.shadow import c1
 from test_xp_v1_live import (
     CONFIG,
     TEAMS,
@@ -126,10 +125,12 @@ def test_the_champion_strategy_stamps_a_valid_frame_that_survives_parquet(
 def test_a_strategy_without_a_live_forecaster_says_so(
     game_rules: GameRules, config: Config
 ) -> None:
-    with pytest.raises(NotImplementedError, match="a"):
-        load_strategy("a").forecast(
-            _snapshot(8), game_rules, config.model_copy(update={"forecast": CONFIG})
-        )
+    strategy = load_strategy("a")
+    frozen = strategy.model_copy(
+        update={"forecaster": strategy.forecaster.model_copy(update={"type": "frozen"})}
+    )
+    with pytest.raises(NotImplementedError, match="frozen"):
+        frozen.forecast(_snapshot(8), game_rules, config.model_copy(update={"forecast": CONFIG}))
 
 
 def test_the_captain_line_refuses_an_unknown_position_or_a_non_finite_number() -> None:
@@ -182,13 +183,10 @@ def _entry_points(rules: GameRules) -> dict[str, Callable[[pd.DataFrame], object
             optimiser=OPTIMISER,
             fixtures=fixture_table(squad, GAMEWEEKS),
         ),
-        "c1": lambda f: c1.forecast(
-            _snapshot(8), rules, CONFIG, Forecast(frame=f, model="xp_v1", fallback_reason=None)
-        ),
     }
 
 
-@pytest.mark.parametrize("entry", ["recommend_transfers", "optimise_squad", "build_plan", "c1"])
+@pytest.mark.parametrize("entry", ["recommend_transfers", "optimise_squad", "build_plan"])
 def test_every_engine_entry_point_refuses_a_frame_without_variance(
     game_rules: GameRules, entry: str
 ) -> None:
@@ -202,8 +200,8 @@ def test_every_engine_entry_point_refuses_a_frame_without_variance(
 
 
 def test_the_week_reads_the_captain_line_the_forecast_stage_wrote(tmp_path: Path) -> None:
+    from fpl_dof.artefacts import CAPTAIN_LINE_FILENAME
     from fpl_dof.stages import week
-    from fpl_dof.stages.forecast import CAPTAIN_LINE_FILENAME
 
     line = PricePositionLine(
         intercept_by_position={"MID": 1.0}, slope_by_position={"MID": 2.0}, fallback=0.5

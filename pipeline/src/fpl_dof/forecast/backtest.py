@@ -24,11 +24,12 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field, replace
-from typing import Protocol, runtime_checkable
+from typing import Literal, Protocol, runtime_checkable
 
+import numpy as np
 import pandas as pd
 
-from fpl_dof.config.models import BacktestConfig, ForecastConfig
+from fpl_dof.config.models import BacktestConfig, FeatureConfig, ForecastConfig
 from fpl_dof.forecast import baselines
 from fpl_dof.forecast.features import (
     FIXTURE_AT_HOME,
@@ -43,14 +44,16 @@ from fpl_dof.forecast.metrics import (
     MINUTES_BANDS,
     MetricSet,
     MinutesCalibration,
+    PairedDelta,
     evaluate,
     evaluate_minutes,
     head_size_by_position,
     minutes_band,
+    paired_deltas,
 )
 from fpl_dof.forecast.models import RATE_COMPONENTS, TeamStrengthModel
 from fpl_dof.forecast.monolith import MonolithPredictor, gap_by_position, gap_statement, head_gap
-from fpl_dof.forecast.xp_v1 import ComponentPredictor, team_matches
+from fpl_dof.forecast.xp_v1 import team_matches
 from fpl_dof.frames import as_int
 from fpl_dof.obs.logging import get_logger
 
@@ -173,6 +176,27 @@ class BacktestResult:
     """M1 against the E0 status-flag haircut (E10-S1, closes D-14). ``None`` when the predictor has
     no minutes model to calibrate, which is an absence rather than a failure."""
 
+    champion: str = "model"
+    """The first entrant's id: what ``model`` measures and every pair is taken against."""
+
+    strategies: Mapping[str, MetricSet] = field(default_factory=dict)
+    """Every entrant, champion first, each measured against B0 on the same scored rows (MOD-08)."""
+
+    training_windows: Mapping[str, str] = field(default_factory=dict)
+
+    paired: Mapping[str, Mapping[str, PairedDelta]] = field(default_factory=dict)
+    """Each challenger minus the champion, per gameweek, with a seeded bootstrap CI (MOD-08)."""
+
+    def data_window(self) -> dict[str, object]:
+        """The seasons and gameweeks graded: the same folds for every entrant."""
+        first, last = self.folds[0], self.folds[-1]
+        return {
+            "seasons": sorted({fold.season for fold in self.folds}),
+            "first": {"season": first.season, "gameweek": first.gameweek},
+            "last": {"season": last.season, "gameweek": last.gameweek},
+            "folds": len(self.folds),
+        }
+
     @property
     def beats_b0(self) -> bool:
         """Does the forecast add anything beyond price and position?"""
@@ -276,20 +300,100 @@ class BacktestResult:
             ),
             "verdict": self.verdict(),
             "warnings": list(self.warnings),
+            "champion": self.champion,
+            "data_window": self.data_window(),
+            "strategies": {
+                sid: {
+                    "training_window": self.training_windows.get(sid),
+                    "metrics": metrics.as_dict(),
+                    "paired_vs_champion": (
+                        None
+                        if sid == self.champion
+                        else {m: d.as_dict() for m, d in self.paired.get(sid, {}).items()}
+                    ),
+                }
+                for sid, metrics in self.strategies.items()
+            },
         }
 
 
-class Predictor(Protocol):
-    """What the harness needs from a model, and nothing more.
+class StrategyPredictor(Protocol):
+    """What the harness needs from a strategy's forecaster (``Strategy.predictor``), and no more.
 
     A Protocol rather than a base class on purpose: the harness must be able to score anything,
     including a model that does not exist yet, without that model having to import the harness. It
-    also means a two-line stub is a valid predictor, which is what makes the leakage tests possible.
+    also means a two-method stub is a valid predictor, which is what makes the leakage tests
+    possible.
+
+    ``fit_as_of`` gets the entrant's history (already cut to its training window), the fold's
+    deadline, the harness's training rows built from that same history and the season being
+    predicted, so a forecaster that builds its own features (C1) fits on what the live run fits on.
+    ``predict`` then scores the fold's visible rows, from which every outcome is stripped, for
+    the fold's ``gameweek``: a fit is reused for ``backtest.refit_every_gameweeks`` folds, so the
+    gameweek cannot be read off the fitted history.
     """
 
-    def fit(self, training: pd.DataFrame) -> None: ...
+    def fit_as_of(
+        self,
+        history: pd.DataFrame,
+        deadline: pd.Timestamp,
+        *,
+        training: pd.DataFrame | None = None,
+        season: str,
+    ) -> None: ...
 
-    def predict(self, features: pd.DataFrame) -> pd.Series: ...
+    def predict(self, features: pd.DataFrame, *, gameweek: int) -> pd.Series: ...
+
+
+#: Which seasons a strategy is fitted on and featured from (DL-89 item 4), as its registry entry
+#: declares it.
+TrainingWindow = Literal["current_season", "all_seasons"]
+
+
+@dataclass(frozen=True, slots=True)
+class Entrant:
+    """One strategy the harness grades: its id, its forecaster and its training window."""
+
+    id: str
+    predictor: StrategyPredictor
+    training_window: TrainingWindow = "all_seasons"
+    features: FeatureConfig | None = None
+    """Its own feature-store config, when a registry override changes the features it reads (F1);
+    ``None`` reads the harness's. Without this an override on ``forecast.features`` would reach the
+    predictor's fit but never the rows it is fitted and scored on."""
+
+
+#: What a set of fold rows is built from: a training window and the JSON of the feature config
+#: behind them (a config holds a dict, so it cannot key a mapping itself).
+View = tuple[TrainingWindow, str]
+
+
+def prediction_column(entrant_id: str) -> str:
+    """The fold-frame column holding one entrant's prediction."""
+    return f"{MODEL_COLUMN}_{entrant_id}"
+
+
+def _place(
+    values: pd.Series,
+    rows: Mapping[View, pd.DataFrame],
+    view: View,
+    *,
+    into: pd.DataFrame,
+) -> np.ndarray:
+    """``view``'s per-row values onto ``into`` (the harness's own rows), matched by player and
+    fixture; a row the view lacks is NaN."""
+    own = rows[view]
+    if own is into:
+        return values.to_numpy(dtype=float)
+    keys = [key for key in ("player_code", "fixture_id") if key in own.columns]
+    keyed = own[keys].assign(_value=values.to_numpy(dtype=float))
+    return into[keys].merge(keyed, on=keys, how="left")["_value"].to_numpy(dtype=float)
+
+
+def _window(frame: pd.DataFrame, window: TrainingWindow, season: str) -> pd.DataFrame:
+    """``frame`` cut to what a strategy with ``window`` sees when it forecasts ``season``: live, a
+    ``current_season`` strategy's per-gameweek history is the current season's alone."""
+    return frame[frame["season"] == season] if window == "current_season" else frame
 
 
 @runtime_checkable
@@ -350,19 +454,32 @@ def deadlines_for(history: pd.DataFrame) -> list[tuple[str, int, pd.Timestamp]]:
 
 def walk_forward(
     history: pd.DataFrame,
-    predictor: Predictor,
+    entrants: Sequence[Entrant],
     *,
     forecast_config: ForecastConfig,
     backtest_config: BacktestConfig,
     seasons: Sequence[str] | None = None,
     metrics: pd.DataFrame | None = None,
 ) -> BacktestResult:
-    """Replay the seasons one deadline at a time, refitting everything at each step.
+    """Replay the seasons one deadline at a time, refitting at each step, for every entrant.
+
+    **The first entrant is the champion**: ``model`` measures it against the harness's baselines
+    (DL-21's verdict), and every other entrant is paired against it gameweek by gameweek (MOD-08).
+    Every entrant is graded on the same folds and the same rows, so the pairs are paired.
+
+    Each entrant sees only its training window: a ``current_season`` strategy's features, training
+    rows and fit are built from the fold's own season, as they are live (F3). A fold is graded only
+    when every window holds ``minimum_training_matches`` played gameweeks, and only on the rows
+    every entrant predicted.
 
     ``metrics`` is the conformed advanced table, passed straight through to the feature store. The
     harness does not filter it and must not: which of its rows are knowable at a deadline is a
     feature-store question, and answering it twice is how the two answers diverge.
     """
+    if not entrants:
+        raise ValueError("walk_forward needs at least one entrant: the champion")
+    if len({entrant.id for entrant in entrants}) != len(entrants):
+        raise ValueError(f"entrant ids repeat: {[entrant.id for entrant in entrants]}")
     if history.empty:
         raise ValueError("cannot backtest an empty history")
 
@@ -372,6 +489,8 @@ def walk_forward(
     if frame.empty:
         raise ValueError(f"no history for seasons {list(seasons or ())}")
 
+    champion = entrants[0]
+    columns = {entrant.id: prediction_column(entrant.id) for entrant in entrants}
     warnings: list[str] = []
     folds: list[Fold] = []
     # E10-S5. Constructed here rather than passed in, for the same reason the baselines are: it is
@@ -379,9 +498,21 @@ def walk_forward(
     # it out is a caller who eventually does.
     monolith = MonolithPredictor(config=backtest_config.monolith, features=forecast_config.features)
     schedule = deadlines_for(frame)
-    #: deadline -> that deadline's feature/outcome rows. Built once, in order, and only ever read
-    #: by folds strictly later than the key.
-    cache: dict[pd.Timestamp, pd.DataFrame] = {}
+    #: window -> deadline -> that deadline's feature/outcome rows. Built once, in order, and only
+    #: ever read by folds strictly later than the key. ``all_seasons`` is always built: it is what
+    #: is scored, and what the baselines are fitted on.
+    configs = {e.id: e.features or forecast_config.features for e in entrants}
+    base: View = ("all_seasons", forecast_config.features.model_dump_json())
+    views: dict[str, View] = {
+        e.id: (e.training_window, configs[e.id].model_dump_json()) for e in entrants
+    }
+    feature_configs = {views[e.id]: configs[e.id] for e in entrants}
+    feature_configs[base] = forecast_config.features
+    caches: dict[View, dict[pd.Timestamp, pd.DataFrame]] = {base: {}}
+    for view in views.values():
+        caches.setdefault(view, {})
+    graded = 0
+    fitted_season: str | None = None
 
     for season, gameweek, deadline in schedule:
         past = frame[frame["kickoff_time"] < deadline]
@@ -389,70 +520,104 @@ def walk_forward(
         # Built and cached first, before any decision about whether this fold can be *scored*. An
         # early gameweek is not scoreable — there is nothing to have learned from — but it is still
         # evidence for every later fold, and skipping the cache would throw it away.
-        merged = fold_rows(frame, season, gameweek, deadline, forecast_config, metrics=metrics)
-        cache[deadline] = merged
-        assert_no_look_ahead(merged, past, as_of=deadline)
+        rows: dict[View, pd.DataFrame] = {}
+        for view, cache in caches.items():
+            rows[view] = fold_rows(
+                _window(frame, view[0], season),
+                season,
+                gameweek,
+                deadline,
+                forecast_config.model_copy(update={"features": feature_configs[view]}),
+                metrics=metrics,
+            )
+            cache[deadline] = rows[view]
+            assert_no_look_ahead(rows[view], past, as_of=deadline)
+        merged = rows[base]
 
-        played_gameweeks = past.groupby(["season", "gameweek"]).ngroups
-        if played_gameweeks < backtest_config.minimum_training_matches:
+        played = min(
+            _window(past, view[0], season).groupby(["season", "gameweek"]).ngroups
+            for view in caches
+        )
+        if played < backtest_config.minimum_training_matches:
             # Predicting from almost nothing measures the prior, not the model.
             continue
 
-        training = training_rows(cache, before=deadline)
-        if merged.empty or training.empty:
+        training = {
+            view: _window(training_rows(cache, before=deadline), view[0], season)
+            for view, cache in caches.items()
+        }
+        if any(rows[v].empty or training[v].empty for v in caches):
             continue
 
-        # **The outcome must never reach a predictor.** ``merged`` carries everything that
+        # Refitted every ``refit_every_gameweeks`` graded folds, and always at a new season, so a
+        # ``current_season`` fit never predicts the next season.
+        refit = graded % backtest_config.refit_every_gameweeks == 0 or season != fitted_season
+        graded += 1
+        fitted_season = season
+
+        # **The outcome must never reach a predictor.** A fold frame carries everything that
         # happened in the gameweek, because the harness needs it to score with and the component
         # models need it to fit on; handing that frame to a model would let it read the answer. A
         # model doing so by accident — through a merge that pulled one column too many — would
         # produce a superb backtest and a worthless season, and nothing in the metrics would look
         # wrong. So predictors see inputs only.
-        visible = merged.drop(columns=list(OUTCOME_COLUMNS), errors="ignore")
-
-        if isinstance(predictor, ComponentPredictor):
-            # The live model is fitted through the one interface live and the replay use, on the
-            # fold's own season (PIPE-13, REM-08): the backtest measures what ships.
-            from fpl_dof.forecast.fit import fit_as_of  # fit imports this module
-
-            fitted = fit_as_of(
-                frame, deadline, predictor.config, predictor.rules, training=training, season=season
-            )
-            predictor.models = fitted.models
-        else:
-            predictor.fit(training)
-        merged[MODEL_COLUMN] = predictor.predict(visible).to_numpy()
+        visible = {
+            view: own.drop(columns=list(OUTCOME_COLUMNS), errors="ignore")
+            for view, own in rows.items()
+        }
+        for entrant in entrants:
+            view = views[entrant.id]
+            if refit:
+                entrant.predictor.fit_as_of(
+                    _window(frame, view[0], season),
+                    deadline,
+                    training=training[view],
+                    season=season,
+                )
+            predicted = entrant.predictor.predict(visible[view], gameweek=gameweek)
+            merged[columns[entrant.id]] = _place(predicted, rows, view, into=merged)
+        merged[MODEL_COLUMN] = merged[columns[champion.id]]
 
         # Refitted every fold on the same frame the chain was fitted on, and predicting on the same
         # stripped frame the chain saw. **Reusing the harness's own assembly is the look-ahead
         # guarantee** — a monolith with its own training-set construction would be a second chance
         # to leak, and a leaking benchmark reports a gap that is entirely its own (Invariant 5).
-        monolith.fit(training)
-        merged[MONOLITH_COLUMN] = monolith.predict(visible).to_numpy()
+        all_training, all_visible = training[base], visible[base]
+        monolith.fit(all_training)
+        merged[MONOLITH_COLUMN] = monolith.predict(all_visible).to_numpy()
 
-        b0 = baselines.fit_b0(training, TARGET)
-        mean = baselines.fit_mean_baseline(training, TARGET)
-        merged[B0_COLUMN] = b0.predict(visible).to_numpy()
-        merged[MEAN_COLUMN] = mean.predict(visible).to_numpy()
+        b0 = baselines.fit_b0(all_training, TARGET)
+        mean = baselines.fit_mean_baseline(all_training, TARGET)
+        merged[B0_COLUMN] = b0.predict(all_visible).to_numpy()
+        merged[MEAN_COLUMN] = mean.predict(all_visible).to_numpy()
 
+        # Minutes calibration (E10-S1). Both distributions are computed from the champion's
+        # *visible* frame, so the calibrated model is exactly the one that produced the prediction
+        # above, and the observed band is attached afterwards from an outcome column the predictor
+        # never saw.
+        predictor = champion.predictor
+        if isinstance(predictor, MinutesReporting):
+            view = views[champion.id]
+            predicted_minutes = predictor.minutes_probabilities(visible[view])
+            haircut = baselines.status_flag_haircut_minutes(visible[view], forecast_config)
+            for band in MINUTES_BANDS:
+                merged[f"{MINUTES_PREFIX}{band}"] = _place(
+                    predicted_minutes[band], rows, view, into=merged
+                )
+                merged[f"{HAIRCUT_MINUTES_PREFIX}{band}"] = _place(
+                    haircut[band], rows, view, into=merged
+                )
+            merged[OBSERVED_MINUTES_BAND] = [
+                minutes_band(value, predictor.long_play_minutes) for value in merged["minutes"]
+            ]
+
+        # Only rows every entrant predicted are graded, so each pair compares the same rows. Rebinds
+        # rather than mutates, so the cached frame later folds train on keeps every row.
+        merged = merged.dropna(subset=list(columns.values()))
         form = baselines.trailing_form_prediction(past, as_of=deadline)
         merged = merged.merge(
             form.rename(columns={"prediction": FORM_COLUMN}), on="player_code", how="left"
         )
-
-        # Minutes calibration (E10-S1). Both distributions are computed from the *visible* frame,
-        # so the calibrated model is exactly the one that produced the prediction above, and the
-        # observed band is attached afterwards from an outcome column the predictor never saw.
-        if isinstance(predictor, MinutesReporting):
-            predicted_minutes = predictor.minutes_probabilities(visible)
-            for band in MINUTES_BANDS:
-                merged[f"{MINUTES_PREFIX}{band}"] = predicted_minutes[band].to_numpy()
-            haircut = baselines.status_flag_haircut_minutes(visible, forecast_config)
-            for band in MINUTES_BANDS:
-                merged[f"{HAIRCUT_MINUTES_PREFIX}{band}"] = haircut[band].to_numpy()
-            merged[OBSERVED_MINUTES_BAND] = [
-                minutes_band(value, predictor.long_play_minutes) for value in merged["minutes"]
-            ]
 
         merged["season"] = season
         merged["gameweek"] = gameweek
@@ -466,7 +631,7 @@ def walk_forward(
                 season=season,
                 gameweek=gameweek,
                 deadline=deadline,
-                training_rows=len(training),
+                training_rows=len(training[views[champion.id]]),
                 predictions=merged,
             )
         )
@@ -504,6 +669,7 @@ def walk_forward(
 
     # Each position's head goes as deep as that position goes into a squad, when the predictor can
     # say what a squad is made of. Without it the aggregate still reports and the split is absent.
+    predictor = champion.predictor
     head_sizes = (
         head_size_by_position(backtest_config.top_n_precision, predictor.squad_composition)
         if isinstance(predictor, SquadShapeReporting)
@@ -573,6 +739,25 @@ def walk_forward(
         warnings=tuple(warnings),
         fixture_coverage=resolved,
         minutes_calibration=calibration,
+        champion=champion.id,
+        strategies={
+            champion.id: model_metrics,
+            **{e.id: measure(e.id, columns[e.id], B0_COLUMN) for e in entrants[1:]},
+        },
+        training_windows={e.id: e.training_window for e in entrants},
+        paired={
+            e.id: paired_deltas(
+                scored,
+                champion=columns[champion.id],
+                challenger=columns[e.id],
+                actual=TARGET,
+                top_n=backtest_config.top_n_precision,
+                group=RANKING_IDENTITY,
+                draws=backtest_config.bootstrap_draws,
+                seed=backtest_config.bootstrap_seed,
+            )
+            for e in entrants[1:]
+        },
     )
 
     log.info(
@@ -768,16 +953,20 @@ __all__ = [
     "OUTCOME_COLUMNS",
     "RANKING_IDENTITY",
     "BacktestResult",
+    "Entrant",
     "Fold",
     "MinutesReporting",
-    "Predictor",
+    "PairedDelta",
     "SquadShapeReporting",
+    "StrategyPredictor",
+    "TrainingWindow",
     "attach_fixtures",
     "deadlines_for",
     "fixture_calendar",
     "fixture_difficulty",
     "fold_rows",
     "minutes_columns",
+    "prediction_column",
     "training_rows",
     "walk_forward",
 ]

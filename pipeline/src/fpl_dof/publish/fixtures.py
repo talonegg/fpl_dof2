@@ -27,7 +27,7 @@ from typing import Any
 import pandas as pd
 
 from fpl_dof.config.models import FixtureTickerConfig
-from fpl_dof.forecast.models import TeamStrengthModel
+from fpl_dof.factory import TeamStrengthModel
 from fpl_dof.frames import as_int
 from fpl_dof.optimise.chips import GameweekShape, gameweek_shapes
 

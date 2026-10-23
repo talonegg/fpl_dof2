@@ -456,7 +456,8 @@ def test_each_source_declares_which_fields_it_contributes() -> None:
 
 def test_past_season_odds_keep_permanent_club_codes_through_enrichment(tmp_path: Path) -> None:
     """REM-06: a completed season's match file conforms behind the adapter, by permanent club code
-    and stamped with kickoff; enrichment maps only the current season's names to its local ids."""
+    and stamped with the collection time; enrichment maps only the current season's names to its
+    local ids."""
     import pandas as pd
 
     from fpl_dof.config.models import HttpConfig
@@ -476,7 +477,10 @@ def test_past_season_odds_keep_permanent_club_codes_through_enrichment(tmp_path:
 
     assert list(past["home_team_id"]) == [3, 11]  # Arsenal, Everton
     assert list(past["away_team_id"]) == [39, 36]  # Wolves, Brighton
-    assert (past["captured_at"] == past["kickoff_time"]).all()
+    # Saturday 17 Aug and Sunday 18 Aug 2024 kick off in BST: the Friday 16 Aug 18:00 London
+    # collection, 17:00 UTC. Never at or after kickoff: a backtest would read that as post-deadline.
+    assert list(past["captured_at"]) == [pd.Timestamp("2024-08-16T17:00Z")] * 2
+    assert (past["captured_at"] < past["kickoff_time"]).all()
 
     current = past.iloc[[0]].assign(
         season="2026/27",
@@ -491,6 +495,50 @@ def test_past_season_odds_keep_permanent_club_codes_through_enrichment(tmp_path:
     enriched = _attach_team_ids(pd.concat([past, current], ignore_index=True), teams, "2026/27")
     assert list(enriched["home_team_id"]) == [3, 11, 1]
     assert list(enriched["away_team_id"]) == [39, 36, 9]
+
+
+@pytest.mark.parametrize("current_names", [[], ["Arsenal", "Leeds"]])
+def test_enrichment_tolerates_int_coded_past_rows_with_any_current_season_set(
+    current_names: list[str],
+) -> None:
+    """backtest.yml crashed in transform on pandas 3.1: past rows' club codes made the id columns
+    int64, and the current-season write (empty, or with an unmapped club) cannot land in int64.
+    Codes survive, mapped clubs get their id, unmapped ones stay null; club_coded then reads it."""
+    import pandas as pd
+
+    from fpl_dof.gold.match_odds import club_coded
+    from fpl_dof.sources.enrich import _attach_team_ids
+
+    past = pd.DataFrame(
+        {
+            "season": ["2024/25"],
+            "home_team": ["Arsenal"],
+            "away_team": ["Wolves"],
+            "home_team_id": [3],
+            "away_team_id": [39],
+        }
+    )
+    current = pd.DataFrame(
+        {
+            "season": ["2026/27"] * len(current_names),
+            "home_team": current_names,
+            "away_team": current_names[::-1],
+            "home_team_id": [None] * len(current_names),
+            "away_team_id": [None] * len(current_names),
+        }
+    )
+    frame = pd.concat([past, current], ignore_index=True) if current_names else past
+    if not current_names:
+        assert frame["home_team_id"].dtype == "int64"  # the CI shape
+    teams = pd.DataFrame({"team_id": [1], "name": ["Arsenal"], "short_name": ["ARS"]})
+
+    enriched = _attach_team_ids(frame, teams, "2026/27")
+
+    expected_home = [3, *[1 if n == "Arsenal" else None for n in current_names]]
+    assert [None if pd.isna(v) else int(v) for v in enriched["home_team_id"]] == expected_home
+    assert enriched["away_team_id"].iloc[0] == 39
+    coded = club_coded(enriched, "2026/27", teams.assign(code=[3]))
+    assert coded["home_team_code"].iloc[0] == 3
 
 
 def test_a_completed_seasons_odds_are_fetched_once_and_never_again(tmp_path: Path) -> None:
@@ -513,3 +561,46 @@ def test_a_completed_seasons_odds_are_fetched_once_and_never_again(tmp_path: Pat
             with Fetcher(config=HttpConfig(), bronze=BronzeStore(tmp_path), run_id="t") as fetcher:
                 assert "Wolves" in FdcoukAdapter(fetcher).fetch_season_csv("2024/25", request)
     assert route.call_count == 1
+
+
+def test_midweek_and_monday_kickoffs_are_collected_before_kickoff() -> None:
+    """Midweek prices are taken Tuesday 18:00 London, Monday's on the Friday before."""
+    import pandas as pd
+
+    from fpl_dof.sources.fdcouk.adapter import _collection_time
+
+    wednesday = pd.Timestamp("2024-12-04T19:45Z")  # GMT
+    monday = pd.Timestamp("2024-12-09T20:00Z")
+    assert _collection_time(wednesday) == pd.Timestamp("2024-12-03T18:00Z")
+    assert _collection_time(monday) == pd.Timestamp("2024-12-06T18:00Z")
+    early_tuesday = pd.Timestamp("2024-12-03T17:30Z")  # kicks off before the collection hour
+    assert _collection_time(early_tuesday) == early_tuesday
+    assert pd.isna(_collection_time(pd.NaT))
+
+
+def test_upcoming_odds_are_retained_yet_refetched_after_their_ttl(tmp_path: Path) -> None:
+    """DL-87: `retain` is not `immutable`. Each upcoming-odds capture is marked for keeping, but
+    the next run after the TTL still asks the server, so odds that moved are not frozen."""
+    import datetime as dt
+
+    from fpl_dof.config.models import HttpConfig
+    from fpl_dof.sources.base import IngestRequest
+    from fpl_dof.sources.bronze import BronzeStore
+    from fpl_dof.sources.fdcouk.adapter import FdcoukAdapter
+    from fpl_dof.sources.fetch import Fetcher
+
+    body = "Div,Date,Time,HomeTeam,AwayTeam,B365H,B365D,B365A\n"
+    start = dt.datetime(2026, 10, 20, 12, tzinfo=dt.UTC)
+    with respx.mock(assert_all_called=False) as mock:
+        route = mock.get(f"{FdcoukAdapter.base_url}/fixtures.csv").mock(
+            return_value=httpx.Response(200, text=body)
+        )
+        for hours in (0, 2):  # the second is past the one-hour TTL
+            now = start + dt.timedelta(hours=hours)
+            with Fetcher(config=HttpConfig(), bronze=BronzeStore(tmp_path), run_id="t") as fetcher:
+                FdcoukAdapter(fetcher).fetch_fixtures_csv(IngestRequest(run_id="t", now=now))
+    assert route.call_count == 2
+    sidecars = list(tmp_path.rglob("*.meta.json"))
+    assert len(sidecars) == 2
+    assert all(json.loads(p.read_text())["retain"] is True for p in sidecars)
+    assert not any(json.loads(p.read_text())["immutable"] for p in sidecars)

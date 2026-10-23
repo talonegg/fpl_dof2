@@ -73,7 +73,7 @@ design (DL-08, NFR-11). The official API now carries the expected-goals signals 
 | Source | Adapter | State |
 | --- | --- | --- |
 | FPL API | `sources/fpl` | Essential. Failure stops the run; the last good publication stays live |
-| FPL archive | `sources/fplarchive` | Off by default; `config/ci-backtest.yaml` enables it for the weekly backtest and the prospective job in `pipeline.yml` (DL-68) |
+| FPL archive | `sources/fplarchive` | On in the live run and the backtests, with the 2023/24 to 2025/26 seasons backfilled (DL-87) |
 | Understat, FBref | `sources/understat`, `sources/fbref` | Blocked upstream (`robots.txt`, Cloudflare 403) — D-23. Off by default; no workflow enables them. The adapters stay, dormant, so retained bronze still replays (PIPE-09) |
 | The Odds API | `sources/oddsapi` | Off by default (PIPE-09); degrades cleanly without `ODDS_API_KEY`, which no workflow passes. Free-tier credit cap, no history — D-20; not used by the model (DL-59, DL-60) |
 | football-data.co.uk | `sources/fdcouk` | Off by default, and no workflow enables it. The prospective harness reads upcoming odds and its hash-pinned past seasons through it (`sources.LiveFeed`, REM-07); when enabled, it conforms past seasons' match files into silver by permanent club code, each fetched once (PIPE-03, PIPE-04) |
@@ -121,7 +121,7 @@ graph TB
 The pipeline is one CLI, `fpl-dof`, whose stages are registered in `pipeline.py` and run in order by
 `run_stages`; CI runs the same commands a developer does (NFR-09). Beside the main run sit the
 `backtest` stage (walk-forward regression and the model card verdict, DL-21) and the `prospective`
-harness (pre-registered model comparison, frozen before each deadline). The `week` stage runs every
+harness, retired at the switch (DL-87). The `week` stage runs every
 published strategy of the registry through `forecast` → `decide` on one snapshot (MOD-04); the
 challenger's (C1's) week and plan are published beside the champion's but never acted on (DP-08).
 
@@ -234,10 +234,6 @@ flowchart TB
         BRZ["bronze snapshot<br/>+ .meta.json sidecar"]
     end
 
-    subgraph prosp["pipeline.yml · prospective job"]
-        PRO["frozen harness<br/>decide before the deadline,<br/>score after"]
-    end
-
     subgraph run["pipeline.yml · run job"]
         VER["bronze verify<br/>--quarantine"]
         TRF["transform<br/>conform, resolve, append"]
@@ -259,13 +255,11 @@ flowchart TB
     CAN -.->|"drift"| HALT
     BRZ -->|"retention.py rolling"| DATA
     DATA -->|"retention.py archive,<br/>each closed gameweek once"| SNAP
-    FPL & ODDS & ARC --> PRO
-    PRO -->|"prospective/gwNN.tgz"| LED
     DATA -->|"retention.py restore"| VER --> TRF --> QG
     QG -->|"pass"| FC --> DEC --> PUB
     QG -.->|"blocking failure:<br/>alert issue opened"| STOP
     DEC -->|"advice/gwNN.json, every strategy,<br/>before the deadline"| LED
-    PRO -->|"prospective record"| PUB
+    LED -->|"frozen record up to the switch,<br/>read-only (DL-87)"| PUB
     TRF -->|"new price history"| DATA
     PUB -->|"web-data-contract → deploy.yml"| PAGES
 ```
@@ -321,7 +315,7 @@ flowchart LR
 
 | Layer | Content | Format | Persisted between CI runs? |
 | --- | --- | --- | --- |
-| **Bronze** | Verbatim source responses with a `.meta.json` lineage sidecar (URL, time, SHA-256, validators, immutability) | Gzipped JSON, CSV or HTML | Partly — the rolling window on `data`, plus immutable prior-season snapshots whatever their age (PIPE-03); one permanent tarball per closed gameweek on `snapshots` (PIPE-14) |
+| **Bronze** | Verbatim source responses with a `.meta.json` lineage sidecar (URL, time, SHA-256, validators, immutability) | Gzipped JSON, CSV or HTML | Partly — the rolling window on `data`, plus immutable prior-season snapshots and every `retain`ed capture (football-data.co.uk odds, DL-89) whatever their age (PIPE-03); one permanent tarball per closed gameweek on `snapshots` (PIPE-14) |
 | **Silver** | Conformed canonical tables (`silver/tables.py`), validated on read and write; advanced metrics keyed by `as_of_gameweek` and stamped `observed_at` (DL-83) | Parquet, by season | Partly — rebuilt from bronze each run, except the accumulating tables (`APPENDED` in `stages/transform.py`: `price_history`, `player_gameweek`, `player_advanced`, `player_metric`), which are appended to. Of those, only `price_history` is persisted on `data`; `silver replay-prices` rebuilds it from bronze (PIPE-06). An accumulating table from an older schema stops transform until `silver rebuild` (REM-10) |
 | **Gold** | Forecasts, plans, decisions, model and backtest cards; `player_career_history` and `team_match_odds`, built by `transform` (PIPE-02, PIPE-05) | Parquet + JSON + Markdown | **No**, except advice on `ledger`. The published contract survives as a 14-day artefact and on Pages |
 | **Web contract** | The narrow, versioned slice the browser may read | JSON, `/data/v1/` | Replaced per publish |
@@ -406,7 +400,7 @@ manually dispatchable.
 | `ci.yml` | Push to `main`, `pre-release`, `dev/**`; every pull request | Lint, type-check, unit, property and contract tests; `scripts/docs.py check` |
 | `ingest-fast.yml` | Hourly; a guard (`fpl-dof-schedule --decide fast`) decides whether to fetch | `bootstrap-static` and `fixtures` — prices, status, ownership. Rebuilds `data` |
 | `ingest-slow.yml` | Daily, with a fallback slot; dispatch | Full ingest including per-player summaries; updates `data`; archives each newly closed gameweek's bronze to `snapshots`, once, and fails if bronze has no gameweek schedule |
-| `pipeline.yml` | Nightly with a fallback; a deadline guard several times an hour; after `Ingest (slow)`; dispatch | `guard` → `prospective` (frozen harness, appended to `ledger`) → `run` (`fpl-dof bronze verify --quarantine`, then `fpl-dof run --only transform…publish`; advice appended to `ledger` — the champion's as soon as its week exists, before its plan and the challengers run — contract uploaded, `data` rebuilt with the new price history) |
+| `pipeline.yml` | Nightly with a fallback; a deadline guard several times an hour; after `Ingest (slow)`; dispatch | `guard` → `run` (restores the retired frozen harness's last record from `ledger`, read-only, so `models.json` keeps its history up to the switch; `fpl-dof bronze verify --quarantine`, then `fpl-dof run --only transform…publish`; advice appended to `ledger` — the champion's as soon as its week exists, before its plan and the challengers run — contract uploaded, `data` rebuilt with the new price history) |
 | `day-before.yml` | Every 20 minutes in a nightly UTC window | On the day before a deadline, dispatches `ingest-slow`; Pipeline and Deploy follow by `workflow_run` |
 | `deploy.yml` | Push to `main`; after Pipeline completes | Builds the SPA, downloads the latest contract, deploys to Pages |
 | `backtest.yml` | Weekly; dispatch | Archive ingest under `config/ci-backtest.yaml` (DL-68), then the walk-forward regression |
@@ -567,9 +561,10 @@ The direction is enforced, not just described: `import-linter` contracts in `pip
 (`lint-imports`, in the CI lint job and `tests/test_import_boundaries.py`) hold the target of
 [05 §3](05-target-architecture.md#3-module-map) — core imports nothing from the data platform, the
 model factory or the orchestrator; the data platform and the factory never import the orchestrator;
-only `pipeline` and `cli` import `stages`; stages do not import each other. Today's violations are an
-allow-list (`ignore_imports`, each entry naming the story that removes it) that only shrinks and is
-empty before R1.2.2 promotes (DL-87). Nothing outside `sources/` imports a source subpackage, and
+only `pipeline` and `cli` import `stages`; stages do not import each other. Stages share artefact names and the rules reader through `fpl_dof/artefacts.py` and gold paths
+through `DataLayout.gold_for`; `current_gameweek` lives in `fpl_dof/gameweek.py`. The allow-list
+of violations (`ignore_imports`) that R1.2.0 started with is empty (MOD-01, DL-87): a new forbidden
+import fails CI. Nothing outside `sources/` imports a source subpackage, and
 `optimise` imports nothing from `forecast` (DP-02, PIPE-13).
 
 ### 12.2 Where the design is deep — keep
@@ -590,7 +585,7 @@ empty before R1.2.2 promotes (DL-87). Nothing outside `sources/` imports a sourc
 
 | # | Finding | Evidence | Deepening |
 | --- | --- | --- | --- |
-| **P1** | **Closed by PIPE-13 except for C1:** live, backtest and the chip replay (`factory/replay.py`) fit through `fit_as_of`; B0 stays on the fitted model and reaches the captain policy as its own input (MOD-02). The C1 challenger still has its own features and fit outside the `Predictor` protocol (DP-02) | `forecast/fit.py`, `forecast/xp_v1.py:526-530`, `shadow/c1.py:63` | One interface in `forecast/`: `fit_as_of(history, deadline, config, rules) → FittedModel` with `.predict(window)`. live, backtest, replay and C1 call it |
+| **P1** | **Closed by PIPE-13 except for C1:** live, backtest and the chip replay (`factory/replay.py`) fit through `fit_as_of`; B0 stays on the fitted model and reaches the captain policy as its own input (MOD-02). The C1 challenger keeps its own features and its own `fit_as_of`; both it and `xp_v1` reach the harness through `Strategy.predictor` (`fit_as_of`/`predict(features, gameweek=)`, MOD-05; the fold's gameweek is passed because a fit is reused between refits), which is how `walk_forward` fits every strategy (MOD-08) | `forecast/fit.py`, `forecast/backtest.py` `StrategyPredictor`, `shadow/c1.py` | One interface in `forecast/`: `fit_as_of(history, deadline, config, rules) → FittedModel` with `.predict(window)`. live, backtest, replay and C1 call it |
 | **P2** | **Three solver models each re-encode squad legality**; solver construction is repeated; `optimiser.solver` is never read — squad and transfer hard-code CBC | `optimise/squad.py:251,288-326,342`, `optimise/transfer.py:278-332,348`, `optimise/horizon.py:154,388-470`; formation tally at `squad.py:430`, `transfer.py:468`, `horizon.py:655` | `optimise/milp.py`: `add_squad_constraints(problem, select, start, rules, week=None)` and `solver_for(config)`. Each model keeps only its objective. Delete the dead field |
 | **P3** | **Decision part closed by MOD-04:** XI selection, the start-probability floor relaxation and the price-and-position captain relabel moved out of `stages/week.py` into `decision.decide`, and the `decision` stage folded into `week`, so its duplicated context loading and `_write` went; each strategy's file names have one home, `publish.strategies.artefact_paths`. **Still open: the stage edge holds domain logic** (2,648 lines at the review). Publish fits M2 and, through the season log, runs the hindsight oracle; six optional artefacts are handled inline with differing error handling; the gold season path is rebuilt ten times; ~410 lines of backtest-card Markdown live in the stage while core `model_card.py` writes files | `stages/publish.py:93-160,368-379`, `week/oracle.py:118`, `stages/backtest.py:127-540`, `forecast/model_card.py:342` | `DataLayout.gold_for(season)` and one artefacts module owning file names; `optional_artefact(name, build)`; M2 ratings as a forecast output; card renderers return strings and stages write them |
 | **P4** | **Closed by PIPE-12:** one `as_of` per run, recorded in the manifest, and one gameweek predicate ([DL-84](../decisions/DL-84.md)). **The clock and "the next gameweek" are not coherent** (DP-11). `utcnow()` is read eight times across stages; three definitions of the next gameweek — first unfinished, first deadline after now, FPL's `is_next`. Between a deadline passing and the gameweek finishing, `xp_next` may describe GW N while the advice is for GW N+1 (inferred, not yet reproduced) | `forecast/live.py:84`, `forecast/xp_v0.py:332`, `week/cadence.py:130`, `stages/publish.py:383`, `stages/week.py:76,140`, `quality/rules.py:143` | Set `StageContext.as_of` once in `cli.py` and record it in the manifest; one `current_gameweek(gameweeks, as_of)` used by forecast, week and publish. A prerequisite for PIPE-01 and PIPE-10 |
@@ -598,7 +593,7 @@ empty before R1.2.2 promotes (DL-87). Nothing outside `sources/` imports a sourc
 | **P6** | **Closed by MOD-02 except the shared scoring:** `forecast.publishable(inputs, rules, config) → Forecast` owns the choice between xp_v1 and the xp_v0 fallback and is the package's entry point; the stage reaches it through the champion's `Strategy.forecast`, and every frame is validated against the forecast-frame schema (`optimise/frame.py`) before the engine reads it. **Still open:** the Poisson survival function and points arithmetic are duplicated across `rules/scoring.py`, `xp_v0` and `xp_v1` | `xp_v0.py:66,399-482`, `xp_v1.py:146,352-411`, `rules/scoring.py:60` | `rules.scoring.expected_points(components, position, rules)` shared by every model |
 | **P7** | **Shallow facades and a grab-bag in `week/`.** Three pure re-export modules; three different functions called `next_deadline`; `cadence.py` mixes deadlines, CI idempotency, cron gating and a veto; scheduling spread over five files | `week/deadline.py`, `week/day_before.py`, `week/ci_runs.py`, `week/cadence.py:118`, `forecast/live.py:80`, `schedule_cli.py`, `scripts/day_before_gate.py` | Delete the facades; move cron and CI gating into a `schedule/` package so `week/` is only about advice |
 | **P8** | **Very large files** — a locality cost, not a depth one. `config/models.py` is 2,215 lines and 53 classes, imported directly by 40 files; `sources/fpl/adapter.py` 1,301; `forecast/models.py` 1,106; `optimise/horizon.py` 950 | `wc -l` | Split `config/models.py` by area behind the package root. The others sit behind deep seams; split only when touched |
-| **P9** | **Tests reach past interfaces** — symptoms of P1, P3 and P6 | `test_adaptive_shrinkage.py:295`, `test_duty.py:400` (`stages.backtest._card`); `test_expected_goals.py:17`, `test_goalkeeper.py:150` (`xp_v1` privates); `test_source_catalogue.py:156-185` | Re-point at the new interfaces as each finding lands |
+| **P9** | **Backtest part closed by MOD-08:** the harness tests drive `walk_forward` through `Entrant` and `StrategyPredictor` stubs (`tests/test_experiments.py`, `tests/test_backtest.py`). **Still open: tests reach past interfaces** — symptoms of P1, P3 and P6 | `test_adaptive_shrinkage.py:295`, `test_duty.py:400` (`stages.backtest._card`); `test_expected_goals.py:17`, `test_goalkeeper.py:150` (`xp_v1` privates); `test_source_catalogue.py:156-185` | Re-point at the new interfaces as each finding lands |
 | **P10** | **Minor DP-03 leaks** — file I/O in core; publish reads `os.environ` directly, bypassing the CLI's override path | `forecast/model_card.py:342`, `week/ledger.py:60-76`, `stages/publish.py:445` | Return values; let stages write. Read the setting through `Config` |
 
 ### 12.4 Web and contract findings
@@ -630,11 +625,11 @@ before they ship.
 
 | # | Finding | Evidence | Fix |
 | --- | --- | --- | --- |
-| **F1** | **M7 never reads a player's own card record.** The chain reads each rate's `_per90_last6` column, but `yellow_cards` is not in `forecast.features.rolling_statistics`, so the observed rate is always null and `RateModel.predict` returns the position prior: every player of a position gets the same card rate | `config/models.py:1078-1090`, `forecast/xp_v1.py:198`, `forecast/models.py:678-680,1021` | Add `yellow_cards` to `rolling_statistics`; a test that every `RATE_COMPONENTS` column has a rolling feature. Grade it in the backtest first |
+| **F1** | **Closed by MOD-09 (DL-90):** M7 never read a player's own card record because `yellow_cards` had no rolling feature. It is in `forecast.features.rolling_statistics` now, the held-out season did not degrade, and a test pins that every `RATE_COMPONENTS` column has one | `config/models.py` `FeatureConfig`, `tests/test_experiments.py` | — |
 | **F2** | **The `snapshot_freshness` gate cannot fire in CI** (Invariant 7). It ages bronze by each sidecar's file modification time, which `retention.py restore` resets to the restore time, so every snapshot looks fresh; it also reads the file system's clock rather than the sidecar's | `stages/quality.py:110-122`, `scripts/retention.py:6-9` | Age each snapshot by `SnapshotMeta.fetched_at` |
-| **F3** | **The graded model is not the shipped model.** The backtest pools every `backtest.training_seasons` season into each fold's training rows; live, the chain trains on the current season's `player_gameweek` only. The verdict on the model card grades a model trained on more data than the one that ranks players | `stages/backtest.py:55`, `forecast/fit.py:68-80`, `stages/forecast.py:55-66` | Decide which training window is right (a `DL-nn`), then make one path follow the other |
-| **F4** | **M2's time-decay half-life is a hard-coded tunable** (DP-06), with no waiver | `forecast/models.py:324` | Move it into `ForecastConfig` with a description and its justification |
-| **F5** | **Stale text in code.** The model card's `BACKTESTED_WEAKNESS` says `minutes_v2` is flagged off, and `forecast.yaml` says every discrimination flag is off; it has been on since DL-76. `sources/external.py` says no adapter fetches the frozen-bundle files, but `sources.LiveFeed` reads them through `fdcouk` | `forecast/model_card.py:55-63`, `config/defaults/forecast.yaml:94`, `sources/external.py:3-4` | Rewrite the three texts to the current truth |
+| **F3** | **Closed by MOD-08 and DL-91:** each strategy is graded inside its own `training_window` (features, training rows and fit), so the champion is graded on the current season as it ships; widening its window was tried as MOD-09's experiment `f3_training_window` and rejected (`all_seasons` worse on 2024/25-2025/26: MAE +0.0119, Spearman -0.0174 per gameweek, both 95% intervals off zero). It was: the graded model was not the shipped model, the backtest pooling every `backtest.training_seasons` season while live training used the current season | `forecast/backtest.py` `walk_forward` | — |
+| **F4** | **Closed by MOD-05:** M2's time-decay half-life is `forecast.team_strength.half_life_matches`, with its description and justification (`test_team_strength.py::test_the_half_life_is_read_from_config`). It was a hard-coded tunable (DP-06) with no waiver | `config/models.py` `TeamStrengthConfig` | — |
+| **F5** | **Closed by MOD-06 and MOD-08:** the model card's `BACKTESTED_WEAKNESS` and `forecast.yaml` now say `minutes_v2` is on (since DL-76), and `sources/external.py` went with the frozen bundle. It was stale text in code | `forecast/model_card.py`, `config/defaults/forecast.yaml` | — |
 
 ---
 
@@ -649,7 +644,7 @@ and delivered; its backlog is archived at
 
 | Concern | As built | Items |
 | --- | --- | --- |
-| Source set | FPL API on. `fplarchive` and `fdcouk` registered, off by default; `config/ci-backtest.yaml` turns the archive on for the backtest and the prospective job (DL-68). Understat, FBref and The Odds API off, their adapters dormant so retained bronze still replays | PIPE-04, PIPE-09 |
+| Source set | FPL API on. `fplarchive` and `fdcouk` on, with the archive seasons 2023/24 to 2025/26 backfilled (DL-87, DL-89); `config/ci-backtest.yaml` now sets only the backtest's training seasons (DL-68). Understat, FBref and The Odds API off, their adapters dormant so retained bronze still replays | PIPE-04, PIPE-09 |
 | Prior seasons | **Frozen bronze tier**: completed-season snapshots are marked `immutable`, kept by retention whatever their age, and re-fetched only when forced | PIPE-03 |
 | Transport | **Conditional requests** (`ETag`, `Last-Modified`); a 304 revalidates the held snapshot without a download | PIPE-07 |
 | Ingest safety | A **drift canary** on `bootstrap-static` and `fixtures` halts ingest before per-player fetches and logs a key diff | PIPE-08 |

@@ -426,18 +426,23 @@ def _chips_used(chips: pd.DataFrame | None) -> tuple[str, ...]:
     return tuple(str(name) for name in chips["name"])
 
 
-def gameweek_price_index(player_gameweek: pd.DataFrame | None) -> dict[tuple[int, int], float]:
+def gameweek_price_index(
+    player_gameweek: pd.DataFrame | None, season: str
+) -> dict[tuple[int, int], float]:
     """``(gameweek, player_id) -> price``, for reconstructing purchase prices.
 
     Built from per-gameweek history, which records what a player was worth in each week. This is
     the only route to the purchase price of a player held since the start, because the public picks
-    endpoint does not publish one.
+    endpoint does not publish one. Only ``season``'s rows: the table also holds backfilled seasons,
+    and FPL reuses ``player_id`` across them, so an unfiltered index would price a player at
+    another player's old value.
     """
     if player_gameweek is None or player_gameweek.empty:
         return {}
+    current = player_gameweek[player_gameweek["season"] == season]
     return {
         (as_int(row["gameweek"]), as_int(row["player_id"])): as_float(row["price"])
-        for _, row in player_gameweek.iterrows()
+        for _, row in current.iterrows()
     }
 
 

@@ -136,4 +136,7 @@ by hand.
 | [DL-86](DL-86.md) | 2026-10-22 | Accepted | Downstream of the data pipeline, the platform becomes three modules around a strategy registry |
 | [DL-87](DL-87.md) | 2026-10-23 | Accepted | R1.2.0 ships in two drops; the archive and football-data.co.uk run live; no parity gameweek |
 | [DL-88](DL-88.md) | 2026-10-23 | Accepted | A hotfix takes R1.2.1; the second modular-platform drop becomes R1.2.2 |
+| [DL-89](DL-89.md) | 2026-10-23 | Accepted | R1.2.2: the switch when it promotes, F1 as a bug fix, live history scored on the real squad |
+| [DL-90](DL-90.md) | 2026-10-23 | Accepted | F1 ships: M7 reads each player's own card rate |
+| [DL-91](DL-91.md) | 2026-10-23 | Accepted | F3 is rejected: the champion keeps its current-season window; both experiments retire |
 <!-- index:end -->

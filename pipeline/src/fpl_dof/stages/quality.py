@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import json
 
+from fpl_dof.artefacts import QUALITY_REPORT_FILENAME, read_rules
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.pipeline import Output, StageContext, StageResult
 from fpl_dof.quality.gates import GateReport, GateSeverity, QualityGateError, run_gates
@@ -21,11 +22,8 @@ from fpl_dof.quality.rules import GATES
 from fpl_dof.silver.store import read_table_optional
 from fpl_dof.silver.tables import Table
 from fpl_dof.sources import BronzeStore
-from fpl_dof.stages.transform import read_rules
 
 log = get_logger(__name__)
-
-REPORT_FILENAME = "quality.json"
 
 
 def run(ctx: StageContext) -> StageResult:
@@ -57,7 +55,7 @@ def run(ctx: StageContext) -> StageResult:
     if ctx.config.quality.fail_on_warnings:
         report = _promote_warnings(report)
 
-    path = ctx.layout.gold / f"season={season.replace('/', '-')}" / REPORT_FILENAME
+    path = ctx.layout.gold_for(season) / QUALITY_REPORT_FILENAME
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report.as_dict(), indent=2), encoding="utf-8")
 

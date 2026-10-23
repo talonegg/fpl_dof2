@@ -1,16 +1,10 @@
-"""Per-player xP accuracy: the pure scorer, the CI script score_xp.py and the record paths."""
+"""Per-player xP accuracy: the pure scorer, the CI and the record paths."""
 
 from __future__ import annotations
 
-import datetime as dt
-import hashlib
 import importlib.util
-import io
-import json
-import tarfile
 from pathlib import Path
 from types import ModuleType
-from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -83,90 +77,10 @@ def test_paired_compares_every_strategy_with_the_champion() -> None:
             )
     out = paired(pd.DataFrame([*rows, {**rows[0], "model": "mystery"}]), draws=2000)
     assert all(set(r) == set(PAIRED_FIELDS) for r in out)
+    # Registry order: published challengers by id.
     assert [(r["model"], r["comparator"]) for r in out] == [
-        ("c1", "c3"),
         ("a", "c3"),
+        ("c1", "c3"),
         ("engine", "c3"),
     ]
-    assert out[0]["mean_delta"] == pytest.approx(-0.1)
-
-
-def _sha(b: bytes) -> str:
-    return hashlib.sha256(b).hexdigest()
-
-
-def _record(root: Path, gw: int, tamper: bool = False) -> None:
-    gold = root / "data" / "gold" / "xp" / f"GW{gw}"
-    gold.mkdir(parents=True)
-    shas = {}
-    for name, vals in (("C3", [1.0, 2.0]), ("C1", [2.0, 0.0])):
-        d = pd.DataFrame({"player_id": [101, 102], "position": ["MID", "FWD"], "xp_next": vals})
-        p = gold / f"xp_{name}.parquet"
-        d.to_parquet(p)
-        shas[name] = _sha(p.read_bytes())
-    av = gold / "avail.parquet"
-    pd.DataFrame({"player_id": [101, 102], "avail": [1.0, 1.0]}).to_parquet(av)
-    shas["avail"] = "0" * 64 if tamper else _sha(av.read_bytes())
-    doc = {
-        "gw": gw,
-        "xp_sha256": shas,
-        "xp_gold_dir": f"data/gold/xp/GW{gw}",
-        "code_to_element": {"101": 1, "102": 2},
-    }
-    (root / "decisions").mkdir(exist_ok=True)
-    (root / "decisions" / f"GW{gw}.json").write_text(json.dumps(doc))
-
-
-class _Feed:
-    """The live reads ``score_xp.run`` makes, served from fixed data."""
-
-    def state(self) -> dict[str, Any]:
-        return {
-            "events": [
-                {"id": 7, "finished": True, "data_checked": True},
-                {"id": 8, "finished": True, "data_checked": True},
-            ]
-        }
-
-    def gameweek_live(self, gameweek: int) -> dict[str, Any]:
-        return {"elements": [{"id": 1, "stats": {"total_points": 2, "minutes": 90}}]}
-
-
-def test_score_xp_scores_once_and_refuses_a_tampered_file(tmp_path: Path) -> None:
-    mod = _load("score_xp")
-    _record(tmp_path, 7)
-    _record(tmp_path, 8, tamper=True)
-    now = dt.datetime(2026, 10, 20, tzinfo=dt.UTC)
-    assert mod.run(tmp_path, _Feed(), now) == 0
-    s = pd.read_csv(tmp_path / "xp_scores.csv")
-    assert list(s.columns) == list(SCORE_FIELDS)
-    assert set(s["gw"]) == {7}  # GW8 avail hash mismatch -> not scored
-    c1 = s[(s.model == "C1") & (s.subset == "all")].iloc[0]
-    assert c1["mae"] == 0 and c1["n_rows"] == 2
-    assert (tmp_path / "xp_scores_paired.csv").exists() and (
-        tmp_path / "xp_calibration.csv"
-    ).exists()
-    assert mod.run(tmp_path, _Feed(), now) == 0
-    assert len(pd.read_csv(tmp_path / "xp_scores.csv")) == len(s)  # idempotent
-
-
-def test_record_keeps_gold_xp_and_rejects_traversal(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setenv("PROSPECTIVE_ROOT", str(tmp_path))
-    mod = _load("prospective_ci")
-    assert mod._in_record("data/gold/xp/GW7/xp_C1.parquet")
-    assert mod._in_record("xp_scores.csv")
-    assert not mod._in_record("data/silver/x.parquet")
-    assert not mod._in_record("../evil")
-    buf = io.BytesIO()
-    with tarfile.open(fileobj=buf, mode="w:gz") as t:
-        for name in ("data/gold/xp/GW7/xp_C1.parquet", "data/silver/s.parquet"):
-            info = tarfile.TarInfo(name)
-            info.size = 1
-            t.addfile(info, io.BytesIO(b"x"))
-    tb = tmp_path / "r.tgz"
-    tb.write_bytes(buf.getvalue())
-    mod.unpack(tb)
-    assert (tmp_path / "data/gold/xp/GW7/xp_C1.parquet").exists()
-    assert not (tmp_path / "data/silver/s.parquet").exists()
+    assert out[1]["mean_delta"] == pytest.approx(-0.1)

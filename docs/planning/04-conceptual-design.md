@@ -123,17 +123,9 @@ in the adapter. No history (D-20), so not backtestable; the M2 market blend is u
 #### S5 — Historical archive *(build-time)*
 
 `fplarchive` reads prior-season per-gameweek data from the community mirror, because the API has none
-(DL-19). Off by default; `config/ci-backtest.yaml` enables it for the weekly backtest and the
-prospective job's silver refresh (DL-68). Its bronze is immutable: never re-fetched unless
+(DL-19). On in the live run (DL-87), backfilling 2023/24 to 2025/26, as it is for the weekly backtest. Its bronze is immutable: never re-fetched unless
 `--rebackfill` or `--force-refresh`, and kept on `data` beyond the rolling window (PIPE-03). Identity
 across seasons is FPL's stable `code` for players and clubs (DL-52).
-
-#### Frozen reference data *(prospective harness, outside the registry)*
-
-The frozen prospective bundle reads data no ingest run produces: football-data.co.uk's 2023/24 to
-2025/26 match files, pinned by hash; a dated 2026/27 GW1–6 odds copy, used only to replay that
-record; and the fplcache archive of FPL snapshots, ending at 2025/26 GW38. `sources/external.py`
-declares them for `/health`.
 
 #### Future sources *(OD-04)*
 
@@ -239,7 +231,7 @@ A source added mid-season is backdated by `sources/retrospective.py` and held to
 
 `forecast/features.py` builds one frame for the live forecast, the backtest, the chip replay and the
 monolith, so training and inference share definitions: per-90s over the last 3/6/12 matches of goals,
-assists, clean sheets, saves, bonus, BPS, defensive contribution, xG, xA and total points
+assists, clean sheets, saves, bonus, BPS, defensive contribution, xG, xA, total points and yellow cards
 (`forecast.features.rolling_statistics`; the chain reads the six-match window); minutes; appearance and start rates; matches observed; rest;
 congestion and recent absence; price; venue and opponent; prior-season ratios (off, D-22).
 
@@ -331,11 +323,12 @@ graph LR
 | M4 | Per-90 count; P(threshold) by Poisson survival | — |
 | M5 | From M2's goals against | — |
 | M6 | Shrunk per-90 saves | Pressure-normalised keeper off (DL-51) |
-| M7 | Position prior per-90 only: no rolling yellow-card rate is built, so no player's own record is read | No referee or red-card model |
+| M7 | Shrunk per-90 yellow cards from the player's own record (F1, DL-90) | No referee or red-card model |
 | M8 | Expected BPS ranked against a population distribution | Not ranked within the match |
 
 Live, the backtest and the chip replay fit through one interface, `fit_as_of` (`forecast/fit.py`);
-only the C1 challenger fits on its own (03 §12 P1). The published-model
+the C1 challenger has its own `fit_as_of` (`shadow/c1.py`) on its own features, and both reach the
+walk-forward harness through `Strategy.predictor` (§13). The published-model
 choice is implicit in the stage, and points arithmetic is duplicated across `rules/scoring.py`,
 `xp_v0` and `xp_v1` (03 §12 P6).
 
@@ -376,8 +369,9 @@ linear in M2's goals against.
 
 ### M6 — Saves · M7 — Cards
 
-Shrunk per-90 saves. Cards take the position's per-90 prior for every player, because
-`yellow_cards` is not in `forecast.features.rolling_statistics`; both are small contributors.
+Shrunk per-90 saves. Cards are the player's own shrunk per-90 yellow-card rate (before
+[DL-90](../decisions/DL-90.md) every player took the position prior, because `yellow_cards` had no
+rolling feature); both are small contributors.
 
 ### M8 — Bonus points
 
@@ -411,9 +405,18 @@ not priors.
 
 ### Backtesting (FR-37, B7)
 
-`forecast/backtest.py` walks forward over `backtest.training_seasons`: at each historical deadline it
-refits the chain through `fit_as_of`, as live does, and every baseline on rows strictly before it, strips every outcome column (DL-32), and predicts. `fpl-dof
-backtest` is not part of `run`; CI runs it weekly with the archive enabled (DL-68).
+`forecast/backtest.py` walks forward over `backtest.training_seasons` with every registered
+strategy that is not retired and has live code, the champion first (`factory/experiments.py`
+`grade`, MOD-08; frozen ones are recorded as not graded). At each historical deadline it fits each
+strategy through `Strategy.predictor` (`fit_as_of`, as live does) and every baseline on rows
+strictly before it, strips every outcome column (DL-32), and predicts. Each strategy sees only its
+`training_window`: a `current_season` strategy's features, training rows and fit come from the
+fold's season alone, as live (F3). Every strategy is graded on the same folds — those where every
+window holds `backtest.minimum_training_matches` gameweeks — and the same rows; each is refitted
+every `backtest.refit_every_gameweeks` folds (1) and at each new season. `fpl-dof backtest` is not
+part of `run`; CI runs it weekly with the archive enabled (DL-68). Per fold on the 2024/25–2025/26
+archive (measured 2026-10-23 on a workstation): `c3`, `engine` and `c1` together ~24 s a fold, 68
+folds in 27 min, mostly `c1`; `backtest.yml` allows 150 min.
 
 - **Metrics:** MAE, RMSE and skill; Spearman by position, price band and fixture band; calibration
   slope by position and fixture band; top-20 precision and captaincy hit rate **per gameweek**
@@ -422,11 +425,20 @@ backtest` is not part of `run`; CI runs it weekly with the archive enabled (DL-6
 - **Baselines:** B0 (price within position), a constant, trailing six-gameweek points, the
   status-flag haircut. The model beats B0 when its MAE skill is positive and its Spearman exceeds
   B0's, and beats the model-free bar when its Spearman exceeds trailing form's. Skill is against
-  them, never absolute (DP-12).
+  them, never absolute (DP-12). They stay the harness's own, fitted from each fold's
+  all-seasons training rows, rather than registered strategies.
+- **Pairs:** each strategy minus the champion, per gameweek, for MAE, Spearman and top-20
+  precision, with a 95% gameweek-bootstrap interval (`backtest.bootstrap_draws`,
+  `backtest.bootstrap_seed`; `bootstrap_ci` in `forecast/metrics.py`).
 - **Monolith:** a gradient-boosted regressor on the same declared features, inside `walk_forward`
   only, never promotable, reporting the explainability gap (DL-53).
-- **Outputs:** `backtest.json`, `backtest-predictions.parquet`, `backtest-card.md`; and on every
-  forecast run `model-card.md` — published model, fallback, guardrail, last verdict, weaknesses.
+- **Outputs:** `backtest.json`, `backtest-predictions.parquet`, `backtest-card.md`, and the
+  experiments record `ledger/experiments/<run_id>.json`: one record per registered strategy —
+  id and digest, role, training window, run id, config digest, data window, metrics, paired
+  deltas against the champion; the champion's also carries DL-21's verdict and the baselines. CI
+  appends it to the `ledger` branch, keyed by run and never overwritten. On every forecast run
+  `model-card.md` — published model, fallback, guardrail, the latest verdict for the champion's
+  current digest from `ledger/experiments/` (or a plain statement that none exists), weaknesses.
   **Read it before acting on a ranking** (DL-21): no −8 hit, chip or Wildcard on the chain alone
   (D-13).
 - **Not in the package:** a simulated season of the full optimiser. The chip replay
@@ -469,7 +481,7 @@ Each re-encodes legality, solver construction is repeated, and `optimiser.solver
 
 **What the engine reads** is the forecast frame, version `FORECAST_FRAME_VERSION` in
 `optimise/frame.py` (MOD-02). Every entry point — `optimise_squad`, `recommend_transfers`,
-`build_plan` and C1's forecaster (which checks the champion frame it borrows from) — validates it first and refuses a frame that breaks it, with
+`build_plan` and every forecaster's own output (`xp_v1`, `xp_v0`, C1) — validates it first and refuses a frame that breaks it, with
 every failing column named; nothing is coerced. Required: `player_id` (unique), `position`,
 `team_id`, `price`, `xp_next`, `xp_horizon` and their `_sd`, and `start_probability` in [0, 1]. Every
 `xp_gw_<n>` must come with `xp_gw_<n>_sd` and the reverse. Every sd is a float, never negative, never
@@ -781,7 +793,7 @@ models:
 | --- | --- |
 | Rules | `rules` — only what FPL does not publish (DL-17) |
 | Sources | `http`, `sources` (overrides, precedence, resolution, backfill), `retention` |
-| Models | `forecast` (priors, shrinkage, horizon, flags, published model, duty table), `backtest` |
+| Models | `forecast` (priors, shrinkage, horizon, flags, published model, duty table, `c1`'s hyperparameters and seed), `backtest` |
 | Decision | `optimiser`, `transfers`, `decision` (horizon, chips, risk, simulation, candidates, overrides), `alerts` |
 | Owner | `entry` — IDs by environment variable (DL-44), declared squad |
 | Running | `quality`, `publish`, `schedule`, `runtime` |
@@ -818,13 +830,13 @@ single home of its id, label, description and role (MOD-03):
 | `policy` | `captain_rule` (`price_position` or `model`, §6.5), `plan` (whether the multi-gameweek plan and chips are solved) |
 | `requires` | The silver tables the strategy reads |
 
-Registered ([DL-87](../decisions/DL-87.md)): `c3`, the champion, and `c1`, published; `engine`, `a`
-and `a_odds`, challengers unpublished until they are ported live. A strategy's digest is the sha256
+Registered ([DL-87](../decisions/DL-87.md)): `c3`, the champion; `engine`, `c1`, `a` and `a_odds`,
+published challengers. A strategy's digest is the sha256
 of (entry, code, effective config): its entry and the run config sections it reads (`forecast`,
 `transfers`, `optimiser`, `decision`) as canonical JSON, and the source of the packages that
 decide its advice (`forecast`, `shadow`, `factory`, `optimise`, `decision`, `squad`, `config`)
 with line endings normalised. A published strategy must be one `Strategy.forecast` can run
-(a live recipe without config overrides, until MOD-05), and the champion must be published; `week.json` and `plan.json` (the champion's) and every other
+(a live recipe), and the champion must be published; `week.json` and `plan.json` (the champion's) and every other
 published strategy's `week_<id>.json` and `plan_<id>.json` carry `strategy: {id, digest}`, and the published `strategies.json` lists every entry with its aliases and the paths of its week and plan (`artefacts`), which are the only place the app learns a file name. Every builder that
 names a model — `models.json`, the model history, xP accuracy, the paired accuracy tests — reads the
 registry and resolves the harness's keys through the aliases. The forecast stage runs the
@@ -839,16 +851,35 @@ changes mid-season; promotion needs the
 Four mechanisms, none promoting automatically:
 
 - **Flagged variants** in the chain, each graded per flag in the backtest (DL-47).
-- **The challenger, `c1`** (`shadow/c1.py`, reached through `Strategy.forecast`): its own
-  gradient-boosted P(plays) and points models for the next gameweek, decided by the same `decide`
-  as the champion and published as `week_c1.json`, with `plan: false` until MOD-05 gives it a
-  horizon of its own. A failure records "no advice" with its reason there and in the ledger,
-  and stops nothing else (NFR-15). It borrows
-  the champion's sd columns, its per-gameweek means beyond the next gameweek and B0's line until
-  MOD-05 gives it its own, and builds its features outside the forecast seam (03 §12 P1).
+- **The challenger, `c1`** (`shadow/c1.py`, reached through `Strategy.forecast`, and through
+  `Strategy.predictor` for the walk-forward harness): per position, a gradient-boosted P(plays)
+  and points-if-plays model for the next gameweek, decided by the same `decide` as the champion
+  and published as `week_c1.json`. Its frame is its own (MOD-05): mean P(play) x points | play,
+  with P(play) scaled by availability news as the champion's is; sd from the two-state mixture
+  (the champion's `mixture_moments`) with points | play spread by the per-position residuals,
+  floored; B0 fitted on its own training rows. It forecasts one gameweek (`horizon_gameweeks` 1),
+  so it runs `plan: false`. Its features are declared as `FeatureSpec`s, stamped `as_of` and
+  checked by `assert_no_look_ahead`; it trains on every season silver holds (`all_seasons`),
+  keyed by `player_code`, with rolling features reset each season. Hyperparameters, windows,
+  half-lives and the seed are `forecast.c1` (DP-06). A failure records "no advice" with its reason
+  there and in the ledger, and stops nothing else (NFR-15).
+- **The component challenger, `a`** (`shadow/a.py`, as C1 is reached): C1's features plus rolling
+  counts, and per position P(play), P(a full appearance | play), bonus, goals and assists (saves
+  for goalkeepers) and the defensive-contribution award, each priced by the rules config; clean
+  sheets and goals conceded from the club xG; variance summed over independent events inside the
+  two-state mixture; C1's one-gameweek frame and B0 (`week_a.json`, `plan: false`). Tunables and
+  the seed are `forecast.a` (DP-06); its deviations from the frozen original are listed in
+  [05 §5.2](05-target-architecture.md#52-the-registered-strategies).
+- **The odds challenger, `a_odds`** (`shadow/a_odds.py`): A with the market's club layer where
+  every fixture of a club's gameweek has odds knowable before its deadline, A elsewhere. It reads
+  silver `team_match_expectation` (the forecast inputs' `match_odds`), `requires` it, and records
+  "no advice" without odds for the gameweek being decided (DL-87). Tunables are `forecast.a_odds`;
+  deviations in [05 §5.2](05-target-architecture.md#52-the-registered-strategies).
 - **The monolith**, backtest only (DL-53).
-- **The prospective harness**: five models frozen before each deadline, scored after, published in
-  `models.json` under their registry ids and compared on `/models`
+- **The retired prospective harness**: five models frozen before each deadline until the switch
+  gameweek (DL-87). Its record still publishes in `models.json` under the registry ids for the
+  gameweeks before the switch; from it, `models.json` is each strategy's live advice scored on the
+  owner's real squad (DL-89), and every record carries `record: frozen | live`
   ([`prospective/`](../../prospective/README.md)).
 
 ---
@@ -878,7 +909,7 @@ The owner's requirement (DL-05). A step outside a recipe means its abstraction h
 6. Run. Bronze, silver, gates, lineage and `/health` work already.
 
 No change to models, optimiser or UI. A new table needs a schema in `silver/tables.py`; a new field
-needs model work to exploit. The operational scripts (day-before gate, prospective harness, xP
+needs model work to exploit. The operational scripts (day-before gate, xP
 scorer) read through `sources.LiveFeed` rather than the ingest stage (REM-06, REM-07).
 
 ### 14.2 Adding a model component
@@ -894,7 +925,7 @@ scorer) read through `sources.LiveFeed` rather than the ingest stage (REM-06, RE
 5. Turn it on only past the E8 §5 bar, recording the decision.
 
 Live, the backtest and the chip replay all fit through `fit_as_of`, so a new input reaches them
-together; C1 fits on its own (03 §12 P1).
+together; C1 builds its own features and does not see it.
 
 ### 14.3 Adding an optimiser constraint
 

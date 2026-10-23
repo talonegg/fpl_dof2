@@ -23,9 +23,14 @@ function CumulativeChart({ models }: { models: Models }) {
   const sty = (id: string) => seriesStyle(registry, id);
   const series = models.season_to_date.filter((s) => s.per_gameweek.length > 0);
   if (series.length === 0) return null;
-  const gws = [...new Set(series.flatMap((s) => s.per_gameweek.map((p) => p.gameweek)))].sort(
-    (a, b) => a - b,
-  );
+  const switchGw = models.switch_gameweek ?? null;
+  // The switch gameweek is on the axis even before anything is scored live, so the marker is always drawn.
+  const gws = [
+    ...new Set([
+      ...series.flatMap((s) => s.per_gameweek.map((p) => p.gameweek)),
+      ...(switchGw === null ? [] : [switchGw]),
+    ]),
+  ].sort((a, b) => a - b);
   const max = Math.max(1, ...series.flatMap((s) => s.per_gameweek.map((p) => p.cumulative)));
   const W = 600;
   const H = 220;
@@ -36,10 +41,37 @@ function CumulativeChart({ models }: { models: Models }) {
   const summary = series
     .map((s) => `${modelLabel(registry, s.model)} ${pts(s.total)}`)
     .join(", ");
+  const switchLabel = switchGw === null ? null : `Live from GW${switchGw}`;
   return (
     <figure className="models-chart" data-testid="models-chart">
-      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Cumulative points: ${summary}`}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        role="img"
+        aria-label={`Cumulative points: ${summary}${switchLabel ? `. ${switchLabel}` : ""}`}
+      >
         <line x1={pad} y1={H - pad} x2={W - pad} y2={H - pad} stroke="currentColor" opacity="0.4" />
+        {switchGw !== null && (
+          <g data-testid="models-switch-marker">
+            <line
+              x1={x(switchGw)}
+              y1={pad / 2}
+              x2={x(switchGw)}
+              y2={H - pad}
+              stroke="var(--border-strong)"
+              strokeWidth="2"
+              strokeDasharray="4 3"
+            />
+            <text
+              x={x(switchGw) + (x(switchGw) > W / 2 ? -4 : 4)}
+              y={pad / 2 + 8}
+              textAnchor={x(switchGw) > W / 2 ? "end" : "start"}
+              fontSize="11"
+              fill="var(--text)"
+            >
+              {switchLabel}
+            </text>
+          </g>
+        )}
         {gws.map((gw) => (
           <text key={gw} x={x(gw)} y={H - pad + 16} textAnchor="middle" fontSize="11" fill="currentColor">
             GW{gw}
@@ -103,10 +135,18 @@ export function ModelsSeasonView({ models }: { models: Models | null }) {
     <section className="models-season" data-testid="models-season">
       <h2>All models, season to date</h2>
       <p className="models-note">
-        Frozen at {models.frozen.tag ?? "an unknown tag"}. Points are the final XI after auto-subs,
-        captain (vice if the captain did not play), minus hits. Live advice is the champion; the others
-        are comparisons. A handful of gameweeks is far too few to call a winner.
+        Points are the final XI after auto-subs, captain (vice if the captain did not play), minus
+        hits. Live advice is the champion; the others are comparisons. A handful of gameweeks is far
+        too few to call a winner.
       </p>
+      {models.switch_gameweek != null && (
+        <p className="models-note" data-testid="models-switch-note">
+          Before GW{models.switch_gameweek} is the frozen record ({models.frozen.tag ?? "an unknown tag"}):
+          each model&rsquo;s virtual season. From GW{models.switch_gameweek} it is each strategy&rsquo;s
+          advice scored on your real squad. The two are different quantities; read across the switch
+          with care.
+        </p>
+      )}
       <div className="table-scroll" tabIndex={0} role="region" aria-label="Points per gameweek by model">
         <table className="models-table" data-testid="models-table">
           <caption className="visually-hidden">Points per gameweek and cumulative total, by model</caption>
