@@ -31,7 +31,7 @@ CONTRACT_VERSION = 1
 #: additive change** (a new optional field, a new artefact): the schemas' ``const`` stays the major,
 #: so an old app still accepts the data, and an app needing a newer minor than the data carries
 #: shows a warning and renders what it can. Reset to 1 when the major is bumped.
-CONTRACT_MINOR = 3  # 2: ORC-03 as_of, trigger and last_failure; 3: ORC-07 source alerts
+CONTRACT_MINOR = 3
 
 #: Artefact name -> schema filename. The published directory is exactly these files.
 ARTEFACTS: dict[str, str] = {
