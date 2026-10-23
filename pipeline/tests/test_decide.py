@@ -375,6 +375,49 @@ def test_training_window_decides_which_seasons_the_forecaster_is_fitted_on(
     assert seen == [seasons]
 
 
+def test_the_archive_changes_no_champion_output(game_rules: GameRules) -> None:
+    """DL-89 items 4 and 6, end to end: last season's rows, reusing this season's player ids at
+    other points and prices, change neither c3's forecast frame nor the squad's selling prices."""
+    from fpl_dof.config.models import EntryConfig
+    from fpl_dof.squad.state import gameweek_price_index, load_squad_state
+    from squads import legal_declaration
+    from test_squad_state import _picks_frame
+
+    inputs, _ = _snapshot(game_rules)
+    history = inputs.player_gameweek
+    assert history is not None
+    prior = history.assign(
+        season="2025/26",
+        kickoff_time=history["kickoff_time"] - pd.Timedelta(days=364),
+        total_points=history["total_points"] + 5,
+        price=history["price"] - 1.0,  # cheaper: a leaked purchase price raises the sell value
+    )
+    # Last season after this one: an unfiltered (gameweek, player_id) index would keep its price.
+    both = pd.concat([history, prior])
+    archived = dataclasses.replace(inputs, player_gameweek=both)
+    c3 = load_strategy("c3")
+    pd.testing.assert_frame_equal(
+        c3.forecast(archived, game_rules, _forecast_config()).frame,
+        c3.forecast(inputs, game_rules, _forecast_config()).frame,
+    )
+
+    held = [pick.player_id for pick in legal_declaration(inputs.players)]
+
+    def selling(player_gameweek: pd.DataFrame) -> list[float]:
+        state = load_squad_state(
+            entry_config=EntryConfig(team_id=1234),
+            rules=game_rules,
+            players=inputs.players,
+            next_gameweek=HORIZON[0],
+            picks=_picks_frame(held),
+            entry=pd.DataFrame([{"bank": 0.0}]),
+            gameweek_prices=gameweek_price_index(player_gameweek, game_rules.season),
+        )
+        return [p.selling_price(game_rules) for p in state.players]
+
+    assert selling(both) == selling(history)
+
+
 def test_c1_with_no_played_history_is_refused_by_its_requires(game_rules: GameRules) -> None:
     inputs, _ = _snapshot(game_rules)
     with pytest.raises(ValueError, match="player_gameweek"):
