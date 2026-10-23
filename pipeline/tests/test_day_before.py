@@ -9,9 +9,11 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
+from fpl_dof.week.cadence import GATE_ACTOR
 from fpl_dof.week.ci_runs import active_or_succeeded, start_of_utc_day, succeeded_since
-from fpl_dof.week.day_before import CRON, SYDNEY, gate, marker
+from fpl_dof.week.day_before import CRON, SYDNEY, gate
 
 REPO = Path(__file__).resolve().parents[2]
 UTC = dt.UTC
@@ -80,18 +82,31 @@ def test_saturday_deadline_runs_on_the_first_firing_from_0700_friday() -> None:
     assert d.gameweek == 7 and "Sat 17 Oct 21:00 AEDT" in d.reason and "10:00 UTC" in d.reason
 
 
+def _dispatched(
+    i: int,
+    created: str,
+    conclusion: str | None,
+    event: str = "workflow_dispatch",
+    actor: str = GATE_ACTOR,
+) -> dict[str, Any]:
+    """An ingest-slow.yml run as the gate script lists it; the gate reads its event and actor,
+    never its title."""
+    status = "completed" if conclusion else "in_progress"
+    return {
+        "databaseId": i,
+        "event": event,
+        "createdAt": created,
+        "status": status,
+        "conclusion": conclusion,
+        "actor": actor,
+    }
+
+
 def test_later_firings_are_no_ops_once_this_gameweek_ran() -> None:
     now = at("2026-10-15T20:27:00+00:00")
     boot = bs("2026-10-10T10:00:00Z", GW7)
     for status, conclusion in (("queued", None), ("in_progress", None), ("completed", "success")):
-        prior = [
-            {
-                "databaseId": 41,
-                "displayTitle": f"Ingest (slow) {marker(7)}",
-                "status": status,
-                "conclusion": conclusion,
-            }
-        ]
+        prior = [{**_dispatched(41, "2026-10-15T20:07:00Z", conclusion), "status": status}]
         d = gate(now=now, bootstrap=boot, prior_runs=prior)
         assert not d.run and d.reason.startswith("no-op") and "41" in d.reason
 
@@ -99,26 +114,54 @@ def test_later_firings_are_no_ops_once_this_gameweek_ran() -> None:
 def test_a_failed_earlier_run_or_another_gameweeks_run_does_not_block() -> None:
     now = at("2026-10-15T20:27:00+00:00")
     prior = [
-        {
-            "databaseId": 40,
-            "displayTitle": f"Ingest (slow) {marker(7)}",
-            "status": "completed",
-            "conclusion": "failure",
-        },
-        {
-            "databaseId": 39,
-            "displayTitle": f"Ingest (slow) {marker(6)}",
-            "status": "completed",
-            "conclusion": "success",
-        },
-        {
-            "databaseId": 38,
-            "displayTitle": "Ingest (slow)",
-            "status": "completed",
-            "conclusion": "success",
-        },
+        _dispatched(40, "2026-10-15T20:07:00Z", "failure"),  # today's, failed: retried
+        _dispatched(39, "2026-10-15T12:59:00Z", "success"),  # 23:59 Sydney yesterday
+        _dispatched(38, "2026-10-15T15:00:00Z", "success", event="schedule"),  # the daily ingest
     ]
     assert gate(now=now, bootstrap=bs("2026-10-10T10:00:00Z", GW7), prior_runs=prior).run
+
+
+def test_the_owners_manual_ingest_does_not_stand_for_the_refresh() -> None:
+    """ORC-02: only the gate's own dispatch (GITHUB_TOKEN's actor) counts, so a manual slow
+    ingest that morning does not cancel the day's must_publish refresh."""
+    now = at("2026-10-15T20:27:00+00:00")
+    boot = bs("2026-10-10T10:00:00Z", GW7)
+    owners = [_dispatched(42, "2026-10-15T20:00:00Z", "success", actor="talonegg")]
+    assert gate(now=now, bootstrap=boot, prior_runs=owners).run
+    ours = [*owners, _dispatched(43, "2026-10-15T20:07:00Z", None)]
+    d = gate(now=now, bootstrap=boot, prior_runs=ours)
+    assert not d.run and "43" in d.reason
+
+
+def test_the_gate_script_lists_each_dispatched_run_with_who_started_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    mod = _script("day_before_gate")
+    rest = {
+        "workflow_runs": [
+            {
+                "id": 7,
+                "event": "workflow_dispatch",
+                "status": "completed",
+                "conclusion": "success",
+                "created_at": "2026-10-15T20:07:00Z",
+                "actor": {"login": GATE_ACTOR},
+                "display_title": "never read",
+            }
+        ]
+    }
+    calls: list[list[str]] = []
+
+    def run(argv: list[str], **_: Any) -> Any:
+        calls.append(argv)
+        return type("Done", (), {"stdout": json.dumps(rest)})()
+
+    monkeypatch.setattr(mod.subprocess, "run", run)
+    runs, error = mod.prior_runs()
+    assert (
+        error is None and calls[0][:2] == ["gh", "api"] and "event=workflow_dispatch" in calls[0][2]
+    )
+    assert runs == [_dispatched(7, "2026-10-15T20:07:00Z", "success")]
 
 
 def test_unreadable_run_list_skips_and_the_next_firing_retries() -> None:
@@ -243,10 +286,13 @@ def test_succeeded_since_today_only_counts_todays_successes_and_not_itself() -> 
     assert succeeded_since(runs, since, exclude_id=9)["databaseId"] == 10  # type: ignore[index]
 
 
-def test_active_or_succeeded_matches_title() -> None:
-    runs = [_run(1, "2026-10-15T20:07:00Z", None, title="Ingest (slow) [day-before GW7]")]
-    assert active_or_succeeded(runs, title_contains="[day-before GW7]") is not None
-    assert active_or_succeeded(runs, title_contains="[day-before GW8]") is None
+def test_active_or_succeeded_reads_the_event_and_the_time_never_the_title() -> None:
+    runs = [_dispatched(1, "2026-10-15T20:07:00Z", None)]
+    assert active_or_succeeded(runs, since=at("2026-10-15T13:00:00+00:00")) is not None
+    assert active_or_succeeded(runs, since=at("2026-10-15T21:00:00+00:00")) is None
+    assert (
+        active_or_succeeded(runs, since=at("2026-10-15T13:00:00+00:00"), event="schedule") is None
+    )
 
 
 def test_today_done_requires_the_named_job(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -273,6 +319,33 @@ def test_ci_runs_script_says_not_done_when_github_is_unreachable(
     monkeypatch.setenv("GITHUB_OUTPUT", str(out))
     assert mod.main(["today-done", "--workflow", "ingest-slow.yml"]) == 0
     assert out.read_text() == "done=false\n"
+
+
+def test_a_run_over_its_schedule_budget_fails_the_budget_step(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ORC-09: the time the run's finished jobs ran, against `schedule` config."""
+    mod = _script("ci_runs")
+    jobs = [
+        {"started_at": "2026-10-23T10:00:00Z", "completed_at": "2026-10-23T10:02:00Z"},
+        {"started_at": "2026-10-23T10:01:00Z", "completed_at": "2026-10-23T10:03:30Z"},
+        {"started_at": "2026-10-23T10:03:35Z", "completed_at": None},  # the budget job itself
+    ]
+    assert mod.run_seconds(jobs) == 210
+    # The run job waited behind another run's from 10:01 to 10:06: not this run's own time.
+    queued = [
+        {"started_at": "2026-10-23T10:00:00Z", "completed_at": "2026-10-23T10:01:00Z"},
+        {"started_at": "2026-10-23T10:06:00Z", "completed_at": "2026-10-23T10:08:00Z"},
+        {"started_at": "2026-10-23T10:08:05Z", "completed_at": "2026-10-23T10:09:05Z"},  # deploy
+    ]
+    assert mod.run_seconds(queued) == 240
+    monkeypatch.setattr(mod, "gh_json", lambda *a: {"jobs": jobs})
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    monkeypatch.setenv("GITHUB_RUN_ID", "1")
+    assert mod.main(["budget", "ci_workflow_budget_seconds"]) == 1  # 210 s > 180 s
+    assert mod.main(["budget", "pipeline_run_budget_seconds"]) == 0  # 210 s <= 300 s
+    recent = (dt.datetime.now(UTC) - dt.timedelta(seconds=5)).isoformat()
+    assert mod.main(["budget", "python_tests_budget_seconds", "--since", recent]) == 0
 
 
 # --- no early prospective decisions ----------------------------------------------------------
@@ -302,10 +375,68 @@ def test_workflows_wire_the_fail_closed_paths_and_the_frozen_harness_is_gone() -
     # Only the decision records (gwNN.tgz), never a future gwNNz-state.tgz, are restored.
     assert "prospective/gw[0-9][0-9].tgz" in pipeline and "prospective/gw*.tgz" not in pipeline
     assert "needs: [guard]" in pipeline and "prospective:\n" not in pipeline
-    deploy = (wf / "deploy.yml").read_text()
-    assert "contract_fresh.py" in deploy and "if: env.DAY_BEFORE != 'true'" in deploy
     day = (wf / "day-before.yml").read_text()
     assert f'"{CRON}"' in day and "group: day-before" in day
+
+
+def test_deploy_runs_only_after_a_pipeline_run_that_published() -> None:
+    """ORC-03: deploy is pipeline.yml's last job, gated on the run having published.
+
+    A guard-only run never starts `run`, and a failed `run` fails the implicit `success()` in the
+    deploy job's `if`; either way nothing deploys. A published run deploys its own contract, with
+    no fallback to an older run's, and a day-before run's must also be fresh.
+    """
+    wf = REPO / ".github" / "workflows"
+    pipeline = yaml.safe_load((wf / "pipeline.yml").read_text())
+    run = pipeline["jobs"]["run"]
+    assert run["outputs"]["published"] == "${{ steps.published.outputs.published }}"
+    marker_step = next(s for s in run["steps"] if s.get("id") == "published")
+    assert 'test -f "${{ steps.contract.outputs.dir }}/meta.json"' in marker_step["run"]
+    steps = [s.get("name") or s.get("uses") for s in run["steps"]]
+    assert steps.index(marker_step["name"]) > steps.index(
+        "Run the pipeline (transform through publish)"
+    )
+    job = pipeline["jobs"]["deploy"]
+    assert job["needs"] == ["guard", "run"]
+    assert job["if"] == "needs.run.outputs.published == 'true'"  # no always(): success() applies
+    assert job["uses"] == "./.github/workflows/deploy.yml"
+    assert job["with"]["from_pipeline"] is True
+    assert job["with"]["must_publish"] == "${{ inputs.must_publish == true }}"
+    assert {"pages": "write", "id-token": "write"}.items() <= job["permissions"].items()
+
+    deploy = yaml.safe_load((wf / "deploy.yml").read_text())
+    triggers = deploy[True]  # YAML 1.1 reads the `on:` key as a boolean
+    assert "workflow_run" not in triggers and {"push", "workflow_call"} <= set(triggers)
+    build = {s.get("name"): s for s in deploy["jobs"]["build"]["steps"]}
+    own = build["Download this pipeline run's contract"]
+    assert own["if"] == "inputs.from_pipeline" and "run-id" not in own["with"]
+    assert "continue-on-error" not in own
+    fresh = build["Must publish - require the fresh contract"]
+    assert fresh["if"] == "inputs.must_publish" and "contract_fresh.py" in fresh["run"]
+    assert (
+        build["Restore the newest pipeline run's contract"]["if"] == "${{ !inputs.from_pipeline }}"
+    )
+    assert deploy["jobs"]["deploy"]["permissions"] == {"pages": "write", "id-token": "write"}
+
+
+def test_an_over_budget_run_stays_findable_and_the_budget_spans_its_deploy() -> None:
+    """ORC-09: the budget fails a run after it published; the fallbacks then take the newest
+    run that uploaded a contract, whatever its conclusion, from a list ticks cannot crowd."""
+    wf = REPO / ".github" / "workflows"
+    deploy = yaml.safe_load((wf / "deploy.yml").read_text())
+    fallback = next(
+        s["run"]
+        for s in deploy["jobs"]["build"]["steps"]
+        if s.get("name") == "Restore the newest pipeline run's contract"
+    )
+    pre_release = (wf / "pre-release.yml").read_text()
+    for text in (fallback, pre_release):
+        assert "/actions/artifacts" in text and "?name=web-data-contract" in text
+        assert "map(select(.expired | not))" in text
+        assert "--status" not in text and "gh run list" not in text
+    budget = yaml.safe_load((wf / "pipeline.yml").read_text())["jobs"]["budget"]
+    assert budget["needs"] == ["run", "deploy"]
+    assert budget["if"] == "${{ !cancelled() && needs.run.result == 'success' }}"
 
 
 # --- fail-closed contract check --------------------------------------------------------------

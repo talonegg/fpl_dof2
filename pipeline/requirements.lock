@@ -1,6 +1,6 @@
 # Resolved dependency set CI installs as constraints (DP-11). Upgrades are deliberate changes:
 # python -m uv pip compile pipeline/pyproject.toml --extra dev --python-version 3.14 --universal --no-header --no-annotate -o pipeline/requirements.lock
-# then run the full suite and commit the diff. Install: pip install -c pipeline/requirements.lock -e "pipeline[dev]"
+# then run the full suite and commit the diff. Install: uv pip install -c pipeline/requirements.lock -e "pipeline[dev]"
 annotated-types==0.8.0
 anyio==4.15.1
 ast-serialize==0.13.1
@@ -10,6 +10,7 @@ click==8.5.0
 cloudpickle==3.1.2
 colorama==0.4.6 ; sys_platform == 'win32'
 coverage==7.17.0
+execnet==2.1.2
 grimp==3.17
 h11==0.16.0
 highspy==1.15.1
@@ -43,6 +44,7 @@ pygments==2.21.0
 pytest==9.1.1
 pytest-cov==7.1.0
 pytest-timeout==2.4.0
+pytest-xdist==3.8.0
 python-dateutil==3.0.0
 pyyaml==6.0.3
 referencing==0.37.0

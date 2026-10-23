@@ -15,8 +15,9 @@ import pandas as pd
 import pytest
 import respx
 
+from conftest import isolated_environ
 from fpl_dof.artefacts import NoBronzeError, read_rules
-from fpl_dof.config import Config
+from fpl_dof.config import Config, load_config
 from fpl_dof.paths import DataLayout
 from fpl_dof.pipeline import StageContext
 from fpl_dof.rules.models import GameRules, Position
@@ -36,6 +37,24 @@ BASE = FplApiAdapter.base_url
 @pytest.fixture
 def populated_bronze(config: Config, layout: DataLayout) -> Iterator[DataLayout]:
     """Ingest the recorded fixtures into a real bronze store, so transform has something to read."""
+    _ingest(config, layout)
+    yield layout
+
+
+@pytest.fixture(scope="session")
+def transformed_silver(tmp_path_factory: pytest.TempPathFactory) -> tuple[Config, DataLayout]:
+    """The recorded fixtures ingested and transformed once, for the tests that only read silver."""
+    config, _ = load_config(
+        environ=isolated_environ(tmp_path_factory.mktemp("transformed_silver")), local_override=None
+    )
+    layout = DataLayout(root=config.runtime.data_dir)
+    layout.ensure()
+    _ingest(config, layout)
+    transform.run(_ctx(config, layout))
+    return config, layout
+
+
+def _ingest(config: Config, layout: DataLayout) -> None:
     bootstrap = json.loads((FIXTURES / "bootstrap_static.json").read_text(encoding="utf-8"))
     fixtures = json.loads((FIXTURES / "fixtures.json").read_text(encoding="utf-8"))
     summaries = json.loads((FIXTURES / "element_summary.json").read_text(encoding="utf-8"))
@@ -61,7 +80,6 @@ def populated_bronze(config: Config, layout: DataLayout) -> Iterator[DataLayout]
             sleep=lambda _s: None,
         ) as fetcher:
             FplApiAdapter(fetcher).ingest(IngestRequest(run_id="run-1"))
-    yield layout
 
 
 def _ctx(config: Config, layout: DataLayout) -> StageContext:
@@ -192,15 +210,14 @@ def test_transform_produces_every_table(config: Config, populated_bronze: DataLa
 
 
 def test_optional_tables_are_absent_rather_than_empty_in_preseason(
-    config: Config, populated_bronze: DataLayout
+    transformed_silver: tuple[Config, DataLayout],
 ) -> None:
     """DL-20: no configured team ID and no played gameweeks is the normal August state.
 
-    Absent and empty are different answers, and only absent is honest here — an empty entry table
+    Absent and empty are different answers, and only absent is honest here â€” an empty entry table
     would claim the squad was read and found to hold nobody.
     """
-    transform.run(_ctx(config, populated_bronze))
-
+    _, populated_bronze = transformed_silver
     for table in (Table.ENTRY, Table.ENTRY_PICK, Table.PLAYER_GAMEWEEK):
         assert read_table_optional(populated_bronze.silver, "2026/27", table) is None, table.value
 
@@ -258,22 +275,22 @@ def test_transform_makes_no_network_calls(config: Config, populated_bronze: Data
     transform.run(_ctx(config, populated_bronze))
 
 
-def test_prices_are_in_millions_not_tenths(config: Config, populated_bronze: DataLayout) -> None:
-    transform.run(_ctx(config, populated_bronze))
+def test_prices_are_in_millions_not_tenths(transformed_silver: tuple[Config, DataLayout]) -> None:
+    _, populated_bronze = transformed_silver
     players = read_table(populated_bronze.silver, "2026/27", Table.PLAYER)
     assert players["price"].between(3.0, 20.0).all()
     assert players["price"].max() < 25.0
 
 
-def test_positions_are_canonical(config: Config, populated_bronze: DataLayout) -> None:
-    transform.run(_ctx(config, populated_bronze))
+def test_positions_are_canonical(transformed_silver: tuple[Config, DataLayout]) -> None:
+    _, populated_bronze = transformed_silver
     players = read_table(populated_bronze.silver, "2026/27", Table.PLAYER)
     assert set(players["position"]) <= {p.value for p in Position}
 
 
-def test_times_are_utc(config: Config, populated_bronze: DataLayout) -> None:
+def test_times_are_utc(transformed_silver: tuple[Config, DataLayout]) -> None:
     """DL-11: stored and computed in UTC; local time is a rendering concern only."""
-    transform.run(_ctx(config, populated_bronze))
+    _, populated_bronze = transformed_silver
     gameweeks = read_table(populated_bronze.silver, "2026/27", Table.GAMEWEEK)
     assert str(gameweeks["deadline_time"].dtype) == "datetime64[ns, UTC]"
     gw1 = gameweeks[gameweeks["gameweek"] == 1].iloc[0]
@@ -281,10 +298,10 @@ def test_times_are_utc(config: Config, populated_bronze: DataLayout) -> None:
 
 
 def test_defensive_contribution_survives_into_silver(
-    config: Config, populated_bronze: DataLayout
+    transformed_silver: tuple[Config, DataLayout],
 ) -> None:
     """E0-S3's whole reason for existing: DefCon must reach the model."""
-    transform.run(_ctx(config, populated_bronze))
+    _, populated_bronze = transformed_silver
     history = read_table(populated_bronze.silver, "2026/27", Table.PLAYER_SEASON_HISTORY)
     recent = history[history["season_name"] == "2025/26"]
     assert not recent.empty
@@ -292,9 +309,9 @@ def test_defensive_contribution_survives_into_silver(
 
 
 def test_rules_are_written_alongside_the_tables(
-    config: Config, populated_bronze: DataLayout
+    transformed_silver: tuple[Config, DataLayout],
 ) -> None:
-    transform.run(_ctx(config, populated_bronze))
+    config, populated_bronze = transformed_silver
     rules = read_rules(_ctx(config, populated_bronze), "2026/27")
     assert isinstance(rules, GameRules)
     assert rules.squad.budget == 100.0

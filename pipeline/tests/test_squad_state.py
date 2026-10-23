@@ -272,6 +272,80 @@ def test_a_missing_purchase_price_warns_rather_than_pretending(game_rules: GameR
     assert any("no purchase price" in warning for warning in state.warnings)
 
 
+def _transfer(gameweek: int, bought: int, cost: float, sold: int, at: str) -> dict[str, object]:
+    return {
+        "entry_id": 1234,
+        "gameweek": gameweek,
+        "player_in_id": bought,
+        "player_in_cost": cost,
+        "player_out_id": sold,
+        "player_out_cost": cost,
+        "made_at": pd.Timestamp(at),
+    }
+
+
+FREE_HIT_IN_GW2 = pd.DataFrame([{"entry_id": 1234, "name": "freehit", "gameweek": 2}])
+
+
+def test_a_player_bought_during_a_free_hit_keeps_what_was_first_paid_after_the_revert(
+    game_rules: GameRules,
+) -> None:
+    """D-33: DL-92 takes the latest transfer in, and the transfer log does not mark Free Hit
+    transfers. A player sold and bought back on a Free Hit returns with the squad at what was
+    first paid, not at the Free Hit's price."""
+    players = _players()
+    held = [pick.player_id for pick in legal_declaration(players)]
+    sold, other = same_position_swap(players, held)
+    transfers = pd.DataFrame(
+        [
+            _transfer(2, other, 4.0, sold, "2026-08-27T10:00:00Z"),
+            _transfer(2, sold, 4.6, other, "2026-08-27T11:00:00Z"),  # bought back on the Free Hit
+        ]
+    )
+    player_gameweek = pd.DataFrame(
+        [{"season": "2026/27", "gameweek": 1, "player_id": pid, "price": 3.5} for pid in held]
+    )
+
+    state = load_squad_state(
+        entry_config=EntryConfig(team_id=1234),
+        rules=game_rules,
+        players=players,
+        next_gameweek=3,
+        picks=pd.concat([_picks_frame(held, 1), _picks_frame(held, 2)]),
+        transfers=transfers,
+        entry=pd.DataFrame([{"bank": 0.0}]),
+        chips=FREE_HIT_IN_GW2,
+        gameweek_prices=gameweek_price_index(player_gameweek, "2026/27"),
+    )
+
+    paid = {player.player_id: player.purchase_price for player in state.players}
+    assert paid[sold] == 3.5, "the Free Hit's 4.6 is not what was paid for the squad he returns to"
+
+
+def test_the_squad_after_a_free_hit_is_the_one_it_reverts_to(game_rules: GameRules) -> None:
+    """The Free Hit gameweek's picks are not the base; a transfer made after it applies to the
+    squad from before it."""
+    players = _players()
+    held = [pick.player_id for pick in legal_declaration(players)]
+    sold, bought = same_position_swap(players, held)
+    on_free_hit = [bought if pid == sold else pid for pid in held]
+
+    state = load_squad_state(
+        entry_config=EntryConfig(team_id=1234),
+        rules=game_rules,
+        players=players,
+        next_gameweek=3,
+        picks=pd.concat([_picks_frame(held, 1), _picks_frame(on_free_hit, 2)]),
+        transfers=pd.DataFrame([_transfer(2, bought, 3.7, sold, "2026-08-27T10:00:00Z")]),
+        entry=pd.DataFrame([{"bank": 0.0}]),
+        chips=FREE_HIT_IN_GW2,
+    )
+
+    assert state.player_ids() == frozenset(held)
+    assert state.as_of_gameweek == 1
+    assert state.provenance is Provenance.FROM_PICKS
+
+
 def test_sell_value_applies_the_sell_on_fee_not_the_current_price(
     game_rules: GameRules,
 ) -> None:

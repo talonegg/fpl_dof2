@@ -21,9 +21,13 @@ points is still churn.
 
 from __future__ import annotations
 
+import os
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Generator, Mapping, Sequence
+from concurrent.futures import ProcessPoolExecutor
+from contextlib import closing
 from dataclasses import dataclass, field
+from functools import partial
 
 import pandas as pd
 
@@ -161,28 +165,32 @@ def build_plan(
     )
 
     warnings: list[str] = list(cap_warnings)
-    baseline = _solve_baseline(inputs, decision, optimiser)
-    scored: dict[str, ScoredPlan] = {BASELINE_KEY: ScoredPlan(BASELINE_KEY, baseline, None)}
-    order = [BASELINE_KEY]
+    distinct: dict[str, ChipScenario] = {}
+    for scenario in scenarios:
+        distinct.setdefault(_scenario_key(scenario), scenario)
+    jobs = [(ChipScenario(), _held(decision)), *((s, decision) for s in distinct.values())]
+    with closing(_solves(inputs, jobs, optimiser)) as solves:
+        baseline = next(solves)()
+        scored: dict[str, ScoredPlan] = {BASELINE_KEY: ScoredPlan(BASELINE_KEY, baseline, None)}
+        order = [BASELINE_KEY]
 
-    budget = decision.horizon.scenario_time_budget_seconds
-    for index, scenario in enumerate(scenarios):
-        if time.monotonic() - started > budget:
-            warnings.append(
-                f"the {budget}s scenario budget was reached after {index} of {len(scenarios)} "
-                "chip scenarios; the remainder were not solved and cannot have been recommended"
-            )
-            break
-        key = _scenario_key(scenario)
-        if key in scored:
-            continue
-        try:
-            plan = solve_horizon(inputs, scenario, decision, optimiser)
-        except InfeasibleError as exc:
-            warnings.append(f"{scenario.label or 'no chip'} is infeasible: {exc}")
-            continue
-        scored[key] = ScoredPlan(key, plan, None)
-        order.append(key)
+        budget = decision.horizon.scenario_time_budget_seconds
+        for index, ((key, scenario), solve) in enumerate(
+            zip(distinct.items(), solves, strict=True)
+        ):
+            if time.monotonic() - started > budget:
+                warnings.append(
+                    f"the {budget}s scenario budget was reached after {index} of {len(distinct)} "
+                    "chip scenarios; the remainder were not solved and cannot have been recommended"
+                )
+                break
+            try:
+                plan = solve()
+            except InfeasibleError as exc:
+                warnings.append(f"{scenario.label or 'no chip'} is infeasible: {exc}")
+                continue
+            scored[key] = ScoredPlan(key, plan, None)
+            order.append(key)
 
     scored = _simulate_all(scored, pool, decision, weeks)
     ordered = _order(scored, order)
@@ -244,18 +252,42 @@ def build_plan(
 # ---------------------------------------------------------------------- solving
 
 
-def _solve_baseline(
-    inputs: HorizonInputs, decision: DecisionConfig, optimiser: OptimiserConfig
-) -> HorizonPlan:
+def _held(decision: DecisionConfig) -> DecisionConfig:
     """ "Do nothing" as an option with a number on it, not as the absence of a recommendation.
 
     Solved rather than assumed, because holding the squad still involves picking a starting XI and a
     captain every week, and those are real decisions worth several points across a horizon.
     """
-    held = decision.model_copy(
+    return decision.model_copy(
         update={"horizon": decision.horizon.model_copy(update={"max_transfers_per_gameweek": 0})}
     )
-    return solve_horizon(inputs, ChipScenario(), held, optimiser)
+
+
+def _solves(
+    inputs: HorizonInputs,
+    jobs: Sequence[tuple[ChipScenario, DecisionConfig]],
+    optimiser: OptimiserConfig,
+) -> Generator[Callable[[], HorizonPlan]]:
+    """Each job's solve in job order: call it for the plan, or for its :class:`InfeasibleError`.
+
+    Across ``optimiser.scenario_workers`` processes (ORC-09). Every job is an independent MILP over
+    the same inputs with the same gap and time limit, so the plans and their order are the
+    sequential ones; only the wall clock changes. Closing the iterator cancels the solves not yet
+    started, which is how the scenario budget stops the rest.
+    """
+    workers = min(optimiser.scenario_workers, os.process_cpu_count() or 1, len(jobs))
+    if workers <= 1:
+        for scenario, decision in jobs:
+            yield partial(solve_horizon, inputs, scenario, decision, optimiser)
+        return
+    with ProcessPoolExecutor(workers) as pool:
+        futures = [pool.submit(solve_horizon, inputs, s, d, optimiser) for s, d in jobs]
+        try:
+            for future in futures:
+                yield future.result
+        finally:
+            for future in futures:
+                future.cancel()
 
 
 def _order(scored: Mapping[str, ScoredPlan], milp_order: Sequence[str]) -> list[ScoredPlan]:

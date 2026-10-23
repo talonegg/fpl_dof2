@@ -75,6 +75,16 @@ def _plan(
     )
 
 
+@pytest.fixture(scope="module")
+def default_plan(game_rules: GameRules, bootstrap: dict[str, object]) -> DecisionPlan:
+    """``_plan`` with every default, solved once for the tests that only read it.
+
+    Solving it again gives the same plan: ``test_the_simulation_is_reproducible_across_runs``
+    asserts that against a fresh solve, and the parallel-plan test against a parallel one.
+    """
+    return _plan(game_rules, bootstrap)
+
+
 # --------------------------------------------------------------------------- E4-S1
 
 
@@ -210,6 +220,36 @@ def test_a_forbidden_gameweek_is_never_enumerated(bootstrap: dict[str, object]) 
     assert not any("wildcard" in scenario.chips for scenario in scenarios)
 
 
+def test_the_parallel_chip_plan_is_the_sequential_one(
+    game_rules: GameRules, bootstrap: dict[str, object], default_plan: DecisionPlan
+) -> None:
+    """ORC-09: solving the scenarios across processes changes the wall clock, never the plan."""
+    squad = pool()
+
+    def timeless(value: object) -> object:
+        if isinstance(value, dict):
+            return {k: timeless(v) for k, v in value.items() if k != "solve_seconds"}
+        if isinstance(value, list):
+            return [timeless(v) for v in value]
+        return value
+
+    def plan(built: DecisionPlan) -> object:
+        assert len(built.alternatives) > 2
+        return timeless(as_dict(built))
+
+    parallel = build_plan(
+        players=forecast(squad, GAMEWEEKS),
+        state=state(game_rules, squad, gameweek=GAMEWEEKS[0]),
+        rules=game_rules,
+        decision=decision(gameweeks=len(GAMEWEEKS)),
+        optimiser=OPTIMISER.model_copy(update={"scenario_workers": 3}),
+        fixtures=fixture_table(squad, GAMEWEEKS),
+        chips=chip_table(bootstrap),
+    )
+    assert OPTIMISER.scenario_workers == 1  # so the default plan is the sequential one
+    assert plan(parallel) == plan(default_plan)
+
+
 def test_the_calendar_finds_a_double_gameweek_and_carries_the_expiry(
     bootstrap: dict[str, object],
 ) -> None:
@@ -337,10 +377,10 @@ def test_the_simulation_re_rank_changes_a_chip_recommendation(
 
 
 def test_the_simulation_is_reproducible_across_runs(
-    game_rules: GameRules, bootstrap: dict[str, object]
+    game_rules: GameRules, bootstrap: dict[str, object], default_plan: DecisionPlan
 ) -> None:
     """R-16. A recommendation that changes on refresh for no stated reason is not one."""
-    first = _plan(game_rules, bootstrap)
+    first = default_plan
     second = _plan(game_rules, bootstrap)
     assert first.recommended.key == second.recommended.key
     assert first.recommended.plan.first.squad == second.recommended.plan.first.squad
@@ -407,9 +447,9 @@ def test_rolling_everything_is_always_a_ranked_runner_up(
 
 
 def test_the_explanation_carries_decomposition_marginal_gain_and_assumptions(
-    game_rules: GameRules, bootstrap: dict[str, object]
+    default_plan: DecisionPlan,
 ) -> None:
-    plan = _plan(game_rules, bootstrap)
+    plan = default_plan
     explanation = plan.explanation
     assert explanation.decomposition, "where the points came from"
     assert any(item.label.startswith("GW") for item in explanation.decomposition)
@@ -422,12 +462,10 @@ def test_the_explanation_carries_decomposition_marginal_gain_and_assumptions(
 # --------------------------------------------------------------------------- the contract
 
 
-def test_the_published_plan_matches_its_schema(
-    game_rules: GameRules, bootstrap: dict[str, object]
-) -> None:
+def test_the_published_plan_matches_its_schema(default_plan: DecisionPlan) -> None:
     """Validated on the way out, because publishing a shape the app cannot read breaks it in a
     browser, which is the slowest possible place to find out."""
-    plan = _plan(game_rules, bootstrap)
+    plan = default_plan
     payload: dict[str, object] = {
         "contract_version": 1,
         "run_id": "test-run",

@@ -2,8 +2,9 @@
 
     python pipeline/scripts/day_before_gate.py [--manual]
 
-Reads the game's state once, through the source layer (REM-06), and lists recent Ingest (slow)
-runs with ``gh`` (read-only GITHUB_TOKEN) for the idempotency check. Any failure to read either
+Reads the game's state once, through the source layer (REM-06), and lists recent dispatched
+ingest-slow.yml runs, with who started each, through ``gh api`` (read-only GITHUB_TOKEN) for the
+idempotency check: ``gh run list`` cannot say who started a run. Any failure to read either
 is a logged skip (``::warning::``), never a partial refresh. Logic and tests:
 ``fpl_dof.week.day_before``.
 """
@@ -24,8 +25,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 from fpl_dof.sources import LiveFeed
 from fpl_dof.week.day_before import gate
 
-FIELDS = "databaseId,displayTitle,status,conclusion,createdAt"
-
 
 def fetch() -> tuple[dict[str, Any] | None, str | None]:
     try:
@@ -35,27 +34,30 @@ def fetch() -> tuple[dict[str, Any] | None, str | None]:
         return None, f"{type(exc).__name__}: {exc}"
 
 
+RUNS = (
+    "repos/{owner}/{repo}/actions/workflows/ingest-slow.yml/runs"
+    "?event=workflow_dispatch&per_page=50"
+)
+
+
 def prior_runs() -> tuple[list[dict[str, Any]] | None, str | None]:
+    """The slow ingest's recent dispatched runs, in the shape the gate reads, with their actor."""
     try:
         out = subprocess.run(
-            [
-                "gh",
-                "run",
-                "list",
-                "--workflow",
-                "ingest-slow.yml",
-                "--limit",
-                "50",
-                "--json",
-                FIELDS,
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=60,
+            ["gh", "api", RUNS], check=True, capture_output=True, text=True, timeout=60
         )
-        return list(json.loads(out.stdout)), None
-    except (OSError, subprocess.SubprocessError, ValueError) as exc:
+        return [
+            {
+                "databaseId": run["id"],
+                "event": run["event"],
+                "status": run["status"],
+                "conclusion": run["conclusion"],
+                "createdAt": run["created_at"],
+                "actor": (run.get("actor") or {}).get("login"),
+            }
+            for run in json.loads(out.stdout)["workflow_runs"]
+        ], None
+    except (OSError, subprocess.SubprocessError, ValueError, KeyError, TypeError) as exc:
         return None, f"{type(exc).__name__}: {exc}"
 
 

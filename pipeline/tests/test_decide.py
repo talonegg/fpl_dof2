@@ -11,7 +11,9 @@ week and its ledger entry are on disk before its plan or any challenger runs: ne
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
+import pickle
 from pathlib import Path
 from typing import Any, get_args
 
@@ -41,9 +43,10 @@ from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_
 from fpl_dof.publish.strategies import artefact_paths
 from fpl_dof.rules.models import GameRules
 from fpl_dof.silver.tables import Table
+from fpl_dof.sources import supplying
 from fpl_dof.stages import week
 from fpl_dof.week.deadline import DeadlineView, next_deadline
-from fpl_dof.week.ledger import advice_path, read_advice
+from fpl_dof.week.ledger import PREDICTION_COLUMNS, advice_path, predictions_path, read_advice
 
 LINE = PricePositionLine(
     intercept_by_position={"GKP": 1.0, "DEF": 1.5, "MID": 2.0, "FWD": 2.5},
@@ -476,7 +479,40 @@ def _orchestration(rules: GameRules) -> week.Snapshot:
         alerts=[],
         reconciliation=None,
         form=None,
+        clock=lambda: inputs.as_of,  # before the deadline: the ledger is open (ORC-03)
     )
+
+
+#: Forecasts already made in this process, by the content of everything they were made from.
+_FORECASTS: dict[str, Forecast] = {}
+
+
+def _reuse_forecasts(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Each strategy forecasts a given snapshot once per process rather than once per test.
+
+    For the orchestration tests, which are about what ``advise_all`` does with the forecasts, not
+    the forecasts themselves; fitting four strategies again in each was most of this file's time.
+    Keyed by the pickled strategy, inputs, rules and config, so a test that changes any of them
+    (a later ``as_of``, no odds, a strategy with a new ``requires``) forecasts afresh. A forecast
+    that raises is not kept, and every caller gets its own copy of the frame.
+    """
+    real = Strategy.forecast
+
+    def reused(
+        self: Strategy, inputs: ForecastInputs, rules: GameRules, config: Config
+    ) -> Forecast:
+        key = hashlib.sha256(pickle.dumps((self, inputs, rules, config))).hexdigest()
+        if key not in _FORECASTS:
+            _FORECASTS[key] = real(self, inputs, rules, config)
+        kept = _FORECASTS[key]
+        return dataclasses.replace(kept, frame=kept.frame.copy())
+
+    monkeypatch.setattr(Strategy, "forecast", reused)
+
+
+@pytest.fixture
+def reused_forecasts(monkeypatch: pytest.MonkeyPatch) -> None:
+    _reuse_forecasts(monkeypatch)
 
 
 def _advise_all(
@@ -491,10 +527,21 @@ def _advise_all(
     return advice
 
 
+@pytest.fixture(scope="session")
+def advised(
+    game_rules: GameRules, tmp_path_factory: pytest.TempPathFactory
+) -> tuple[dict[str, week.Advice], Path]:
+    """Every published strategy advised once on the snapshot, for the tests that only read it."""
+    root = tmp_path_factory.mktemp("advised")
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        _reuse_forecasts(monkeypatch)
+        return _advise_all(game_rules, root), root
+
+
 def test_every_published_strategy_gets_a_valid_week_and_plan(
-    game_rules: GameRules, tmp_path: Path
+    advised: tuple[dict[str, week.Advice], Path],
 ) -> None:
-    advice = _advise_all(game_rules, tmp_path)
+    advice, _ = advised
     contract = Contract(root=find_contracts_root())
     assert set(advice) == {s.id for s in published_strategies()}
     for s in published_strategies():
@@ -519,6 +566,7 @@ def _fail_c1(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(Strategy, "forecast", failing)
 
 
+@pytest.mark.usefixtures("reused_forecasts")
 def test_a_failing_challenger_records_no_advice_and_stops_nothing_else(
     game_rules: GameRules, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -540,6 +588,86 @@ def test_a_failing_challenger_records_no_advice_and_stops_nothing_else(
     assert models["c3"]["role"] == "champion"
 
 
+@pytest.mark.usefixtures("reused_forecasts")
+def test_a_challenger_failing_after_an_earlier_success_keeps_that_success_as_the_record(
+    game_rules: GameRules, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """ORC-03 (DL-94): the second run's failure is noted beside the first run's advice."""
+    first = _advise_all(game_rules, tmp_path)
+    _fail_c1(monkeypatch)
+    snapshot = _orchestration(game_rules)
+    later = dataclasses.replace(
+        snapshot,
+        inputs=dataclasses.replace(
+            snapshot.inputs, as_of=snapshot.inputs.as_of + pd.Timedelta(minutes=10)
+        ),
+    )
+    second, _ = week.advise_all(
+        later, published_strategies(), gold=tmp_path / "gold", layout=DataLayout(root=tmp_path)
+    )
+
+    recorded = read_advice(DataLayout(root=tmp_path), HORIZON[0])
+    assert recorded is not None
+    c1 = recorded["models"]["c1"]
+    assert c1["advised"] == first["c1"][0]["advised"]
+    assert "c1 fit exploded" in c1["last_failure"]["reason"]
+    assert "last_failure" not in recorded["models"]["c3"]
+
+    # The published file shows the advice of record, not "no advice", with the failure beside it.
+    written = json.loads((tmp_path / "gold" / "week_c1.json").read_text(encoding="utf-8"))
+    assert written == second["c1"][0]
+    assert not written["skipped"] and "skipped_reason" not in written
+    assert written["advised"] == first["c1"][0]["advised"]
+    assert written["recommendation"] == first["c1"][0]["recommendation"]
+    assert written["strategy"] == first["c1"][0]["strategy"]
+    assert written["as_of"] == first["c1"][0]["as_of"] != c1["last_failure"]["as_of"]
+    assert written["last_failure"] == c1["last_failure"]
+    Contract(root=find_contracts_root()).validate(
+        "week", written | {"contract_version": CONTRACT_VERSION}
+    )
+
+
+@pytest.mark.usefixtures("reused_forecasts")
+def test_a_challenger_that_never_succeeded_publishes_no_advice(
+    game_rules: GameRules, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _fail_c1(monkeypatch)
+    advice = _advise_all(game_rules, tmp_path)
+    assert advice["c1"][0]["skipped"] and "last_failure" not in advice["c1"][0]
+
+
+@pytest.mark.usefixtures("reused_forecasts")
+def test_a_run_that_ends_after_the_deadline_records_nothing(
+    game_rules: GameRules, tmp_path: Path
+) -> None:
+    """ORC-03: the snapshot was before the deadline, but the write would land after it."""
+    snapshot = _orchestration(game_rules)
+    late = dataclasses.replace(
+        snapshot, clock=lambda: snapshot.deadline.deadline_utc + pd.Timedelta(minutes=1)
+    )
+    layout = DataLayout(root=tmp_path)
+    week.advise_all(late, published_strategies(), gold=tmp_path / "gold", layout=layout)
+    assert (tmp_path / "gold" / "week.json").exists()  # the artefacts are still written
+    assert not advice_path(layout, HORIZON[0]).exists()
+
+
+@pytest.mark.usefixtures("reused_forecasts")
+def test_every_payload_and_ledger_entry_carries_as_of_and_trigger(
+    game_rules: GameRules, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _fail_c1(monkeypatch)  # a "no advice" payload is stamped too
+    advice = _advise_all(game_rules, tmp_path)
+    as_of = "2026-09-11T16:30:00Z"  # the snapshot's, not the wall clock's
+    for week_payload, plan_payload in advice.values():
+        for payload in (week_payload, plan_payload):
+            if payload is not None:
+                assert (payload["as_of"], payload["trigger"]) == (as_of, "manual")
+    recorded = read_advice(DataLayout(root=tmp_path), HORIZON[0])
+    assert recorded is not None and recorded["trigger"] == "manual"
+    assert all(m["as_of"] == as_of for m in recorded["models"].values())
+
+
+@pytest.mark.usefixtures("reused_forecasts")
 def test_a_strategy_missing_a_required_table_records_no_advice_and_the_others_run(
     game_rules: GameRules, tmp_path: Path
 ) -> None:
@@ -550,10 +678,50 @@ def test_a_strategy_missing_a_required_table_records_no_advice_and_the_others_ru
     assert not advice["c3"][0]["skipped"] and not advice["c1"][0]["skipped"]
 
 
-def test_the_engine_strategy_writes_its_own_week_file(
+def test_a_strategy_whose_odds_arrive_says_so_once_whatever_started_the_run(
     game_rules: GameRules, tmp_path: Path
 ) -> None:
-    advice = _advise_all(game_rules, tmp_path)
+    """ORC-07: offline for its odds in the held record, advising now, in a run the daily
+    schedule started rather than a change: the week file says the source arrived and when, and
+    its trigger says what started the run; a later run says nothing more."""
+    layout, gold = DataLayout(root=tmp_path), tmp_path / "gold"
+    lineup = (champion(), load_strategy("a_odds"))
+    snapshot = _orchestration(game_rules)
+    no_odds = dataclasses.replace(
+        snapshot, inputs=dataclasses.replace(snapshot.inputs, match_odds=None)
+    )
+    first, _ = week.advise_all(no_odds, lineup, gold=gold, layout=layout)
+    assert first["a_odds"][0]["skipped"]
+    held = (read_advice(layout, HORIZON[0]) or {})["models"]["a_odds"]
+    assert held["missing"] == [Table.TEAM_MATCH_EXPECTATION.value]
+
+    config = snapshot.config
+    scheduled = config.model_copy(
+        update={"runtime": config.runtime.model_copy(update={"trigger": "schedule"})}
+    )
+    later = snapshot.inputs.as_of + pd.Timedelta(minutes=10)
+    arriving = dataclasses.replace(
+        snapshot, config=scheduled, inputs=dataclasses.replace(snapshot.inputs, as_of=later)
+    )
+    second, _ = week.advise_all(arriving, lineup, gold=gold, layout=layout)
+    a_odds = second["a_odds"][0]
+    sources = supplying([Table.TEAM_MATCH_EXPECTATION.value], config.sources)
+    assert sources and a_odds["arrived"] == {"sources": sources, "at": a_odds["as_of"]}
+    assert a_odds["trigger"] == "schedule"
+    assert not a_odds["skipped"] and "arrived" not in second["c3"][0]
+    Contract(root=find_contracts_root()).validate(
+        "week", a_odds | {"contract_version": CONTRACT_VERSION}
+    )
+    assert "arrived" not in (read_advice(layout, HORIZON[0]) or {})["models"]["a_odds"]
+
+    third, _ = week.advise_all(arriving, lineup, gold=gold, layout=layout)
+    assert "arrived" not in third["a_odds"][0]  # the held record now advises
+
+
+def test_the_engine_strategy_writes_its_own_week_file(
+    advised: tuple[dict[str, week.Advice], Path],
+) -> None:
+    advice, tmp_path = advised
     assert not advice["engine"][0]["skipped"] and advice["engine"][1] is None
     written = json.loads((tmp_path / "gold" / "week_engine.json").read_text(encoding="utf-8"))
     assert written["strategy"]["id"] == "engine"
@@ -562,6 +730,7 @@ def test_the_engine_strategy_writes_its_own_week_file(
     )
 
 
+@pytest.mark.usefixtures("reused_forecasts")
 def test_a_failing_champion_fails_the_run(
     game_rules: GameRules, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -573,6 +742,7 @@ def test_a_failing_champion_fails_the_run(
         _advise_all(game_rules, tmp_path)
 
 
+@pytest.mark.usefixtures("reused_forecasts")
 def test_a_champion_plan_that_raises_leaves_this_weeks_advice_written(
     game_rules: GameRules, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -602,6 +772,7 @@ def test_a_champion_plan_that_raises_leaves_this_weeks_advice_written(
     assert advice[champion().id][0] == written
 
 
+@pytest.mark.usefixtures("reused_forecasts")
 def test_the_champion_is_the_registrys_whatever_order_the_strategies_arrive_in(
     game_rules: GameRules, tmp_path: Path
 ) -> None:
@@ -613,8 +784,10 @@ def test_the_champion_is_the_registrys_whatever_order_the_strategies_arrive_in(
     assert written["strategy"]["id"] == champion().id
 
 
-def test_the_ledger_carries_every_published_strategy(game_rules: GameRules, tmp_path: Path) -> None:
-    advice = _advise_all(game_rules, tmp_path)
+def test_the_ledger_carries_every_published_strategy(
+    advised: tuple[dict[str, week.Advice], Path],
+) -> None:
+    advice, tmp_path = advised
     recorded = read_advice(DataLayout(root=tmp_path), HORIZON[0])
     assert recorded is not None
     models = recorded["models"]
@@ -636,7 +809,9 @@ def test_the_week_schema_knows_every_registry_role() -> None:
 def test_an_experiment_strategys_week_validates() -> None:
     cfg = _config()
     strategy = load_strategy("c1").model_copy(update={"role": "experiment"})
-    payload, _ = week._no_advice("run-mod04", _deadline(), strategy, "no advice: test", cfg)
+    payload, _ = week._no_advice(
+        "run-mod04", _deadline(), strategy, "no advice: test", cfg, _deadline().now_utc
+    )
     assert payload["model"]["role"] == "experiment"
     Contract(root=find_contracts_root()).validate(
         "week", payload | {"contract_version": CONTRACT_VERSION}
@@ -648,3 +823,57 @@ def test_each_strategy_has_its_own_week_and_plan_file() -> None:
     # C1 plans only once MOD-05 gives it its own means beyond the next gameweek.
     assert artefact_paths(load_strategy("c1")) == {"week": "week_c1.json", "plan": None}
     assert artefact_paths(load_strategy("a")) == {"week": "week_a.json", "plan": None}
+
+
+# --- ORC-08: what each strategy predicted ---------------------------------------------
+
+
+@pytest.mark.usefixtures("reused_forecasts")
+def test_every_advising_strategy_leaves_its_frame_in_the_ledger(
+    game_rules: GameRules, tmp_path: Path
+) -> None:
+    advice = _advise_all(game_rules, tmp_path)
+    layout = DataLayout(root=tmp_path)
+    for strategy_id in advice:
+        stored = pd.read_parquet(predictions_path(layout, HORIZON[0], strategy_id))
+        assert list(stored.columns) == list(PREDICTION_COLUMNS)  # the sd, so variance, is kept
+        assert stored["player_id"].is_unique and len(stored) == len(pool())
+
+
+@pytest.mark.usefixtures("reused_forecasts")
+def test_a_failed_strategy_keeps_its_earlier_predictions(
+    game_rules: GameRules, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _advise_all(game_rules, tmp_path)
+    path = predictions_path(DataLayout(root=tmp_path), HORIZON[0], "c1")
+    before = path.read_bytes()
+    _fail_c1(monkeypatch)
+    _advise_all(game_rules, tmp_path)
+    assert path.read_bytes() == before
+
+
+@pytest.mark.usefixtures("reused_forecasts")
+def test_an_older_write_the_ledger_ignores_leaves_no_predictions(
+    game_rules: GameRules, tmp_path: Path
+) -> None:
+    """ORC-08: predictions follow the advice of record, so a write older than the held entry,
+    which record_advice ignores, writes no predictions either."""
+    layout = DataLayout(root=tmp_path)
+    newer = {"gameweek": HORIZON[0], "recorded_at": "2099-01-01T00:00:00Z", "models": {}}
+    path = advice_path(layout, HORIZON[0])
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(newer), encoding="utf-8")
+    _advise_all(game_rules, tmp_path)
+    assert json.loads(path.read_text(encoding="utf-8")) == newer
+    assert not (layout.ledger / "predictions").exists()
+
+
+@pytest.mark.usefixtures("reused_forecasts")
+def test_predictions_after_the_deadline_are_refused(game_rules: GameRules, tmp_path: Path) -> None:
+    snapshot = _orchestration(game_rules)
+    late = dataclasses.replace(
+        snapshot, clock=lambda: snapshot.deadline.deadline_utc + pd.Timedelta(minutes=1)
+    )
+    layout = DataLayout(root=tmp_path)
+    week.advise_all(late, published_strategies(), gold=tmp_path / "gold", layout=layout)
+    assert not (layout.ledger / "predictions").exists()

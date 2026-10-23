@@ -305,7 +305,7 @@ flowchart LR
     SR & SA -->|"gates pass:<br/>forecast, decide"| GR
     GR -->|"publish"| WEB
     GR -->|"week"| LEDG
-    BR -.->|"bronze verify --quarantine"| QUA
+    BR -.->|"contract check at ingest;<br/>bronze verify --quarantine"| QUA
     SA -.->|"silver rebuild"| QUA
     BR & BI <-->|"restore / rolling"| DATA
     SA <-->|"price_history only"| DATA
@@ -366,9 +366,9 @@ every clone. That is why R-13 is rated High and why the stores have different me
 
 | Store | Mechanism | Rationale |
 | --- | --- | --- |
-| **`data`** — rolling bronze | Orphan branch, rebuilt from the retained window (`retention.bronze_days`) and the immutable prior-season snapshots by `pipeline/scripts/retention.py`, with the accumulated `price_history`. The script first folds in what the branch holds and force-pushes with a lease on it, so concurrent workflows never drop each other's pushes | History is truncated, not accumulated; these snapshots debug the recent past |
+| **`data`** — rolling bronze | Orphan branch, rebuilt from the retained window (`retention.bronze_days`) and the immutable prior-season snapshots by `pipeline/scripts/retention.py`, with the accumulated `price_history`. The script first folds in what the branch holds and force-pushes with a lease on it, so concurrent workflows never drop each other's pushes. A quarantined capture is never pushed or folded back in; only its sidecar, the record `/health` counts, travels under `quarantine/` within the window (ORC-10) | History is truncated, not accumulated; these snapshots debug the recent past |
 | **`snapshots`** — permanent bronze | Append-only; `bronze-full/<season>/gwNN.tar.gz` holds the bronze dated after the previous deadline day up to the gameweek's own, written once the day after its deadline, and `index.json` lists the gameweeks archived, partial and lost (PIPE-14, DL-81). Gameweeks that closed before it first ran on `main` are listed as lost (DL-85) | The NFR-06 evidence trail, small enough to keep forever |
-| **`ledger`** — advice and prospective records | Append-only; `advice/gwNN.json` written before each deadline, `prospective/gw*.tgz` frozen with it | What was advised, provably before the event (DL-69) |
+| **`ledger`** — advice and prospective records | Append-only; `advice/gwNN.json` holds each strategy's last success before the deadline, a later failure noted beside it, and the writer refuses a write after the deadline ([DL-94](../decisions/DL-94.md)); `predictions/gwNN/<strategy>.parquet` holds each strategy's forecast under the same rule (ORC-08); `prospective/gw*.tgz` frozen with it | What was advised, provably before the event (DL-69) |
 | **Published contract** | Actions artefact `web-data-contract` (14 days) → Pages | Serving surface, not an archive |
 
 **CI artefacts never hold anything NFR-06 depends on.** They expire; anything reproducibility needs
@@ -398,11 +398,11 @@ manually dispatchable.
 | Workflow | Trigger | Does |
 | --- | --- | --- |
 | `ci.yml` | Push to `main`, `pre-release`, `dev/**`; every pull request | Lint, type-check, unit, property and contract tests; `scripts/docs.py check` |
-| `ingest-fast.yml` | Hourly; a guard (`fpl-dof-schedule --decide fast`) decides whether to fetch | `bootstrap-static` and `fixtures` — prices, status, ownership. Rebuilds `data` |
-| `ingest-slow.yml` | Daily, with a fallback slot; dispatch | Full ingest including per-player summaries; updates `data`; archives each newly closed gameweek's bronze to `snapshots`, once, and fails if bronze has no gameweek schedule |
-| `pipeline.yml` | Nightly with a fallback; a deadline guard several times an hour; after `Ingest (slow)`; dispatch | `guard` → `run` (restores the retired frozen harness's last record from `ledger`, read-only, so `models.json` keeps its history up to the switch; `fpl-dof bronze verify --quarantine`, then `fpl-dof run --only transform…publish`; advice appended to `ledger` — the champion's as soon as its week exists, before its plan and the challengers run — contract uploaded, `data` rebuilt with the new price history) |
-| `day-before.yml` | Every 20 minutes in a nightly UTC window | On the day before a deadline, dispatches `ingest-slow`; Pipeline and Deploy follow by `workflow_run` |
-| `deploy.yml` | Push to `main`; after Pipeline completes | Builds the SPA, downloads the latest contract, deploys to Pages |
+| `ingest-fast.yml` | Hourly; a guard (`fpl-dof-schedule --decide fast`) decides whether to fetch | `bootstrap-static`, `fixtures` and the upcoming odds — prices, status, ownership. Rebuilds `data`, then dispatches `pipeline.yml` with `trigger=change` and the kinds its change manifest moved, if any (ORC-02) |
+| `ingest-slow.yml` | Daily, with a fallback slot (each scheduled firing is a no-op once today's ingest succeeded); dispatch, with `must_publish` from `day-before.yml` | Full ingest including per-player summaries; updates `data`; dispatches `pipeline.yml` (`day-before` when `must_publish`, else `change` with its kinds, else the daily `schedule` refresh); archives each newly closed gameweek's bronze to `snapshots`, once, and fails if bronze has no gameweek schedule |
+| `pipeline.yml` | One tick four times an hour (`7,23,41,53 * * * *`); dispatch with typed inputs `trigger` (`manual`, `change`, `schedule`, `day-before`), `kinds`, `gameweek`, `must_publish` (ORC-02) | `guard` (`fpl-dof-schedule --decide pipeline`: the tick runs only in a pre-deadline window; every trigger is refused inside the freeze or for a gameweek no longer Open, and an unknown input fails the step) → `run` (restores the retired frozen harness's last record from `ledger`, read-only, so `models.json` keeps its history up to the switch; `fpl-dof bronze verify --quarantine`, then `fpl-dof run --only transform…publish`; advice appended to `ledger` — the champion's as soon as its week exists, before its plan and the challengers run — contract uploaded, `data` rebuilt with the new price history) → `deploy` (calls `deploy.yml` only when `run` published, ORC-03) |
+| `day-before.yml` | Every 20 minutes in a nightly UTC window | On the day before a deadline, dispatches `ingest-slow` with `must_publish=true` once (deduplicated by the run's `workflow_dispatch` event since midnight Sydney, never its title); that ingest dispatches the pipeline, whose deploy then requires a fresh contract |
+| `deploy.yml` | Called by Pipeline as its last job when the run published; push to `main`; dispatch | Builds the SPA with the calling run's own contract (a push or dispatch takes the newest pipeline run's, until WEB-01), deploys to Pages (ORC-03, [DL-94](../decisions/DL-94.md)) |
 | `backtest.yml` | Weekly; dispatch | Archive ingest under `config/ci-backtest.yaml` (DL-68), then the walk-forward regression |
 | `pre-release.yml` | Push to `pre-release`; pull requests into `main` | Builds the site against the latest published contract and runs `verify:smoke` — the promotion gate ([DL-80](../decisions/DL-80.md)) |
 | `release.yml` | Push of an `R*` tag | Checks the tag is on `main` and publishes the GitHub Release |
@@ -421,13 +421,20 @@ oldest bronze `bootstrap-static` snapshot that shows it, by sidecar `fetched_at`
 the warning gate `player_gameweek_current` flags any player whose club played that gameweek but who
 has no row for it.
 
-**2. The pipeline does not run after every fast ingest.** Re-solving a MILP because a price moved by
-£0.1 is waste. The fast ingest keeps the data fresh; the pipeline turns it into a recommendation on
-its own deadline-aware schedule.
+**2. An ingest starts a pipeline run only when something material moved** (ORC-02,
+[DL-94](../decisions/DL-94.md)). Ingest compares the bronze it restored with the bronze it fetched
+(`sources/changes.py`, each source diffing its own captures) and writes the kinds that moved to
+`data/runs/changes.json`: any price, any status or news line, any fixture's kick-off or gameweek, and
+a match of the Open gameweek priced for the first time. There are no thresholds. Ownership, a price
+moving on an already-priced match, or a recapture of the same bytes starts nothing.
 
 **Scheduling caveat (R-09):** scheduled runs are best-effort and can be delayed under platform load.
 The day-before run and the deadline guard exist so a delayed cron is never the reason a deadline is
-missed; manual dispatch is always the fallback.
+missed; manual dispatch outside the freeze is always the fallback. Runs with work queue in one
+concurrency group, the `run` job's, newest wins: a newer queued run supersedes an older one, so its
+`trigger` stamp names only the newest cause, while the data it restores includes every earlier
+change. A tick whose guard says no never joins the queue, and a run that waited asks the guard
+again before it works, so the freeze binds when it starts.
 
 ---
 
@@ -457,10 +464,11 @@ No paid tooling exists in a £0 budget, so observability is built from artefacts
 | Failure | Behaviour |
 | --- | --- |
 | A non-essential source is unavailable or blocked | Degraded in the manifest and on `/health`; the run continues without its fields (NFR-15) |
+| A capture breaks its source's contract | The fetcher checks every new capture with the parser conformance uses (`SourceAdapter.check`); one malformed row makes the whole capture malformed. It goes to `data/quarantine/` with `quarantine_reason` in its sidecar, and every reader — the run, training, the backtest, every replay — gets the last valid capture at or before its `as_of` from `BronzeStore.latest`. With none, the source fails as before. The freshness gate and `/health` judge the capture used, by `fetched_at`; `/health` counts the quarantined ones (ORC-10, DL-94) |
 | The FPL API fails | The run stops; the last good publication stays live; an issue is opened |
 | A blocking quality gate fails | Publication blocked; last good publication stays live; issue opened |
 | The solver fails or times out | Greedy fallback; the result is flagged as fallback-quality |
-| A challenger strategy fails | Its week, plan and ledger entry say "no advice" with the reason; every other strategy publishes (`stages.week.advise_all`, NFR-15). The champion's week is written and ledgered before its plan or any challenger runs: a champion plan failure of any kind is "no plan" with its reason and the week stands; a champion week failure fails the run |
+| A challenger strategy fails | Its week, plan and ledger entry say "no advice" with the reason, unless an earlier success this gameweek stands: that stays the advice of record in the ledger and in its published week file, with the failure noted as `last_failure` ([DL-94](../decisions/DL-94.md)). One short of a source's data is named in `models.json` with that source, since when and the next fast-ingest check, shown on every route until it advises or the deadline passes, and the run it advises in says the source arrived (ORC-07); every other strategy publishes (`stages.week.advise_all`, NFR-15). The champion's week is written and ledgered before its plan or any challenger runs: a champion plan failure of any kind is "no plan" with its reason and the week stands; a champion week failure fails the run |
 | A deploy fails | The previous site stays live; static hosting makes this the default |
 
 ### 10.4 Security and privacy
@@ -618,8 +626,8 @@ import fails CI. Nothing outside `sources/` imports a source subpackage, and
 
 | # | Finding | Evidence | Deepening |
 | --- | --- | --- | --- |
-| **O1** | **Deploy runs after every Pipeline completion**, including guard-only skips, which report success — up to ~96 redundant builds a day re-deploying an old contract (counted from triggers, not run history) | `deploy.yml:18-42` | Deploy only when the triggering run uploaded `web-data-contract` |
-| **O2** | **Workflows chain through title strings and display names** (`[day-before` matched in three files; `workflows: ["Pipeline"]`; cron strings compared literally) | `ingest-slow.yml:9`, `pipeline.yml:17-19,94,112`, `deploy.yml:38-42` | A typed `workflow_dispatch` input or a small hand-off artefact |
+| **O1** | **Closed by ORC-03** ([DL-94](../decisions/DL-94.md)): deploy is `pipeline.yml`'s last job, run only when that run published, with that run's own contract. **Deploy ran after every Pipeline completion**, including guard-only skips, which report success — up to ~96 redundant builds a day re-deploying an old contract | `deploy.yml`, `pipeline.yml` `deploy` | Deploy only when the triggering run uploaded `web-data-contract` |
+| **O2** | **Closed by ORC-02:** typed `workflow_dispatch` inputs; `test_dispatch.py` fails on any `workflow_run`, title or cron-string match. **Workflows chain through title strings and display names** (`[day-before` matched in three files; `workflows: ["Pipeline"]`; cron strings compared literally) | `ingest-slow.yml:9`, `pipeline.yml:17-19,94,112`, `deploy.yml:38-42` | A typed `workflow_dispatch` input or a small hand-off artefact |
 | **O3** | **Closed by PIPE-06:** every workflow restores with `retention.py restore`. **Branch-restore logic copied five times**; the guard restores `silver` from a branch that only holds bronze | `ingest-fast.yml:43`, `ingest-slow.yml:79`, `pipeline.yml:75,333,348` | One composite action or `retention.py restore` |
 | **O4** | **Closed by REM-10:** the window is read from configuration only. **The retention window is kept equal by hand** in YAML and configuration; the alert workflow's comment names a `retention.yml` that does not exist | `ingest-fast.yml:73-76`, `alert-on-failure.yml:21` | Read the window from configuration in the workflow step |
 
@@ -633,7 +641,7 @@ before they ship.
 | # | Finding | Evidence | Fix |
 | --- | --- | --- | --- |
 | **F1** | **Closed by MOD-09 (DL-90):** M7 never read a player's own card record because `yellow_cards` had no rolling feature. It is in `forecast.features.rolling_statistics` now, the held-out season did not degrade, and a test pins that every `RATE_COMPONENTS` column has one | `config/models.py` `FeatureConfig`, `tests/test_experiments.py` | — |
-| **F2** | **The `snapshot_freshness` gate cannot fire in CI** (Invariant 7). It ages bronze by each sidecar's file modification time, which `retention.py restore` resets to the restore time, so every snapshot looks fresh; it also reads the file system's clock rather than the sidecar's | `stages/quality.py:110-122`, `scripts/retention.py:6-9` | Age each snapshot by `SnapshotMeta.fetched_at` |
+| **F2** | **Closed by ORC-10:** the gate ages bronze by the newest sidecar's `fetched_at` (`BronzeStore.observed`, shared with `/health`), so a fallback to an older valid capture still fails it (`test_malformed_captures.py`). It aged each sidecar by its file modification time, which `retention.py restore` resets, so every snapshot looked fresh in CI | `stages/quality.py` `_newest_snapshot_age` | — |
 | **F3** | **Closed by MOD-08 and DL-91:** each strategy is graded inside its own `training_window` (features, training rows and fit), so the champion is graded on the current season as it ships; widening its window was tried as MOD-09's experiment `f3_training_window` and rejected (`all_seasons` worse on 2024/25-2025/26: MAE +0.0119, Spearman -0.0174 per gameweek, both 95% intervals off zero). It was: the graded model was not the shipped model, the backtest pooling every `backtest.training_seasons` season while live training used the current season | `forecast/backtest.py` `walk_forward` | — |
 | **F4** | **Closed by MOD-05:** M2's time-decay half-life is `forecast.team_strength.half_life_matches`, with its description and justification (`test_team_strength.py::test_the_half_life_is_read_from_config`). It was a hard-coded tunable (DP-06) with no waiver | `config/models.py` `TeamStrengthConfig` | — |
 | **F5** | **Closed by MOD-06 and MOD-08:** the model card's `BACKTESTED_WEAKNESS` and `forecast.yaml` now say `minutes_v2` is on (since DL-76), and `sources/external.py` went with the frozen bundle. It was stale text in code | `forecast/model_card.py`, `config/defaults/forecast.yaml` | — |
@@ -655,7 +663,7 @@ and delivered; its backlog is archived at
 | Prior seasons | **Frozen bronze tier**: completed-season snapshots are marked `immutable`, kept by retention whatever their age, and re-fetched only when forced | PIPE-03 |
 | Transport | **Conditional requests** (`ETag`, `Last-Modified`); a 304 revalidates the held snapshot without a download | PIPE-07 |
 | Ingest safety | A **drift canary** on `bootstrap-static` and `fixtures` halts ingest before per-player fetches and logs a key diff | PIPE-08 |
-| Bronze integrity | `fpl-dof bronze verify` (checksums, gzip, orphans) before transform in CI; `--quarantine` moves bad files to `data/quarantine/` and fails only on what it cannot move (REM-10) | PIPE-11 |
+| Bronze integrity | `fpl-dof bronze verify` (checksums, gzip, orphans) before transform in CI; `--quarantine` moves bad files to `data/quarantine/` and fails only on what it cannot move (REM-10). `--contract` also checks each snapshot against its source's contract: the one-off sweep of history kept before ingest checked every capture, which names `silver rebuild` when it moves one (ORC-10) | PIPE-11 |
 | Silver persistence | `price_history` persisted on `data` and rebuilt by `silver replay-prices`; one restore step, `retention.py restore`, in every workflow | PIPE-06 |
 | Temporal grain | Metrics keyed by `season` and `as_of_gameweek`, stamped `observed_at`; a source added mid-season is backdated to deadline-aligned snapshots, never estimated, with the crosswalk's `ingress` as provenance ([DL-83](../decisions/DL-83.md)) | PIPE-01 |
 | Look-ahead guard | A **blocking temporal non-leakage gate** on silver's own columns (04 §3.4) | PIPE-10 |
@@ -690,7 +698,7 @@ Four §12 findings were built into R1.1.0 because its items depended on them ([D
 | PIPE-04 | **P5** | The `fdcouk` adapter ended the fetch outside `sources/`; the operational scripts read it through `sources.LiveFeed` (REM-07) |
 | PIPE-06 | **O3, O4** | Persisting silver needed a branch restore in every workflow; it is one step, `retention.py restore` |
 
-The other §12 findings (P2, P3, P6–P10, W1–W6, O1, O2, F1–F5) stand; their scheduling is in the
+O1 was closed by ORC-03 in R1.3.0 ([DL-94](../decisions/DL-94.md)). The other §12 findings (P2, P3, P6–P10, W1–W6, O2, F1–F5) stand; their scheduling is in the
 [release register](epics/README.md).
 
 ---

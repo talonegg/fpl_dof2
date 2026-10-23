@@ -9,6 +9,8 @@
   "properties": {
     "contract_version": { "type": "integer", "const": 1 },
     "run_id": { "type": "string" },
+    "as_of": { "type": "string", "format": "date-time", "description": "UTC instant of the input snapshot the advice was decided on (ORC-03, DL-94). Absent before R1.3.0." },
+    "trigger": { "type": "string", "pattern": "^(manual|schedule|day-before|change:(prices|status|fixtures|odds)(,(prices|status|fixtures|odds))*)$", "description": "What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0." },
     "skipped": {
       "type": "boolean",
       "description": "True when no squad could be established. Before the first gameweek is scored there is no picks endpoint to read (DL-20), so this is a normal state and not a failure."
@@ -54,6 +56,26 @@
         },
         "local_zone": { "type": "string" },
         "uk_zone": { "type": "string" }
+      }
+    },
+    "last_failure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["as_of", "reason"],
+      "description": "This run's strategy failed after an earlier success for the gameweek; the file shows that success, the advice of record, stamped with its own as_of (ORC-03, DL-94). Absent when this run succeeded.",
+      "properties": {
+        "as_of": { "type": "string", "format": "date-time" },
+        "reason": { "type": "string" }
+      }
+    },
+    "arrived": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sources", "at"],
+      "description": "The source this strategy waited for arrived and the strategy was refreshed with it: it had no advice for the gameweek in the ledger's record because the source's data was missing, and advises in this run, whatever started it; the file's trigger says what did (ORC-07). Absent otherwise, and gone from the next run's file.",
+      "properties": {
+        "sources": { "type": "array", "items": { "type": "string" }, "description": "The awaited sources' labels, as the data health page names them." },
+        "at": { "type": "string", "format": "date-time", "description": "UTC instant of the snapshot the source arrived in." }
       }
     },
     "squad_state": {

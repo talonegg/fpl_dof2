@@ -9,6 +9,8 @@
   "properties": {
     "contract_version": { "type": "integer", "const": 1 },
     "run_id": { "type": "string" },
+    "as_of": { "type": "string", "format": "date-time", "description": "UTC instant of the input snapshot the advice was decided on (ORC-03, DL-94). Absent before R1.3.0." },
+    "trigger": { "type": "string", "pattern": "^(manual|schedule|day-before|change:(prices|status|fixtures|odds)(,(prices|status|fixtures|odds))*)$", "description": "What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0." },
     "skipped": {
       "type": "boolean",
       "description": "True when no squad could be established, or when no legal plan exists. Both are normal states before the season starts (DL-20) and neither is a failure."

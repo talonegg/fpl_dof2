@@ -7,9 +7,21 @@ entry — never a change here (Invariant 1, DP-01).
 
 from __future__ import annotations
 
+import datetime as dt
+import json
+
+from fpl_dof.gameweek import SilverTables, open_gameweek
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.pipeline import Output, StageContext, StageResult
-from fpl_dof.sources import BronzeStore, Fetcher, IngestRequest, build
+from fpl_dof.sources import (
+    BronzeStore,
+    Fetcher,
+    IngestRequest,
+    before_ingest,
+    build,
+    changed_kinds,
+    gameweeks_from_bronze,
+)
 
 log = get_logger(__name__)
 
@@ -52,6 +64,7 @@ def run(ctx: StageContext) -> StageResult:
             season=ctx.config.rules.season,
         )
 
+        before = before_ingest(bronze, adapters)
         for adapter in adapters:
             try:
                 report = adapter.ingest(request)
@@ -79,7 +92,32 @@ def run(ctx: StageContext) -> StageResult:
             for warning in report.warnings:
                 log.warning("ingest.warning", extra={"source": report.source, "detail": warning})
             result.outputs.extend(Output(path=path) for path in report.snapshots)
+        # Each malformed capture is already out of bronze; the run went on with the last valid one.
+        result.metrics["quarantined"] = len(fetcher.quarantined)
+
+        gameweek, window = _open_window(ctx)
+        kinds = changed_kinds(bronze, adapters, before, window)
+    ctx.layout.changes.parent.mkdir(parents=True, exist_ok=True)
+    ctx.layout.changes.write_text(
+        json.dumps({"as_of": ctx.as_of.isoformat(), "gameweek": gameweek, "kinds": kinds}),
+        encoding="utf-8",
+    )
+    result.metrics["changes"] = ",".join(kinds)
+    result.outputs.append(Output(path=ctx.layout.changes))
 
     result.metrics["sources"] = len(adapters)
     result.metrics["cadence"] = "fast" if ctx.options.fast_path_only else "full"
     return result
+
+
+def _open_window(
+    ctx: StageContext,
+) -> tuple[int | None, tuple[dt.datetime, dt.datetime | None] | None]:
+    """The Open gameweek in the bronze just fetched, and when its matches can kick off: from its
+    deadline to the next one's (ORC-02)."""
+    gameweeks = gameweeks_from_bronze(ctx.layout.bronze)
+    state = None if gameweeks is None else open_gameweek(SilverTables(gameweeks), (), ctx.as_of)
+    if gameweeks is None or state is None:
+        return None, None
+    later = gameweeks.loc[gameweeks["deadline_time"] > state.deadline, "deadline_time"]
+    return state.gameweek, (state.deadline, None if later.empty else later.min().to_pydatetime())

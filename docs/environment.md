@@ -10,6 +10,7 @@ commented template is [`.env.example`](../.env.example).
 | `FPL_DOF_LOG_LEVEL` | Logging verbosity | No | `INFO` |
 | `FPL_DOF_USER_AGENT_CONTACT` | Honest client identification (NFR-10) | No | `https://github.com/talonegg/fpl_dof2` |
 | `FPL_DOF_TIMEZONE` | Local rendering zone; storage stays UTC ([DL-11](decisions/DL-11.md)) | No | `Australia/Sydney` |
+| `FPL_DOF_TRIGGER` | What started the run, stamped on every advice: `schedule`, `change:<kinds>`, `manual` or `day-before` ([DL-94](decisions/DL-94.md)). `pipeline.yml` sets it from its typed dispatch inputs, as the guard read them (ORC-02) | No | `manual` |
 | `FPL_DOF_TEAM_ID` | The owner's FPL entry ID | No — public | `1234567` |
 | `FPL_DOF_LEAGUE_ID` | Mini-league for rival analysis. Optional; unset is the normal state ([DL-40](decisions/DL-40.md)) | No | `987654` |
 | `FPL_DOF_CONFIG_FILE` | An extra config layer; CI's backtest uses `config/ci-backtest.yaml` ([DL-68](decisions/DL-68.md)) | No | `config/ci-backtest.yaml` |

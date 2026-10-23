@@ -2,22 +2,24 @@
 # a polite rate) plus external sources on their own credit budgets. Daily, never on the fast path:
 # this data changes at most once a day, and putting it on an hourly cadence was the single largest
 # line in the minutes recount that led to DL-12.
+#
+# It ends by dispatching pipeline.yml with typed inputs (ORC-02): `day-before` when day-before.yml
+# started it (`must_publish`), `change` with the kinds its change manifest moved, and otherwise the
+# daily `schedule` refresh. A failed ingest stops before the dispatch, so nothing follows it.
 
 name: Ingest (slow)
-# day-before.yml dispatches this with reason="day-before GW{n}"; the title then carries
-# "[day-before GW{n}]", which Pipeline and Deploy key off and the day-before gate dedupes on.
-run-name: ${{ inputs.reason && format('Ingest (slow) [{0}]', inputs.reason) || 'Ingest (slow)' }}
+run-name: ${{ inputs.must_publish && 'Ingest (slow) [day-before]' || 'Ingest (slow)' }}
 
 on:
   schedule:
     - cron: "23 2 * * *" # 02:23 UTC — off-peak for both UK and AEST (odd minute: GitHub sheds :00/:30)
-    - cron: "41 5 * * *" # fallback: no-op if an Ingest (slow) run already succeeded today (UTC)
+    - cron: "41 5 * * *" # fallback: each scheduled firing is a no-op once today's ingest succeeded
   workflow_dispatch:
     inputs:
-      reason:
-        description: "Why this run was started (day-before.yml sets 'day-before GW{n}')."
-        required: false
-        type: string
+      must_publish:
+        description: "The day-before refresh (day-before.yml sets it): the pipeline run must publish."
+        type: boolean
+        default: false
 
 concurrency:
   group: ingest-slow
@@ -40,18 +42,23 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
-          cache: pip
-          cache-dependency-path: pipeline/requirements.lock
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.19"
+          enable-cache: true
+          cache-dependency-glob: pipeline/requirements.lock
       - name: Install fpl-dof
-        if: github.event.schedule == '41 5 * * *'
-        run: python -m pip install -c pipeline/requirements.lock -e pipeline
-      - name: Fallback firing - skip if today's ingest already succeeded
+        if: github.event_name == 'schedule'
+        run: uv pip install --system -c pipeline/requirements.lock -e pipeline
+      # Every scheduled firing asks, so neither cron string is matched anywhere (ORC-02): the first
+      # of the day finds nothing done, and the fallback finds the first's success.
+      - name: Scheduled firing - skip if today's ingest already succeeded
         id: check
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          if [ "${{ github.event.schedule }}" = "41 5 * * *" ]; then
-            python pipeline/scripts/ci_runs.py today-done --workflow ingest-slow.yml
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            python pipeline/scripts/ci_runs.py today-done --workflow ingest-slow.yml --job ingest
             if grep -q '^done=true$' "$GITHUB_OUTPUT"; then
               echo "today's ingest already succeeded; fallback is a no-op"
               echo "run=false" >> "$GITHUB_OUTPUT"
@@ -65,17 +72,23 @@ jobs:
     if: needs.guard.outputs.run == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: write # the `data` branch and the snapshot archive
+      actions: write # dispatches pipeline.yml (ORC-02)
     steps:
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.14"
-          cache: pip
-          cache-dependency-path: pipeline/requirements.lock
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.19"
+          enable-cache: true
+          cache-dependency-glob: pipeline/requirements.lock
 
       - name: Install fpl-dof
-        run: python -m pip install -c pipeline/requirements.lock -e "pipeline[dev]"
+        run: uv pip install --system -c pipeline/requirements.lock -e "pipeline[dev]"
 
       - name: Restore data from the `data` branch
         run: python pipeline/scripts/retention.py restore data
@@ -96,6 +109,15 @@ jobs:
         run: |
           remote="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
           python pipeline/scripts/retention.py rolling data/bronze --remote "$remote"
+
+      # After `data` is pushed, so the run restores what this ingest fetched.
+      - name: Start the pipeline
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: >
+          python pipeline/scripts/dispatch_pipeline.py --daily
+          ${{ inputs.must_publish && '--day-before' || '' }}
 
       # One tarball per closed gameweek, written once (PIPE-14, DL-81). Fails, and so alerts, only
       # when bronze holds no gameweek schedule; a run with no newly closed gameweek writes nothing.

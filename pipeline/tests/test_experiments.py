@@ -185,16 +185,21 @@ def test_the_registry_accepts_an_unpublished_experiment_and_the_backtest_grades_
     assert skipped["old"] == "retired" and "frozen" in skipped["frozen_x"]
 
 
-def _graded(tmp_path: Path) -> tuple[Graded, Any]:
-    registered = _registry(tmp_path)
-    result = _walk(
+@pytest.fixture(scope="session")
+def probe_walk() -> BacktestResult:
+    """The champion and a worse probe walked once, for the record tests, which only read it."""
+    return _walk(
         make_history(gameweeks=8), Entrant("c3", RateFromFeatures()), Entrant("probe", Offset())
     )
+
+
+def _graded(tmp_path: Path, result: BacktestResult) -> tuple[Graded, Any]:
+    registered = _registry(tmp_path)
     return Graded(result=result, skipped={"frozen_x": "frozen", "old": "retired"}), registered
 
 
-def test_every_strategy_gets_one_stamped_record(tmp_path: Path) -> None:
-    graded, registered = _graded(tmp_path)
+def test_every_strategy_gets_one_stamped_record(tmp_path: Path, probe_walk: BacktestResult) -> None:
+    graded, registered = _graded(tmp_path, probe_walk)
     config = Config()
     moment = dt.datetime(2026, 10, 27, 16, 17, tzinfo=dt.UTC)
     records = experiment_records(
@@ -222,8 +227,10 @@ def test_every_strategy_gets_one_stamped_record(tmp_path: Path) -> None:
     assert by_id["frozen_x"]["not_graded"] == "frozen" and "metrics" not in by_id["frozen_x"]
 
 
-def test_the_latest_verdict_is_for_the_current_digest_only(tmp_path: Path) -> None:
-    graded, registered = _graded(tmp_path)
+def test_the_latest_verdict_is_for_the_current_digest_only(
+    tmp_path: Path, probe_walk: BacktestResult
+) -> None:
+    graded, registered = _graded(tmp_path, probe_walk)
     config = Config()
 
     def run(run_id: str, day: int) -> list[dict[str, Any]]:

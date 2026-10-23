@@ -39,7 +39,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-from typing import Any, ClassVar
+from typing import Any, ClassVar, cast
 
 import pandas as pd
 
@@ -53,6 +53,7 @@ from fpl_dof.sources.base import (
     IngestRequest,
     Resource,
     SourceAdapter,
+    Window,
 )
 from fpl_dof.sources.errors import (
     OfflineWithoutSnapshotError,
@@ -226,123 +227,165 @@ class FplApiAdapter(SourceAdapter):
                 key=key,
             ) from exc
 
-    def fetch_bootstrap(self, request: IngestRequest) -> dict[str, Any]:
-        resource = self.resource("bootstrap_static")
+    def _drift(
+        self, what: str, required: tuple[str, ...], record: dict[str, Any], resource: str
+    ) -> None:
+        """Raise when ``record`` lacks a required key: a contract breach, not a missing value."""
+        if not isinstance(record, dict):
+            raise SourceContractError(
+                f"{what} carried a record that is not an object",
+                source=self.name,
+                resource=resource,
+                key="all",
+            )
+        missing = [key for key in required if key not in record]
+        if not missing:
+            return
+        diff = {"missing": missing, "received": sorted(record.keys())}
+        log.error("ingest.schema_drift", extra={"source": self.name, "resource": resource, **diff})
+        raise SourceContractError(
+            f"{what} schema drift; missing required keys: {', '.join(missing)}",
+            source=self.name,
+            resource=resource,
+            key="all",
+            expected=list(required),
+            received=list(record.keys()),
+            diff=diff,
+        )
+
+    #: The one key each smaller resource's payload must carry, and the type it must be.
+    _SHAPES: ClassVar[dict[str, tuple[type, str | None]]] = {
+        "element_summary": (dict, "history_past"),
+        "event_live": (dict, "elements"),
+        "set_piece_notes": (dict, "teams"),
+        "league_standings": (dict, "standings"),
+        "entry": (dict, "id"),
+        "entry_history": (dict, "chips"),
+        "entry_picks": (dict, "picks"),
+        "entry_transfers": (list, None),
+    }
+
+    def check(self, resource: str, key: str, payload: bytes) -> None:
+        self._parse(resource, key, payload)
+
+    watched: ClassVar[tuple[tuple[str, str], ...]] = (
+        ("bootstrap_static", "all"),
+        ("fixtures", "all"),
+    )
+
+    def changes(self, resource: str, before: bytes, after: bytes, window: Window) -> set[str]:
+        """Prices, status or news per player; kick-off or gameweek per fixture (ORC-02). A player
+        or fixture in only one capture is not a change of either."""
+        old, new = json.loads(before), json.loads(after)
+        if resource == "fixtures":
+            was = {f["id"]: (f.get("kickoff_time"), f.get("event")) for f in old}
+            now = {f["id"]: (f.get("kickoff_time"), f.get("event")) for f in new}
+            return {"fixtures"} if any(was.get(i, at) != at for i, at in now.items()) else set()
+        kinds: set[str] = set()
+        players = {e["id"]: e for e in old["elements"]}
+        for element in new["elements"]:
+            prior = players.get(element["id"])
+            if prior is None:
+                continue
+            if prior.get("now_cost") != element.get("now_cost"):
+                kinds.add("prices")
+            if (prior.get("status"), prior.get("news")) != (
+                element.get("status"),
+                element.get("news"),
+            ):
+                kinds.add("status")
+        return kinds
+
+    def _parse(self, resource: str, key: str, payload: bytes) -> Any:
+        """Decode one capture and check it against this source's contract (ORC-10).
+
+        The same check whether the capture was just fetched or read back from bronze, so a
+        capture that ingest kept is one conformance can read. Every record of a list is checked,
+        not the first: one malformed row makes the whole capture malformed (DL-94).
+        """
+        data = self._json(payload, resource=resource, key=key)
+        if resource == "bootstrap_static":
+            if not isinstance(data, dict):
+                raise SourceContractError(
+                    "bootstrap-static did not return an object",
+                    source=self.name,
+                    resource=resource,
+                    key=key,
+                )
+            self._drift("bootstrap-static", REQUIRED_BOOTSTRAP_KEYS, data, resource)
+            elements = data["elements"]
+            if not isinstance(elements, list) or not elements:
+                raise SourceContractError(
+                    "bootstrap-static returned no elements",
+                    source=self.name,
+                    resource=resource,
+                    key=key,
+                )
+            for element in elements:
+                self._drift("element records", REQUIRED_ELEMENT_KEYS, element, resource)
+        elif resource == "fixtures":
+            if not isinstance(data, list):
+                raise SourceContractError(
+                    "fixtures did not return a list",
+                    source=self.name,
+                    resource=resource,
+                    key=key,
+                )
+            for fixture in data:
+                self._drift("fixtures", REQUIRED_FIXTURE_KEYS, fixture, resource)
+        elif resource in self._SHAPES:
+            kind, required = self._SHAPES[resource]
+            if not isinstance(data, kind) or (
+                required is not None and required not in cast(dict[str, Any], data)
+            ):
+                expected = f"a {kind.__name__}" + (f" with a {required} key" if required else "")
+                raise SourceContractError(
+                    f"{resource}/{key} is not {expected}",
+                    source=self.name,
+                    resource=resource,
+                    key=key,
+                )
+        return data
+
+    def _fetch_resource(
+        self,
+        resource_name: str,
+        path: str,
+        key: str,
+        request: IngestRequest,
+        *,
+        stale_before: dt.datetime | None = None,
+    ) -> Any:
+        """Fetch, snapshot and parse one resource, checked against its contract (:meth:`_parse`).
+
+        Only the shape is checked here. Every endpoint added in E2-S1 is optional in a way the
+        original three are not: a gameweek that has not been played, a club with no set-piece
+        notes and a team ID that is not configured are all normal, so whether emptiness is
+        expected is decided at conformance.
+        """
+        resource = self.resource(resource_name)
         fetched = self.fetcher.fetch(
-            self.url_for("bootstrap-static/"),
+            self.url_for(path),
             source=self.name,
             source_version=self.version,
             resource=resource.name,
-            key="all",
+            key=key,
             cache_ttl_seconds=resource.cache_ttl_seconds,
             force_refresh=request.force_refresh,
             offline=request.offline,
             now=request.now,
+            stale_before=stale_before,
         )
-        data = self._json(fetched.payload, resource=resource.name, key="all")
-        if not isinstance(data, dict):
-            raise SourceContractError(
-                "bootstrap-static did not return an object",
-                source=self.name,
-                resource=resource.name,
-                key="all",
-            )
-        missing = [key for key in REQUIRED_BOOTSTRAP_KEYS if key not in data]
-        if missing:
-            diff = {"missing": missing, "received": sorted(data.keys())}
-            log.error(
-                "ingest.schema_drift",
-                extra={
-                    "source": self.name,
-                    "resource": resource.name,
-                    "missing": missing,
-                    "received": sorted(data.keys()),
-                },
-            )
-            raise SourceContractError(
-                f"bootstrap-static schema drift; missing required keys: {', '.join(missing)}",
-                source=self.name,
-                resource=resource.name,
-                key="all",
-                expected=list(REQUIRED_BOOTSTRAP_KEYS),
-                received=list(data.keys()),
-                diff=diff,
-            )
-        elements = data["elements"]
-        if not isinstance(elements, list) or not elements:
-            raise SourceContractError(
-                "bootstrap-static returned no elements",
-                source=self.name,
-                resource=resource.name,
-                key="all",
-            )
-        element_missing = [key for key in REQUIRED_ELEMENT_KEYS if key not in elements[0]]
-        if element_missing:
-            diff = {"missing": element_missing, "received": sorted(elements[0].keys())}
-            log.error(
-                "ingest.schema_drift",
-                extra={
-                    "source": self.name,
-                    "resource": "elements",
-                    "missing": element_missing,
-                    "received": sorted(elements[0].keys()),
-                },
-            )
-            raise SourceContractError(
-                "element records schema drift; missing required keys: "
-                f"{', '.join(element_missing)}",
-                source=self.name,
-                resource=resource.name,
-                key="all",
-                expected=list(REQUIRED_ELEMENT_KEYS),
-                received=list(elements[0].keys()),
-                diff=diff,
-            )
+        return self._parse(resource.name, key, fetched.payload)
+
+    def fetch_bootstrap(self, request: IngestRequest) -> dict[str, Any]:
+        data: dict[str, Any] = self._fetch_resource(
+            "bootstrap_static", "bootstrap-static/", "all", request
+        )
         return data
 
     def fetch_fixtures(self, request: IngestRequest) -> list[dict[str, Any]]:
-        resource = self.resource("fixtures")
-        fetched = self.fetcher.fetch(
-            self.url_for("fixtures/"),
-            source=self.name,
-            source_version=self.version,
-            resource=resource.name,
-            key="all",
-            cache_ttl_seconds=resource.cache_ttl_seconds,
-            force_refresh=request.force_refresh,
-            offline=request.offline,
-            now=request.now,
-        )
-        data = self._json(fetched.payload, resource=resource.name, key="all")
-        if not isinstance(data, list):
-            raise SourceContractError(
-                "fixtures did not return a list",
-                source=self.name,
-                resource=resource.name,
-                key="all",
-            )
-        if data and isinstance(data[0], dict):
-            fixture_missing = [key for key in REQUIRED_FIXTURE_KEYS if key not in data[0]]
-            if fixture_missing:
-                diff = {"missing": fixture_missing, "received": sorted(data[0].keys())}
-                log.error(
-                    "ingest.schema_drift",
-                    extra={
-                        "source": self.name,
-                        "resource": resource.name,
-                        "missing": fixture_missing,
-                        "received": sorted(data[0].keys()),
-                    },
-                )
-                raise SourceContractError(
-                    f"fixtures schema drift; missing required keys: {', '.join(fixture_missing)}",
-                    source=self.name,
-                    resource=resource.name,
-                    key="all",
-                    expected=list(REQUIRED_FIXTURE_KEYS),
-                    received=list(data[0].keys()),
-                    diff=diff,
-                )
+        data: list[dict[str, Any]] = self._fetch_resource("fixtures", "fixtures/", "all", request)
         return data
 
     def fetch_element_summary(
@@ -352,27 +395,13 @@ class FplApiAdapter(SourceAdapter):
         *,
         stale_before: dt.datetime | None = None,
     ) -> dict[str, Any]:
-        resource = self.resource("element_summary")
-        fetched = self.fetcher.fetch(
-            self.url_for(f"element-summary/{element_id}/"),
-            source=self.name,
-            source_version=self.version,
-            resource=resource.name,
-            key=str(element_id),
-            cache_ttl_seconds=resource.cache_ttl_seconds,
-            force_refresh=request.force_refresh,
-            offline=request.offline,
-            now=request.now,
+        data: dict[str, Any] = self._fetch_resource(
+            "element_summary",
+            f"element-summary/{element_id}/",
+            str(element_id),
+            request,
             stale_before=stale_before,
         )
-        data = self._json(fetched.payload, resource=resource.name, key=str(element_id))
-        if not isinstance(data, dict) or "history_past" not in data:
-            raise SourceContractError(
-                f"element-summary/{element_id} has no history_past",
-                source=self.name,
-                resource=resource.name,
-                key=str(element_id),
-            )
         return data
 
     def _summaries_stale_before(
@@ -406,89 +435,36 @@ class FplApiAdapter(SourceAdapter):
             )
         return seen
 
-    def _fetch_resource(
-        self, resource_name: str, path: str, key: str, request: IngestRequest
-    ) -> Any:
-        """Fetch, snapshot and parse one resource. The shape is not checked here.
-
-        Every endpoint added in E2-S1 is optional in a way the original three are not: a gameweek
-        that has not been played, a club with no set-piece notes and a team ID that is not
-        configured are all normal. Contract checking therefore happens at conformance, where the
-        caller knows whether emptiness is expected.
-        """
-        resource = self.resource(resource_name)
-        fetched = self.fetcher.fetch(
-            self.url_for(path),
-            source=self.name,
-            source_version=self.version,
-            resource=resource.name,
-            key=key,
-            cache_ttl_seconds=resource.cache_ttl_seconds,
-            force_refresh=request.force_refresh,
-            offline=request.offline,
-            now=request.now,
-        )
-        return self._json(fetched.payload, resource=resource.name, key=key)
-
     def fetch_event_live(self, gameweek: int, request: IngestRequest) -> dict[str, Any]:
-        data = self._fetch_resource("event_live", f"event/{gameweek}/live/", str(gameweek), request)
-        if not isinstance(data, dict) or "elements" not in data:
-            raise SourceContractError(
-                f"event/{gameweek}/live has no elements key",
-                source=self.name,
-                resource="event_live",
-                key=str(gameweek),
-            )
+        data: dict[str, Any] = self._fetch_resource(
+            "event_live", f"event/{gameweek}/live/", str(gameweek), request
+        )
         return data
 
     def fetch_set_piece_notes(self, request: IngestRequest) -> dict[str, Any]:
         # The path is `team/set-piece-notes/`. A bare `set-piece-notes/` returns 404 — it is the
         # path the endpoint catalogue carried, and it has moved.
-        data = self._fetch_resource("set_piece_notes", "team/set-piece-notes/", "all", request)
-        if not isinstance(data, dict) or "teams" not in data:
-            raise SourceContractError(
-                "set-piece-notes has no teams key",
-                source=self.name,
-                resource="set_piece_notes",
-                key="all",
-            )
+        data: dict[str, Any] = self._fetch_resource(
+            "set_piece_notes", "team/set-piece-notes/", "all", request
+        )
         return data
 
     def fetch_league_standings(self, league_id: int, request: IngestRequest) -> dict[str, Any]:
-        data = self._fetch_resource(
+        data: dict[str, Any] = self._fetch_resource(
             "league_standings", f"leagues-classic/{league_id}/standings/", str(league_id), request
         )
-        if not isinstance(data, dict) or "standings" not in data:
-            raise SourceContractError(
-                f"leagues-classic/{league_id} has no standings key",
-                source=self.name,
-                resource="league_standings",
-                key=str(league_id),
-            )
         return data
 
     def fetch_entry(self, entry_id: int, request: IngestRequest) -> dict[str, Any]:
-        data = self._fetch_resource("entry", f"entry/{entry_id}/", str(entry_id), request)
-        if not isinstance(data, dict) or "id" not in data:
-            raise SourceContractError(
-                f"entry/{entry_id} did not return an entry",
-                source=self.name,
-                resource="entry",
-                key=str(entry_id),
-            )
+        data: dict[str, Any] = self._fetch_resource(
+            "entry", f"entry/{entry_id}/", str(entry_id), request
+        )
         return data
 
     def fetch_entry_history(self, entry_id: int, request: IngestRequest) -> dict[str, Any]:
-        data = self._fetch_resource(
+        data: dict[str, Any] = self._fetch_resource(
             "entry_history", f"entry/{entry_id}/history/", str(entry_id), request
         )
-        if not isinstance(data, dict) or "chips" not in data:
-            raise SourceContractError(
-                f"entry/{entry_id}/history has no chips key",
-                source=self.name,
-                resource="entry_history",
-                key=str(entry_id),
-            )
         return data
 
     def fetch_entry_picks(
@@ -500,7 +476,7 @@ class FplApiAdapter(SourceAdapter):
         world for most of the week and is not an error (DL-20).
         """
         try:
-            data = self._fetch_resource(
+            data: dict[str, Any] = self._fetch_resource(
                 "entry_picks",
                 f"entry/{entry_id}/event/{gameweek}/picks/",
                 f"{entry_id}-{gameweek}",
@@ -508,26 +484,12 @@ class FplApiAdapter(SourceAdapter):
             )
         except SourceNotFoundError:
             return None
-        if not isinstance(data, dict) or "picks" not in data:
-            raise SourceContractError(
-                f"entry/{entry_id}/event/{gameweek}/picks has no picks key",
-                source=self.name,
-                resource="entry_picks",
-                key=f"{entry_id}-{gameweek}",
-            )
         return data
 
     def fetch_entry_transfers(self, entry_id: int, request: IngestRequest) -> list[dict[str, Any]]:
-        data = self._fetch_resource(
+        data: list[dict[str, Any]] = self._fetch_resource(
             "entry_transfers", f"entry/{entry_id}/transfers/", str(entry_id), request
         )
-        if not isinstance(data, list):
-            raise SourceContractError(
-                f"entry/{entry_id}/transfers did not return a list",
-                source=self.name,
-                resource="entry_transfers",
-                key=str(entry_id),
-            )
         return data
 
     # --- conform -------------------------------------------------------------------------
@@ -677,6 +639,7 @@ class FplApiAdapter(SourceAdapter):
                     "deadline_time": pd.Timestamp(event["deadline_time"]).tz_convert("UTC"),
                     "finished": bool(event["finished"]),
                     "is_next": bool(event["is_next"]),
+                    "data_checked": bool(event.get("data_checked", False)),
                 }
                 for event in bootstrap["events"]
             ]

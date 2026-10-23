@@ -147,6 +147,8 @@ class GameweekSchema(pa.DataFrameModel):
     deadline_time: Series[pd.DatetimeTZDtype] = pa.Field(dtype_kwargs={"unit": "ns", "tz": "UTC"})
     finished: Series[bool]
     is_next: Series[bool]
+    # Optional so a gameweek table written before ORC-01 still reads; absent means not checked.
+    data_checked: Series[bool] | None
 
     class Config:
         strict = True

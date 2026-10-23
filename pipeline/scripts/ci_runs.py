@@ -1,11 +1,17 @@
-"""Ask whether a workflow already succeeded today, for fallback cron firings.
+"""Ask GitHub about this repository's workflow runs.
 
     python pipeline/scripts/ci_runs.py today-done --workflow ingest-slow.yml [--job ingest]
+    python pipeline/scripts/ci_runs.py budget ci_workflow_budget_seconds [--since <ISO time>]
 
-Prints ``done=true|false`` to GITHUB_OUTPUT. Uses ``gh`` with the job's read-only GITHUB_TOKEN.
-If GitHub cannot be asked, ``done=false``: a fallback firing then does the work (a duplicate
-refresh is harmless; a missed one is not). ``--job`` additionally requires that job to have
-succeeded (a guard-only Pipeline run also concludes "success" without doing anything).
+``today-done``, for fallback cron firings, prints ``done=true|false`` to GITHUB_OUTPUT. Uses ``gh``
+with the job's read-only GITHUB_TOKEN. If GitHub cannot be asked, ``done=false``: a fallback firing
+then does the work (a duplicate refresh is harmless; a missed one is not). ``--job`` additionally
+requires that job to have succeeded (a guard-only Pipeline run also concludes "success" without
+doing anything).
+
+``budget`` fails when a wall clock exceeds its budget in ``schedule`` config (ORC-09): from
+``--since`` to now, or without it the time this run's finished jobs were running, from the first to
+the last, so a job's wait in a concurrency queue is not counted as the run's own time.
 """
 
 from __future__ import annotations
@@ -21,9 +27,10 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from fpl_dof.config import load_config
 from fpl_dof.week.ci_runs import start_of_utc_day, succeeded_since
 
-FIELDS = "databaseId,displayTitle,status,conclusion,createdAt,event"
+FIELDS = "databaseId,status,conclusion,createdAt,event"
 
 
 def gh_json(*args: str) -> Any:
@@ -50,9 +57,41 @@ def today_done(workflow: str, job: str | None, now: dt.datetime, self_id: int | 
         if hit is None:
             return False
         if job is None or job_succeeded(int(hit["databaseId"]), job):
-            print(f"already done today: run {hit['databaseId']} ({hit.get('displayTitle')})")
+            print(f"already done today: run {hit['databaseId']}")
             return True
         runs = [r for r in runs if r["databaseId"] != hit["databaseId"]]
+
+
+def _at(stamp: str) -> dt.datetime:
+    return dt.datetime.fromisoformat(stamp.replace("Z", "+00:00"))
+
+
+def run_seconds(jobs: list[dict[str, Any]]) -> float:
+    """The time some finished job of this run was running: the union of their spans."""
+    spans = sorted(
+        (_at(j["started_at"]), _at(j["completed_at"])) for j in jobs if j.get("completed_at")
+    )
+    total, reach = 0.0, dt.datetime.min.replace(tzinfo=dt.UTC)
+    for start, end in spans:
+        start = max(start, reach)
+        if end > start:
+            total += (end - start).total_seconds()
+            reach = end
+    return total
+
+
+def budget(name: str, since: str | None) -> int:
+    budget_seconds = int(getattr(load_config()[0].schedule, name))
+    if since is not None:
+        seconds = (dt.datetime.now(dt.UTC) - _at(since)).total_seconds()
+    else:
+        path = f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
+        seconds = run_seconds(gh_json("api", f"{path}/jobs")["jobs"])
+    print(f"{name}: {seconds:.0f}s of {budget_seconds}s")
+    if seconds > budget_seconds:
+        print(f"::error title=Over budget::{name}: took {seconds:.0f}s, budget {budget_seconds}s")
+        return 1
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -61,7 +100,12 @@ def main(argv: list[str] | None = None) -> int:
     t = sub.add_parser("today-done")
     t.add_argument("--workflow", required=True)
     t.add_argument("--job")
+    b = sub.add_parser("budget")
+    b.add_argument("name", help="a *_budget_seconds field of schedule config")
+    b.add_argument("--since")
     a = ap.parse_args(argv)
+    if a.cmd == "budget":
+        return budget(a.name, a.since)
     self_id = int(os.environ["GITHUB_RUN_ID"]) if os.environ.get("GITHUB_RUN_ID") else None
     try:
         done = today_done(a.workflow, a.job, dt.datetime.now(dt.UTC), self_id)

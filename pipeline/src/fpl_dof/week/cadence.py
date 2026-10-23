@@ -15,7 +15,13 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import pandas as pd
 
 from fpl_dof.frames import as_int
-from fpl_dof.gameweek import NoDeadlineError, current_gameweek, gameweek_ahead
+from fpl_dof.gameweek import (
+    NoDeadlineError,
+    SilverTables,
+    current_gameweek,
+    gameweek_ahead,
+    open_gameweek,
+)
 
 #: Standard timezones
 UK_ZONE = "Europe/London"
@@ -25,6 +31,8 @@ SYDNEY = ZoneInfo(SYDNEY_ZONE)
 #: Day-before refresh schedule constants
 LOCAL_HOUR = 7
 CRON = "7,27,47 19-22 * * *"
+#: The actor of a run a GITHUB_TOKEN started: the gate's own dispatches, never the owner's.
+GATE_ACTOR = "github-actions[bot]"
 
 
 def zone(name: str) -> ZoneInfo:
@@ -91,7 +99,7 @@ def find_next_deadline_event(
     events_or_bootstrap: Mapping[str, Any] | Iterable[Mapping[str, Any]],
     now: dt.datetime,
 ) -> tuple[int, dt.datetime] | None:
-    """Find (gameweek, deadline_utc) from raw bootstrap dict or event list."""
+    """The Open gameweek and its deadline (ORC-01), from a raw bootstrap dict or event list."""
     if isinstance(events_or_bootstrap, Mapping):
         events = events_or_bootstrap.get("events", [])
     else:
@@ -109,11 +117,8 @@ def find_next_deadline_event(
         ],
         columns=["gameweek", "deadline_time", "finished"],
     )
-    gameweek = gameweek_ahead(deadlines, now)
-    if gameweek is None:
-        return None
-    when = deadlines.loc[deadlines["gameweek"] == gameweek, "deadline_time"].iloc[0]
-    return gameweek, pd.Timestamp(when).to_pydatetime()
+    state = open_gameweek(SilverTables(deadlines), (), now)
+    return None if state is None else (state.gameweek, state.deadline)
 
 
 def next_deadline(
@@ -206,13 +211,10 @@ def succeeded_since(
     since: dt.datetime,
     *,
     exclude_id: int | None = None,
-    title_contains: str | None = None,
 ) -> Mapping[str, Any] | None:
     """The first completed-successfully run created at or after ``since``."""
     for run in runs:
         if exclude_id is not None and int(run.get("databaseId", -1)) == exclude_id:
-            continue
-        if title_contains and title_contains not in str(run.get("displayTitle", "")):
             continue
         if run.get("conclusion") == "success" and _created(run) >= since:
             return run
@@ -220,13 +222,21 @@ def succeeded_since(
 
 
 def active_or_succeeded(
-    runs: Iterable[Mapping[str, Any]], *, title_contains: str, exclude_id: int | None = None
+    runs: Iterable[Mapping[str, Any]],
+    *,
+    since: dt.datetime,
+    event: str = "workflow_dispatch",
+    actor: str | None = None,
 ) -> Mapping[str, Any] | None:
-    """A run with this title that is queued/in progress or succeeded."""
+    """A run started by ``event`` (and ``actor``, when given) at or after ``since`` that is queued,
+    in progress or succeeded.
+
+    The event and the actor are typed; a run's title is never read (ORC-02).
+    """
     for run in runs:
-        if exclude_id is not None and int(run.get("databaseId", -1)) == exclude_id:
+        if run.get("event") != event or _created(run) < since:
             continue
-        if title_contains not in str(run.get("displayTitle", "")):
+        if actor is not None and run.get("actor") != actor:
             continue
         if run.get("status") != "completed" or run.get("conclusion") == "success":
             return run
@@ -238,11 +248,6 @@ def start_of_utc_day(now: dt.datetime) -> dt.datetime:
 
 
 # --- Day-Before Gate ---
-
-
-def marker(gameweek: int) -> str:
-    """The run-title marker of a day-before ingest for this gameweek."""
-    return f"[day-before GW{gameweek}]"
 
 
 @dataclass(frozen=True)
@@ -299,7 +304,10 @@ def gate(
             gw,
             deadline,
         )
-    earlier = active_or_succeeded(prior_runs, title_contains=marker(gw))
+    # The gate's own dispatch of the slow ingest since midnight Sydney. The owner's manual ingest
+    # does not count: it need not have asked to publish (must_publish), so cannot stand for it.
+    since = dt.datetime.combine(local.date(), dt.time(), SYDNEY)
+    earlier = active_or_succeeded(prior_runs, since=since, actor=GATE_ACTOR)
     if earlier is not None:
         state = earlier.get("conclusion") or earlier.get("status")
         return GateDecision(
@@ -320,6 +328,7 @@ def gate(
 
 __all__ = [
     "CRON",
+    "GATE_ACTOR",
     "LOCAL_HOUR",
     "SYDNEY",
     "SYDNEY_ZONE",
@@ -332,7 +341,6 @@ __all__ = [
     "describe_deadline",
     "find_next_deadline_event",
     "gate",
-    "marker",
     "next_deadline",
     "next_deadline_dataframe",
     "start_of_utc_day",

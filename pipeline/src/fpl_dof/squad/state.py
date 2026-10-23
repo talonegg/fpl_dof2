@@ -16,6 +16,10 @@ Three provenances, in descending order of how much they should be trusted:
     for players bought in, and from the price in the first held gameweek for players held since
     the start.
 
+    A Free Hit gameweek's squad reverts at the next deadline, so its picks are never the base and
+    its transfers never a purchase (D-33): the chip in force comes from entry history, read as the
+    gameweek state reads it (:func:`fpl_dof.gameweek.chips_by_gameweek`).
+
 ``DECLARED``
     Stated in configuration. Before GW1 is scored this is the *only* possible answer (DL-20), so it
     is a first-class input and not a degraded mode. It is validated on entry, because a typo in a
@@ -37,8 +41,12 @@ import pandas as pd
 
 from fpl_dof.config.models import EntryConfig
 from fpl_dof.frames import as_float, as_int
+from fpl_dof.gameweek import chips_by_gameweek
 from fpl_dof.rules.legality import Squad, SquadPlayer, Violation, selling_price, validate_squad
 from fpl_dof.rules.models import GameRules, Position
+
+#: The game's name for the chip whose squad reverts after one gameweek.
+FREE_HIT = "freehit"
 
 
 class SquadStateError(RuntimeError):
@@ -131,7 +139,7 @@ def free_transfers_after(
     this wrong understates next week's flexibility and quietly biases the tool toward taking hits.
     """
     maximum = rules.transfers.max_free_transfers
-    free_week = chip_played in {"wildcard", "freehit"}
+    free_week = chip_played in {"wildcard", FREE_HIT}
     remaining = previous if free_week else previous - transfers_made
     return max(1, min(maximum, remaining + 1))
 
@@ -271,10 +279,17 @@ def _from_picks(
     gameweek_prices: Mapping[tuple[int, int], float],
 ) -> SquadState:
     warnings: list[str] = []
+    free_hits = {gw for gw, chip in chips_by_gameweek(chips).items() if chip == FREE_HIT}
+    # shortcut: when every pick is a Free Hit's, the squad it reverts to is unknown; they are kept.
+    if not picks["gameweek"].isin(free_hits).all():
+        picks = picks[~picks["gameweek"].isin(free_hits)]
+    bought = transfers
+    if transfers is not None and not transfers.empty:
+        bought = transfers[~transfers["gameweek"].isin(free_hits)]
     latest = as_int(picks["gameweek"].max())
     base = picks[picks["gameweek"] == latest]
 
-    bought_for = _transfer_costs(transfers)
+    bought_for = _transfer_costs(bought)
     first_held = picks.groupby("player_id")["gameweek"].min()
 
     holdings: dict[int, float] = {}
@@ -298,7 +313,7 @@ def _from_picks(
         if bool(row["is_vice_captain"]):
             vice = player_id
 
-    since = _transfers_since(transfers, latest)
+    since = _transfers_since(bought, latest)
     for _, row in since.iterrows():
         out_id = as_int(row["player_out_id"])
         in_id = as_int(row["player_in_id"])
@@ -437,11 +452,7 @@ def _free_transfers(
     if transfers is not None and not transfers.empty:
         counts = transfers.groupby("gameweek").size()
         by_gameweek = {as_int(gw): as_int(n) for gw, n in counts.items()}
-    chip_by_gameweek: dict[int, str] = {}
-    if chips is not None and not chips.empty:
-        chip_by_gameweek = {
-            as_int(row["gameweek"]): str(row["name"]) for _, row in chips.iterrows()
-        }
+    chip_by_gameweek = chips_by_gameweek(chips)
 
     available = 1
     for gameweek in range(1, max(next_gameweek, latest + 1)):

@@ -5,7 +5,7 @@ import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 // The one name the worker and the app must agree on. Imported rather than restated, because two
 // files disagreeing about a cache name fails silently: the app warms a cache nothing ever reads.
-import { PUBLISHED_CACHE } from "./src/data/offline";
+import { DATA_DIR, PUBLISHED_CACHE } from "./src/data/offline";
 
 /**
  * Read a colour from `tokens.css`'s light palette.
@@ -38,7 +38,7 @@ export default defineConfig({
      * names and the old entries are evicted on activation.
      *
      * The *published data* is not precached, and must not be. It lives at stable URLs under
-     * `data/v1/`, so a precache entry would pin one publication for as long as the bundle lived and
+     * `data/v{CONTRACT_VERSION}/`, so a precache entry would pin one publication for as long as the bundle lived and
      * the app would confidently show last month's prices. It is `NetworkFirst` instead: online, the
      * reader always gets the newest publication; offline, they get the last one that reached them,
      * which is precisely "offline access to last-published data" and nothing more. The staleness is
@@ -93,7 +93,7 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         runtimeCaching: [
           {
-            urlPattern: /\/data\/v1\/.+\.json$/,
+            urlPattern: new RegExp(`/${DATA_DIR}/.+\\.json$`),
             handler: "NetworkFirst",
             options: {
               cacheName: PUBLISHED_CACHE,

@@ -166,6 +166,63 @@ def test_restore_rolling_branch_restores_bronze_and_silver(tmp_path: Path) -> No
     assert restored_parquet.read_bytes() == b"hello-silver"
 
 
+def test_restore_rolling_branch_survives_the_branch_being_rewritten(tmp_path: Path) -> None:
+    """The rolling branch is force-pushed every run; a second restore must not trip on old refs."""
+    import subprocess
+    import sys
+
+    scripts_dir = Path(__file__).resolve().parents[1] / "scripts"
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+    from retention import restore_rolling_branch
+
+    bare_repo = tmp_path / "remote.git"
+    subprocess.run(["git", "init", "--bare", str(bare_repo)], check=True, capture_output=True)
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    subprocess.run(["git", "init"], cwd=scratch, check=True, capture_output=True)
+
+    def publish(body: bytes) -> None:
+        # An orphan commit each time, as the rolling rebuild does: never a descendant of the last.
+        subprocess.run(
+            ["git", "checkout", "--orphan", f"o{len(body)}"],
+            cwd=scratch,
+            check=True,
+            capture_output=True,
+        )
+        b_dir = scratch / "bronze" / "fpl"
+        b_dir.mkdir(parents=True, exist_ok=True)
+        (b_dir / "sample.json.gz").write_bytes(body)
+        subprocess.run(["git", "add", "-A"], cwd=scratch, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "-c", "user.name=CI", "-c", "user.email=ci@test", "commit", "-m", "rolling"],
+            cwd=scratch,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "push", "--force", str(bare_repo), "HEAD:data"],
+            cwd=scratch,
+            check=True,
+            capture_output=True,
+        )
+
+    consumer = tmp_path / "consumer"
+    consumer.mkdir()
+    subprocess.run(["git", "init"], cwd=consumer, check=True, capture_output=True)
+    target = consumer / "data"
+
+    publish(b"first")
+    assert restore_rolling_branch(
+        data_dir=target, remote=str(bare_repo), branch="data", cwd=consumer
+    )
+    publish(b"second!")
+    assert restore_rolling_branch(
+        data_dir=target, remote=str(bare_repo), branch="data", cwd=consumer
+    )
+    assert (target / "bronze" / "fpl" / "sample.json.gz").read_bytes() == b"second!"
+
+
 def test_restore_rolling_branch_missing_branch(tmp_path: Path) -> None:
     import subprocess
     import sys
@@ -364,6 +421,37 @@ def test_a_named_ledger_record_is_appended_and_never_overwritten(tmp_path: Path)
     records = clone / "experiments"
     assert (records / "20261027T161700Z-aaaa.json").read_text(encoding="utf-8") == "[1]"
     assert (records / "20261103T161700Z-bbbb.json").read_text(encoding="utf-8") == "[2]"
+
+
+def test_a_replaceable_named_record_takes_the_newer_success(tmp_path: Path) -> None:
+    """ORC-08: a predictions file is replaced by its next success, and only on request."""
+    retention = _scripts_retention()
+    bare = tmp_path / "remote.git"
+    _git("init", "--bare", str(bare), cwd=tmp_path)
+
+    def append(body: bytes, *, replace: bool) -> bool:
+        payload = tmp_path / "a.parquet"
+        payload.write_bytes(body)
+        appended: bool = retention.append_permanent_snapshot(
+            checkout_dir=tmp_path / "checkout",
+            payload_path=payload,
+            remote=str(bare),
+            branch="ledger",
+            source="predictions/gw09",
+            name="a",
+            replace=replace,
+        )
+        return appended
+
+    assert append(b"first", replace=True)
+    assert not append(b"first", replace=True)  # the same bytes again: a no-op
+    with pytest.raises(FileExistsError):
+        append(b"second", replace=False)
+    assert append(b"second", replace=True)
+
+    clone = tmp_path / "clone"
+    _git("clone", "--branch", "ledger", str(bare), str(clone), cwd=tmp_path)
+    assert (clone / "predictions" / "gw09" / "a.parquet").read_bytes() == b"second"
 
 
 def test_a_ledger_append_that_loses_a_push_race_appends_again(
@@ -576,3 +664,57 @@ def test_the_rolling_window_is_read_from_configuration(
         dry_run=True,
     )
     assert counts["pruned"] == 1  # ten days old: kept by the old literal 30, pruned by config's 5
+
+
+def test_a_quarantined_capture_never_returns_to_data_but_its_record_does(tmp_path: Path) -> None:
+    """ORC-10: a capture quarantined locally is not folded back in from `data`, which keeps only
+    its sidecar, the record the health page counts; a later restore brings the record back."""
+    from fpl_dof.sources import BronzeStore, Snapshot, SnapshotMeta
+
+    retention = _scripts_retention()
+    bare = tmp_path / "remote.git"
+    _git("init", "--bare", str(bare), cwd=tmp_path)
+    root = _store(tmp_path / "local", 20)
+    snapshot = root / "bronze" / "fpl" / "bootstrap_static" / "2026-08-20" / "all__20.json.gz"
+    meta = SnapshotMeta.model_validate(
+        {
+            "source": "fpl",
+            "source_version": "1",
+            "resource": "bootstrap_static",
+            "key": "all",
+            "url": "https://example.invalid/",
+            "http_status": 200,
+            "fetched_at": "2026-08-20T06:00:00Z",
+            "sha256": "0" * 64,
+            "bytes": 7,
+        }
+    )
+    snapshot.with_name(snapshot.name + ".meta.json").write_text(meta.model_dump_json())
+
+    def push() -> None:
+        retention.rebuild_rolling_branch(
+            bronze_dir=root / "bronze",
+            staging_dir=tmp_path / "staging",
+            remote=str(bare),
+            window_days=30,
+            today=dt.date(2026, 8, 31),
+        )
+
+    push()  # the capture reached `data` before the sweep found it malformed
+    BronzeStore(root / "bronze").quarantine(Snapshot(snapshot, meta), "it broke its contract")
+    push()
+
+    clone = tmp_path / "clone"
+    _git("clone", "--branch", "data", str(bare), str(clone), cwd=tmp_path)
+    assert not (clone / "bronze" / "fpl").exists()
+    aside = clone / "quarantine" / "bronze" / "fpl" / "bootstrap_static" / "2026-08-20"
+    assert sorted(p.name for p in aside.iterdir()) == ["all__20.json.gz.meta.json"]
+
+    consumer = tmp_path / "consumer"
+    consumer.mkdir()
+    _git("init", "--quiet", cwd=consumer)
+    restored = tmp_path / "restored" / "data"
+    assert retention.restore_rolling_branch(
+        data_dir=restored, remote=str(bare), branch="data", cwd=consumer
+    )
+    assert BronzeStore(restored / "bronze").quarantined() == {"fpl": 1}

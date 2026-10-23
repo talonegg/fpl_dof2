@@ -15,7 +15,9 @@ from fpl_dof.sources.base import (
     SourceAdapter,
 )
 from fpl_dof.sources.bronze import META_SUFFIX, BronzeStore, Snapshot, SnapshotMeta
-from fpl_dof.sources.catalogue import LIVE, REFERENCE, SourceDescriptor, describe
+from fpl_dof.sources.catalogue import LIVE, REFERENCE, SourceDescriptor, describe, supplying
+from fpl_dof.sources.changes import KINDS as CHANGE_KINDS
+from fpl_dof.sources.changes import before_ingest, changed_kinds
 from fpl_dof.sources.enrich import canonicalise
 from fpl_dof.sources.errors import (
     OfflineWithoutSnapshotError,
@@ -32,6 +34,7 @@ from fpl_dof.sources.replay import extract_price_history_rows, gameweeks_from_br
 from fpl_dof.sources.resolve import CLUB_ALIASES, resolve_team
 
 __all__ = [
+    "CHANGE_KINDS",
     "CLUB_ALIASES",
     "LIVE",
     "META_SUFFIX",
@@ -54,8 +57,10 @@ __all__ = [
     "SourceNotFoundError",
     "SourceRateLimitedError",
     "SourceUnavailableError",
+    "before_ingest",
     "build",
     "canonicalise",
+    "changed_kinds",
     "describe",
     "extract_price_history_rows",
     "gameweeks_from_bronze",
@@ -63,4 +68,5 @@ __all__ = [
     "register",
     "replay_prices",
     "resolve_team",
+    "supplying",
 ]

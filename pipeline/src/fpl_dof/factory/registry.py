@@ -32,7 +32,7 @@ from fpl_dof.decision import DecisionPolicy
 from fpl_dof.forecast import xp_v1
 from fpl_dof.forecast.backtest import StrategyPredictor, TrainingWindow
 from fpl_dof.forecast.entry import Forecast, publishable
-from fpl_dof.forecast.inputs import ForecastInputs
+from fpl_dof.forecast.inputs import ForecastInputs, MissingInputError
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.optimise.captain import PricePositionLine
 from fpl_dof.optimise.frame import STRATEGY_COLUMN, STRATEGY_DIGEST_COLUMN
@@ -128,15 +128,18 @@ class Strategy(_Entry):
         entry's overrides, each with its own variance and captain line. A ``frozen`` forecaster
         has no live code; asking for one is an error, never a quiet substitute (and the registry
         refuses to publish one, :func:`unrunnable`).
-        A required silver table that is absent or empty is an error naming it, so the stage
-        records "no advice" rather than a forecast on missing data.
+        A required silver table that is absent or empty is a :class:`MissingInputError` naming it,
+        so the stage records "no advice", and which table it waits for, rather than a forecast on
+        missing data.
         """
         recipe = self.forecaster
         if (problem := unrunnable(self)) is not None:
             raise NotImplementedError(f"{self.id}: {problem}")
         missing = [t.value for t in self.requires if _is_empty(inputs, t)]
         if missing:
-            raise ValueError(f"{self.id}: required silver table(s) absent or empty: {missing}")
+            raise MissingInputError(
+                f"{self.id}: required silver table(s) absent or empty: {missing}", tuple(missing)
+            )
         if recipe.training_window == "current_season" and inputs.player_gameweek is not None:
             history = inputs.player_gameweek
             inputs = dataclasses.replace(
@@ -357,6 +360,7 @@ __all__ = [
     "Forecast",
     "ForecastInputs",
     "Forecaster",
+    "MissingInputError",
     "Policy",
     "RegistryError",
     "Strategy",

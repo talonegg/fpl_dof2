@@ -40,6 +40,21 @@ def _frame(inputs: ForecastInputs, rules: GameRules, strategy: str = "a_odds") -
     return frame.set_index("player_id")
 
 
+@pytest.fixture(scope="session")
+def a_odds_frame(game_rules: GameRules) -> pd.DataFrame:
+    """A_odds on the unchanged snapshot, fitted once; read through ``base``, which copies.
+
+    Fitting it again gives the same frame, which ``test_two_fits_on_the_same_data_give_identical
+    _frames`` asserts with two fresh fits of its own.
+    """
+    return _frame(_snapshot(game_rules)[0], game_rules)
+
+
+@pytest.fixture
+def base(a_odds_frame: pd.DataFrame) -> pd.DataFrame:
+    return a_odds_frame.copy()
+
+
 def _deadline(inputs: ForecastInputs, gameweek: int) -> pd.Timestamp:
     gameweeks = inputs.gameweeks
     return pd.Timestamp(gameweeks.loc[gameweeks["gameweek"] == gameweek, "deadline_time"].min())
@@ -92,7 +107,9 @@ def test_the_market_layer_applies_where_priced_and_a_stands_elsewhere(
     assert not got.loc[~fallback, "xp_next"].equals(model_a.loc[~fallback, "xp_next"])
 
 
-def test_higher_clean_sheet_odds_raise_a_defenders_xp(game_rules: GameRules) -> None:
+def test_higher_clean_sheet_odds_raise_a_defenders_xp(
+    game_rules: GameRules, base: pd.DataFrame
+) -> None:
     inputs, _ = _snapshot(game_rules)
     upcoming = _upcoming(inputs)
     captured = pd.Timestamp(inputs.as_of) - pd.Timedelta(days=1)
@@ -100,14 +117,14 @@ def test_higher_clean_sheet_odds_raise_a_defenders_xp(game_rules: GameRules) -> 
     tighter = dataclasses.replace(
         inputs, match_odds=match_odds(upcoming, game_rules.season, captured, away_goals=0.4)
     )
-    base, better = _frame(inputs, game_rules), _frame(tighter, game_rules)
+    better = _frame(tighter, game_rules)
     home = base["team_id"].isin(set(upcoming["home_team_id"]))
     defence = base["position"].isin([Position.GKP.value, Position.DEF.value]) & home
     assert (better.loc[defence, "xp_next"] >= base.loc[defence, "xp_next"]).all()
     assert (better.loc[defence, "xp_next"] > base.loc[defence, "xp_next"]).any()
 
 
-def test_a_capture_after_the_deadline_is_ignored(game_rules: GameRules) -> None:
+def test_a_capture_after_the_deadline_is_ignored(game_rules: GameRules, base: pd.DataFrame) -> None:
     inputs, _ = _snapshot(game_rules)
     assert inputs.match_odds is not None
     deadline = _deadline(inputs, HORIZON[0])
@@ -118,21 +135,21 @@ def test_a_capture_after_the_deadline_is_ignored(game_rules: GameRules) -> None:
         inputs, match_odds=pd.concat([inputs.match_odds, late], ignore_index=True)
     )
     # Decided before the deadline, a capture after it (in a replay's silver) is never read.
-    pd.testing.assert_frame_equal(_frame(with_late, game_rules), _frame(inputs, game_rules))
+    pd.testing.assert_frame_equal(_frame(with_late, game_rules), base)
     # Read after the deadline, gameweek 5's odds are still the capture taken before it.
     later = dataclasses.replace(with_late, as_of=(deadline + pd.Timedelta(hours=2)).to_pydatetime())
     odds = a_odds.team_odds(later, game_rules.season)
     assert set(odds.loc[odds["gameweek"] == HORIZON[0], "goals_for"]) == {1.5, 1.1}
 
 
-def test_points_come_from_the_rules_config(game_rules: GameRules) -> None:
+def test_points_come_from_the_rules_config(game_rules: GameRules, base: pd.DataFrame) -> None:
     inputs, _ = _snapshot(game_rules)
     clean = dict(game_rules.scoring.clean_sheets)
     clean[Position.DEF] += 2
     rules = game_rules.model_copy(
         update={"scoring": game_rules.scoring.model_copy(update={"clean_sheets": clean})}
     )
-    base, richer = _frame(inputs, game_rules), _frame(inputs, rules)
+    richer = _frame(inputs, rules)
     defenders = base["position"] == Position.DEF.value
     assert (richer.loc[defenders, "xp_next"] > base.loc[defenders, "xp_next"]).any()
     forwards = base["position"] == Position.FWD.value

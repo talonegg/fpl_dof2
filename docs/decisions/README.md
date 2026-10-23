@@ -141,4 +141,5 @@ by hand.
 | [DL-91](DL-91.md) | 2026-10-23 | Accepted | F3 is rejected: the champion keeps its current-season window; both experiments retire |
 | [DL-92](DL-92.md) | 2026-10-23 | Accepted | Hotfix R1.2.3: a purchase price is what was paid; an unknown one never overstates the budget |
 | [DL-93](DL-93.md) | 2026-10-23 | Accepted | Hotfix R1.2.4: training rows refresh when a gameweek is checked; dependencies are pinned |
+| [DL-94](DL-94.md) | 2026-10-23 | Accepted | Build R1.3.0 as planned, with the owner's answers; a malformed capture never reaches history |
 <!-- index:end -->
