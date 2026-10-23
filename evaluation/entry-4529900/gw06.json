@@ -1,0 +1,806 @@
+{
+  "gameweek": 6,
+  "season": "2026/27",
+  "evaluation_version": "3",
+  "evaluated_at": "2026-10-23T21:45:16.291102Z",
+  "run_id": "20261023T214516Z-7b10fd30",
+  "entry_id": 4529900,
+  "log": {
+    "gameweek": 6,
+    "played": {
+      "squad": [
+        109,
+        259,
+        115,
+        8,
+        426,
+        399,
+        237,
+        124,
+        411,
+        165,
+        464,
+        496,
+        368,
+        450,
+        175
+      ],
+      "starting": [
+        109,
+        259,
+        115,
+        8,
+        426,
+        399,
+        237,
+        124,
+        411,
+        165,
+        464
+      ],
+      "bench_order": [
+        496,
+        368,
+        450,
+        175
+      ],
+      "captain": 411,
+      "vice_captain": 426
+    },
+    "score": {
+      "points": 79,
+      "total_points": 408,
+      "rank": 712130,
+      "overall_rank": 1171069,
+      "points_on_bench": 9,
+      "transfers": 0,
+      "transfers_cost": 0
+    },
+    "chip": null,
+    "advised": {
+      "run_id": "20261010T083828Z-7cf16c2e",
+      "recorded_at": "2026-10-10T08:38:44.823863Z",
+      "squad": [
+        8,
+        109,
+        115,
+        124,
+        165,
+        175,
+        237,
+        259,
+        368,
+        399,
+        411,
+        426,
+        464,
+        567,
+        649
+      ],
+      "starting": [
+        567,
+        649,
+        8,
+        426,
+        115,
+        411,
+        399,
+        124,
+        368,
+        237,
+        464
+      ],
+      "captain": 567,
+      "vice_captain": 649,
+      "expected_points": 40.3364,
+      "transfers": 2,
+      "hit_points": 0,
+      "moves": [
+        {
+          "out": 450,
+          "in": 649
+        },
+        {
+          "out": 496,
+          "in": 567
+        }
+      ]
+    },
+    "reconciliation": {
+      "followed": false,
+      "divergences": [
+        {
+          "kind": "squad",
+          "status": "unexplained",
+          "message": "squad: player 567 was advised but not played",
+          "advised": [
+            8,
+            109,
+            115,
+            124,
+            165,
+            175,
+            237,
+            259,
+            368,
+            399,
+            411,
+            426,
+            464,
+            567,
+            649
+          ],
+          "played": [
+            8,
+            109,
+            115,
+            124,
+            165,
+            175,
+            237,
+            259,
+            368,
+            399,
+            411,
+            426,
+            450,
+            464,
+            496
+          ],
+          "reason": ""
+        },
+        {
+          "kind": "squad",
+          "status": "unexplained",
+          "message": "squad: player 649 was advised but not played",
+          "advised": [
+            8,
+            109,
+            115,
+            124,
+            165,
+            175,
+            237,
+            259,
+            368,
+            399,
+            411,
+            426,
+            464,
+            567,
+            649
+          ],
+          "played": [
+            8,
+            109,
+            115,
+            124,
+            165,
+            175,
+            237,
+            259,
+            368,
+            399,
+            411,
+            426,
+            450,
+            464,
+            496
+          ],
+          "reason": ""
+        },
+        {
+          "kind": "squad",
+          "status": "unexplained",
+          "message": "squad: player 450 was played but not advised",
+          "advised": [
+            8,
+            109,
+            115,
+            124,
+            165,
+            175,
+            237,
+            259,
+            368,
+            399,
+            411,
+            426,
+            464,
+            567,
+            649
+          ],
+          "played": [
+            8,
+            109,
+            115,
+            124,
+            165,
+            175,
+            237,
+            259,
+            368,
+            399,
+            411,
+            426,
+            450,
+            464,
+            496
+          ],
+          "reason": ""
+        },
+        {
+          "kind": "squad",
+          "status": "unexplained",
+          "message": "squad: player 496 was played but not advised",
+          "advised": [
+            8,
+            109,
+            115,
+            124,
+            165,
+            175,
+            237,
+            259,
+            368,
+            399,
+            411,
+            426,
+            464,
+            567,
+            649
+          ],
+          "played": [
+            8,
+            109,
+            115,
+            124,
+            165,
+            175,
+            237,
+            259,
+            368,
+            399,
+            411,
+            426,
+            450,
+            464,
+            496
+          ],
+          "reason": ""
+        },
+        {
+          "kind": "starting",
+          "status": "unexplained",
+          "message": "starting: player 368 was advised but not played",
+          "advised": [
+            8,
+            115,
+            124,
+            237,
+            368,
+            399,
+            411,
+            426,
+            464,
+            567,
+            649
+          ],
+          "played": [
+            8,
+            109,
+            115,
+            124,
+            165,
+            237,
+            259,
+            399,
+            411,
+            426,
+            464
+          ],
+          "reason": ""
+        },
+        {
+          "kind": "starting",
+          "status": "unexplained",
+          "message": "starting: player 567 was advised but not played",
+          "advised": [
+            8,
+            115,
+            124,
+            237,
+            368,
+            399,
+            411,
+            426,
+            464,
+            567,
+            649
+          ],
+          "played": [
+            8,
+            109,
+            115,
+            124,
+            165,
+            237,
+            259,
+            399,
+            411,
+            426,
+            464
+          ],
+          "reason": ""
+        },
+        {
+          "kind": "starting",
+          "status": "unexplained",
+          "message": "starting: player 649 was advised but not played",
+          "advised": [
+            8,
+            115,
+            124,
+            237,
+            368,
+            399,
+            411,
+            426,
+            464,
+            567,
+            649
+          ],
+          "played": [
+            8,
+            109,
+            115,
+            124,
+            165,
+            237,
+            259,
+            399,
+            411,
+            426,
+            464
+          ],
+          "reason": ""
+        },
+        {
+          "kind": "starting",
+          "status": "unexplained",
+          "message": "starting: player 109 was played but not advised",
+          "advised": [
+            8,
+            115,
+            124,
+            237,
+            368,
+            399,
+            411,
+            426,
+            464,
+            567,
+            649
+          ],
+          "played": [
+            8,
+            109,
+            115,
+            124,
+            165,
+            237,
+            259,
+            399,
+            411,
+            426,
+            464
+          ],
+          "reason": ""
+        },
+        {
+          "kind": "starting",
+          "status": "unexplained",
+          "message": "starting: player 165 was played but not advised",
+          "advised": [
+            8,
+            115,
+            124,
+            237,
+            368,
+            399,
+            411,
+            426,
+            464,
+            567,
+            649
+          ],
+          "played": [
+            8,
+            109,
+            115,
+            124,
+            165,
+            237,
+            259,
+            399,
+            411,
+            426,
+            464
+          ],
+          "reason": ""
+        },
+        {
+          "kind": "starting",
+          "status": "unexplained",
+          "message": "starting: player 259 was played but not advised",
+          "advised": [
+            8,
+            115,
+            124,
+            237,
+            368,
+            399,
+            411,
+            426,
+            464,
+            567,
+            649
+          ],
+          "played": [
+            8,
+            109,
+            115,
+            124,
+            165,
+            237,
+            259,
+            399,
+            411,
+            426,
+            464
+          ],
+          "reason": ""
+        },
+        {
+          "kind": "captain",
+          "status": "unexplained",
+          "message": "captain: advised 567, played 411",
+          "advised": [
+            567
+          ],
+          "played": [
+            411
+          ],
+          "reason": ""
+        },
+        {
+          "kind": "vice_captain",
+          "status": "unexplained",
+          "message": "vice_captain: advised 649, played 426",
+          "advised": [
+            649
+          ],
+          "played": [
+            426
+          ],
+          "reason": ""
+        }
+      ]
+    },
+    "hindsight": {
+      "rankings": [
+        {
+          "model_name": "played",
+          "rank": 1,
+          "score": {
+            "final_starting": [
+              109,
+              259,
+              115,
+              8,
+              426,
+              399,
+              237,
+              124,
+              411,
+              165,
+              464
+            ],
+            "points_before_hits": 79,
+            "hit_points": 0,
+            "net_points": 79,
+            "captain_id": 411,
+            "vice_used": false,
+            "armband_points": 12,
+            "autosubs_in": [],
+            "autosubs_out": [],
+            "expected_points": 0.0,
+            "prediction_delta": 79.0
+          }
+        },
+        {
+          "model_name": "c3",
+          "rank": 2,
+          "score": {
+            "final_starting": [
+              567,
+              649,
+              8,
+              426,
+              115,
+              411,
+              399,
+              124,
+              259,
+              237,
+              464
+            ],
+            "points_before_hits": 56,
+            "hit_points": 0,
+            "net_points": 56,
+            "captain_id": 567,
+            "vice_used": false,
+            "armband_points": 0,
+            "autosubs_in": [
+              259
+            ],
+            "autosubs_out": [
+              368
+            ],
+            "expected_points": 40.3364,
+            "prediction_delta": 15.66
+          }
+        }
+      ],
+      "optimal": {
+        "gameweek": 6,
+        "baseline_roll": {
+          "transfers_count": 0,
+          "moves": [],
+          "starting": [
+            115,
+            165,
+            399,
+            8,
+            109,
+            124,
+            175,
+            411,
+            259,
+            464,
+            426
+          ],
+          "captain_id": 115,
+          "captain_name": "De Cuyper",
+          "points_before_hits": 93,
+          "hit_points": 0,
+          "net_points": 93,
+          "gain_over_roll": 0.0
+        },
+        "optimal_single": {
+          "transfers_count": 1,
+          "moves": [
+            {
+              "player_out_id": 368,
+              "player_out_name": "Szoboszlai",
+              "player_in_id": 101,
+              "player_in_name": "Henderson",
+              "selling_price": 6.9,
+              "buying_price": 4.9
+            }
+          ],
+          "starting": [
+            101,
+            115,
+            165,
+            399,
+            8,
+            109,
+            124,
+            175,
+            411,
+            259,
+            464
+          ],
+          "captain_id": 101,
+          "captain_name": "Henderson",
+          "points_before_hits": 113,
+          "hit_points": 0,
+          "net_points": 113,
+          "gain_over_roll": 20.0
+        },
+        "optimal_overall": {
+          "transfers_count": 2,
+          "moves": [
+            {
+              "player_out_id": 237,
+              "player_out_name": "Ndiaye",
+              "player_in_id": 101,
+              "player_in_name": "Henderson",
+              "selling_price": 5.8,
+              "buying_price": 4.9
+            },
+            {
+              "player_out_id": 368,
+              "player_out_name": "Szoboszlai",
+              "player_in_id": 236,
+              "player_in_name": "Dewsbury-Hall",
+              "selling_price": 6.9,
+              "buying_price": 6.6
+            }
+          ],
+          "starting": [
+            101,
+            115,
+            236,
+            165,
+            399,
+            8,
+            109,
+            124,
+            175,
+            411,
+            464
+          ],
+          "captain_id": 101,
+          "captain_name": "Henderson",
+          "points_before_hits": 124,
+          "hit_points": 0,
+          "net_points": 124,
+          "gain_over_roll": 31.0
+        },
+        "all_options": [
+          {
+            "transfers_count": 0,
+            "moves": [],
+            "starting": [
+              115,
+              165,
+              399,
+              8,
+              109,
+              124,
+              175,
+              411,
+              259,
+              464,
+              426
+            ],
+            "captain_id": 115,
+            "captain_name": "De Cuyper",
+            "points_before_hits": 93,
+            "hit_points": 0,
+            "net_points": 93,
+            "gain_over_roll": 0.0
+          },
+          {
+            "transfers_count": 1,
+            "moves": [
+              {
+                "player_out_id": 368,
+                "player_out_name": "Szoboszlai",
+                "player_in_id": 101,
+                "player_in_name": "Henderson",
+                "selling_price": 6.9,
+                "buying_price": 4.9
+              }
+            ],
+            "starting": [
+              101,
+              115,
+              165,
+              399,
+              8,
+              109,
+              124,
+              175,
+              411,
+              259,
+              464
+            ],
+            "captain_id": 101,
+            "captain_name": "Henderson",
+            "points_before_hits": 113,
+            "hit_points": 0,
+            "net_points": 113,
+            "gain_over_roll": 20.0
+          },
+          {
+            "transfers_count": 2,
+            "moves": [
+              {
+                "player_out_id": 237,
+                "player_out_name": "Ndiaye",
+                "player_in_id": 101,
+                "player_in_name": "Henderson",
+                "selling_price": 5.8,
+                "buying_price": 4.9
+              },
+              {
+                "player_out_id": 368,
+                "player_out_name": "Szoboszlai",
+                "player_in_id": 236,
+                "player_in_name": "Dewsbury-Hall",
+                "selling_price": 6.9,
+                "buying_price": 6.6
+              }
+            ],
+            "starting": [
+              101,
+              115,
+              236,
+              165,
+              399,
+              8,
+              109,
+              124,
+              175,
+              411,
+              464
+            ],
+            "captain_id": 101,
+            "captain_name": "Henderson",
+            "points_before_hits": 124,
+            "hit_points": 0,
+            "net_points": 124,
+            "gain_over_roll": 31.0
+          }
+        ]
+      },
+      "diagnostics": [
+        {
+          "player_id": 101,
+          "player_name": "Henderson",
+          "role": "captain",
+          "actual_points": 18,
+          "category": "captaincy_trap",
+          "explanation": "Henderson scored 18 pts as optimal captain. Models played, c3 backed alternative captains who scored less.",
+          "models_xp": {
+            "c3": 0.0
+          },
+          "models_trapped": [
+            "played",
+            "c3"
+          ]
+        },
+        {
+          "player_id": 101,
+          "player_name": "Henderson",
+          "role": "transfer_in",
+          "actual_points": 18,
+          "category": "high_variance_outlier",
+          "explanation": "Henderson hauled with 18 pts despite modest expectations across all models (max 0.0 xP).",
+          "models_xp": {
+            "c3": 0.0
+          },
+          "models_trapped": []
+        },
+        {
+          "player_id": 236,
+          "player_name": "Dewsbury-Hall",
+          "role": "transfer_in",
+          "actual_points": 13,
+          "category": "high_variance_outlier",
+          "explanation": "Dewsbury-Hall hauled with 13 pts despite modest expectations across all models (max 0.0 xP).",
+          "models_xp": {
+            "c3": 0.0
+          },
+          "models_trapped": []
+        }
+      ]
+    }
+  },
+  "strategies": {
+    "c3": {
+      "actual": {
+        "points": 56.0,
+        "points_before_hits": 56.0,
+        "hit_points": 0.0,
+        "n_autosubs": 1,
+        "vice_used": false,
+        "armband_points": 0.0
+      },
+      "xp_accuracy": null
+    }
+  }
+}
