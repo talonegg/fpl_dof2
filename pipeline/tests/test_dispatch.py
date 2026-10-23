@@ -211,3 +211,25 @@ def test_the_day_before_path_is_typed_and_still_fails_closed() -> None:
     assert "inputs.must_publish && '--day-before'" in start["run"]
     deploy = _workflow("pipeline.yml")["jobs"]["deploy"]
     assert deploy["with"]["must_publish"] == "${{ inputs.must_publish == true }}"
+
+
+def test_only_the_run_job_queues_so_a_tick_with_nothing_to_do_supersedes_nothing() -> None:
+    """DL-94 item 4: among runs with work the newest pending one wins; a tick whose guard says no
+    never joins the queue. A run that waited is asked again, so the freeze still binds (R-09)."""
+    pipeline = _workflow("pipeline.yml")
+    assert "concurrency" not in pipeline and "concurrency" not in pipeline["jobs"]["guard"]
+    run = pipeline["jobs"]["run"]
+    assert run["concurrency"] == {"group": "pipeline", "cancel-in-progress": False}
+    # Deploys serialise in their own group, shared with deploy.yml's push and dispatch runs.
+    assert _workflow("deploy.yml")["concurrency"] == {"group": "deploy", "cancel-in-progress": False}
+
+    index, still = _step(run, "Still outside the freeze now this run holds the queue")
+    assert "fpl-dof-schedule --decide pipeline" in still["run"]
+    assert still["env"]["TRIGGER"] == "${{ inputs.trigger || 'schedule' }}"
+    restore_ledger = "Restore the advice ledger and experiments from the `ledger` branch"
+    work = [s for s in run["steps"][index + 1 :] if s.get("name") != restore_ledger]
+    assert work and all(s["if"] == "steps.still.outputs.run == 'true'" for s in work)
+    # Asked as a dispatched run, a tick that waited out of its window still runs; the freeze holds.
+    assert not _decide(_open(300), trigger="", kinds=[], gameweek=None)
+    assert _decide(_open(300), trigger="schedule", kinds=[], gameweek=None)
+    assert not _decide(_open(CONFIG.deadline_freeze_minutes - 1), trigger="schedule", kinds=[])

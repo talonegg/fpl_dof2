@@ -430,9 +430,11 @@ moving on an already-priced match, or a recapture of the same bytes starts nothi
 
 **Scheduling caveat (R-09):** scheduled runs are best-effort and can be delayed under platform load.
 The day-before run and the deadline guard exist so a delayed cron is never the reason a deadline is
-missed; manual dispatch outside the freeze is always the fallback. Dispatched runs queue in one
-concurrency group, newest wins: a newer queued run supersedes an older one, so its `trigger` stamp
-names only the newest cause, while the data it restores includes every earlier change.
+missed; manual dispatch outside the freeze is always the fallback. Runs with work queue in one
+concurrency group, the `run` job's, newest wins: a newer queued run supersedes an older one, so its
+`trigger` stamp names only the newest cause, while the data it restores includes every earlier
+change. A tick whose guard says no never joins the queue, and a run that waited asks the guard
+again before it works, so the freeze binds when it starts.
 
 ---
 
