@@ -66,7 +66,7 @@ from fpl_dof.squad.state import (
 )
 from fpl_dof.week.alerts import Alert, collect_alerts
 from fpl_dof.week.deadline import DeadlineView, describe_deadline, next_deadline, to_contract
-from fpl_dof.week.ledger import read_advice, record_advice
+from fpl_dof.week.ledger import read_advice, record_advice, record_predictions
 from fpl_dof.week.reconcile import Reconciliation, reconcile
 
 log = get_logger(__name__)
@@ -240,6 +240,7 @@ def advise_all(
     week = _week(snapshot, lead, snapshot.champion, dataclasses.replace(policy, plan=False))
     _write_all(gold, {lead.id: (week, None)}, [lead])
     _record(snapshot, layout, {lead.id: (week, None)}, [lead])
+    _predict(snapshot, layout, lead, snapshot.champion.frame)
 
     advice: dict[str, Advice] = {lead.id: (week, _champion_plan(snapshot, lead, policy))}
     outputs = _write_all(gold, advice, [lead])
@@ -248,7 +249,7 @@ def advise_all(
     published: dict[str, Advice] = {}
     for strategy in challengers:
         try:
-            advice[strategy.id] = _advise(snapshot, strategy)
+            advice[strategy.id] = _advise(snapshot, strategy, layout)
         except Exception as exc:
             reason = f"no advice: {type(exc).__name__}: {exc}"
             log.warning("week.no_advice", extra={"strategy": strategy.id, "reason": reason})
@@ -348,7 +349,21 @@ def _champion_plan(
     return _plan_payload(snapshot, strategy, plan, reason)
 
 
-def _advise(snapshot: Snapshot, strategy: Strategy) -> Advice:
+def _predict(
+    snapshot: Snapshot, layout: DataLayout, strategy: Strategy, frame: pd.DataFrame
+) -> None:
+    """The frame a strategy advised from, to the ledger beside its advice (ORC-08)."""
+    record_predictions(
+        layout,
+        snapshot.deadline.gameweek,
+        strategy.id,
+        frame,
+        deadline=snapshot.deadline.deadline_utc,
+        now=snapshot.clock(),
+    )
+
+
+def _advise(snapshot: Snapshot, strategy: Strategy, layout: DataLayout) -> Advice:
     forecast = strategy.forecast(snapshot.inputs, snapshot.rules, snapshot.config)
     decision = decide(
         forecast.frame,
@@ -360,6 +375,7 @@ def _advise(snapshot: Snapshot, strategy: Strategy) -> Advice:
         last_gameweek=snapshot.last_gameweek,
     )
     week = _payload(snapshot, forecast.frame, decision) | _stamp(strategy, snapshot.config)
+    _predict(snapshot, layout, strategy, forecast.frame)
     if not strategy.policy.plan:
         return week, None
     return week, _plan_payload(snapshot, strategy, decision.plan, decision.plan_skipped_reason)

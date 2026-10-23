@@ -43,7 +43,7 @@ from fpl_dof.rules.models import GameRules
 from fpl_dof.silver.tables import Table
 from fpl_dof.stages import week
 from fpl_dof.week.deadline import DeadlineView, next_deadline
-from fpl_dof.week.ledger import advice_path, read_advice
+from fpl_dof.week.ledger import PREDICTION_COLUMNS, advice_path, predictions_path, read_advice
 
 LINE = PricePositionLine(
     intercept_by_position={"GKP": 1.0, "DEF": 1.5, "MID": 2.0, "FWD": 2.5},
@@ -737,3 +737,38 @@ def test_each_strategy_has_its_own_week_and_plan_file() -> None:
     # C1 plans only once MOD-05 gives it its own means beyond the next gameweek.
     assert artefact_paths(load_strategy("c1")) == {"week": "week_c1.json", "plan": None}
     assert artefact_paths(load_strategy("a")) == {"week": "week_a.json", "plan": None}
+
+
+# --- ORC-08: what each strategy predicted ---------------------------------------------
+
+
+def test_every_advising_strategy_leaves_its_frame_in_the_ledger(
+    game_rules: GameRules, tmp_path: Path
+) -> None:
+    advice = _advise_all(game_rules, tmp_path)
+    layout = DataLayout(root=tmp_path)
+    for strategy_id in advice:
+        stored = pd.read_parquet(predictions_path(layout, HORIZON[0], strategy_id))
+        assert list(stored.columns) == list(PREDICTION_COLUMNS)  # the sd, so variance, is kept
+        assert stored["player_id"].is_unique and len(stored) == len(pool())
+
+
+def test_a_failed_strategy_keeps_its_earlier_predictions(
+    game_rules: GameRules, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _advise_all(game_rules, tmp_path)
+    path = predictions_path(DataLayout(root=tmp_path), HORIZON[0], "c1")
+    before = path.read_bytes()
+    _fail_c1(monkeypatch)
+    _advise_all(game_rules, tmp_path)
+    assert path.read_bytes() == before
+
+
+def test_predictions_after_the_deadline_are_refused(game_rules: GameRules, tmp_path: Path) -> None:
+    snapshot = _orchestration(game_rules)
+    late = dataclasses.replace(
+        snapshot, clock=lambda: snapshot.deadline.deadline_utc + pd.Timedelta(minutes=1)
+    )
+    layout = DataLayout(root=tmp_path)
+    week.advise_all(late, published_strategies(), gold=tmp_path / "gold", layout=layout)
+    assert not (layout.ledger / "predictions").exists()

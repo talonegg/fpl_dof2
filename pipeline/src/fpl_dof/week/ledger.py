@@ -24,12 +24,18 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
+
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.paths import DataLayout
 
 log = get_logger(__name__)
 
 ADVICE_DIRECTORY = "advice"
+PREDICTIONS_DIRECTORY = "predictions"
+#: The forecast frame's own names, kept as they are: the mean and standard deviation of the
+#: gameweek being decided, and P(plays). Variance is not optional (Invariant 6).
+PREDICTION_COLUMNS = ("player_id", "xp_next", "xp_next_sd", "start_probability")
 
 
 def advice_path(layout: DataLayout, gameweek: int) -> Path:
@@ -83,6 +89,34 @@ def record_advice(
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(entry, indent=2), encoding="utf-8")
     log.info("ledger.advice_recorded", extra={"gameweek": gameweek, "path": str(path)})
+    return path
+
+
+def predictions_path(layout: DataLayout, gameweek: int, strategy_id: str) -> Path:
+    """``ledger/predictions/gw05/c3.parquet``: one file per strategy and gameweek (ORC-08)."""
+    return layout.ledger / PREDICTIONS_DIRECTORY / f"gw{gameweek:02d}" / f"{strategy_id}.parquet"
+
+
+def record_predictions(
+    layout: DataLayout,
+    gameweek: int,
+    strategy_id: str,
+    frame: pd.DataFrame,
+    *,
+    deadline: dt.datetime,
+    now: dt.datetime,
+) -> Path | None:
+    """Write a strategy's full-pool forecast for the gameweek it advised, as advice is written.
+
+    Called only for a strategy that advised, so a failure never reaches it and the last success
+    stays in place. Refused at or after the deadline, exactly as advice is.
+    """
+    if now >= deadline:
+        log.warning("ledger.closed", extra={"gameweek": gameweek, "what": "predictions"})
+        return None
+    path = predictions_path(layout, gameweek, strategy_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    frame[list(PREDICTION_COLUMNS)].to_parquet(path, index=False)
     return path
 
 
