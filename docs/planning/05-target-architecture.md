@@ -242,8 +242,9 @@ refused, and the baseline and variant must be registered strategies): `id`, `hyp
 `falsifier`, `baseline`, `variant`, `metrics`, `decision_rule`, `length`, `graded_by`, `results` and
 a `decision` that stays `open` until it is decided. The variant is an `experiment`-role,
 unpublished registry strategy, so the standing backtest grades it weekly. Declared:
-`f1_card_rates` (shipped, [DL-90](../decisions/DL-90.md)) and `f3_training_window` (open, the
-owner's decision).
+`f1_card_rates` (shipped, [DL-90](../decisions/DL-90.md)) and `f3_training_window` (rejected,
+[DL-91](../decisions/DL-91.md)); once decided and recorded on `ledger`, a variant's role becomes
+`retired` and the backtest stops grading it.
 
 Nothing promotes itself. Promotion is the owner's decision, recorded as a `DL-nn`, past the
 [E8 §5 bar](epics/E8-ongoing-in-season-monitoring.md#5-the-bar-for-changing-the-model-mid-season)
