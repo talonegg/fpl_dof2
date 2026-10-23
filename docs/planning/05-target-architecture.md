@@ -226,7 +226,10 @@ every result is stamped with the strategy digest and data window and appended to
 `experiments/`. The weekly backtest is a standing experiment over every registered strategy,
 compared in pairs against the champion, and its verdict reaches the model card. **Built (MOD-08):**
 `factory.grade` walks every non-retired strategy with live code forward on the same folds, each
-in its own training window; `experiment_records` writes one record per registered strategy (id
+in its own training window and each fold predicted as its own gameweek, even on a reused fit;
+`a_odds` is graded on the silver match odds the backtest stage passes in, and a strategy whose
+predictor cannot be built from them is recorded as not graded, with why, rather than failing the
+run; `experiment_records` writes one record per registered strategy (id
 and digest, role, window, run id, config digest, data window, metrics, per-gameweek paired deltas
 against the champion with a seeded bootstrap interval, or why it was not graded) to
 `experiments/<run_id>.json`, which `backtest.yml` appends to `ledger` and never overwrites; the

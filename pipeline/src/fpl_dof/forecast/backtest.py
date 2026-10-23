@@ -328,7 +328,9 @@ class StrategyPredictor(Protocol):
     ``fit_as_of`` gets the entrant's history (already cut to its training window), the fold's
     deadline, the harness's training rows built from that same history and the season being
     predicted, so a forecaster that builds its own features (C1) fits on what the live run fits on.
-    ``predict`` then scores the fold's visible rows, from which every outcome is stripped.
+    ``predict`` then scores the fold's visible rows, from which every outcome is stripped, for
+    the fold's ``gameweek``: a fit is reused for ``backtest.refit_every_gameweeks`` folds, so the
+    gameweek cannot be read off the fitted history.
     """
 
     def fit_as_of(
@@ -340,7 +342,7 @@ class StrategyPredictor(Protocol):
         season: str,
     ) -> None: ...
 
-    def predict(self, features: pd.DataFrame) -> pd.Series: ...
+    def predict(self, features: pd.DataFrame, *, gameweek: int) -> pd.Series: ...
 
 
 #: Which seasons a strategy is fitted on and featured from (DL-89 item 4), as its registry entry
@@ -572,7 +574,7 @@ def walk_forward(
                     training=training[view],
                     season=season,
                 )
-            predicted = entrant.predictor.predict(visible[view])
+            predicted = entrant.predictor.predict(visible[view], gameweek=gameweek)
             merged[columns[entrant.id]] = _place(predicted, rows, view, into=merged)
         merged[MODEL_COLUMN] = merged[columns[champion.id]]
 

@@ -140,8 +140,12 @@ def _attach_team_ids(expectations: pd.DataFrame, teams: pd.DataFrame, season: st
     unknown = sorted({str(name) for name in names.dropna().unique()} - set(lookup))
     if unknown:
         log.warning("enrich.unmapped_clubs", extra={"clubs": unknown[:10]})
-    frame.loc[current, "home_team_id"] = frame.loc[current, "home_team"].map(lookup)
-    frame.loc[current, "away_team_id"] = frame.loc[current, "away_team"].map(lookup)
+    ids = pd.Series(lookup, dtype="Int64")
+    for side in ("home", "away"):
+        # Whole-column and nullable: a masked .loc write of an empty or unmapped selection into
+        # an int64 column raises on pandas >= 3.1.
+        mapped = frame[f"{side}_team"].map(ids)
+        frame[f"{side}_team_id"] = frame[f"{side}_team_id"].astype("Int64").mask(current, mapped)
     return frame
 
 

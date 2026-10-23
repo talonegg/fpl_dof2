@@ -441,12 +441,9 @@ class C1Predictor:
         self.fitted = self._fit(history[history["kickoff_time"] < moment], moment)
         self.season = season
 
-    def predict(self, features: pd.DataFrame) -> pd.Series:
+    def predict(self, features: pd.DataFrame, *, gameweek: int) -> pd.Series:
         if self.fitted is None or self.season is None:
             raise RuntimeError("predict() called before fit_as_of()")
-        past = self.fitted.past
-        played = past.loc[past["season"] == self.season, "gameweek"]
-        gameweek = as_int(played.max()) + 1 if not played.empty else 1
         team, opponent, home = (
             pd.to_numeric(features[c], errors="coerce")
             .astype("Float64")

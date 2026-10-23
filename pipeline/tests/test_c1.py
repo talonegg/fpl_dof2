@@ -225,6 +225,6 @@ def test_the_c1_predictor_scores_a_fold_as_the_harness_hands_it(game_rules: Game
     visible = fold.drop(columns=list(OUTCOME_COLUMNS), errors="ignore")  # as walk_forward does
     predictor = load_strategy("c1").predictor(game_rules, _cfg())
     predictor.fit_as_of(history, deadline, season=game_rules.season)
-    got = predictor.predict(visible)
+    got = predictor.predict(visible, gameweek=4)
     assert got.index.equals(visible.index) and got.notna().all() and (got != 0).any()
-    pd.testing.assert_series_equal(got, predictor.predict(visible))
+    pd.testing.assert_series_equal(got, predictor.predict(visible, gameweek=4))

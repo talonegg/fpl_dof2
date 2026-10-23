@@ -557,7 +557,7 @@ class ComponentPredictor:
         matches = _team_matches(training, use_xg=self.config.expected_goals.team_strength_from_xg)
         self.models = fit_components(training, matches, self.config, self.rules)
 
-    def predict(self, features: pd.DataFrame) -> pd.Series:
+    def predict(self, features: pd.DataFrame, *, gameweek: int | None = None) -> pd.Series:
         if self.models is None:
             raise RuntimeError("predict() called before fit(); the harness always fits first")
         models = self.models

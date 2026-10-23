@@ -27,6 +27,7 @@ from fpl_dof.config import config_digest
 from fpl_dof.config.models import Config
 from fpl_dof.factory.registry import Strategy, effective_forecast_config, stamp, unrunnable
 from fpl_dof.forecast.backtest import BacktestResult, Entrant, walk_forward
+from fpl_dof.forecast.inputs import ForecastInputs
 from fpl_dof.rules.models import GameRules
 
 EXPERIMENTS_DIR = Path(__file__).resolve().parents[1] / "config" / "experiments"
@@ -78,13 +79,20 @@ class Graded:
 
     result: BacktestResult
     skipped: Mapping[str, str] = field(default_factory=dict)
-    """Strategy id -> why it was not graded (retired, or no live code yet)."""
+    """Strategy id -> why it was not graded (retired, no live code yet, or missing inputs)."""
 
 
 def entrants(
-    strategies: Sequence[Strategy], rules: GameRules, config: Config
+    strategies: Sequence[Strategy],
+    rules: GameRules,
+    config: Config,
+    inputs: ForecastInputs | None = None,
 ) -> tuple[list[Entrant], dict[str, str]]:
-    """Every strategy the harness can grade, champion first, and why each other one is not."""
+    """Every strategy the harness can grade, champion first, and why each other one is not.
+
+    ``inputs`` are the silver tables a predictor reads beyond the history (A_odds' match odds); a
+    strategy whose predictor cannot be built from them is skipped with the reason, never fatal.
+    """
     ordered = sorted(strategies, key=lambda s: s.role != "champion")
     graded: list[Entrant] = []
     skipped: dict[str, str] = {}
@@ -93,10 +101,15 @@ def entrants(
         if problem is not None:
             skipped[strategy.id] = problem
             continue
+        try:
+            predictor = strategy.predictor(rules, config, inputs=inputs)
+        except ValueError as exc:
+            skipped[strategy.id] = str(exc)
+            continue
         graded.append(
             Entrant(
                 strategy.id,
-                strategy.predictor(rules, config),
+                predictor,
                 strategy.forecaster.training_window,
                 effective_forecast_config(config.forecast, strategy.forecaster.config).features,
             )
@@ -113,9 +126,10 @@ def grade(
     config: Config,
     *,
     metrics: pd.DataFrame | None = None,
+    inputs: ForecastInputs | None = None,
 ) -> Graded:
     """Walk every gradeable strategy forward over ``backtest.training_seasons``."""
-    graded, skipped = entrants(strategies, rules, config)
+    graded, skipped = entrants(strategies, rules, config, inputs)
     result = walk_forward(
         history,
         graded,
