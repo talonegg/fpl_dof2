@@ -1,7 +1,7 @@
 /**
  * Warming the offline cache for the published artefacts (E6-S9, FR-34).
  *
- * **The problem this solves.** The service worker caches `data/v1/*.json` with a network-first
+ * **The problem this solves.** The service worker caches `data/v{CONTRACT_VERSION}/*.json` with a network-first
  * strategy, so a reader who has loaded the app once has last-published data available offline. But
  * a service worker does not control the page that registered it until it has activated and claimed
  * it, which happens *after* that page's own fetches have already gone out. On a genuinely first
@@ -25,13 +25,20 @@
  * swallowed and reported in the return value rather than thrown (DP-15).
  */
 
+import { CONTRACT_VERSION } from "../contract/types";
+
+/** The published directory, relative to the app base. The one place the major version becomes a path. */
+export const DATA_DIR = `data/v${CONTRACT_VERSION}`;
+
+const CACHE_PREFIX = "fpl-dof-published-";
+
 /**
  * The runtime cache the service worker writes published artefacts into.
  *
  * `vite.config.ts` imports this constant for its `runtimeCaching` rule, so the name is written once
  * rather than agreed by two files that look nothing alike.
  */
-export const PUBLISHED_CACHE = "fpl-dof-published-v1";
+export const PUBLISHED_CACHE = `${CACHE_PREFIX}v${CONTRACT_VERSION}`;
 
 /**
  * The fixed artefacts worth having offline. Each strategy's week and plan are added from the registry,
@@ -56,7 +63,7 @@ export interface WarmResult {
 }
 
 export interface WarmOptions {
-  /** Base for the published files, e.g. `/data/v1`. Same value `api.ts` fetches from. */
+  /** Base for the published files, e.g. `/data/v{CONTRACT_VERSION}`. Same value `api.ts` fetches from. */
   dataBase: string;
   /** Injected so the unit tests need neither a browser nor a service worker. */
   cacheStorage?: CacheStorage;
@@ -76,6 +83,15 @@ export async function warmPublishedCache({
 }: WarmOptions): Promise<WarmResult> {
   const result: WarmResult = { added: [], present: [], failed: [] };
   if (!cacheStorage) return { ...result, unsupported: true };
+
+  // A major bump renames the cache; the old major's entries are of no use to this app, so drop them.
+  try {
+    for (const key of await cacheStorage.keys()) {
+      if (key.startsWith(CACHE_PREFIX) && key !== PUBLISHED_CACHE) await cacheStorage.delete(key);
+    }
+  } catch {
+    // Best-effort like everything here: stale entries cost space, not correctness.
+  }
 
   let cache: Cache;
   try {
