@@ -330,17 +330,26 @@ def test_a_finished_gameweek_is_evaluated_once_and_again_for_a_new_scorer(
     config = config.model_copy(update={"entry": config.entry.model_copy(update={"team_id": ENTRY})})
     ctx = StageContext(config=config, layout=layout, run_id="r", as_of=AS_OF)
 
-    def run() -> list[int]:
-        states = season_states(SilverTables(gameweeks), evaluation.evaluated(layout), AS_OF)
+    def run(on: StageContext = ctx) -> list[int]:
+        done = evaluation.evaluated(layout, on.config.entry.team_id)
+        states = season_states(SilverTables(gameweeks), done, AS_OF)
         due = [s.gameweek for s in states if s.due is Due.EVALUATE]
-        week.evaluate(ctx, rules, due)
+        week.evaluate(on, rules, due)
         return due
 
     assert run() == [1, 2]
-    written = evaluation_path(layout, 2).read_bytes()
+    written = evaluation_path(layout, 2, ENTRY).read_bytes()
     assert run() == []  # Evaluated: nothing is due, nothing is rewritten
-    assert evaluation_path(layout, 2).read_bytes() == written
+    assert evaluation_path(layout, 2, ENTRY).read_bytes() == written
+
+    # A run with team ID 1 judges for entry 1: the owner's evaluation neither counts for it nor
+    # is touched by it, and the owner's gameweeks stay Evaluated.
+    other = config.model_copy(update={"entry": config.entry.model_copy(update={"team_id": 1})})
+    assert run(StageContext(config=other, layout=layout, run_id="r1", as_of=AS_OF)) == [1, 2]
+    assert evaluation_path(layout, 2, ENTRY).read_bytes() == written
+    assert run() == []
 
     monkeypatch.setattr(evaluation, "SCORER_VERSION", "next")
     assert run() == [1, 2]
-    assert json.loads(evaluation_path(layout, 2).read_text("utf-8"))["scorer_version"] == "next"
+    stored = json.loads(evaluation_path(layout, 2, ENTRY).read_text("utf-8"))
+    assert stored["scorer_version"] == "next"

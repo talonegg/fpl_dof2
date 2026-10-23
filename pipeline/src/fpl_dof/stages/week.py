@@ -126,7 +126,7 @@ def run(ctx: StageContext) -> StageResult:
     tables = SilverTables(
         gameweeks, read_table_optional(silver, season, Table.FIXTURE), entry_chips
     )
-    states = season_states(tables, evaluated(ctx.layout), ctx.as_of)
+    states = season_states(tables, evaluated(ctx.layout, ctx.config.entry.team_id), ctx.as_of)
     judged = evaluate(ctx, rules, [s.gameweek for s in states if s.due is Due.EVALUATE])
     if not any(s.due is Due.ADVISE for s in states):
         reason = "no gameweek is open: every deadline has passed"
@@ -541,7 +541,7 @@ def _run_stamp(as_of: dt.datetime, config: Config) -> dict[str, str]:
 
 
 def evaluate(ctx: StageContext, rules: GameRules, gameweeks: Sequence[int]) -> list[Output]:
-    """ORC-05's evaluation of each Finished gameweek, written to ``ledger:evaluation/gwNN.json``.
+    """ORC-05's evaluation of each Finished gameweek, to ``ledger:evaluation/entry-<id>/gwNN.json``.
 
     A gameweek whose evidence is not yet complete waits for a later run, and one whose evaluation
     fails is logged and left Finished, to be tried again: judging the past never costs this week's

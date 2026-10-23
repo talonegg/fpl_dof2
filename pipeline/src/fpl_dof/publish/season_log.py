@@ -9,7 +9,7 @@ than impression. Three sources, deliberately kept apart:
 - **advised** comes from the ledger, the pipeline's own record written *before* the deadline.
 
 Each row is the one the evaluation step stored when the gameweek was judged, once, after it
-finished (ORC-05, ``ledger:evaluation/gwNN.json``); nothing here recomputes it. A gameweek not yet
+finished (ORC-05, ``ledger:evaluation/entry-<id>/gwNN.json``); nothing here recomputes it. A gameweek not yet
 evaluated has no row. A gameweek with picks and no ledger entry is published with ``advised: null``
 and says so. The owner decided GW1 to GW4 of 2026/27 without the tool; that is a fact about the
 season, and nothing reconstructs advice after the event, because advice reconstructed with

@@ -129,7 +129,7 @@ def run(ctx: StageContext) -> StageResult:
 
     # The season log (DL-69): absent until a team ID is configured and the game has recorded picks
     # for it, for the same reason `league.json` is — a stale one would describe a different owner.
-    evaluations = read_evaluations(ctx.layout)
+    evaluations = read_evaluations(ctx.layout, ctx.config.entry.team_id)
     season_log = _season_log(ctx, season, evaluations)
     if season_log is not None:
         outputs.append(

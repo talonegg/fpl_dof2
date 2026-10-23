@@ -6,9 +6,10 @@ what happened (xP accuracy, from ORC-08's predictions), and what its advice scor
 owner: what was played and scored, the advice of record and its reconciliation, and the hindsight
 optimum, solved on the owner's real squad, selling prices, clubs and bank as of the deadline (D-31).
 
-The result is ``ledger:evaluation/gwNN.json``, stamped with :data:`SCORER_VERSION`. A gameweek is
-Evaluated once that file carries the current version (ORC-01), so it is computed once and recomputed
-only when the version changes. The season log, ``models.json``'s live gameweeks and the live xP
+The result is ``ledger:evaluation/entry-<id>/gwNN.json``, stamped with :data:`SCORER_VERSION`. A
+gameweek is Evaluated for an entry once that entry's file carries the current version (ORC-01), so
+it is computed once and recomputed only when the version changes; another entry's evaluation never
+counts. The season log, ``models.json``'s live gameweeks and the live xP
 accuracy are built from these files, not from the advice on every publish.
 
 :func:`build_evaluation` is pure (DP-03); the week stage reads silver and the ledger, and writes the
@@ -83,39 +84,41 @@ class Evidence:
         return {as_int(r.player_id): Position(str(r.position)) for r in self.players.itertuples()}
 
 
-def evaluation_path(layout: DataLayout, gameweek: int) -> Path:
-    """``<data>/ledger/evaluation/gw05.json``, named as the advice is."""
-    return layout.ledger / EVALUATION_DIRECTORY / f"gw{gameweek:02d}.json"
+def evaluation_path(layout: DataLayout, gameweek: int, entry_id: int | None) -> Path:
+    """``<data>/ledger/evaluation/entry-4529900/gw05.json``: per entry, since the season log's row
+    is that entry's, and named as the advice is. ``entry-none`` when no team is configured."""
+    return layout.ledger / EVALUATION_DIRECTORY / f"entry-{entry_id}" / f"gw{gameweek:02d}.json"
 
 
-def read_evaluations(layout: DataLayout) -> dict[int, dict[str, Any]]:
-    """Every evaluation stamped with :data:`SCORER_VERSION`, keyed by gameweek.
+def read_evaluations(layout: DataLayout, entry_id: int | None) -> dict[int, dict[str, Any]]:
+    """Every evaluation made for ``entry_id`` stamped with :data:`SCORER_VERSION`, by gameweek.
 
-    An unreadable file counts as not evaluated, logged: the step runs again rather than the
-    gameweek being judged on nothing (DP-15).
+    Another entry's never counts: it is in another directory, and a file whose own ``entry_id``
+    is not this one is skipped. An unreadable file counts as not evaluated, logged: the step runs
+    again rather than the gameweek being judged on nothing (DP-15).
     """
-    directory = layout.ledger / EVALUATION_DIRECTORY
+    directory = evaluation_path(layout, 0, entry_id).parent
     done: dict[int, dict[str, Any]] = {}
     for path in sorted(directory.glob("gw*.json")) if directory.is_dir() else ():
         try:
             gameweek = int(path.stem.removeprefix("gw"))
             body = json.loads(path.read_text(encoding="utf-8"))
-            stamp = body.get("scorer_version")
+            stamp = body.get("scorer_version"), body.get("entry_id")
         except (ValueError, OSError, AttributeError) as exc:
             log.warning("evaluation.unreadable", extra={"path": str(path), "detail": str(exc)})
             continue
-        if stamp == SCORER_VERSION:
+        if stamp == (SCORER_VERSION, entry_id):
             done[gameweek] = body
     return done
 
 
-def evaluated(layout: DataLayout) -> frozenset[int]:
-    """The gameweeks whose evaluation is stamped with :data:`SCORER_VERSION`."""
-    return frozenset(read_evaluations(layout))
+def evaluated(layout: DataLayout, entry_id: int | None) -> frozenset[int]:
+    """The gameweeks evaluated for ``entry_id`` and stamped with :data:`SCORER_VERSION`."""
+    return frozenset(read_evaluations(layout, entry_id))
 
 
 def record_evaluation(layout: DataLayout, evaluation: Mapping[str, Any]) -> Path:
-    path = evaluation_path(layout, int(evaluation["gameweek"]))
+    path = evaluation_path(layout, int(evaluation["gameweek"]), evaluation["entry_id"])
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(evaluation, indent=2), encoding="utf-8")
     log.info("evaluation.recorded", extra={"gameweek": evaluation["gameweek"], "path": str(path)})
