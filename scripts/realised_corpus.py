@@ -10,7 +10,8 @@ the top of the mini-league (FPL_DOF_LEAGUE_ID or --league). See contracts/confor
 
 Public endpoints only, never a credential (Invariant 4). Entry ids only, never a name. Serial, one
 request a second, an honest User-Agent, and every response cached under data/ (gitignored), so a
-rebuild re-fetches nothing. Standard library only.
+rebuild re-fetches nothing. The free-transfer rules come from the pipeline's own rules config
+(``fpl_dof.config.load_config``), never a literal here (Invariant 2).
 """
 
 import argparse
@@ -23,14 +24,15 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from fpl_dof.config import load_config
+from fpl_dof.config.models import RulesConfig
+
 ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "contracts" / "conformance" / "realised" / "realised-corpus.json"
 CACHE = ROOT / "data" / "cache" / "realised-corpus"
 BASE = "https://fantasy.premierleague.com/api/"
 USER_AGENT = "fpl-dof/realised-corpus (+https://github.com/talonegg/fpl_dof2)"
 SECONDS_BETWEEN_REQUESTS = 1.0  # below the pipeline's own 2/s (NFR-10)
-TRANSFER_CHIPS = ("wildcard", "freehit")  # keep banked free transfers (the corpus input only)
-MAX_FREE_TRANSFERS = 5  # rules.yaml transfers.max_free_transfers
 
 
 def get(path: str, cache: Path) -> Any:
@@ -52,20 +54,24 @@ def get(path: str, cache: Path) -> Any:
     return data
 
 
-def free_transfers(history: dict[str, Any]) -> dict[int, int | None]:
-    """Gameweek -> free transfers at its deadline. The first gameweek's transfers are unlimited."""
+def free_transfers(history: dict[str, Any], rules: RulesConfig) -> dict[int, int | None]:
+    """Gameweek -> free transfers at its deadline. The first gameweek's transfers are unlimited.
+
+    A chip that makes transfers free keeps the banked ones (the corpus input only)."""
     chips = {c["event"]: c["name"] for c in history["chips"]}
+    earned = rules.transfers.free_transfers_per_gameweek
+    cap = rules.transfers.max_free_transfers
     out: dict[int, int | None] = {}
     banked: int | None = None
     for row in history["current"]:
         gameweek = row["event"]
         out[gameweek] = banked
         if banked is None:
-            banked = 1
-        elif chips.get(gameweek) in TRANSFER_CHIPS:
-            banked = min(MAX_FREE_TRANSFERS, banked + 1)
+            banked = earned
+        elif chips.get(gameweek) in rules.chips.transfers_free_with:
+            banked = min(cap, banked + earned)
         else:
-            banked = min(MAX_FREE_TRANSFERS, max(banked - row["event_transfers"], 0) + 1)
+            banked = min(cap, max(banked - row["event_transfers"], 0) + earned)
     return out
 
 
@@ -209,10 +215,11 @@ def main() -> int:
         others = [r["entry"] for r in standings["standings"]["results"]]
         others = [e for e in others if e != args.owner][: args.league_entries]
 
+    rules = load_config()[0].rules
     cases: list[dict[str, Any]] = []
     for entry in sorted({args.owner, *others}):
         history = get(f"entry/{entry}/history/", args.cache)
-        free = free_transfers(history)
+        free = free_transfers(history, rules)
         for gameweek in finished:
             picks = get(f"entry/{entry}/event/{gameweek}/picks/", args.cache)
             if picks is None:

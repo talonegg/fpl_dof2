@@ -7,6 +7,7 @@ a double gameweek, a blank, a Free Hit, and rules other than FPL's (Invariant 2)
 
 from __future__ import annotations
 
+import importlib.util
 import json
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,7 @@ from typing import Any
 import pandas as pd
 import pytest
 
+from fpl_dof.config.models import RulesConfig
 from fpl_dof.rules.models import GameRules, Position
 from fpl_dof.rules.realised import Lineup, PlayerPerformance, performances, score_lineup
 
@@ -62,6 +64,27 @@ def test_the_scorer_reproduces_fpl(case: dict[str, Any], game_rules: GameRules) 
     assert [list(pair) for pair in zip(scored.autosubs_out, scored.autosubs_in, strict=True)] == (
         expected["automatic_subs"]
     )
+
+
+def test_the_corpus_builder_reads_the_transfer_rules_from_config() -> None:
+    """The builder's free transfers come from the rules config: the cap, the weekly allowance and
+    the chips that keep the bank (Invariant 2), so a rule change reaches the corpus input."""
+    path = CORPUS.parents[3] / "scripts" / "realised_corpus.py"
+    spec = importlib.util.spec_from_file_location("realised_corpus", path)
+    assert spec and spec.loader
+    builder = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(builder)
+    history = {
+        "chips": [{"event": 3, "name": "wildcard"}],
+        "current": [{"event": gw, "event_transfers": 0} for gw in range(1, 6)],
+    }
+    rules = RulesConfig()
+    assert builder.free_transfers(history, rules) == {1: None, 2: 1, 3: 2, 4: 3, 5: 4}
+    transfers = rules.transfers.model_copy(
+        update={"free_transfers_per_gameweek": 2, "max_free_transfers": 3}
+    )
+    other = rules.model_copy(update={"transfers": transfers})
+    assert builder.free_transfers(history, other) == {1: None, 2: 2, 3: 3, 4: 3, 5: 3}
 
 
 def test_the_corpus_covers_what_the_story_names() -> None:
