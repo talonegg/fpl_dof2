@@ -35,8 +35,6 @@ from fpl_dof.frames import as_int
 
 #: Chips that change how a gameweek is *scored*, as opposed to how it is transferred.
 SCORING_CHIPS = frozenset({"bboost", "3xc"})
-#: Chips that change the transfer rules for a gameweek.
-TRANSFER_CHIPS = frozenset({"wildcard", "freehit"})
 
 CHIP_LABELS = {
     "wildcard": "Wildcard",
@@ -404,7 +402,6 @@ def _calendar_note(chip: str, shape: GameweekShape, window: ChipWindow, from_gam
 __all__ = [
     "CHIP_LABELS",
     "SCORING_CHIPS",
-    "TRANSFER_CHIPS",
     "ChipCalendar",
     "ChipCalendarEntry",
     "ChipScenario",
