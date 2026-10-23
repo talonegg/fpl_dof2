@@ -6,7 +6,7 @@ artefacts; a React SPA reads them. No server, no database, no runtime backend.
 
 **`docs/README.md` maps where every fact lives** — read it when you need context beyond this file.
 Work ships in releases `Rx.y.z`: R1.0 was epics E0–E14; R1.1.0 was the data pipeline uplift;
-R1.1.1 verified it on `main` (DL-85); R1.2.0 and R1.2.2, the first two slices of the modular platform (DL-86, DL-88), are tagged; R1.3.0, gameweek orchestration, is open.
+R1.1.1 verified it on `main` (DL-85); R1.2.0 and R1.2.2, the first two slices of the modular platform (DL-86, DL-88), are tagged; R1.3.0, gameweek orchestration's Drop A, is tagged; R1.3.1, its Drop B, is open.
 The plan of record is the release register, `docs/planning/epics/README.md`. A decision cited as
 `DL-nn` is the file `docs/decisions/DL-nn.md`: open it directly rather than searching.
 `docs/planning/archive/` holds closed epics and superseded plans as records; plain searches skip it
@@ -42,6 +42,7 @@ Python lives in `.venv` at the repo root, created with `uv`. `uv` is installed a
 | Single pipeline stage | `.venv\Scripts\fpl-dof ingest\|transform\|quality\|forecast\|optimise\|week\|publish` |
 | This week's decision only | `.venv\Scripts\fpl-dof week` |
 | Walk-forward backtest — **not** part of `run` | `.venv\Scripts\fpl-dof backtest`. The archive and its `sources.backfill_seasons` are on by default (DL-87); CI adds the training seasons from the committed `config/ci-backtest.yaml` via `FPL_DOF_CONFIG_FILE` (DL-68) |
+| Rebuild the models history from a clean checkout (ORC-06) | `$env:FPL_DOF_CONFIG_FILE="config/ci-backtest.yaml"; .venv\Scripts\fpl-dof run --only ingest transform backtest` — writes `data/ledger/models_history/<run_id>.json`; the next `publish` serves it as `models_history.json` |
 | Re-run ignoring caches | `.venv\Scripts\fpl-dof run --force-refresh` |
 | Check bronze for corrupt or torn snapshots | `.venv\Scripts\fpl-dof bronze verify`; `--quarantine` moves bad files to `data/quarantine/` (CI runs it before transform); `--contract` also checks each snapshot against its source's contract, the one-off sweep of history (ORC-10) |
 | Rebuild silver after a schema change (transform names it when needed) | `.venv\Scripts\fpl-dof silver rebuild` — the old silver is moved to `data/quarantine/`, not deleted |
@@ -49,7 +50,7 @@ Python lives in `.venv` at the repo root, created with `uv`. `uv` is installed a
 | Python tests | `cd pipeline && ..\.venv\Scripts\python -m pytest -q` |
 | Live-API drift tests | `cd pipeline && ..\.venv\Scripts\python -m pytest -q --network` |
 | Slow tests — the historical chip replay (D-18/DL-28), ~16 min | `cd pipeline && ..\.venv\Scripts\python -m pytest -q --slow tests/test_chip_replay.py`. Needs the archive backfill in silver; writes its finding to `data/gold/chip-replay.json` |
-| Rules coverage gate (must be 100%) | `cd pipeline && ..\.venv\Scripts\python -m pytest --cov=fpl_dof.rules --cov-fail-under=100 tests/test_rules_build.py tests/test_rules_scoring.py tests/test_rules_legality.py` |
+| Rules coverage gate (must be 100%) | `cd pipeline && ..\.venv\Scripts\python -m pytest --cov=fpl_dof.rules --cov-fail-under=100 tests/test_rules_build.py tests/test_rules_scoring.py tests/test_rules_legality.py tests/test_rules_realised.py` |
 | Lint + format + type check | `cd pipeline && ..\.venv\Scripts\python -m ruff check . && ..\.venv\Scripts\python -m ruff format --check . && ..\.venv\Scripts\python -m mypy && ..\.venv\Scripts\lint-imports` |
 | Web dev server (LAN-accessible for mobile testing) | `cd web && npm run dev` — `vite.config.ts` sets `host: true` |
 | Web tests | `cd web && npm run test -- --run` |

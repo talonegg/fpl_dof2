@@ -31,7 +31,7 @@ from fpl_dof.silver.store import write_table
 from fpl_dof.silver.tables import Table
 from fpl_dof.stages import week
 from fpl_dof.week.cadence import find_next_deadline_event
-from fpl_dof.week.evaluation import SCORER_VERSION, evaluated, evaluation_path
+from fpl_dof.week.evaluation import EVALUATION_VERSION, evaluated, evaluation_path
 
 DEADLINES = {36: "2027-05-08T10:00:00Z", 37: "2027-05-15T10:00:00Z", 38: "2027-05-23T13:30:00Z"}
 
@@ -201,14 +201,27 @@ def test_the_day_before_gate_reads_the_open_gameweek() -> None:
 # --- the ledger's evaluations, and the week stage asking the state ----------------------------
 
 
-def test_only_evaluations_for_the_current_scorer_version_count(layout: DataLayout) -> None:
-    for gw, body in ((35, "not json"), (36, json.dumps({"scorer_version": "old"}))):
-        evaluation_path(layout, gw).parent.mkdir(parents=True, exist_ok=True)
-        evaluation_path(layout, gw).write_text(body, encoding="utf-8")
-    evaluation_path(layout, 37).write_text(
-        json.dumps({"scorer_version": SCORER_VERSION}), encoding="utf-8"
-    )
-    assert evaluated(layout) == frozenset({37})
+def test_only_evaluations_for_the_current_evaluation_version_count(layout: DataLayout) -> None:
+    current = {"evaluation_version": EVALUATION_VERSION, "entry_id": 7}
+    for gw, body in ((35, "not json"), (36, json.dumps({**current, "evaluation_version": "old"}))):
+        evaluation_path(layout, gw, 7).parent.mkdir(parents=True, exist_ok=True)
+        evaluation_path(layout, gw, 7).write_text(body, encoding="utf-8")
+    evaluation_path(layout, 37, 7).write_text(json.dumps(current), encoding="utf-8")
+    assert evaluated(layout, 7) == frozenset({37})
+
+
+def test_another_entrys_evaluation_never_counts(layout: DataLayout) -> None:
+    """ORC-05: a run for team ID 1 evaluates for entry 1; the owner's gameweek stays unjudged."""
+    path = evaluation_path(layout, 5, 1)
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps({"evaluation_version": EVALUATION_VERSION, "entry_id": 1}), "utf-8")
+    assert evaluated(layout, 1) == frozenset({5})
+    assert evaluated(layout, 4529900) == frozenset()
+    # Nor does one misfiled under the owner's directory.
+    misfiled = evaluation_path(layout, 5, 4529900)
+    misfiled.parent.mkdir(parents=True)
+    misfiled.write_text(path.read_text("utf-8"), "utf-8")
+    assert evaluated(layout, 4529900) == frozenset()
 
 
 def test_the_week_stage_evaluates_finished_gameweeks_and_advises_nothing_once_none_is_open(
@@ -221,7 +234,7 @@ def test_the_week_stage_evaluates_finished_gameweeks_and_advises_nothing_once_no
     monkeypatch.setattr(
         week, "read_rules", lambda *_: game_rules.model_copy(update={"season": season})
     )
-    monkeypatch.setattr(week, "evaluate", lambda state, _layout: seen.append(state.gameweek))
+    monkeypatch.setattr(week, "evaluate", lambda _ctx, _rules, due: seen.extend(due))
 
     result = week.run(
         StageContext(config=config, layout=layout, run_id="r", as_of=_at("2027-05-30T00:00:00Z"))

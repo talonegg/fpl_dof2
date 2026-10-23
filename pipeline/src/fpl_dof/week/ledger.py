@@ -121,6 +121,12 @@ def record_predictions(
     return path
 
 
+def read_predictions(layout: DataLayout, gameweek: int) -> dict[str, pd.DataFrame]:
+    """Every strategy's recorded forecast for ``gameweek``, keyed by strategy id; empty if none."""
+    directory = predictions_path(layout, gameweek, "_").parent
+    return {p.stem: pd.read_parquet(p) for p in sorted(directory.glob("*.parquet"))}
+
+
 def merge_models(held: Mapping[str, Any], new: Mapping[str, Any]) -> dict[str, Any]:
     """Each strategy's advice of record: replaced by a success, never by a failure (DL-94).
 

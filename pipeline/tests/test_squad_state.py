@@ -19,6 +19,7 @@ from fpl_dof.rules.models import GameRules
 from fpl_dof.squad.state import (
     Provenance,
     SquadStateError,
+    _free_transfers,
     free_transfers_after,
     gameweek_price_index,
     load_squad_state,
@@ -406,6 +407,29 @@ def test_a_wildcard_week_does_not_consume_the_allowance(game_rules: GameRules) -
     """
     assert free_transfers_after(2, 10, game_rules, chip_played="wildcard") == 3
     assert free_transfers_after(2, 10, game_rules) == 1
+
+
+#: One real entry's 2026/27 history as FPL scored it (D-36): gameweek -> (event_transfers,
+#: event_transfers_cost). Two transfers in GW4 cost 4 points, so GW4 had one free transfer.
+FPL_HISTORY = {1: (0, 0), 2: (0, 0), 3: (2, 0), 4: (2, 4), 5: (0, 0), 6: (0, 0), 7: (3, 0)}
+
+
+def test_the_free_transfer_walk_reproduces_fpls_hits(game_rules: GameRules) -> None:
+    """GW1's transfers are unlimited and carry nothing: GW2 starts on one. Each week's derived
+    allowance must explain FPL's own charge: cost = hit x max(0, transfers - free)."""
+    transfers = pd.DataFrame(
+        [
+            {"entry_id": 4529900, "gameweek": gw, "player_in_id": 0, "player_out_id": 0}
+            for gw, (made, _) in FPL_HISTORY.items()
+            for _ in range(made)
+        ]
+    )
+    hit = abs(game_rules.transfers.extra_transfer_cost)
+    free = {gw: _free_transfers(transfers, gw - 1, gw, game_rules, None) for gw in range(2, 9)}
+    for gw, (made, cost) in FPL_HISTORY.items():
+        if gw > 1:
+            assert cost == hit * max(0, made - free[gw]), gw
+    assert free == {2: 1, 3: 2, 4: 1, 5: 1, 6: 2, 7: 3, 8: 1}
 
 
 @given(

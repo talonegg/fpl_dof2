@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
+from typing import cast
 
 import pandas as pd
 import pytest
@@ -16,10 +18,13 @@ import pytest
 from fpl_dof.config import Config
 from fpl_dof.config.models import BacktestConfig, ChipReplayConfig
 from fpl_dof.factory.replay import (
+    _actual_points,
+    _scored_chip_week,
     attach_team_ids,
     replay_chip_decisions,
     sample_deadlines,
 )
+from fpl_dof.optimise.plan import DecisionPlan
 from fpl_dof.rules.models import GameRules
 from fpl_dof.silver.store import read_table_optional
 from fpl_dof.silver.tables import Table
@@ -48,6 +53,37 @@ def _history() -> pd.DataFrame:
                 )
             fixture_id += 1
     return pd.DataFrame(rows)
+
+
+def test_the_chip_week_is_scored_by_the_one_scorer(game_rules: GameRules) -> None:
+    """ORC-04: the replayed chip week goes through ``rules.realised``, so a Bench Boost scores all
+    fifteen and an armband on a player who did not play passes to the vice-captain."""
+    positions = ["GKP", *["DEF"] * 4, *["MID"] * 4, *["FWD"] * 2, "GKP", "DEF", "MID", "FWD"]
+    history = pd.DataFrame(
+        {
+            "season": "2024/25",
+            "gameweek": 3,
+            "player_code": range(1, 16),
+            "position": positions,
+            "minutes": [0 if code == 6 else 90 for code in range(1, 16)],
+            "total_points": [0 if code == 6 else 2 for code in range(1, 16)],
+        }
+    )
+    week = SimpleNamespace(
+        gameweek=3,
+        starting=tuple(range(1, 12)),
+        bench_order=(13, 14, 15),
+        fielded=tuple(range(1, 16)),
+        captain_id=6,
+        vice_captain_id=7,
+    )
+    plan = SimpleNamespace(
+        chips_recommended=[(3, "bboost")],
+        recommended=SimpleNamespace(plan=SimpleNamespace(weeks=[week])),
+    )
+    actuals = _actual_points(history, "2024/25")
+    points = _scored_chip_week(cast(DecisionPlan, plan), actuals, game_rules)
+    assert points == 14 * 2 + 2 * (game_rules.chips.captain_multiplier - 1)
 
 
 def test_the_club_the_archive_does_not_carry_is_reconstructed_from_the_fixture() -> None:

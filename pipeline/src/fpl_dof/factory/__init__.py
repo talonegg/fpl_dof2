@@ -11,8 +11,9 @@ from fpl_dof.factory.experiments import (
     experiment_records,
     grade,
     latest_verdict,
+    not_graded_records,
 )
-from fpl_dof.forecast.backtest import BacktestResult
+from fpl_dof.forecast.backtest import BacktestResult, ChampionNotGradedError
 from fpl_dof.forecast.diagnostics import PriceDependence, regress_xp_on_price
 from fpl_dof.forecast.form import form_by_player_id, trailing_form
 from fpl_dof.forecast.inputs import ForecastInputs
@@ -23,6 +24,7 @@ from fpl_dof.forecast.xp_v1 import team_matches
 
 __all__ = [
     "BacktestResult",
+    "ChampionNotGradedError",
     "ForecastInputs",
     "Graded",
     "PriceDependence",
@@ -32,6 +34,7 @@ __all__ = [
     "form_by_player_id",
     "grade",
     "latest_verdict",
+    "not_graded_records",
     "regress_xp_on_price",
     "team_matches",
     "trailing_form",

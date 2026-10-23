@@ -31,7 +31,7 @@ CONTRACT_VERSION = 1
 #: additive change** (a new optional field, a new artefact): the schemas' ``const`` stays the major,
 #: so an old app still accepts the data, and an app needing a newer minor than the data carries
 #: shows a warning and renders what it can. Reset to 1 when the major is bumped.
-CONTRACT_MINOR = 3
+CONTRACT_MINOR = 5
 
 #: Artefact name -> schema filename. The published directory is exactly these files.
 ARTEFACTS: dict[str, str] = {
@@ -60,12 +60,11 @@ ARTEFACTS: dict[str, str] = {
     # The five-model comparison, from the frozen harness's records. Written only when the
     # prospective harness has recorded a decision, so its absence is a normal published state.
     "models": "models.schema.json",
-    # The 2025/26 model history: a backtest, built offline and checked in as a static file under
-    # web/public/static/ because CI cannot run the backtest. Never written by the publish stage;
-    # registered here so it is validated and gets generated TypeScript types.
+    # The models history (ORC-06): the weekly backtest's season simulation of every graded
+    # strategy, recorded on `ledger`; the latest season is published. Absent until a backtest ran.
     "models_history": "models_history.schema.json",
-    # All-player next-GW xP MAE across seasons. Built from xp_scores CSVs and checked in / published
-    # for the models page. Registered here for validation and generated TypeScript types.
+    # All-player next-GW xP MAE: the live season's from the evaluations (ORC-05), beside the
+    # checked-in 2025/26 backtest season under web/public/static/ (WEB-04 publishes it).
     "xp_accuracy": "xp_accuracy.schema.json",
     # The strategy registry as published (MOD-03): every strategy's id, label, role and digest,
     # generated from config/strategies/. Additive, so contract v1 does not bump.

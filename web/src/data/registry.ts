@@ -1,5 +1,4 @@
 import type { Models, ModelsHistory, Strategies, Strategy, XpAccuracy } from "../contract/types";
-import type { SeasonReplay } from "../components/history/season";
 
 /**
  * The strategy registry as the app sees it (MOD-07). Every model id, label, role, description and
@@ -100,15 +99,6 @@ export function normaliseHistory(r: Registry, h: ModelsHistory): ModelsHistory {
     models: h.models.map((x) => ({ ...x, id: rid(r, x.id) })),
     gameweeks: h.gameweeks.map((g) => ({ ...g, models: rekey(r, g.models) })),
     summary: h.summary.map((s) => ({ ...s, model: rid(r, s.model) })),
-  };
-}
-
-export function normaliseReplay(r: Registry, s: SeasonReplay): SeasonReplay {
-  return {
-    ...s,
-    models: s.models.map((m) => rid(r, m)),
-    missing_models: rekey(r, s.missing_models),
-    gameweeks: s.gameweeks.map((g) => ({ ...g, models: rekey(r, g.models) })),
   };
 }
 

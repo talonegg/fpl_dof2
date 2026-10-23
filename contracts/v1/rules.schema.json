@@ -58,7 +58,8 @@
       "required": ["max_free_transfers", "extra_transfer_cost"],
       "properties": {
         "max_free_transfers": { "type": "integer" },
-        "extra_transfer_cost": { "type": "integer" }
+        "extra_transfer_cost": { "type": "integer" },
+        "free_transfers_per_gameweek": { "type": "integer", "minimum": 1 }
       }
     }
   },

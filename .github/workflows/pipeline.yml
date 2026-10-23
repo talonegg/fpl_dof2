@@ -170,8 +170,11 @@ jobs:
 
       # The advice ledger (DL-69): what earlier runs advised, per gameweek, so this run can
       # reconcile last week's advice against what was played and publish the season log. Gold is
-      # not persisted between runs; this branch is. `experiments/` holds the standing backtest's
-      # records, which the model card reads for the champion's current digest (MOD-08).
+      # not persisted between runs; this branch is. `evaluation/` holds each finished gameweek's
+      # judgement, made once (ORC-05): restored, a gameweek is Evaluated and is not judged again.
+      # `experiments/` holds the standing backtest's records, which the model card reads for the
+      # champion's current digest (MOD-08), and `models_history/` the seasons it simulated, which
+      # publish turns into models_history.json (ORC-06).
       - name: Restore the advice ledger and experiments from the `ledger` branch
         run: |
           set -eu
@@ -179,7 +182,7 @@ jobs:
           if git ls-remote --exit-code --heads origin ledger >/dev/null 2>&1; then
             git fetch --depth=1 origin ledger:refs/remotes/origin/ledger
             git worktree add /tmp/ledger-branch origin/ledger
-            for kept in advice predictions experiments; do
+            for kept in advice predictions evaluation experiments models_history; do
               if [ -d "/tmp/ledger-branch/$kept" ]; then
                 mkdir -p "data/ledger/$kept"
                 cp -r "/tmp/ledger-branch/$kept/." "data/ledger/$kept/"
@@ -258,6 +261,15 @@ jobs:
             python pipeline/scripts/retention.py permanent "$file" \
               --remote "$remote" --branch ledger --source "predictions/$week" \
               --name "$(basename "$file" .parquet)" --replace --checkout-dir .ledger-staging
+          done
+          # Each finished gameweek's evaluation for the entry it was made for (ORC-05): written
+          # once, rewritten only when the evaluation's version changes, so an unchanged file is a no-op.
+          for file in data/ledger/evaluation/entry-*/gw*.json; do
+            name="$(basename "$file" .json)"
+            entry="$(basename "$(dirname "$file")")"
+            python pipeline/scripts/retention.py permanent "$file" \
+              --remote "$remote" --branch ledger --source "evaluation/$entry" \
+              --gameweek "$((10#${name#gw}))" --checkout-dir .ledger-staging
           done
 
       - name: Rebuild the rolling `data` branch

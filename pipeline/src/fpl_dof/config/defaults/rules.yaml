@@ -38,3 +38,14 @@ rules:
     # so neither of these can be read from the API.
     max_free_transfers: 5
     extra_transfer_cost: -4
+    # Earned each gameweek from GW2: GW1's transfers are unlimited and none carries into GW2.
+    free_transfers_per_gameweek: 1
+
+  chips:
+    # `chips[].overrides` in bootstrap-static carries `pick_multiplier: null` and empty rules for
+    # every chip, so neither the armband multipliers nor what Bench Boost, Free Hit and Wildcard do
+    # to a score can be read from the API. Keyed by the API's own chip names.
+    captain_multiplier: 2
+    captain_multiplier_by_chip: {"3xc": 3}
+    bench_scores_with: ["bboost"]
+    transfers_free_with: ["wildcard", "freehit"]
