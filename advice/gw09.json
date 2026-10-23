@@ -1,8 +1,8 @@
 {
   "gameweek": 9,
-  "run_id": "20261023T214516Z-7b10fd30",
-  "recorded_at": "2026-10-23T21:45:16.291102Z",
-  "trigger": "change:status",
+  "run_id": "20261023T230817Z-6fea0b0e",
+  "recorded_at": "2026-10-23T23:08:17.402371Z",
+  "trigger": "change:prices",
   "advised": {
     "gameweek": 9,
     "squad": [
@@ -96,7 +96,7 @@
         "gain_over_roll": -1.4638,
         "moves": [
           "De Cuyper (\u00a35.0m) -> Hickey (\u00a34.5m)",
-          "Kinsky (\u00a34.5m) -> Kelleher (\u00a35.0m)"
+          "Kinsky (\u00a34.4m) -> Kelleher (\u00a35.0m)"
         ]
       }
     ],
@@ -107,8 +107,8 @@
     "entry_id": 4529900,
     "as_of_gameweek": 7,
     "bank": 0.4,
-    "sell_value": 99.6,
-    "budget": 100.0,
+    "sell_value": 99.5,
+    "budget": 99.9,
     "free_transfers": 1,
     "chips_used": [],
     "warnings": []
@@ -120,8 +120,8 @@
         "id": "c3",
         "digest": "25b63ccec298d0eb3e5497455b58d1178036e7621c8baa465a09bbd5a5cbe3d4"
       },
-      "as_of": "2026-10-23T21:45:16.291102Z",
-      "trigger": "change:status",
+      "as_of": "2026-10-23T23:08:17.402371Z",
+      "trigger": "change:prices",
       "advised": {
         "gameweek": 9,
         "squad": [
@@ -215,7 +215,7 @@
             "gain_over_roll": -1.4638,
             "moves": [
               "De Cuyper (\u00a35.0m) -> Hickey (\u00a34.5m)",
-              "Kinsky (\u00a34.5m) -> Kelleher (\u00a35.0m)"
+              "Kinsky (\u00a34.4m) -> Kelleher (\u00a35.0m)"
             ]
           }
         ],
@@ -229,8 +229,8 @@
         "id": "a",
         "digest": "36385801420858680711a9bc0c3aeacd7afcd470323070858f3e6a4f8ea873f0"
       },
-      "as_of": "2026-10-23T21:45:16.291102Z",
-      "trigger": "change:status",
+      "as_of": "2026-10-23T23:08:17.402371Z",
+      "trigger": "change:prices",
       "advised": {
         "gameweek": 9,
         "squad": [
@@ -261,25 +261,25 @@
           31,
           8,
           165,
-          109
+          496
         ],
         "bench_order": [
           464,
           277,
           115
         ],
-        "reserve_goalkeeper": 496,
+        "reserve_goalkeeper": 109,
         "captain": 411,
         "vice_captain": 426,
         "formation": "1-3-5-2",
-        "expected_points": 52.871
+        "expected_points": 52.956
       },
       "recommendation": {
         "rationale": "1 free transfer(s) gain 1.65 expected points",
         "is_roll": false,
         "transfers": 1,
         "hit_points": 0,
-        "net_expected_points": 52.8711,
+        "net_expected_points": 52.9564,
         "gain_over_roll": 1.649,
         "bank_after": 2.5,
         "moves": [
@@ -304,14 +304,14 @@
           {
             "transfers": 0,
             "hit_points": 0,
-            "net_expected_points": 51.2221,
+            "net_expected_points": 51.3074,
             "gain_over_roll": 0.0,
             "moves": []
           },
           {
             "transfers": 1,
             "hit_points": 0,
-            "net_expected_points": 52.8711,
+            "net_expected_points": 52.9564,
             "gain_over_roll": 1.649,
             "moves": [
               "Cherki (\u00a37.8m) -> E.Le F\u00e9e (\u00a35.7m)"
@@ -320,7 +320,7 @@
           {
             "transfers": 2,
             "hit_points": -4,
-            "net_expected_points": 52.0447,
+            "net_expected_points": 52.13,
             "gain_over_roll": 0.8226,
             "moves": [
               "Jo\u00e3o Pedro (\u00a37.7m) -> Isak (\u00a39.0m)",
@@ -338,12 +338,13 @@
         "id": "a_odds",
         "digest": "b98077d2bc3b4c54ccb56ce39c1805a59ad4168fa6ffe8c54f7cc004e79bd158"
       },
-      "as_of": "2026-10-23T21:45:16.291102Z",
-      "trigger": "change:status",
+      "as_of": "2026-10-23T23:08:17.402371Z",
+      "trigger": "change:prices",
       "no_advice": "no advice: MissingOddsError: no match odds knowable before the gameweek 9 deadline",
       "missing": [
         "team_match_expectation"
-      ]
+      ],
+      "since": "2026-10-23T21:45:16.291102Z"
     },
     "c1": {
       "role": "challenger",
@@ -351,8 +352,8 @@
         "id": "c1",
         "digest": "701496efd08af06ea3345a488280557681bdadb9dbd3f70d5f8005e941b4d6cc"
       },
-      "as_of": "2026-10-23T21:45:16.291102Z",
-      "trigger": "change:status",
+      "as_of": "2026-10-23T23:08:17.402371Z",
+      "trigger": "change:prices",
       "advised": {
         "gameweek": 9,
         "squad": [
@@ -376,8 +377,8 @@
           411,
           542,
           426,
-          68,
           115,
+          68,
           165,
           109,
           237,
@@ -394,14 +395,14 @@
         "captain": 411,
         "vice_captain": 426,
         "formation": "1-3-5-2",
-        "expected_points": 52.484
+        "expected_points": 52.222
       },
       "recommendation": {
         "rationale": "1 free transfer(s) gain 2.51 expected points",
         "is_roll": false,
         "transfers": 1,
         "hit_points": 0,
-        "net_expected_points": 52.4838,
+        "net_expected_points": 52.2219,
         "gain_over_roll": 2.5127,
         "bank_after": 2.5,
         "moves": [
@@ -426,14 +427,14 @@
           {
             "transfers": 0,
             "hit_points": 0,
-            "net_expected_points": 49.9711,
+            "net_expected_points": 49.7092,
             "gain_over_roll": 0.0,
             "moves": []
           },
           {
             "transfers": 1,
             "hit_points": 0,
-            "net_expected_points": 52.4838,
+            "net_expected_points": 52.2219,
             "gain_over_roll": 2.5127,
             "moves": [
               "Cherki (\u00a37.8m) -> E.Le F\u00e9e (\u00a35.7m)"
@@ -442,8 +443,8 @@
           {
             "transfers": 2,
             "hit_points": -4,
-            "net_expected_points": 50.6361,
-            "gain_over_roll": 0.665,
+            "net_expected_points": 50.3741,
+            "gain_over_roll": 0.6649,
             "moves": [
               "Konsa (\u00a34.6m) -> Gu\u00e9hi (\u00a36.0m)",
               "Cherki (\u00a37.8m) -> E.Le F\u00e9e (\u00a35.7m)"
@@ -460,8 +461,8 @@
         "id": "engine",
         "digest": "d15b3e73e448078423743360cb3662bdacb9a6d16c59a77218939392a1b7334e"
       },
-      "as_of": "2026-10-23T21:45:16.291102Z",
-      "trigger": "change:status",
+      "as_of": "2026-10-23T23:08:17.402371Z",
+      "trigger": "change:prices",
       "advised": {
         "gameweek": 9,
         "squad": [
@@ -555,7 +556,7 @@
             "gain_over_roll": -0.4242,
             "moves": [
               "De Cuyper (\u00a35.0m) -> Hickey (\u00a34.5m)",
-              "Kinsky (\u00a34.5m) -> Kelleher (\u00a35.0m)"
+              "Kinsky (\u00a34.4m) -> Kelleher (\u00a35.0m)"
             ]
           }
         ],
