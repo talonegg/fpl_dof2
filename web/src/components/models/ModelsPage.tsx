@@ -61,7 +61,7 @@ function SummaryTable({ history, accuracy, models }: { history: ModelsHistory | 
           </tr>
         </thead>
         <tbody>
-          {registry.entries.map(({ id: m, description, role, published }) => {
+          {registry.entries.filter((e) => e.role !== "retired").map(({ id: m, description, role, published }) => {
             const b = back.get(m);
             const now = unavailableNow(models, m);
             const last = models?.gameweeks[models.gameweeks.length - 1];
@@ -82,7 +82,16 @@ function SummaryTable({ history, accuracy, models }: { history: ModelsHistory | 
                 <td data-testid={`summary-mae-${m}`}>{f(a2526?.pooled_mae[m], 3)}</td>
                 <td>{f(a2627?.pooled_mae[m], 3)}</td>
                 <td className="models-what">
-                  <strong>{role === "champion" ? "Champion — live advice" : published ? "Comparison" : "Comparison, not yet live"}.</strong>
+                  <strong>
+                    {role === "champion"
+                      ? "Champion — live advice"
+                      : role === "experiment"
+                        ? "Experiment, not published"
+                        : published
+                          ? "Comparison"
+                          : "Comparison, not yet live"}
+                    .
+                  </strong>
                   {now ? <span className="models-unavailable"> {now}.</span> : null}
                 </td>
               </tr>
@@ -147,7 +156,7 @@ export function ModelsPage() {
       <section className="models-page-section" id="models-details" aria-labelledby="models-details-heading">
         <h2 id="models-details-heading">Details</h2>
         <div className="models-detail-grid" data-testid="models-details">
-          {registry.entries.map((e) => {
+          {registry.entries.filter((e) => e.role !== "retired").map((e) => {
             const b = history.data?.summary.find((x) => x.model === e.id);
             return (
               <article key={e.id} className="models-detail-card" data-testid={`models-detail-${e.id}`}>
