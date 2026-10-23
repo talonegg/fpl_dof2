@@ -33,7 +33,7 @@ from fpl_dof.obs.logging import get_logger
 from fpl_dof.obs.manifest import RunManifest, git_sha, read_manifest
 from fpl_dof.paths import find_repo_root
 from fpl_dof.pipeline import Output, StageContext, StageResult
-from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
+from fpl_dof.publish.contract import CONTRACT_MINOR, CONTRACT_VERSION, Contract, find_contracts_root
 from fpl_dof.publish.fixtures import build_fixtures
 from fpl_dof.publish.health import build_health
 from fpl_dof.publish.history import build_history
@@ -261,6 +261,7 @@ def _meta(
     regression = regress_xp_on_price(forecast)
     return {
         "contract_version": CONTRACT_VERSION,
+        "contract_minor": CONTRACT_MINOR,
         "generated_at": _iso(ctx.as_of),
         "run_id": ctx.run_id,
         "git_sha": git_sha(find_repo_root()),

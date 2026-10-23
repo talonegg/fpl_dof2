@@ -6,10 +6,14 @@
 
 export const CONTRACT_VERSION = 1;
 
+export const CONTRACT_MINOR = 1;
+
 /** What this publication is, when it was made, and what produced it. The browser reads this first and can render an honest 'as at' line without trusting anything else. */
 export interface Meta {
   /** Bumped only for a breaking change. The app refuses to render a version it does not know. */
   contract_version: 1;
+  /** Bumped by every additive change within the major. Absent in data older than WEB-02; the app reads that as 0 and warns when it is below the minor the app needs. */
+  contract_minor?: number;
   /** UTC (DL-11). */
   generated_at: string;
   /** Traces back to the run manifest. */

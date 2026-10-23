@@ -21,6 +21,11 @@
       "const": 1,
       "description": "Bumped only for a breaking change. The app refuses to render a version it does not know."
     },
+    "contract_minor": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Bumped by every additive change within the major. Absent in data older than WEB-02; the app reads that as 0 and warns when it is below the minor the app needs."
+    },
     "generated_at": { "type": "string", "format": "date-time", "description": "UTC (DL-11)." },
     "run_id": { "type": "string", "minLength": 1, "description": "Traces back to the run manifest." },
     "git_sha": { "type": ["string", "null"] },

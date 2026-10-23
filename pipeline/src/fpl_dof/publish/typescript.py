@@ -13,7 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from fpl_dof.publish.contract import ARTEFACTS, Contract
+from fpl_dof.publish.contract import ARTEFACTS, CONTRACT_MINOR, Contract
 
 HEADER = """// Generated from contracts/v{version}/*.schema.json — do not edit by hand.
 // Regenerate with: fpl-dof publish
@@ -86,6 +86,7 @@ def _render(schema: dict[str, Any], defs: dict[str, Any], indent: int = 0) -> st
 def generate(contract: Contract) -> str:
     parts = [HEADER.format(version=contract.version)]
     parts.append(f"export const CONTRACT_VERSION = {contract.version};\n")
+    parts.append(f"export const CONTRACT_MINOR = {CONTRACT_MINOR};\n")
 
     emitted: set[str] = set()
     for artefact in ARTEFACTS:

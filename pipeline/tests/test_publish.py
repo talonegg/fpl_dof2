@@ -15,6 +15,7 @@ import pytest
 
 from fpl_dof.publish.contract import (
     ARTEFACTS,
+    CONTRACT_MINOR,
     CONTRACT_VERSION,
     Contract,
     ContractViolationError,
@@ -73,6 +74,24 @@ def test_an_unknown_contract_version_is_rejected(contract: Contract) -> None:
     payload["contract_version"] = 2
     with pytest.raises(ContractViolationError, match="contract_version"):
         contract.validate("meta", payload)
+
+
+def test_contract_minor_is_published_and_checked(contract: Contract) -> None:
+    payload = _meta()
+    payload["contract_minor"] = CONTRACT_MINOR
+    contract.validate("meta", payload)
+    payload["contract_minor"] = 0
+    with pytest.raises(ContractViolationError, match="contract_minor"):
+        contract.validate("meta", payload)
+
+
+def test_the_constants_drive_the_path_and_the_generated_types(contract: Contract) -> None:
+    """WEB-02: one constant per side. The app's data path and cache name derive from the TS one."""
+    assert contract.directory.name == f"v{CONTRACT_VERSION}"
+    assert Contract(root=contract.root, version=2).directory.name == "v2"
+    source = generate(contract)
+    assert f"export const CONTRACT_VERSION = {CONTRACT_VERSION};" in source
+    assert f"export const CONTRACT_MINOR = {CONTRACT_MINOR};" in source
 
 
 def test_an_unexpected_field_is_rejected(contract: Contract) -> None:
