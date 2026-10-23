@@ -2218,6 +2218,17 @@ class QualityConfig(_Section):
             "unmatched means the matcher, not the tail, is what changed."
         ),
     )
+    maximum_lagging_player_share: float = Field(
+        default=0.02,
+        ge=0,
+        le=1,
+        description=(
+            "Fraction of this season's players whose club played in the latest finished gameweek "
+            "but who have no player_gameweek row for it, before the run is flagged. FPL adds that "
+            "row for every squad player, played or not, so the healthy value is zero; the "
+            "allowance absorbs a club move or a late registration, not a stale cache."
+        ),
+    )
     fail_on_warnings: bool = Field(
         default=False,
         description=(

@@ -37,6 +37,7 @@ exists at all.
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 from typing import Any, ClassVar
 
@@ -122,6 +123,16 @@ def _latest_finished_gameweek(bootstrap: dict[str, Any]) -> int | None:
     return max(finished) if finished else None
 
 
+def _latest_checked_gameweek(bootstrap: dict[str, Any]) -> int | None:
+    """The most recent gameweek FPL has finished *and* checked: its per-player rows are final."""
+    checked = [
+        int(event["id"])
+        for event in bootstrap["events"]
+        if event.get("finished") and event.get("data_checked")
+    ]
+    return max(checked) if checked else None
+
+
 @register
 class FplApiAdapter(SourceAdapter):
     name: ClassVar[str] = "fpl"
@@ -148,9 +159,11 @@ class FplApiAdapter(SourceAdapter):
         ),
         Resource(
             name="element_summary",
-            summary="Per-player prior-season totals and upcoming fixtures",
-            # history_past is immutable for the season, so a long TTL costs nothing and saves
-            # ~570 requests on every re-run.
+            summary="Per-player prior-season totals, this season's gameweeks and upcoming fixtures",
+            # history_past is fixed for the season, but `history` gains a row per player every
+            # gameweek and is where player_gameweek comes from. So the week-long TTL (~670
+            # requests a sweep) holds only until a gameweek is checked: ingest then treats every
+            # summary fetched before that as stale (`_summaries_stale_before`).
             cache_ttl_seconds=_WEEK,
             fast_path=False,
         ),
@@ -332,7 +345,13 @@ class FplApiAdapter(SourceAdapter):
                 )
         return data
 
-    def fetch_element_summary(self, element_id: int, request: IngestRequest) -> dict[str, Any]:
+    def fetch_element_summary(
+        self,
+        element_id: int,
+        request: IngestRequest,
+        *,
+        stale_before: dt.datetime | None = None,
+    ) -> dict[str, Any]:
         resource = self.resource("element_summary")
         fetched = self.fetcher.fetch(
             self.url_for(f"element-summary/{element_id}/"),
@@ -344,6 +363,7 @@ class FplApiAdapter(SourceAdapter):
             force_refresh=request.force_refresh,
             offline=request.offline,
             now=request.now,
+            stale_before=stale_before,
         )
         data = self._json(fetched.payload, resource=resource.name, key=str(element_id))
         if not isinstance(data, dict) or "history_past" not in data:
@@ -354,6 +374,37 @@ class FplApiAdapter(SourceAdapter):
                 key=str(element_id),
             )
         return data
+
+    def _summaries_stale_before(
+        self, bootstrap: dict[str, Any], request: IngestRequest
+    ) -> dt.datetime | None:
+        """When bronze first saw the latest checked gameweek as checked, or None.
+
+        An element-summary fetched before then lacks that gameweek's final rows, however young it
+        is. FPL publishes no finish time, so the moment is the fetch time of the oldest bootstrap
+        snapshot still showing it checked — never file mtime, which CI's restore resets (F2). The
+        walk stops a TTL back: a summary older than that is refetched anyway.
+        """
+        latest = _latest_checked_gameweek(bootstrap)
+        if latest is None:
+            return None
+        moment = request.now or utcnow()
+        ttl = self.resource("element_summary").cache_ttl_seconds or _WEEK
+        horizon = moment - dt.timedelta(seconds=ttl)
+        bronze = self.fetcher.bronze
+        seen: dt.datetime | None = None
+        snapshot = bronze.latest(self.name, "bootstrap_static", "all", as_of=moment)
+        while snapshot is not None:
+            if snapshot.meta.fetched_at < horizon:
+                return None  # checked before any cached summary could have been fetched
+            then = self._json(snapshot.read_bytes(), resource="bootstrap_static", key="all")
+            if (_latest_checked_gameweek(then) or 0) < latest:
+                break
+            seen = snapshot.meta.fetched_at
+            snapshot = bronze.latest(
+                self.name, "bootstrap_static", "all", as_of=seen - dt.timedelta(microseconds=1)
+            )
+        return seen
 
     def _fetch_resource(
         self, resource_name: str, path: str, key: str, request: IngestRequest
@@ -1209,11 +1260,17 @@ class FplApiAdapter(SourceAdapter):
                     "and must not be used for a real run"
                 )
 
-            log.info("fpl.element_summary.start", extra={"players": len(element_ids)})
+            stale_before = self._summaries_stale_before(bootstrap, request)
+            log.info(
+                "fpl.element_summary.start",
+                extra={"players": len(element_ids), "stale_before": str(stale_before)},
+            )
             checked_contract = False
             for element_id in element_ids:
                 try:
-                    summary = self.fetch_element_summary(element_id, request)
+                    summary = self.fetch_element_summary(
+                        element_id, request, stale_before=stale_before
+                    )
                 except SourceNotFoundError:
                     # A removed player. Recoverable: the squad model simply will not see them.
                     report.warnings.append(f"element-summary/{element_id} returned 404")
