@@ -231,7 +231,16 @@ and digest, role, window, run id, config digest, data window, metrics, per-gamew
 against the champion with a seeded bootstrap interval, or why it was not graded) to
 `experiments/<run_id>.json`, which `backtest.yml` appends to `ledger` and never overwrites; the
 pipeline restores it and the model card prints the latest verdict for the champion's current
-digest, or says none exists. The declared experiment files are MOD-09.
+digest, or says none exists.
+
+**Declared experiments (MOD-09):** one validated YAML per experiment under
+`pipeline/src/fpl_dof/config/experiments/` (`factory.experiments.load_declared`; unknown fields are
+refused, and the baseline and variant must be registered strategies): `id`, `hypothesis`,
+`falsifier`, `baseline`, `variant`, `metrics`, `decision_rule`, `length`, `graded_by`, `results` and
+a `decision` that stays `open` until it is decided. The variant is an `experiment`-role,
+unpublished registry strategy, so the standing backtest grades it weekly. Declared:
+`f1_card_rates` (shipped, [DL-90](../decisions/DL-90.md)) and `f3_training_window` (open, the
+owner's decision).
 
 Nothing promotes itself. Promotion is the owner's decision, recorded as a `DL-nn`, past the
 [E8 §5 bar](epics/E8-ongoing-in-season-monitoring.md#5-the-bar-for-changing-the-model-mid-season)

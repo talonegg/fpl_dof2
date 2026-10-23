@@ -1,0 +1,17 @@
+# Experiment F1 (MOD-09, experiments/f1_card_rates.yaml), shipped into c3 by DL-90 and retired: the
+# champion now reads each player's own card rate, so this entry equals c3 and is kept only so the
+# declared experiment's variant stays registered.
+id: c3_f1
+label: C3 with card rates (F1)
+description: Retired. The champion with yellow_cards in the rolling statistics, now c3's default.
+role: retired
+published: false
+forecaster:
+  type: recipe
+  model: xp_v1
+  config: {}
+  training_window: current_season
+policy:
+  captain_rule: price_position
+  plan: true
+requires: [fixture]

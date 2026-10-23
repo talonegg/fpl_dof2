@@ -1101,8 +1101,13 @@ class FeatureConfig(_Section):
             "expected_goals",
             "expected_assists",
             "total_points",
+            "yellow_cards",
         ),
-        description="Per-90 rates to compute over each window. Absent columns become null.",
+        description=(
+            "Per-90 rates to compute over each window. Absent columns become null. Every "
+            "`RATE_COMPONENTS` column needs one, or M7 reads the position prior for every player "
+            "(F1, DL-90)."
+        ),
     )
     minimum_minutes_for_rate: int = Field(
         default=90,

@@ -13,13 +13,16 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import pytest
 
 from fpl_dof.config.models import BacktestConfig, Config, ForecastConfig
 from fpl_dof.factory import Graded, experiment_records, latest_verdict
-from fpl_dof.factory.experiments import entrants
+from fpl_dof.factory.experiments import EXPERIMENTS_DIR, entrants, load_declared
 from fpl_dof.factory.registry import load_registry, stamp
 from fpl_dof.forecast.backtest import BacktestResult, Entrant, prediction_column, walk_forward
+from fpl_dof.forecast.features import rolling_feature_names
 from fpl_dof.forecast.metrics import bootstrap_ci, paired_deltas
+from fpl_dof.forecast.models import RATE_COMPONENTS
 from fpl_dof.rules.models import GameRules
 from test_backtest import SEASON, RateFromFeatures, make_history
 from test_strategy_registry import _entry, _write
@@ -229,3 +232,57 @@ def test_the_latest_verdict_is_for_the_current_digest_only(tmp_path: Path) -> No
     assert latest is not None and latest["run_id"] == "newer"
     assert latest_verdict(records, "c3", "0" * 64) is None
     assert latest_verdict(records, "probe", stamp(registered[1], config)["digest"]) is None
+
+
+def test_an_entrants_feature_override_reaches_its_own_rows() -> None:
+    """A registry override on the features changes the rows the entrant is scored on, not just
+    its fit; the champion's rows are untouched."""
+
+    class Seen(RateFromFeatures):
+        def __init__(self) -> None:
+            super().__init__()
+            self.columns: set[str] = set()
+
+        def predict(self, features: pd.DataFrame) -> pd.Series:
+            self.columns |= set(features.columns)
+            return super().predict(features)
+
+    base = ForecastConfig()
+    wider = base.features.model_copy(
+        update={"rolling_statistics": (*base.features.rolling_statistics, "threat")}
+    )
+    plain, variant = Seen(), Seen()
+    _walk(
+        make_history(gameweeks=8),
+        Entrant("c3", plain),
+        Entrant("c3_f1", variant, features=wider),
+    )
+    assert "threat_per90_last6" in variant.columns
+    assert "threat_per90_last6" not in plain.columns
+
+
+def test_declared_experiments_load_against_the_shipped_registry() -> None:
+    declared = load_declared(load_registry())
+    assert {e.id for e in declared} == {"f1_card_rates", "f3_training_window"}
+    assert all(e.baseline == "c3" for e in declared)
+
+
+def test_a_declared_experiment_refuses_unknown_fields_and_unregistered_strategies(
+    tmp_path: Path,
+) -> None:
+    registered = load_registry()
+    text = (EXPERIMENTS_DIR / "f1_card_rates.yaml").read_text(encoding="utf-8")
+    for bad in (text + "extra: 1\n", text.replace("variant: c3_f1", "variant: nobody")):
+        (tmp_path / "f1_card_rates.yaml").write_text(bad, encoding="utf-8")
+        with pytest.raises(ValueError, match="f1_card_rates"):
+            load_declared(registered, tmp_path)
+
+
+def test_every_rate_component_has_a_rolling_feature() -> None:
+    """F1: M7 reads ``<column>_per90_last6``; a component without one gets the position prior."""
+    config = ForecastConfig()
+    xg = config.expected_goals
+    names = rolling_feature_names(config.features)
+    for component in RATE_COMPONENTS:
+        column = xg.rate_sources.get(component, component) if xg.enabled else component
+        assert f"{column}_per90_last6" in names, component

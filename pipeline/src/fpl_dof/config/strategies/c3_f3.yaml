@@ -1,0 +1,15 @@
+# Experiment F3 (MOD-09, experiments/f3_training_window.yaml): c3 trained on every season silver holds.
+id: c3_f3
+label: C3 on all seasons (F3)
+description: The champion with the training window widened from the current season to all seasons.
+role: experiment
+published: false
+forecaster:
+  type: recipe
+  model: xp_v1
+  config: {}
+  training_window: all_seasons
+policy:
+  captain_rule: price_position
+  plan: true
+requires: [fixture]
