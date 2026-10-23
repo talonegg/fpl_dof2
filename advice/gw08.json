@@ -1,7 +1,7 @@
 {
   "gameweek": 8,
-  "run_id": "20261023T112538Z-ec875573",
-  "recorded_at": "2026-10-23T11:25:38.074401Z",
+  "run_id": "20261023T171520Z-71acb230",
+  "recorded_at": "2026-10-23T17:15:20.155968Z",
   "advised": {
     "gameweek": 8,
     "squad": [
@@ -231,15 +231,15 @@
         "squad": [
           8,
           31,
+          40,
           68,
           109,
           115,
           124,
+          165,
           175,
           237,
           277,
-          346,
-          399,
           411,
           426,
           464,
@@ -247,7 +247,7 @@
         ],
         "starting": [
           411,
-          346,
+          40,
           68,
           426,
           237,
@@ -259,38 +259,38 @@
           109
         ],
         "bench_order": [
+          165,
           277,
-          175,
-          399
+          175
         ],
         "reserve_goalkeeper": 496,
         "captain": 411,
         "vice_captain": 426,
-        "formation": "1-3-4-3",
-        "expected_points": 56.405
+        "formation": "1-3-5-2",
+        "expected_points": 55.459
       },
       "recommendation": {
-        "rationale": "1 free transfer(s) gain 2.49 expected points",
+        "rationale": "1 free transfer(s) gain 1.54 expected points",
         "is_roll": false,
         "transfers": 1,
         "hit_points": 0,
-        "net_expected_points": 56.4054,
-        "gain_over_roll": 2.4894,
-        "bank_after": 2.6,
+        "net_expected_points": 55.4588,
+        "gain_over_roll": 1.5428,
+        "bank_after": 0.8,
         "moves": [
           {
             "out": {
-              "player_id": 165,
-              "web_name": "Jo\u00e3o Pedro",
-              "price": 7.7,
-              "xp_next": 3.408,
-              "form_points_per_match": 7.833
+              "player_id": 399,
+              "web_name": "Cherki",
+              "price": 7.8,
+              "xp_next": 2.201,
+              "form_points_per_match": 7.333
             },
             "in": {
-              "player_id": 346,
-              "web_name": "Calvert-Lewin",
-              "price": 6.1,
-              "xp_next": 5.897,
+              "player_id": 40,
+              "web_name": "Rogers",
+              "price": 8.0,
+              "xp_next": 4.95,
               "form_points_per_match": 5.333
             }
           }
@@ -306,10 +306,10 @@
           {
             "transfers": 1,
             "hit_points": 0,
-            "net_expected_points": 56.4054,
-            "gain_over_roll": 2.4894,
+            "net_expected_points": 55.4588,
+            "gain_over_roll": 1.5428,
             "moves": [
-              "Jo\u00e3o Pedro (\u00a37.7m) -> Calvert-Lewin (\u00a36.1m)"
+              "Cherki (\u00a37.8m) -> Rogers (\u00a38.0m)"
             ]
           },
           {
@@ -333,7 +333,106 @@
         "id": "a_odds",
         "digest": "f7d0691bbd22a08405ce0f3da37e375e0325844a20252b038e11a856831fe15b"
       },
-      "no_advice": "no advice: MissingOddsError: no match odds knowable before the gameweek 8 deadline"
+      "advised": {
+        "gameweek": 8,
+        "squad": [
+          8,
+          31,
+          68,
+          109,
+          115,
+          124,
+          165,
+          175,
+          237,
+          277,
+          398,
+          411,
+          426,
+          464,
+          496
+        ],
+        "starting": [
+          411,
+          398,
+          165,
+          8,
+          31,
+          68,
+          426,
+          464,
+          237,
+          109,
+          277
+        ],
+        "bench_order": [
+          124,
+          115,
+          175
+        ],
+        "reserve_goalkeeper": 496,
+        "captain": 411,
+        "vice_captain": 426,
+        "formation": "1-3-4-3",
+        "expected_points": 57.887
+      },
+      "recommendation": {
+        "rationale": "1 free transfer(s) gain 2.40 expected points",
+        "is_roll": false,
+        "transfers": 1,
+        "hit_points": 0,
+        "net_expected_points": 57.8869,
+        "gain_over_roll": 2.4001,
+        "bank_after": 2.0,
+        "moves": [
+          {
+            "out": {
+              "player_id": 399,
+              "web_name": "Cherki",
+              "price": 7.8,
+              "xp_next": 2.437,
+              "form_points_per_match": 7.333
+            },
+            "in": {
+              "player_id": 398,
+              "web_name": "Foden",
+              "price": 6.8,
+              "xp_next": 6.202,
+              "form_points_per_match": 3.6
+            }
+          }
+        ],
+        "options": [
+          {
+            "transfers": 0,
+            "hit_points": 0,
+            "net_expected_points": 55.4868,
+            "gain_over_roll": 0.0,
+            "moves": []
+          },
+          {
+            "transfers": 1,
+            "hit_points": 0,
+            "net_expected_points": 57.8869,
+            "gain_over_roll": 2.4001,
+            "moves": [
+              "Cherki (\u00a37.8m) -> Foden (\u00a36.8m)"
+            ]
+          },
+          {
+            "transfers": 2,
+            "hit_points": -4,
+            "net_expected_points": 55.8885,
+            "gain_over_roll": 0.4017,
+            "moves": [
+              "van Ewijk (\u00a33.9m) -> Muharemovi\u0107 (\u00a35.0m)",
+              "Cherki (\u00a37.8m) -> Foden (\u00a36.8m)"
+            ]
+          }
+        ],
+        "warnings": []
+      },
+      "transfers": 1
     },
     "c1": {
       "role": "challenger",
