@@ -13,6 +13,7 @@ import yaml
 
 from fpl_dof.artefacts import MODELS_HISTORY_FAILURE_FILENAME
 from fpl_dof.config.models import BacktestConfig, Config, ForecastConfig
+from fpl_dof.decision import decide
 from fpl_dof.factory import Graded
 from fpl_dof.factory import history as factory_history
 from fpl_dof.factory.history import season_histories
@@ -182,13 +183,12 @@ def test_each_fold_decides_on_a_spread_known_at_its_deadline(
     an earlier one's."""
     history, result, _ = simulated
     seen: dict[int, pd.DataFrame] = {}
-    real = factory_history.decide
 
     def spy(frame: pd.DataFrame, state: Any, *args: Any) -> Any:
         seen[state.gameweek] = frame.copy()
-        return real(frame, state, *args)
+        return decide(frame, state, *args)
 
-    monkeypatch.setattr(factory_history, "decide", spy)
+    monkeypatch.setattr("fpl_dof.factory.history.decide", spy)
     c3 = next(s for s in strategies() if s.id == "c3")
     keys = [*factory_history._PREDICTION_KEYS, prediction_column("c3")]
     frame = result.predictions[keys].dropna()

@@ -466,7 +466,10 @@ def _prices_at(evidence: Evidence, gameweek: int) -> pd.Series:
     if deadline.empty:
         return pd.Series(dtype=float)
     seen = history[history["observed_at"] <= deadline.iloc[0]].sort_values("observed_at")
-    return seen.drop_duplicates("player_id", keep="last").set_index("player_id")["price"]
+    prices: pd.Series = seen.drop_duplicates("player_id", keep="last").set_index("player_id")[
+        "price"
+    ]
+    return prices
 
 
 def _hindsight(
