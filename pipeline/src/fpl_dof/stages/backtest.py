@@ -23,11 +23,11 @@ from fpl_dof.artefacts import (
     EXPERIMENTS_DIRNAME,
     read_rules,
 )
-from fpl_dof.factory import BacktestResult, experiment_records, grade
+from fpl_dof.factory import BacktestResult, ForecastInputs, experiment_records, grade
 from fpl_dof.factory.registry import strategies
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.pipeline import Output, StageContext, StageResult
-from fpl_dof.silver.store import read_table_optional
+from fpl_dof.silver.store import read_table, read_table_optional
 from fpl_dof.silver.tables import Table
 
 log = get_logger(__name__)
@@ -53,8 +53,25 @@ def run(ctx: StageContext) -> StageResult:
     # degrades to the position priors it has always used when the table is not there (DP-15).
     metrics = read_table_optional(ctx.layout.silver, season, Table.PLAYER_METRIC)
 
+    # A_odds also reads the match odds; without them it is recorded as not graded, with why.
+    odds = read_table_optional(ctx.layout.silver, season, Table.TEAM_MATCH_EXPECTATION)
+    inputs = None
+    if odds is not None:
+        silver = ctx.layout.silver
+        inputs = ForecastInputs(
+            players=read_table(silver, season, Table.PLAYER),
+            teams=read_table(silver, season, Table.TEAM),
+            fixtures=read_table(silver, season, Table.FIXTURE),
+            gameweeks=read_table(silver, season, Table.GAMEWEEK),
+            history=read_table(silver, season, Table.PLAYER_SEASON_HISTORY),
+            as_of=ctx.as_of,
+            player_gameweek=history,
+            metrics=metrics,
+            match_odds=odds,
+        )
+
     registered = strategies()
-    graded = grade(history, registered, rules, ctx.config, metrics=metrics)
+    graded = grade(history, registered, rules, ctx.config, metrics=metrics, inputs=inputs)
     result = graded.result
     for sid, reason in graded.skipped.items():
         log.warning("backtest.not_graded", extra={"strategy": sid, "reason": reason})

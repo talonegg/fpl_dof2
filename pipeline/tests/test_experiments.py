@@ -8,6 +8,7 @@ digest only. Synthetic data throughout, kept small so the suite stays fast.
 
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
 from pathlib import Path
 from typing import Any
@@ -16,15 +17,18 @@ import pandas as pd
 import pytest
 
 from fpl_dof.config.models import BacktestConfig, Config, ForecastConfig
-from fpl_dof.factory import Graded, experiment_records, latest_verdict
-from fpl_dof.factory.experiments import EXPERIMENTS_DIR, entrants, load_declared
-from fpl_dof.factory.registry import load_registry, stamp
+from fpl_dof.factory import ForecastInputs, Graded, experiment_records, latest_verdict
+from fpl_dof.factory.experiments import EXPERIMENTS_DIR, entrants, grade, load_declared
+from fpl_dof.factory.registry import load_registry, stamp, strategies
 from fpl_dof.forecast.backtest import BacktestResult, Entrant, prediction_column, walk_forward
 from fpl_dof.forecast.features import rolling_feature_names
 from fpl_dof.forecast.metrics import bootstrap_ci, paired_deltas
 from fpl_dof.forecast.models import RATE_COMPONENTS
 from fpl_dof.rules.models import GameRules
+from fpl_dof.shadow import c1
+from fpl_dof.silver.tables import Table
 from test_backtest import SEASON, RateFromFeatures, make_history
+from test_decide import _forecast_config, _snapshot, match_odds
 from test_strategy_registry import _entry, _write
 
 PRIOR = "2024/25"
@@ -47,8 +51,8 @@ def _walk(history: pd.DataFrame, *entered: Entrant) -> BacktestResult:
 class Offset(RateFromFeatures):
     """A worse forecaster: the correct one, shifted by a constant."""
 
-    def predict(self, features: pd.DataFrame) -> pd.Series:
-        return super().predict(features) + 3.0
+    def predict(self, features: pd.DataFrame, *, gameweek: int | None = None) -> pd.Series:
+        return super().predict(features, gameweek=gameweek) + 3.0
 
 
 class WindowRecorder(RateFromFeatures):
@@ -71,9 +75,9 @@ class WindowRecorder(RateFromFeatures):
         self.fits.append((season, set(history["season"]), set(training["season"])))
         super().fit_as_of(history, deadline, training=training, season=season)
 
-    def predict(self, features: pd.DataFrame) -> pd.Series:
+    def predict(self, features: pd.DataFrame, *, gameweek: int | None = None) -> pd.Series:
         self.most_matches.append(int(features["matches_observed"].max()))
-        return super().predict(features)
+        return super().predict(features, gameweek=gameweek)
 
 
 def test_every_entrant_is_graded_on_the_same_folds_and_rows() -> None:
@@ -243,9 +247,9 @@ def test_an_entrants_feature_override_reaches_its_own_rows() -> None:
             super().__init__()
             self.columns: set[str] = set()
 
-        def predict(self, features: pd.DataFrame) -> pd.Series:
+        def predict(self, features: pd.DataFrame, *, gameweek: int | None = None) -> pd.Series:
             self.columns |= set(features.columns)
-            return super().predict(features)
+            return super().predict(features, gameweek=gameweek)
 
     base = ForecastConfig()
     wider = base.features.model_copy(
@@ -286,3 +290,99 @@ def test_every_rate_component_has_a_rolling_feature() -> None:
     for component in RATE_COMPONENTS:
         column = xg.rate_sources.get(component, component) if xg.enabled else component
         assert f"{column}_per90_last6" in names, component
+
+
+def _registry_backtest(game_rules: GameRules) -> tuple[pd.DataFrame, Config, ForecastInputs]:
+    """The decision fixture's played gameweeks, its config graded over its own season, and its
+    inputs with odds captured the day before each played gameweek's deadline."""
+    inputs, _ = _snapshot(game_rules)
+    history = inputs.player_gameweek
+    assert history is not None
+    fixtures, gameweeks = inputs.fixtures, inputs.gameweeks
+    played = set(history["gameweek"])
+    odds = pd.concat(
+        [
+            match_odds(
+                fixtures[fixtures["gameweek"] == gw],
+                game_rules.season,
+                pd.Timestamp(deadline) - pd.Timedelta(days=1),
+                home_goals=2.4,
+            )
+            for gw, deadline in zip(gameweeks["gameweek"], gameweeks["deadline_time"], strict=True)
+            if gw in played
+        ],
+        ignore_index=True,
+    )
+    config = _forecast_config()
+    window = {"training_seasons": (game_rules.season,), "minimum_training_matches": 2}
+    # Two played gameweeks are too few rows for the boosted fits' stratified validation split.
+    forecast = config.forecast.model_copy(
+        update={
+            name: getattr(config.forecast, name).model_copy(update={"early_stopping": False})
+            for name in ("c1", "a")
+        }
+    )
+    config = config.model_copy(
+        update={"backtest": config.backtest.model_copy(update=window), "forecast": forecast}
+    )
+    return history, config, dataclasses.replace(inputs, match_odds=odds)
+
+
+def test_the_real_registry_grades_a_odds_and_skips_what_it_cannot_build(
+    game_rules: GameRules,
+) -> None:
+    """The standing backtest over the shipped registry: A_odds is graded on the silver odds, and
+    without them it is skipped with the reason while every other strategy is still graded."""
+    history, config, inputs = _registry_backtest(game_rules)
+    one_fold = config.backtest.model_copy(update={"minimum_training_matches": 3})  # fast
+    config = config.model_copy(update={"backtest": one_fold})
+    graded = grade(history, strategies(), game_rules, config, inputs=inputs)
+    assert "a_odds" in graded.result.strategies and "a_odds" not in graded.skipped
+    rows = graded.result.predictions
+    assert not rows[prediction_column("a_odds")].equals(rows[prediction_column("a")])
+
+    bare, skipped = entrants(strategies(), game_rules, config)
+    assert Table.TEAM_MATCH_EXPECTATION.value in skipped["a_odds"]
+    assert {e.id for e in bare} == set(graded.result.strategies) - {"a_odds"}
+
+
+class _Recording:
+    """A fitted C1 that records the gameweek of every row it is asked to predict."""
+
+    def __init__(self, inner: c1.Fitted, seen: list[int]) -> None:
+        self.inner, self.seen = inner, seen
+
+    @property
+    def past(self) -> pd.DataFrame:
+        return self.inner.past
+
+    @property
+    def b0(self) -> Any:
+        return self.inner.b0
+
+    def predict(self, upcoming: pd.DataFrame) -> pd.DataFrame:
+        self.seen.extend(sorted(set(upcoming["gameweek"])))
+        return self.inner.predict(upcoming)
+
+
+def test_a_reused_fit_predicts_the_folds_own_gameweek(game_rules: GameRules) -> None:
+    """With ``refit_every_gameweeks`` 2 a C1 fit is reused for the next fold, which must still be
+    predicted as that fold's gameweek (its fixtures, its odds), not the refit's."""
+    history, config, _ = _registry_backtest(game_rules)
+    seen: list[int] = []
+    fits: list[pd.Timestamp] = []
+
+    class Spy(c1.C1Predictor):
+        def _fit(self, past: pd.DataFrame, moment: pd.Timestamp) -> c1.Fitted:
+            fits.append(moment)
+            return _Recording(super()._fit(past, moment), seen)
+
+    result = walk_forward(
+        history,
+        [Entrant("c1", Spy(config.forecast, game_rules))],
+        forecast_config=config.forecast,
+        backtest_config=config.backtest.model_copy(update={"refit_every_gameweeks": 2}),
+        seasons=(game_rules.season,),
+    )
+    assert seen == [f.gameweek for f in result.folds]
+    assert len(fits) < len(seen)  # a fit was reused

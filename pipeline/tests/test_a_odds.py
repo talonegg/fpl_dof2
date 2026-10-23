@@ -198,5 +198,5 @@ def test_the_a_odds_predictor_needs_the_odds_and_scores_a_fold(game_rules: GameR
     predictor = strategy.predictor(game_rules, _forecast_config(), inputs=inputs)
     assert isinstance(predictor, a_odds.AOddsPredictor)
     predictor.fit_as_of(history, deadline, season=game_rules.season)
-    got = predictor.predict(visible)
+    got = predictor.predict(visible, gameweek=4)
     assert got.index.equals(visible.index) and got.notna().all() and (got != 0).any()

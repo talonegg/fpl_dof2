@@ -172,7 +172,7 @@ class RateFromFeatures:
         self.by_code = {as_int(code): as_float(value) for code, value in grouped.items()}
         self.fallback = float(training[TARGET].mean())
 
-    def predict(self, features: pd.DataFrame) -> pd.Series:
+    def predict(self, features: pd.DataFrame, *, gameweek: int | None = None) -> pd.Series:
         return features["player_code"].map(self.by_code).fillna(self.fallback).astype(float)
 
 
@@ -193,7 +193,7 @@ class Cheater:
     ) -> None:
         assert training is not None
 
-    def predict(self, features: pd.DataFrame) -> pd.Series:
+    def predict(self, features: pd.DataFrame, *, gameweek: int | None = None) -> pd.Series:
         if TARGET in features.columns:
             return features[TARGET].astype(float)
         raise AssertionError(
@@ -330,7 +330,7 @@ class ColumnRecorder:
         assert training is not None
         self.fitted |= set(training.columns)
 
-    def predict(self, features: pd.DataFrame) -> pd.Series:
+    def predict(self, features: pd.DataFrame, *, gameweek: int | None = None) -> pd.Series:
         self.seen |= set(features.columns)
         return pd.Series(0.0, index=features.index, dtype=float)
 
