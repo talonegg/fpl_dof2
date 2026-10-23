@@ -787,6 +787,7 @@ def test_each_strategy_has_its_own_week_and_plan_file() -> None:
 # --- ORC-08: what each strategy predicted ---------------------------------------------
 
 
+@pytest.mark.usefixtures("reused_forecasts")
 def test_every_advising_strategy_leaves_its_frame_in_the_ledger(
     game_rules: GameRules, tmp_path: Path
 ) -> None:
@@ -798,6 +799,7 @@ def test_every_advising_strategy_leaves_its_frame_in_the_ledger(
         assert stored["player_id"].is_unique and len(stored) == len(pool())
 
 
+@pytest.mark.usefixtures("reused_forecasts")
 def test_a_failed_strategy_keeps_its_earlier_predictions(
     game_rules: GameRules, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -809,6 +811,7 @@ def test_a_failed_strategy_keeps_its_earlier_predictions(
     assert path.read_bytes() == before
 
 
+@pytest.mark.usefixtures("reused_forecasts")
 def test_predictions_after_the_deadline_are_refused(game_rules: GameRules, tmp_path: Path) -> None:
     snapshot = _orchestration(game_rules)
     late = dataclasses.replace(
