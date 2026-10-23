@@ -166,6 +166,63 @@ def test_restore_rolling_branch_restores_bronze_and_silver(tmp_path: Path) -> No
     assert restored_parquet.read_bytes() == b"hello-silver"
 
 
+def test_restore_rolling_branch_survives_the_branch_being_rewritten(tmp_path: Path) -> None:
+    """The rolling branch is force-pushed every run; a second restore must not trip on old refs."""
+    import subprocess
+    import sys
+
+    scripts_dir = Path(__file__).resolve().parents[1] / "scripts"
+    if str(scripts_dir) not in sys.path:
+        sys.path.insert(0, str(scripts_dir))
+    from retention import restore_rolling_branch
+
+    bare_repo = tmp_path / "remote.git"
+    subprocess.run(["git", "init", "--bare", str(bare_repo)], check=True, capture_output=True)
+    scratch = tmp_path / "scratch"
+    scratch.mkdir()
+    subprocess.run(["git", "init"], cwd=scratch, check=True, capture_output=True)
+
+    def publish(body: bytes) -> None:
+        # An orphan commit each time, as the rolling rebuild does: never a descendant of the last.
+        subprocess.run(
+            ["git", "checkout", "--orphan", f"o{len(body)}"],
+            cwd=scratch,
+            check=True,
+            capture_output=True,
+        )
+        b_dir = scratch / "bronze" / "fpl"
+        b_dir.mkdir(parents=True, exist_ok=True)
+        (b_dir / "sample.json.gz").write_bytes(body)
+        subprocess.run(["git", "add", "-A"], cwd=scratch, check=True, capture_output=True)
+        subprocess.run(
+            ["git", "-c", "user.name=CI", "-c", "user.email=ci@test", "commit", "-m", "rolling"],
+            cwd=scratch,
+            check=True,
+            capture_output=True,
+        )
+        subprocess.run(
+            ["git", "push", "--force", str(bare_repo), "HEAD:data"],
+            cwd=scratch,
+            check=True,
+            capture_output=True,
+        )
+
+    consumer = tmp_path / "consumer"
+    consumer.mkdir()
+    subprocess.run(["git", "init"], cwd=consumer, check=True, capture_output=True)
+    target = consumer / "data"
+
+    publish(b"first")
+    assert restore_rolling_branch(
+        data_dir=target, remote=str(bare_repo), branch="data", cwd=consumer
+    )
+    publish(b"second!")
+    assert restore_rolling_branch(
+        data_dir=target, remote=str(bare_repo), branch="data", cwd=consumer
+    )
+    assert (target / "bronze" / "fpl" / "sample.json.gz").read_bytes() == b"second!"
+
+
 def test_restore_rolling_branch_missing_branch(tmp_path: Path) -> None:
     import subprocess
     import sys
