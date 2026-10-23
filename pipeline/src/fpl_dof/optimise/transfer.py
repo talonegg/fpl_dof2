@@ -15,7 +15,8 @@ and ``buy_j`` over everyone else, plus the E0 lineup variables over the resultin
 * the club limit applies to the squad you end up with, not the one you started from
 * money is the **selling** value of what you sell plus the bank — not the current price, because
   the sell-on fee means those differ for any player who has risen
-* the objective subtracts the hit: transfers beyond the free allowance cost 4 points each
+* the objective subtracts the hit: each transfer beyond the free allowance costs the configured
+  `extra_transfer_cost`
 
 Solving each *k* separately rather than penalising transfers inside one model is deliberate. It
 costs a handful of extra solves and it produces the thing the weekly output actually needs: a
@@ -235,7 +236,10 @@ def _choose(
                 reason = f"{option.transfers} free transfer(s) gain {gain:.2f} expected points"
 
     if best is baseline:
-        rolled = min(state.free_transfers + 1, rules.transfers.max_free_transfers)
+        rolled = min(
+            state.free_transfers + rules.transfers.free_transfers_per_gameweek,
+            rules.transfers.max_free_transfers,
+        )
         reason = (
             f"{reason}; roll to {rolled} free transfer(s) next week"
             if state.free_transfers < rules.transfers.max_free_transfers
