@@ -11,9 +11,10 @@ import pytest
 
 from fpl_dof.config.models import BacktestConfig, Config, ForecastConfig
 from fpl_dof.factory import Graded
+from fpl_dof.factory import history as factory_history
 from fpl_dof.factory.history import season_histories
 from fpl_dof.factory.registry import strategies
-from fpl_dof.forecast.backtest import BacktestResult, Entrant, walk_forward
+from fpl_dof.forecast.backtest import BacktestResult, Entrant, prediction_column, walk_forward
 from fpl_dof.paths import DataLayout
 from fpl_dof.pipeline import StageContext
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
@@ -166,6 +167,36 @@ def test_every_graded_strategy_plays_its_own_season(
     c1 = next(m for m in payload["models"] if m["id"] == "c1")
     assert c1["available"] is False and "GW6" in c1["unavailable_reason"]
     assert all(m["role"] != "retired" for m in payload["models"])
+
+
+def test_each_fold_decides_on_a_spread_known_at_its_deadline(
+    game_rules: GameRules, simulated: Simulated, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Invariant 6 without look-ahead (Invariant 5): the week step is handed each player's spread,
+    the strategy's error by position over its earlier folds, and a later fold's outcome never moves
+    an earlier one's."""
+    history, result, _ = simulated
+    seen: dict[int, pd.DataFrame] = {}
+    real = factory_history.decide
+
+    def spy(frame: pd.DataFrame, state: Any, *args: Any) -> Any:
+        seen[state.gameweek] = frame.copy()
+        return real(frame, state, *args)
+
+    monkeypatch.setattr(factory_history, "decide", spy)
+    c3 = next(s for s in strategies() if s.id == "c3")
+    keys = [*factory_history._PREDICTION_KEYS, prediction_column("c3")]
+    frame = result.predictions[keys].dropna()
+    factory_history.simulate(frame, history, c3, game_rules, _config(1))
+    first, *rest = sorted(seen)
+    floor = Config().forecast.uncertainty.floor
+    assert all((seen[gw]["xp_next_sd"] >= floor).all() for gw in seen)
+    assert (seen[rest[-1]]["xp_next_sd"] != seen[first]["xp_next_sd"]).any()  # measured by then
+
+    before = {gw: f["xp_next_sd"].tolist() for gw, f in seen.items()}
+    later = frame.assign(total_points=frame["total_points"].where(frame["gameweek"] < rest[-1], 99))
+    factory_history.simulate(later, history, c3, game_rules, _config(1))
+    assert all(seen[gw]["xp_next_sd"].tolist() == before[gw] for gw in [first, *rest])
 
 
 def test_the_parallel_history_is_the_sequential_one(

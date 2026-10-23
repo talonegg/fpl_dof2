@@ -9,7 +9,8 @@ forecast and policy alone.
 
 The forecast is the walk's own: each fold's prediction was made from data strictly before that
 deadline (Invariant 5), and the captain rule's B0 is fitted on the strategy's training window
-before it. Pure: frames in, rows out (DP-03). Strategies are simulated in parallel, one process
+before it. Its spread is the strategy's own error over its earlier folds, by position, so it too is
+knowable at the deadline (Invariant 6). Pure: frames in, rows out (DP-03). Strategies are simulated in parallel, one process
 each (``backtest.strategy_workers``); one whose season cannot be simulated is recorded with the
 reason and the others finish (D-32).
 """
@@ -22,9 +23,10 @@ from collections.abc import Mapping, Sequence
 from concurrent.futures import ProcessPoolExecutor
 from typing import Any
 
+import numpy as np
 import pandas as pd
 
-from fpl_dof.config.models import Config
+from fpl_dof.config.models import Config, UncertaintyConfig
 from fpl_dof.decision import decide
 from fpl_dof.factory.registry import Strategy
 from fpl_dof.forecast.backtest import deadlines_for, prediction_column
@@ -56,7 +58,7 @@ SETTINGS: dict[str, str] = {
     ),
 }
 
-_PREDICTION_KEYS = ("season", "gameweek", "player_code", "position", "team_id", "price")
+_PREDICTION_KEYS = ("season", "gameweek", "player_code", "position", "team_id", "price", TARGET)
 _HISTORY_KEYS = (
     *("season", "gameweek", "player_code", "web_name", "position", "price", "minutes"),
     *(TARGET, "kickoff_time"),
@@ -129,12 +131,22 @@ def simulate(
     column = prediction_column(strategy.id)
     deadlines = {(season, gw): deadline for season, gw, deadline in deadlines_for(history)}
     names = history.drop_duplicates("player_code", keep="last").set_index("player_code")["web_name"]
+    errors = pd.DataFrame(
+        {
+            "deadline": [
+                deadlines[(str(s), as_int(g))]
+                for s, g in zip(predictions["season"], predictions["gameweek"], strict=True)
+            ],
+            "position": predictions["position"],
+            "error": predictions[TARGET] - predictions[column],
+        }
+    )
     out: dict[str, list[dict[str, Any]]] = {}
     for season, rows in predictions.groupby("season", sort=True):
         played = history[history["season"] == season]
         window = history if strategy.forecaster.training_window == "all_seasons" else played
         out[str(season)] = _season(
-            rows, played, window, strategy, rules, config, column, deadlines, names
+            rows, played, window, strategy, rules, config, column, deadlines, names, errors
         )
     return out
 
@@ -149,13 +161,16 @@ def _season(
     column: str,
     deadlines: Mapping[tuple[str, int], pd.Timestamp],
     names: pd.Series,
+    errors: pd.DataFrame,
 ) -> list[dict[str, Any]]:
     state: SquadState | None = None
     out: list[dict[str, Any]] = []
     for gameweek, week in rows.groupby("gameweek", sort=True):
         gw = as_int(gameweek)
         season = str(week["season"].iloc[0])
-        frame = _frame(week, column, names, state)
+        earlier = errors[errors["deadline"] < deadlines[(season, gw)]]
+        spread = earlier.groupby("position")["error"].std()
+        frame = _frame(week, column, names, state, spread, config.forecast.uncertainty)
         transfers = config.transfers
         if state is None:
             squad, _ = optimise_squad(frame, rules, config.optimiser)
@@ -224,18 +239,40 @@ def _season(
 
 
 def _frame(
-    week: pd.DataFrame, column: str, names: pd.Series, state: SquadState | None
+    week: pd.DataFrame,
+    column: str,
+    names: pd.Series,
+    state: SquadState | None,
+    spread: pd.Series,
+    uncertainty: UncertaintyConfig,
 ) -> pd.DataFrame:
     """The gameweek's forecast frame: one row per player, a double gameweek's fixtures summed.
 
+    A fixture's standard deviation is ``spread``, the strategy's error over its folds before this
+    deadline, for the player's position; with none yet (the first folds) it is the forecast's own
+    band for a player it knows nothing about (``forecast.uncertainty``, D-09). Never below the
+    band's floor; a double gameweek's fixtures add their variances.
+
     A held player with no row (a blank, or gone from the league) is priced at his last price with
-    no expected points, so the squad can still be decided on.
+    no expected points and the floor's spread, so the squad can still be decided on.
+
+    shortcut: the spread is per position, not per player, and the one-gameweek week step reads
+    none of it; model it per player if the history ever weighs risk.
     """
-    pool = week.groupby("player_code", sort=True).agg(
-        position=("position", "first"),
-        team_id=("team_id", "first"),
-        price=("price", "first"),
-        xp_next=(column, "sum"),
+    band = np.maximum(
+        week[column].abs() * uncertainty.coefficient_of_variation["none"], uncertainty.floor
+    )
+    sd = np.maximum(week["position"].map(spread).fillna(band), uncertainty.floor)
+    pool = (
+        week.assign(variance=sd**2)
+        .groupby("player_code", sort=True)
+        .agg(
+            position=("position", "first"),
+            team_id=("team_id", "first"),
+            price=("price", "first"),
+            xp_next=(column, "sum"),
+            variance=("variance", "sum"),
+        )
     )
     if state is not None:
         missing = [p for p in state.players if p.player_id not in pool.index]
@@ -245,6 +282,7 @@ def _frame(
                 "team_id": [p.team_id for p in missing],
                 "price": [p.current_price for p in missing],
                 "xp_next": [0.0 for _ in missing],
+                "variance": [uncertainty.floor**2 for _ in missing],
             },
             index=pd.Index([p.player_id for p in missing], name="player_code"),
         )
@@ -255,11 +293,8 @@ def _frame(
     frame["price"] = frame["price"].astype(float)
     frame["xp_next"] = frame["xp_next"].astype(float)
     frame["xp_horizon"] = frame["xp_next"]
-    # shortcut: the harness's predictors return a mean only (StrategyPredictor.predict), so the
-    # frame states no spread; the one-gameweek week step reads none and nothing here publishes an
-    # xP (Invariant 6). Carry the predictor's own spread when the harness interface returns one.
-    frame["xp_next_sd"] = 0.0
-    frame["xp_horizon_sd"] = 0.0
+    frame["xp_next_sd"] = np.sqrt(frame.pop("variance").astype(float))
+    frame["xp_horizon_sd"] = frame["xp_next_sd"]
     # The archive carries no availability news, so the start-probability floor never binds.
     frame["start_probability"] = 1.0
     frame["web_name"] = [_name(names, i) for i in frame["player_id"]]
