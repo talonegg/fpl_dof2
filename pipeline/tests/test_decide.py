@@ -11,7 +11,9 @@ week and its ledger entry are on disk before its plan or any challenger runs: ne
 from __future__ import annotations
 
 import dataclasses
+import hashlib
 import json
+import pickle
 from pathlib import Path
 from typing import Any, get_args
 
@@ -480,6 +482,38 @@ def _orchestration(rules: GameRules) -> week.Snapshot:
     )
 
 
+#: Forecasts already made in this process, by the content of everything they were made from.
+_FORECASTS: dict[str, Forecast] = {}
+
+
+def _reuse_forecasts(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Each strategy forecasts a given snapshot once per process rather than once per test.
+
+    For the orchestration tests, which are about what ``advise_all`` does with the forecasts, not
+    the forecasts themselves; fitting four strategies again in each was most of this file's time.
+    Keyed by the pickled strategy, inputs, rules and config, so a test that changes any of them
+    (a later ``as_of``, no odds, a strategy with a new ``requires``) forecasts afresh. A forecast
+    that raises is not kept, and every caller gets its own copy of the frame.
+    """
+    real = Strategy.forecast
+
+    def reused(
+        self: Strategy, inputs: ForecastInputs, rules: GameRules, config: Config
+    ) -> Forecast:
+        key = hashlib.sha256(pickle.dumps((self, inputs, rules, config))).hexdigest()
+        if key not in _FORECASTS:
+            _FORECASTS[key] = real(self, inputs, rules, config)
+        kept = _FORECASTS[key]
+        return dataclasses.replace(kept, frame=kept.frame.copy())
+
+    monkeypatch.setattr(Strategy, "forecast", reused)
+
+
+@pytest.fixture
+def reused_forecasts(monkeypatch: pytest.MonkeyPatch) -> None:
+    _reuse_forecasts(monkeypatch)
+
+
 def _advise_all(
     rules: GameRules, tmp_path: Path, strategies: tuple[Strategy, ...] | None = None
 ) -> dict[str, week.Advice]:
@@ -498,7 +532,9 @@ def advised(
 ) -> tuple[dict[str, week.Advice], Path]:
     """Every published strategy advised once on the snapshot, for the tests that only read it."""
     root = tmp_path_factory.mktemp("advised")
-    return _advise_all(game_rules, root), root
+    with pytest.MonkeyPatch.context() as monkeypatch:
+        _reuse_forecasts(monkeypatch)
+        return _advise_all(game_rules, root), root
 
 
 def test_every_published_strategy_gets_a_valid_week_and_plan(
@@ -529,6 +565,7 @@ def _fail_c1(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(Strategy, "forecast", failing)
 
 
+@pytest.mark.usefixtures("reused_forecasts")
 def test_a_failing_challenger_records_no_advice_and_stops_nothing_else(
     game_rules: GameRules, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -550,6 +587,7 @@ def test_a_failing_challenger_records_no_advice_and_stops_nothing_else(
     assert models["c3"]["role"] == "champion"
 
 
+@pytest.mark.usefixtures("reused_forecasts")
 def test_a_challenger_failing_after_an_earlier_success_keeps_that_success_as_the_record(
     game_rules: GameRules, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -588,6 +626,7 @@ def test_a_challenger_failing_after_an_earlier_success_keeps_that_success_as_the
     )
 
 
+@pytest.mark.usefixtures("reused_forecasts")
 def test_a_challenger_that_never_succeeded_publishes_no_advice(
     game_rules: GameRules, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -596,6 +635,7 @@ def test_a_challenger_that_never_succeeded_publishes_no_advice(
     assert advice["c1"][0]["skipped"] and "last_failure" not in advice["c1"][0]
 
 
+@pytest.mark.usefixtures("reused_forecasts")
 def test_a_run_that_ends_after_the_deadline_records_nothing(
     game_rules: GameRules, tmp_path: Path
 ) -> None:
@@ -610,6 +650,7 @@ def test_a_run_that_ends_after_the_deadline_records_nothing(
     assert not advice_path(layout, HORIZON[0]).exists()
 
 
+@pytest.mark.usefixtures("reused_forecasts")
 def test_every_payload_and_ledger_entry_carries_as_of_and_trigger(
     game_rules: GameRules, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -625,6 +666,7 @@ def test_every_payload_and_ledger_entry_carries_as_of_and_trigger(
     assert all(m["as_of"] == as_of for m in recorded["models"].values())
 
 
+@pytest.mark.usefixtures("reused_forecasts")
 def test_a_strategy_missing_a_required_table_records_no_advice_and_the_others_run(
     game_rules: GameRules, tmp_path: Path
 ) -> None:
@@ -647,6 +689,7 @@ def test_the_engine_strategy_writes_its_own_week_file(
     )
 
 
+@pytest.mark.usefixtures("reused_forecasts")
 def test_a_failing_champion_fails_the_run(
     game_rules: GameRules, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -658,6 +701,7 @@ def test_a_failing_champion_fails_the_run(
         _advise_all(game_rules, tmp_path)
 
 
+@pytest.mark.usefixtures("reused_forecasts")
 def test_a_champion_plan_that_raises_leaves_this_weeks_advice_written(
     game_rules: GameRules, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -687,6 +731,7 @@ def test_a_champion_plan_that_raises_leaves_this_weeks_advice_written(
     assert advice[champion().id][0] == written
 
 
+@pytest.mark.usefixtures("reused_forecasts")
 def test_the_champion_is_the_registrys_whatever_order_the_strategies_arrive_in(
     game_rules: GameRules, tmp_path: Path
 ) -> None:

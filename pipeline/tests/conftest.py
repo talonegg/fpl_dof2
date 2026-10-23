@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+import os
 import socket
 from collections.abc import Iterator
 from pathlib import Path
@@ -66,7 +67,12 @@ def no_accidental_network(request: pytest.FixtureRequest) -> Iterator[None]:
         yield
         return
 
+    original = socket.socket.connect
+
     def blocked(self: socket.socket, address: Any) -> None:
+        # A local Unix socket is not the network: the process pool's forkserver uses one (ORC-09).
+        if getattr(socket, "AF_UNIX", None) == self.family:
+            return original(self, address)
         raise RuntimeError(
             f"unmocked network connection to {address!r} — mock it with respx, or mark the test "
             "@pytest.mark.network if it is meant to hit the live API"
@@ -75,7 +81,6 @@ def no_accidental_network(request: pytest.FixtureRequest) -> Iterator[None]:
     # The socket layer, deliberately. respx patches httpx *and* httpcore, so a guard installed at
     # either of those layers fights with it; a mocked request never reaches a socket, so this
     # catches exactly the calls that would have gone out for real and nothing else.
-    original = socket.socket.connect
     socket.socket.connect = blocked  # type: ignore[assignment,method-assign]
     try:
         yield
@@ -184,15 +189,20 @@ FIXTURE_QUALITY = {
 }
 
 
+def isolated_environ(root: Path) -> dict[str, str]:
+    """Data root inside ``root``, plus gate thresholds sized for the recorded fixture."""
+    override = root / "test-config.yaml"
+    override.write_text(yaml.safe_dump(FIXTURE_QUALITY), encoding="utf-8")
+    return {
+        "FPL_DOF_DATA_DIR": str(root / "data"),
+        "FPL_DOF_CONFIG_FILE": str(override),
+    }
+
+
 @pytest.fixture
 def isolated_env(tmp_path: Path) -> dict[str, str]:
     """Data root inside tmp_path, plus gate thresholds sized for the recorded fixture."""
-    override = tmp_path / "test-config.yaml"
-    override.write_text(yaml.safe_dump(FIXTURE_QUALITY), encoding="utf-8")
-    return {
-        "FPL_DOF_DATA_DIR": str(tmp_path / "data"),
-        "FPL_DOF_CONFIG_FILE": str(override),
-    }
+    return isolated_environ(tmp_path)
 
 
 @pytest.fixture
@@ -208,12 +218,47 @@ def layout(config: Config) -> Iterator[DataLayout]:
     yield built
 
 
+def pytest_configure(config: pytest.Config) -> None:
+    """One OpenMP thread per test process (ORC-09).
+
+    The suite runs one process per core (``pytest -n``), and each boosted fit would otherwise start
+    a thread per core on top: oversubscribed, the fits ran twice as slowly for the same numbers.
+    Set before any test module imports the boosting library, and inherited by the xdist workers and
+    any process pool a test starts. A shell that sets its own value keeps it.
+    """
+    os.environ.setdefault("OMP_NUM_THREADS", "1")
+
+
+#: Expensive fixtures built once and then only read (ORC-09): walks, fits, plans and the advise-all
+#: snapshot. Under ``--dist loadgroup`` (pyproject) every test of a module that uses one runs on the
+#: same worker, so each is built once a run rather than once a worker.
+SHARED_FIXTURES = frozenset(
+    {
+        "a_odds_frame",
+        "adaptive_walk_result",
+        "advised",
+        "component_walk",
+        "default_plan",
+        "default_walk_result",
+        "dense_training",
+        "dense_walk_result",
+        "probe_walk",
+        "rate_walk",
+        "recorded_walk",
+        "reused_forecasts",
+        "transformed_silver",
+    }
+)
+
+
+@pytest.hookimpl(tryfirst=True)  # the groups are marked before xdist reads them
 def pytest_collection_modifyitems(config: pytest.Config, items: list[Any]) -> None:
     """Keep marked tests out of the default run without needing -m on every invocation.
 
     Two gates, the same mechanism. ``network`` is about politeness and determinism; ``slow`` is
     about minutes — a chip replay refits the models and solves the multi-gameweek MILP twice per
     historical deadline, which is measured in minutes and has no business in the fast suite.
+    The tests sharing one of :data:`SHARED_FIXTURES` are grouped by module.
     """
     gates = (
         ("network", "--network", "hits the live FPL API; run with --network"),
@@ -226,6 +271,10 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[Any]) -> No
         for item in items:
             if item.get_closest_marker(marker):
                 item.add_marker(skip)
+
+    for item in items:
+        if SHARED_FIXTURES & set(getattr(item, "fixturenames", ())):
+            item.add_marker(pytest.mark.xdist_group(item.path.stem))
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:

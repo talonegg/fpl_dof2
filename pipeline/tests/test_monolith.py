@@ -84,16 +84,28 @@ def dense_walk_result() -> BacktestResult:
     return _walk(dense_history())
 
 
-def _fitted(history: pd.DataFrame | None = None) -> tuple[MonolithPredictor, pd.DataFrame]:
+@pytest.fixture(scope="session")
+def dense_training() -> pd.DataFrame:
+    """The dense fixture's training rows, built once. Read through ``training``, which copies."""
+    return _training_frame(dense_history())
+
+
+@pytest.fixture
+def training(dense_training: pd.DataFrame) -> pd.DataFrame:
+    return dense_training.copy()
+
+
+@pytest.fixture(scope="session")
+def dense_monolith(dense_training: pd.DataFrame) -> MonolithPredictor:
     """A monolith fitted on a frame shaped like the one the harness actually hands it.
 
     Built from the harness's own fixture rather than from a hand-written frame, because the thing
-    most worth checking is what happens to *those* columns.
+    most worth checking is what happens to *those* columns. Fitted once: the tests only read it and
+    predict, and neither changes it.
     """
-    training = _training_frame(history if history is not None else dense_history())
     monolith = MonolithPredictor(config=MonolithConfig(), features=FeatureConfig())
-    monolith.fit(training)
-    return monolith, training
+    monolith.fit(dense_training.copy())
+    return monolith
 
 
 def _training_frame(history: pd.DataFrame) -> pd.DataFrame:
@@ -116,37 +128,43 @@ def _training_frame(history: pd.DataFrame) -> pd.DataFrame:
 # --- look-ahead: the failure that would look like a success -------------------------------------
 
 
-def test_the_monoliths_feature_list_is_an_allow_list_of_declared_inputs() -> None:
+def test_the_monoliths_feature_list_is_an_allow_list_of_declared_inputs(
+    dense_monolith: MonolithPredictor,
+) -> None:
     """Invariant 5 at the level it is enforced, which is a list rather than a habit.
 
     The monolith reads what the feature store *declares* as an input — every one of those stamped
     ``BEFORE_DEADLINE`` or ``AT_DEADLINE`` — plus the position. A deny-list would admit a new
     outcome column the day somebody added one, silently, and the backtest would improve.
     """
-    monolith, _ = _fitted()
+    monolith = dense_monolith
     assert monolith.encoding is not None
     permitted = {*input_features(FeatureConfig()), POSITION}
     assert set(monolith.encoding.columns) <= permitted
     assert monolith.encoding.columns, "the monolith read nothing at all"
 
 
-def test_no_outcome_column_is_in_the_monoliths_feature_list() -> None:
+def test_no_outcome_column_is_in_the_monoliths_feature_list(
+    dense_monolith: MonolithPredictor, training: pd.DataFrame
+) -> None:
     """The same claim stated against the harness's own list of what happened in the gameweek.
 
     ``_training_frame`` deliberately carries every outcome column, because that is what the real
     training frame carries — the component models fit on them. So this is not vacuous: the columns
     are present and must not have been selected.
     """
-    monolith, training = _fitted()
+    monolith = dense_monolith
     assert monolith.encoding is not None
     assert set(OUTCOME_COLUMNS) <= set(training.columns), "the fixture is not exercising anything"
     assert not set(monolith.encoding.columns) & set(OUTCOME_COLUMNS)
     assert TARGET not in monolith.encoding.columns
 
 
-def test_attaching_the_outcome_to_a_scoring_frame_cannot_move_a_prediction() -> None:
+def test_attaching_the_outcome_to_a_scoring_frame_cannot_move_a_prediction(
+    dense_monolith: MonolithPredictor, training: pd.DataFrame
+) -> None:
     """The behavioural half. A column list can be right while the matrix builder reads elsewhere."""
-    monolith, training = _fitted()
+    monolith = dense_monolith
     scoring = training.drop(columns=list(OUTCOME_COLUMNS), errors="ignore")
 
     plain = monolith.predict(scoring)
@@ -192,17 +210,19 @@ def test_what_happens_after_a_deadline_cannot_change_that_folds_monolith(
     assert honest[MONOLITH_COLUMN].std() > 0
 
 
-def test_the_monolith_is_refitted_at_every_fold_rather_than_once() -> None:
+def test_the_monolith_is_refitted_at_every_fold_rather_than_once(training: pd.DataFrame) -> None:
     """Fitting once on everything and slicing is faster, scores better, and measures nothing.
 
     Checked by the training-row count moving: the harness's window grows one deadline at a time, so
-    a monolith fitted once would report the same figure at every fold.
+    a monolith fitted once would report the same figure at every fold. The windows are the training
+    rows of the gameweeks before 6 and before 10, as the harness would hold them at those folds.
     """
     history = dense_history()
     counts: list[int] = []
     monolith = MonolithPredictor(config=MonolithConfig(), features=FeatureConfig())
     for gameweek in (6, 10):
-        monolith.fit(_training_frame(history[history["gameweek"] < gameweek]))
+        cutoff = history.loc[history["gameweek"] == gameweek, "kickoff_time"].min()
+        monolith.fit(training[training["kickoff_time"] < cutoff])
         counts.append(monolith.training_rows)
     assert counts[0] < counts[1]
 
@@ -426,13 +446,14 @@ def test_a_harness_run_that_degrades_warns_rather_than_reporting_a_silent_zero()
     assert any("shadow monolith degraded" in warning for warning in result.warnings)
 
 
-def test_a_column_never_observed_is_dropped_rather_than_passed_as_nulls() -> None:
+def test_a_column_never_observed_is_dropped_rather_than_passed_as_nulls(
+    training: pd.DataFrame,
+) -> None:
     """The D-26 condition: an archive resolving no fixture leaves three all-null columns.
 
     Nothing is lost by dropping them — a column with no observed value carries no information — and
     left in, the boosting library has no distinct value to place a bin edge between.
     """
-    training = _training_frame(dense_history())
     training["price"] = np.nan
     encoding = encoding_for(training, FeatureConfig())
     assert "price" not in encoding.columns
