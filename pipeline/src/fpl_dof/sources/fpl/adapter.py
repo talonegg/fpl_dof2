@@ -610,6 +610,7 @@ class FplApiAdapter(SourceAdapter):
                     "deadline_time": pd.Timestamp(event["deadline_time"]).tz_convert("UTC"),
                     "finished": bool(event["finished"]),
                     "is_next": bool(event["is_next"]),
+                    "data_checked": bool(event.get("data_checked", False)),
                 }
                 for event in bootstrap["events"]
             ]

@@ -19,6 +19,10 @@ the reason in its artefacts, and in the ledger unless an earlier success for the
 as its advice of record (NFR-15, DL-94). A champion week failure fails the run, as it always has.
 Every payload carries its snapshot's ``as_of`` and the run's ``trigger`` (ORC-03).
 
+What it does is asked of each gameweek's state (ORC-01), never of the clock alone: the Open
+gameweek is advised, a Finished one is due its evaluation (ORC-05's step, a logged no-op until
+then), and nothing else is done here. Once no gameweek is Open, the stage is skipped with a reason.
+
 It is skipped, with a reason, when no squad can be established. That is the normal preseason state
 (DL-20) and must not fail a run that is otherwise fine — the forecast and the E0 squad are still
 worth publishing.
@@ -49,6 +53,7 @@ from fpl_dof.factory.registry import (
     stamp,
 )
 from fpl_dof.frames import as_float
+from fpl_dof.gameweek import Due, SilverTables, season_states
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.optimise.captain import PricePositionLine
 from fpl_dof.optimise.plan import DecisionPlan, as_dict
@@ -66,6 +71,7 @@ from fpl_dof.squad.state import (
 )
 from fpl_dof.week.alerts import Alert, collect_alerts
 from fpl_dof.week.deadline import DeadlineView, describe_deadline, next_deadline, to_contract
+from fpl_dof.week.evaluation import evaluate, evaluated
 from fpl_dof.week.ledger import read_advice, record_advice
 from fpl_dof.week.reconcile import Reconciliation, reconcile
 
@@ -108,8 +114,19 @@ def run(ctx: StageContext) -> StageResult:
     published = published_strategies()
 
     gameweeks = read_table(silver, season, Table.GAMEWEEK)
-    players = read_table(silver, season, Table.PLAYER)
+    entry_chips = read_table_optional(silver, season, Table.ENTRY_CHIP)
+    tables = SilverTables(
+        gameweeks, read_table_optional(silver, season, Table.FIXTURE), entry_chips
+    )
+    states = season_states(tables, evaluated(ctx.layout), ctx.as_of)
+    for finished in (s for s in states if s.due is Due.EVALUATE):
+        evaluate(finished, ctx.layout)
+    if not any(s.due is Due.ADVISE for s in states):
+        reason = "no gameweek is open: every deadline has passed"
+        log.info("week.nothing_due", extra={"reason": reason})
+        return StageResult(metrics={"status": "skipped", SKIPPED_REASON_KEY: reason})
 
+    players = read_table(silver, season, Table.PLAYER)
     deadline = next_deadline(
         gameweeks,
         now=ctx.as_of,
@@ -128,7 +145,7 @@ def run(ctx: StageContext) -> StageResult:
             picks=picks,
             transfers=read_table_optional(silver, season, Table.ENTRY_TRANSFER),
             entry=read_table_optional(silver, season, Table.ENTRY),
-            chips=read_table_optional(silver, season, Table.ENTRY_CHIP),
+            chips=entry_chips,
             gameweek_prices=gameweek_price_index(player_gameweek, season),
         )
     except SquadStateError as exc:
