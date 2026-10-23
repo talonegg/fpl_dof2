@@ -50,10 +50,11 @@ from fpl_dof.forecast import live
 from fpl_dof.forecast.baselines import FittedBaseline
 from fpl_dof.forecast.entry import Forecast
 from fpl_dof.forecast.features import season_start_year
-from fpl_dof.forecast.inputs import ForecastInputs
+from fpl_dof.forecast.inputs import ForecastInputs, MissingInputError
 from fpl_dof.gold.match_odds import club_coded, knowable
 from fpl_dof.rules.models import GameRules, Position
 from fpl_dof.shadow import a, c1
+from fpl_dof.silver.tables import Table
 
 MODEL_NAME = "a_odds_team_layer"
 
@@ -63,8 +64,11 @@ ODDS_COLUMNS = ("season", "gameweek", "team_id", "goals_for", "goals_against", "
 CLUB_COLUMNS = ("cs_sum", "cs_sq_sum", "gc_mean", "gc_second", "gc_mean_sq")
 
 
-class MissingOddsError(ValueError):
+class MissingOddsError(MissingInputError):
     """No match odds are knowable for the gameweek being decided: A_odds has no advice (DL-87)."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message, (Table.TEAM_MATCH_EXPECTATION.value,))
 
 
 def _calendar(inputs: ForecastInputs, season: str) -> pd.DataFrame:

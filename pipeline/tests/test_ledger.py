@@ -170,6 +170,21 @@ def test_a_strategy_that_never_succeeded_records_no_advice(tmp_path: Path) -> No
     assert c1["no_advice"] == "no advice: boom" and "advised" not in c1
 
 
+def test_failure_after_failure_keeps_since_the_first_and_a_success_ends_it(tmp_path: Path) -> None:
+    """ORC-07: how long a strategy has waited is the first failure's ``as_of``, kept across runs."""
+    layout = DataLayout(root=tmp_path)
+    for hour in (12, 13, 14):
+        moment = AS_OF.replace(hour=hour)
+        failed = _failure("no advice: no odds", f"2026-08-21T{hour}:00:00Z")
+        record_advice(layout, _with_models(_week_payload(5), c1=failed), as_of=moment, now=moment)
+    c1 = (read_advice(layout, 5) or {})["models"]["c1"]
+    assert c1["since"] == "2026-08-21T12:00:00Z" and c1["as_of"] == "2026-08-21T14:00:00Z"
+    later = AS_OF.replace(hour=15)
+    ok = _with_models(_week_payload(5), c1=_success(7, "2026-08-21T15:00:00Z"))
+    record_advice(layout, ok, as_of=later, now=later)
+    assert "since" not in (read_advice(layout, 5) or {})["models"]["c1"]
+
+
 def test_a_write_mentioning_fewer_strategies_keeps_the_others(tmp_path: Path) -> None:
     layout = DataLayout(root=tmp_path)
     both = _with_models(_week_payload(5), c1=_success(7, "x"), c3=_success(1, "x"))

@@ -2401,6 +2401,17 @@ class ScheduleConfig(_Section):
             "those are exactly the fields NFR-05 puts a freshness bound on."
         ),
     )
+    fast_ingest_cron_minute: int = Field(
+        default=7,
+        ge=0,
+        le=59,
+        description=(
+            "The minute past each hour at which ingest-fast.yml's cron fires (`7 * * * *`: an odd "
+            "minute, off the :00 peak GitHub sheds). It must match that workflow; declared here so "
+            "the app's next-check time for an awaited source is computed from it (ORC-07) rather "
+            "than from a second copy, and a test holds the two together."
+        ),
+    )
     pipeline_offsets_minutes: tuple[int, ...] = Field(
         default=(360, 180, 90, 45),
         description=(

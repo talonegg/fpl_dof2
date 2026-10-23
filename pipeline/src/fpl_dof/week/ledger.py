@@ -124,8 +124,9 @@ def merge_models(held: Mapping[str, Any], new: Mapping[str, Any]) -> dict[str, A
     """Each strategy's advice of record: replaced by a success, never by a failure (DL-94).
 
     A failure over a held success keeps the success and notes ``last_failure {as_of, reason}``
-    beside it; a failure with no success held is "no advice". A strategy this write does not
-    mention keeps what is held.
+    beside it; a failure with no success held is "no advice", and keeps ``since``, the ``as_of``
+    of the first failure in the run of them, so the app can say how long it has waited (ORC-07).
+    A strategy this write does not mention keeps what is held.
     """
     merged = dict(held)
     for strategy_id, entry in new.items():
@@ -133,6 +134,9 @@ def merge_models(held: Mapping[str, Any], new: Mapping[str, Any]) -> dict[str, A
         if "advised" not in entry and isinstance(prior, Mapping) and "advised" in prior:
             failure = {"as_of": entry.get("as_of"), "reason": entry.get("no_advice")}
             merged[strategy_id] = dict(prior) | {"last_failure": failure}
+        elif "advised" not in entry and isinstance(prior, Mapping) and "no_advice" in prior:
+            since = prior.get("since") or prior.get("as_of") or entry.get("as_of")
+            merged[strategy_id] = dict(entry) | {"since": since}
         else:
             merged[strategy_id] = dict(entry)
     return merged

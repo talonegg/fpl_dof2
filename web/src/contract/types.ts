@@ -6,7 +6,7 @@
 
 export const CONTRACT_VERSION = 1;
 
-export const CONTRACT_MINOR = 2;
+export const CONTRACT_MINOR = 3;
 
 /** What this publication is, when it was made, and what produced it. The browser reads this first and can render an honest 'as at' line without trusting anything else. */
 export interface Meta {
@@ -214,6 +214,13 @@ export interface Week {
   last_failure?: {
     as_of: string;
     reason: string;
+  };
+  /** The source this strategy waited for arrived and the strategy was refreshed with it: it had no advice for the gameweek in the ledger's record because the source's data was missing, and advises in this run, which a change started (ORC-07). Absent otherwise, and gone from the next run's file. */
+  arrived?: {
+    /** The awaited sources' labels, as the data health page names them. */
+    sources: string[];
+    /** UTC instant of the snapshot the source arrived in. */
+    at: string;
   };
   squad_state?: {
     /** How much was read versus inferred. Reported, never hidden. */
@@ -978,6 +985,12 @@ export interface ModelInfo {
 export interface ModelAvailability {
   available: boolean;
   reason: string | null;
+  /** The sources whose missing data left the strategy without advice, by the labels the data health page uses (ORC-07). Absent when it is not waiting for a source. */
+  sources?: string[];
+  /** UTC instant of the first run in this gameweek that found the source's data missing (ORC-07). */
+  since?: string | null;
+  /** When the source is next fetched: the next fast-ingest firing before the deadline, which GitHub may drop. Null for a gameweek no longer Open, or none before its deadline (ORC-07). */
+  next_check?: string | null;
 }
 
 export interface ModelTransfer {

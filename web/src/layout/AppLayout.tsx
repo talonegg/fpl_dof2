@@ -6,6 +6,7 @@ import { ThemeToggle } from "./ThemeToggle";
 import { LockButton } from "../gate/PasswordGate";
 import { NAV_ITEMS } from "../routes/nav";
 import { ModelSelector } from "../components/models/ModelSelector";
+import { SourceAlerts } from "./SourceAlerts";
 
 /**
  * The persistent shell: brand, navigation, theme control, then the active route.
@@ -83,6 +84,7 @@ export function AppLayout() {
               </p>
             )}
             <Header meta={state.data.meta} />
+            <SourceAlerts data={state.data} />
             <ModelSelector />
             <main>
               <Outlet />

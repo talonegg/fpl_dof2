@@ -15,7 +15,7 @@ from fpl_dof.sources.base import (
     SourceAdapter,
 )
 from fpl_dof.sources.bronze import META_SUFFIX, BronzeStore, Snapshot, SnapshotMeta
-from fpl_dof.sources.catalogue import LIVE, REFERENCE, SourceDescriptor, describe
+from fpl_dof.sources.catalogue import LIVE, REFERENCE, SourceDescriptor, describe, supplying
 from fpl_dof.sources.changes import KINDS as CHANGE_KINDS
 from fpl_dof.sources.changes import before_ingest, changed_kinds
 from fpl_dof.sources.enrich import canonicalise
@@ -68,4 +68,5 @@ __all__ = [
     "register",
     "replay_prices",
     "resolve_team",
+    "supplying",
 ]
