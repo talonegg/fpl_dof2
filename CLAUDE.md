@@ -6,7 +6,7 @@ artefacts; a React SPA reads them. No server, no database, no runtime backend.
 
 **`docs/README.md` maps where every fact lives** — read it when you need context beyond this file.
 Work ships in releases `Rx.y.z`: R1.0 was epics E0–E14; R1.1.0 was the data pipeline uplift;
-R1.1.1 verified it on `main` (DL-85); R1.2.0 and R1.2.2, the first two slices of the modular platform (DL-86, DL-88), are tagged; R1.3.0, gameweek orchestration, is open.
+R1.1.1 verified it on `main` (DL-85); R1.2.0 and R1.2.2, the first two slices of the modular platform (DL-86, DL-88), are tagged; R1.3.0, gameweek orchestration's Drop A, is tagged; R1.3.1, its Drop B, is open.
 The plan of record is the release register, `docs/planning/epics/README.md`. A decision cited as
 `DL-nn` is the file `docs/decisions/DL-nn.md`: open it directly rather than searching.
 `docs/planning/archive/` holds closed epics and superseded plans as records; plain searches skip it

@@ -4,7 +4,7 @@ Work is delivered in releases numbered `Rx.y.z`. **R1.0** was the first build: e
 archived in [`../archive/R1.0/`](../archive/README.md) — all but E8, which stays live here as the
 ongoing in-season monitoring epic. **R1.1.0**, the data pipeline uplift, is closed and archived in
 [`../archive/R1.1.0/`](../archive/README.md), and **R1.1.1** verified it on `main`. **R1.2.0**, the
-first slice of the modular platform, is tagged; R1.2.1 is a hotfix and **R1.2.2**, the second slice, is tagged; **R1.3.0** is open, not started. Each release and epic records its outcome in its Status line and the decisions it took in [`docs/decisions/`](../../decisions/README.md).
+first slice of the modular platform, is tagged; R1.2.1 is a hotfix and **R1.2.2**, the second slice, is tagged; **R1.3.0**, gameweek orchestration's Drop A, is tagged and **R1.3.1**, its Drop B, is open. Each release and epic records its outcome in its Status line and the decisions it took in [`docs/decisions/`](../../decisions/README.md).
 
 ## Register
 
@@ -15,7 +15,8 @@ first slice of the modular platform, is tagged; R1.2.1 is a hotfix and **R1.2.2*
 | **R1.2.2** — five models live | The same backlog §2, second drop: the archive and football-data.co.uk live, MOD-05, MOD-08, MOD-09, MOD-06; MOD-01 closed | Tagged 2026-10-23: all five strategies live, the frozen harness retired (switch GW8), F1 shipped ([DL-90](../../decisions/DL-90.md)), F3 rejected ([DL-91](../../decisions/DL-91.md)) |
 | **R1.2.3** — hotfix | Purchase prices are what was paid; an unknown one never overstates the budget ([DL-92](../../decisions/DL-92.md)) | Tagged 2026-10-23 |
 | **R1.2.4** — hotfix | Training rows refresh once a gameweek is checked; a warning gate for lagging rows; dependencies pinned in `pipeline/requirements.lock` ([DL-93](../../decisions/DL-93.md)) | Tagged 2026-10-23 |
-| **R1.3.0** — gameweek orchestration | [R1.3.0 gameweek orchestration](R1.3.0-gameweek-orchestration.md): ORC-01 … ORC-10 and WEB-02, in two drops ([DL-94](../../decisions/DL-94.md)) | Open on `dev/R1.3.0`; planned, not started |
+| **R1.3.0** — gameweek orchestration | [R1.3.0 gameweek orchestration](R1.3.0-gameweek-orchestration.md): ORC-01 … ORC-10 and WEB-02, in two drops ([DL-94](../../decisions/DL-94.md)) | Drop A (ORC-01, 02, 03, 07, 08, 09, 10 and WEB-02) tagged 2026-10-23 |
+| **R1.3.1** — gameweek orchestration, Drop B | The same plan's Drop B: ORC-04 one realised-points scorer, ORC-05 evaluation step, ORC-06 reproducible models history ([DL-94](../../decisions/DL-94.md)) | Open on `dev/R1.3.1` |
 | **R1.4.0** — independent web | [R1.4.0 independent web](R1.4.0-independent-web.md): WEB-01 … WEB-06 | Planned after R1.3.0; plan drafted 2026-10-23, awaiting the owner's answers |
 | Ongoing, every season | [E8 — ongoing in-season monitoring](E8-ongoing-in-season-monitoring.md): the season state and decision points (rewritten each gameweek), the weekly loop, the bar for changing the model mid-season | Live, GW1 → 30 May 2027; updated weekly |
 
@@ -41,7 +42,7 @@ hotfix: feature/<fix> from main ──PR──► pre-release ──PR──► 
 | --- | --- |
 | `main` | Production: scheduled workflows run its code and every merge deploys. Pull requests from `pre-release` only; one annotated tag per release |
 | `pre-release` | `main` plus the promotion under test; brought level with `main` before each promotion. CI and `pre-release.yml`'s smoke test run on it |
-| `dev/Rx.y.z` | The open release (now `dev/R1.3.0`), cut from `main` when the release starts; deleted after its tag exists |
+| `dev/Rx.y.z` | The open release (now `dev/R1.3.1`), cut from `main` when the release starts; deleted after its tag exists |
 | `feature/<description>` | One feature or fix, from the open `dev/Rx.y.z`, merged into it directly after the local checks pass; deleted once the release is tagged. A hotfix branches from `main` and goes by pull request into `pre-release` |
 
 `main` and `pre-release` accept changes only by pull request with passing checks. A release's number
