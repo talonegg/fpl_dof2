@@ -206,7 +206,7 @@ Under `paths.DataLayout`; what persists between CI runs is
 | Silver | `silver/season={s}/{table}.parquet` plus the season's `rules.json`; rebuilt from bronze each run except the accumulating tables (03 §7.1) |
 | Gold | `gold/season={s}/` — `expected_points.parquet`, `player_career_history.parquet`, `team_match_odds.parquet`, `squad.json`, `plan.json`, `week.json` (and `week_<id>.json`, `plan_<id>.json` per other published strategy), `quality.json`, `model-card.md`, backtest outputs |
 | Quarantine | `quarantine/bronze/…` from `bronze verify --quarantine`; `quarantine/silver-{time}/` from `silver rebuild` (REM-10). Kept, never read |
-| Ledger | `ledger/advice/gwNN.json`, append-only (DL-69): the champion's advice, and every published strategy's under `models` by registry id, or its "no advice" reason (MOD-04) |
+| Ledger | `ledger/advice/gwNN.json`, append-only (DL-69): the champion's advice, and every published strategy's under `models` by registry id: its last success before the deadline, stamped `as_of` and `trigger`, with a later failure noted as `last_failure`, or its "no advice" reason (MOD-04, [DL-94](../decisions/DL-94.md)). The writer refuses a write after the deadline |
 | Runs | `runs/{run_id}/manifest.json` |
 | Web contract | `web/v1/*.json`, served at `/data/v1/` (03 §7.2) |
 
@@ -865,7 +865,7 @@ Four mechanisms, none promoting automatically:
   checked by `assert_no_look_ahead`; it trains on every season silver holds (`all_seasons`),
   keyed by `player_code`, with rolling features reset each season. Hyperparameters, windows,
   half-lives and the seed are `forecast.c1` (DP-06). A failure records "no advice" with its reason
-  there and in the ledger, and stops nothing else (NFR-15).
+  there and in the ledger, unless an earlier success this gameweek stands ([DL-94](../decisions/DL-94.md)), and stops nothing else (NFR-15).
 - **The component challenger, `a`** (`shadow/a.py`, as C1 is reached): C1's features plus rolling
   counts, and per position P(play), P(a full appearance | play), bonus, goals and assists (saves
   for goalkeepers) and the defensive-contribution award, each priced by the rules config; clean

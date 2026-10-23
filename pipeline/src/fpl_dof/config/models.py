@@ -39,6 +39,14 @@ class RuntimeConfig(_Section):
             "at the display edge and nowhere else."
         ),
     )
+    trigger: str = Field(
+        default="manual",
+        pattern=r"^(schedule|manual|day-before|change:[a-z_,]+)$",
+        description=(
+            "What started this run, stamped on every advice (ORC-03, DL-94): schedule, "
+            "change:<kinds>, manual or day-before. CI sets FPL_DOF_TRIGGER; a local run is manual."
+        ),
+    )
 
 
 class RateLimitConfig(_Section):

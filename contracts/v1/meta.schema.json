@@ -23,6 +23,8 @@
     },
     "generated_at": { "type": "string", "format": "date-time", "description": "UTC (DL-11)." },
     "run_id": { "type": "string", "minLength": 1, "description": "Traces back to the run manifest." },
+    "as_of": { "type": "string", "format": "date-time", "description": "UTC instant of the input snapshot the advice was decided on (ORC-03, DL-94). Absent before R1.3.0." },
+    "trigger": { "type": "string", "pattern": "^(schedule|manual|day-before|change:[a-z_,]+)$", "description": "What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0." },
     "git_sha": { "type": ["string", "null"] },
     "season": { "type": "string", "pattern": "^[0-9]{4}/[0-9]{2}$" },
     "next_gameweek": { "type": "integer", "minimum": 1, "maximum": 38 },

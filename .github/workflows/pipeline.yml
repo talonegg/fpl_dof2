@@ -1,5 +1,6 @@
 # E7-S2: transform → gates → forecast → optimise → week (every strategy's week and plan, MOD-04)
-# → publish. Deliberately *not* ingest (that is ingest-fast.yml / ingest-slow.yml's job) and
+# → publish → deploy (deploy.yml, called as the last job only when this run published, ORC-03).
+# Deliberately *not* ingest (that is ingest-fast.yml / ingest-slow.yml's job) and
 # deliberately not run after every fast ingest — re-solving because a price moved £0.10 is waste (architecture §9).
 #
 # Triggers: nightly, after ingest-slow, at T-3h/T-45m before a deadline, and manual dispatch. The
@@ -12,8 +13,8 @@
 # workflow file does not duplicate that logic and must not be changed to bypass it under pressure.
 
 name: Pipeline
-# A run that follows the day-before ingest carries "[day-before]" so Deploy can apply its stricter
-# fail-closed rules (see day-before.yml).
+# A run that follows the day-before ingest carries "[day-before]"; its `deploy` job applies the
+# stricter fail-closed freshness check (see day-before.yml).
 run-name: >-
   ${{ github.event_name == 'workflow_run' && contains(github.event.workflow_run.display_title, '[day-before')
   && 'Pipeline [day-before]' || 'Pipeline' }}
@@ -124,6 +125,8 @@ jobs:
     timeout-minutes: 45
     permissions:
       contents: write # appends this run's advice to the `ledger` branch (DL-69)
+    outputs:
+      published: ${{ steps.published.outputs.published }}
     steps:
       - uses: actions/checkout@v4
 
@@ -185,9 +188,19 @@ jobs:
           FPL_DOF_TEAM_ID: ${{ inputs.team_id || vars.FPL_DOF_TEAM_ID }}
           FPL_DOF_LEAGUE_ID: ${{ inputs.league_id || vars.FPL_DOF_LEAGUE_ID }}
           FPL_DOF_MODELS_SOURCE_DIR: ${{ runner.temp }}/prospective-record
+          # Stamped on every advice (ORC-03, DL-94); ORC-02 will pass it as a typed dispatch input.
+          FPL_DOF_TRIGGER: ${{ needs.guard.outputs.day_before == 'true' && 'day-before' || github.event_name == 'workflow_dispatch' && 'manual' || 'schedule' }}
         run: >
           fpl-dof run
           --only transform quality forecast optimise week publish
+
+      # Deploy follows only a run that published (ORC-03): a failed stage stops the job before
+      # this step, and a guard-only run never reaches it.
+      - name: Mark the run as published
+        id: published
+        run: |
+          test -f data/web/v1/meta.json
+          echo "published=true" >> "$GITHUB_OUTPUT"
 
       - name: Upload the published web contract
         uses: actions/upload-artifact@v4
@@ -221,6 +234,22 @@ jobs:
           remote="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
           python pipeline/scripts/retention.py rolling data/bronze --remote "$remote"
 
+  # The last job: deploy this run's own contract, and only when this run published (ORC-03,
+  # DL-94). A guard-only or failed run deploys nothing and the previous site stays live.
+  deploy:
+    needs: [guard, run]
+    if: needs.run.outputs.published == 'true'
+    uses: ./.github/workflows/deploy.yml
+    with:
+      from_pipeline: true
+      day_before: ${{ needs.guard.outputs.day_before == 'true' }}
+    secrets: inherit
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+      id-token: write
+      issues: write # deploy.yml's own failure alert
 
   alert:
     needs: [guard, run]

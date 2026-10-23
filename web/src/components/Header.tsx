@@ -5,6 +5,19 @@ interface HeaderProps {
   meta: Meta;
 }
 
+/** `schedule`, `manual`, `day-before` or `change:<kinds>` in words. */
+function describeTrigger(trigger: string): string {
+  if (trigger.startsWith("change:")) {
+    return `after a ${trigger.slice("change:".length).split(",").join(", ")} change`;
+  }
+  const words: Record<string, string> = {
+    schedule: "scheduled run",
+    manual: "manual run",
+    "day-before": "day-before refresh",
+  };
+  return words[trigger] ?? trigger;
+}
+
 export function Header({ meta }: HeaderProps) {
   const priceDependence = meta.model.price_dependence;
   const showWarning = priceDependence === "repricing" || priceDependence === "thin";
@@ -17,7 +30,11 @@ export function Header({ meta }: HeaderProps) {
         <div className="app-header-meta">
           <span>{meta.season}</span>
           <span>Next GW {meta.next_gameweek}</span>
-          <span>As at {formatLocalDateTime(meta.generated_at)}</span>
+          {/* The snapshot the advice was decided on, and what started the run (ORC-03). */}
+          <span data-testid="header-as-at">
+            As at {formatLocalDateTime(meta.as_of ?? meta.generated_at)}
+            {meta.trigger ? ` · ${describeTrigger(meta.trigger)}` : ""}
+          </span>
         </div>
       </div>
 

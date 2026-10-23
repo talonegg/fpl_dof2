@@ -476,6 +476,7 @@ def _orchestration(rules: GameRules) -> week.Snapshot:
         alerts=[],
         reconciliation=None,
         form=None,
+        clock=lambda: inputs.as_of,  # before the deadline: the ledger is open (ORC-03)
     )
 
 
@@ -538,6 +539,53 @@ def test_a_failing_challenger_records_no_advice_and_stops_nothing_else(
     assert models["c1"]["no_advice"] == c1_week["skipped_reason"]
     assert models["c3"]["advised"] == advice["c3"][0]["advised"]
     assert models["c3"]["role"] == "champion"
+
+
+def test_a_challenger_failing_after_an_earlier_success_keeps_that_success_as_the_record(
+    game_rules: GameRules, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """ORC-03 (DL-94): the second run's failure is noted beside the first run's advice."""
+    first = _advise_all(game_rules, tmp_path)
+    _fail_c1(monkeypatch)
+    second = _advise_all(game_rules, tmp_path)
+    assert second["c1"][0]["skipped"]  # this run's artefact says so honestly
+
+    recorded = read_advice(DataLayout(root=tmp_path), HORIZON[0])
+    assert recorded is not None
+    c1 = recorded["models"]["c1"]
+    assert c1["advised"] == first["c1"][0]["advised"]
+    assert c1["last_failure"]["reason"] == second["c1"][0]["skipped_reason"]
+    assert c1["last_failure"]["as_of"] == second["c1"][0]["as_of"]
+    assert "last_failure" not in recorded["models"]["c3"]
+
+
+def test_a_run_that_ends_after_the_deadline_records_nothing(
+    game_rules: GameRules, tmp_path: Path
+) -> None:
+    """ORC-03: the snapshot was before the deadline, but the write would land after it."""
+    snapshot = _orchestration(game_rules)
+    late = dataclasses.replace(
+        snapshot, clock=lambda: snapshot.deadline.deadline_utc + pd.Timedelta(minutes=1)
+    )
+    layout = DataLayout(root=tmp_path)
+    week.advise_all(late, published_strategies(), gold=tmp_path / "gold", layout=layout)
+    assert (tmp_path / "gold" / "week.json").exists()  # the artefacts are still written
+    assert not advice_path(layout, HORIZON[0]).exists()
+
+
+def test_every_payload_and_ledger_entry_carries_as_of_and_trigger(
+    game_rules: GameRules, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _fail_c1(monkeypatch)  # a "no advice" payload is stamped too
+    advice = _advise_all(game_rules, tmp_path)
+    as_of = "2026-09-11T16:30:00Z"  # the snapshot's, not the wall clock's
+    for week_payload, plan_payload in advice.values():
+        for payload in (week_payload, plan_payload):
+            if payload is not None:
+                assert (payload["as_of"], payload["trigger"]) == (as_of, "manual")
+    recorded = read_advice(DataLayout(root=tmp_path), HORIZON[0])
+    assert recorded is not None and recorded["trigger"] == "manual"
+    assert all(m["as_of"] == as_of for m in recorded["models"].values())
 
 
 def test_a_strategy_missing_a_required_table_records_no_advice_and_the_others_run(
@@ -636,7 +684,9 @@ def test_the_week_schema_knows_every_registry_role() -> None:
 def test_an_experiment_strategys_week_validates() -> None:
     cfg = _config()
     strategy = load_strategy("c1").model_copy(update={"role": "experiment"})
-    payload, _ = week._no_advice("run-mod04", _deadline(), strategy, "no advice: test", cfg)
+    payload, _ = week._no_advice(
+        "run-mod04", _deadline(), strategy, "no advice: test", cfg, _deadline().now_utc
+    )
     assert payload["model"]["role"] == "experiment"
     Contract(root=find_contracts_root()).validate(
         "week", payload | {"contract_version": CONTRACT_VERSION}

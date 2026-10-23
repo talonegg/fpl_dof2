@@ -15,8 +15,9 @@ The champion's week is written, and recorded in the ledger, the moment its week 
 before its plan is solved and before any challenger runs, so neither can lose or delay this week's
 advice. A champion plan that fails, for any reason, is "no plan" with its reason and the week
 stands. A challenger that fails costs its own advice and nothing else: it records "no advice" with
-the reason, in its artefacts and the ledger (NFR-15). A champion week failure fails the run, as it
-always has.
+the reason in its artefacts, and in the ledger unless an earlier success for the gameweek stands
+as its advice of record (NFR-15, DL-94). A champion week failure fails the run, as it always has.
+Every payload carries its snapshot's ``as_of`` and the run's ``trigger`` (ORC-03).
 
 It is skipped, with a reason, when no squad can be established. That is the normal preseason state
 (DL-20) and must not fail a run that is otherwise fine — the forecast and the E0 squad are still
@@ -26,8 +27,9 @@ worth publishing.
 from __future__ import annotations
 
 import dataclasses
+import datetime as dt
 import json
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -94,6 +96,8 @@ class Snapshot:
     alerts: list[Alert]
     reconciliation: Reconciliation | None
     form: dict[int, tuple[float | None, int | None]] | None
+    clock: Callable[[], dt.datetime]
+    """The real time, from the edge, for the ledger's closed-record check only (ORC-03)."""
 
 
 def run(ctx: StageContext) -> StageResult:
@@ -132,7 +136,8 @@ def run(ctx: StageContext) -> StageResult:
         # to advise on yet.
         log.warning("week.skipped", extra={"reason": str(exc)})
         skipped = {
-            s.id: _no_advice(ctx.run_id, deadline, s, str(exc), ctx.config) for s in published
+            s.id: _no_advice(ctx.run_id, deadline, s, str(exc), ctx.config, ctx.as_of)
+            for s in published
         }
         return StageResult(
             metrics={"status": "skipped", SKIPPED_REASON_KEY: str(exc)},
@@ -183,6 +188,7 @@ def run(ctx: StageContext) -> StageResult:
         form=form_by_player_id(
             trailing_form(this_season, as_of=pd.Timestamp(ctx.as_of)), champion_frame
         ),
+        clock=ctx.clock,
     )
 
     advice, outputs = advise_all(snapshot, published, gold=gold, layout=ctx.layout)
@@ -243,7 +249,12 @@ def advise_all(
             reason = f"no advice: {type(exc).__name__}: {exc}"
             log.warning("week.no_advice", extra={"strategy": strategy.id, "reason": reason})
             advice[strategy.id] = _no_advice(
-                snapshot.run_id, snapshot.deadline, strategy, reason, snapshot.config
+                snapshot.run_id,
+                snapshot.deadline,
+                strategy,
+                reason,
+                snapshot.config,
+                snapshot.inputs.as_of,
             )
     outputs += _write_all(gold, advice, challengers)
     _record(snapshot, layout, advice, [lead, *challengers])
@@ -253,10 +264,15 @@ def advise_all(
 def _record(
     snapshot: Snapshot, layout: DataLayout, advice: dict[str, Advice], strategies: list[Strategy]
 ) -> None:
-    """The champion's advice to the ledger, with every strategy's so far under ``models``."""
+    """The champion's advice to the ledger, with every strategy's so far under ``models``.
+
+    The ledger keeps each strategy's last success and refuses a write after the deadline (DL-94).
+    """
     week, _ = advice[strategies[0].id]
     models = ledger_models(advice, strategies)
-    record_advice(layout, week | {"models": models}, as_of=snapshot.inputs.as_of)
+    record_advice(
+        layout, week | {"models": models}, as_of=snapshot.inputs.as_of, now=snapshot.clock()
+    )
 
 
 def _week(
@@ -322,7 +338,8 @@ def _plan_payload(
     else:
         payload = {"run_id": snapshot.run_id, "skipped": False, "deadline": deadline}
         payload |= as_dict(plan)
-    return payload | {"strategy": stamp(strategy, snapshot.config)}
+    run = _run_stamp(snapshot.inputs.as_of, snapshot.config)
+    return payload | run | {"strategy": stamp(strategy, snapshot.config)}
 
 
 def _skipped(run_id: str, deadline: dict[str, Any], reason: str) -> dict[str, Any]:
@@ -330,9 +347,14 @@ def _skipped(run_id: str, deadline: dict[str, Any], reason: str) -> dict[str, An
 
 
 def _no_advice(
-    run_id: str, deadline: DeadlineView, strategy: Strategy, reason: str, config: Config
+    run_id: str,
+    deadline: DeadlineView,
+    strategy: Strategy,
+    reason: str,
+    config: Config,
+    as_of: dt.datetime,
 ) -> Advice:
-    payload = _skipped(run_id, to_contract(deadline), reason)
+    payload = _skipped(run_id, to_contract(deadline), reason) | _run_stamp(as_of, config)
     plan = payload | {"strategy": stamp(strategy, config)} if strategy.policy.plan else None
     return payload | _stamp(strategy, config), plan
 
@@ -346,7 +368,12 @@ def ledger_models(advice: dict[str, Advice], strategies: Sequence[Strategy]) -> 
     models: dict[str, Any] = {}
     for strategy in strategies:
         week, _ = advice[strategy.id]
-        entry: dict[str, Any] = {"role": strategy.role, "strategy": week["strategy"]}
+        entry: dict[str, Any] = {
+            "role": strategy.role,
+            "strategy": week["strategy"],
+            "as_of": week["as_of"],
+            "trigger": week["trigger"],
+        }
         if week["skipped"]:
             entry["no_advice"] = week[SKIPPED_REASON_KEY]
         else:
@@ -388,6 +415,14 @@ def _stamp(strategy: Strategy, config: Config) -> dict[str, Any]:
     return {
         "model": {"id": strategy.id, "label": strategy.label, "role": strategy.role},
         "strategy": stamp(strategy, config),
+    }
+
+
+def _run_stamp(as_of: dt.datetime, config: Config) -> dict[str, str]:
+    """When the advice's snapshot was taken and what started the run (ORC-03, DL-94)."""
+    return {
+        "as_of": as_of.astimezone(dt.UTC).isoformat().replace("+00:00", "Z"),
+        "trigger": config.runtime.trigger,
     }
 
 
@@ -461,7 +496,7 @@ def _payload(snapshot: Snapshot, frame: pd.DataFrame, decision: Decision) -> dic
             "form_points_per_match": form.get(player_id, (None, None))[0],
         }
 
-    return {
+    return _run_stamp(snapshot.inputs.as_of, snapshot.config) | {
         "run_id": snapshot.run_id,
         "skipped": False,
         "deadline": to_contract(deadline),
