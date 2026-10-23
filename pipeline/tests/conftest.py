@@ -4,6 +4,7 @@ import datetime as dt
 import json
 import os
 import socket
+import zlib
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -276,6 +277,19 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[Any]) -> No
         if SHARED_FIXTURES & set(getattr(item, "fixturenames", ())):
             item.add_marker(pytest.mark.xdist_group(item.path.stem))
 
+    shard = config.getoption("--shard")
+    if shard:
+        index, count = (int(part) for part in shard.split("/"))
+        kept = [item for item in items if in_shard(item.path.name, index, count)]
+        config.hook.pytest_deselected(items=[item for item in items if item not in kept])
+        items[:] = kept
+
+
+def in_shard(module: str, index: int, count: int) -> bool:
+    """Whether a test module runs in shard ``index`` of ``count``: by module, so a module's shared
+    fixtures are built in one shard only, and stable across runs and machines (ORC-09)."""
+    return zlib.crc32(module.encode()) % count == index
+
 
 def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
@@ -289,6 +303,11 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         action="store_true",
         default=False,
         help="Run tests measured in minutes, such as the historical chip replay.",
+    )
+    parser.addoption(
+        "--shard",
+        default=None,
+        help="Run one shard of the suite, as INDEX/COUNT (e.g. 0/2), as CI does side by side.",
     )
 
 
