@@ -25,7 +25,8 @@ from fpl_dof.forecast.backtest import (
     MODEL_COLUMN,
     OUTCOME_COLUMNS,
     BacktestResult,
-    Predictor,
+    Entrant,
+    StrategyPredictor,
     deadlines_for,
     walk_forward,
 )
@@ -158,7 +159,15 @@ class RateFromFeatures:
         self.by_code: dict[int, float] = {}
         self.fallback = 0.0
 
-    def fit(self, training: pd.DataFrame) -> None:
+    def fit_as_of(
+        self,
+        history: pd.DataFrame,
+        deadline: pd.Timestamp,
+        *,
+        training: pd.DataFrame | None = None,
+        season: str,
+    ) -> None:
+        assert training is not None
         grouped = training.groupby("player_code")[TARGET].mean()
         self.by_code = {as_int(code): as_float(value) for code, value in grouped.items()}
         self.fallback = float(training[TARGET].mean())
@@ -174,8 +183,15 @@ class Cheater:
     column into the feature frame, which looks entirely ordinary in a diff.
     """
 
-    def fit(self, training: pd.DataFrame) -> None:
-        pass
+    def fit_as_of(
+        self,
+        history: pd.DataFrame,
+        deadline: pd.Timestamp,
+        *,
+        training: pd.DataFrame | None = None,
+        season: str,
+    ) -> None:
+        assert training is not None
 
     def predict(self, features: pd.DataFrame) -> pd.Series:
         if TARGET in features.columns:
@@ -265,10 +281,10 @@ def test_deadlines_are_ordered_and_one_per_gameweek() -> None:
     assert times == sorted(times)
 
 
-def _walk(predictor: Predictor) -> BacktestResult:
+def _walk(predictor: StrategyPredictor) -> BacktestResult:
     return walk_forward(
         make_history(),
-        predictor,
+        [Entrant("model", predictor)],
         forecast_config=ForecastConfig(),
         backtest_config=BacktestConfig(minimum_training_matches=3),
         seasons=(SEASON,),
@@ -303,7 +319,15 @@ class ColumnRecorder:
         self.fitted: set[str] = set()
         self.seen: set[str] = set()
 
-    def fit(self, training: pd.DataFrame) -> None:
+    def fit_as_of(
+        self,
+        history: pd.DataFrame,
+        deadline: pd.Timestamp,
+        *,
+        training: pd.DataFrame | None = None,
+        season: str,
+    ) -> None:
+        assert training is not None
         self.fitted |= set(training.columns)
 
     def predict(self, features: pd.DataFrame) -> pd.Series:
@@ -441,7 +465,7 @@ def test_a_double_gameweek_is_scored_once_per_fixture() -> None:
 
     result = walk_forward(
         doubled,
-        RateFromFeatures(),
+        [Entrant("model", RateFromFeatures())],
         forecast_config=ForecastConfig(),
         backtest_config=BacktestConfig(minimum_training_matches=3),
         seasons=(SEASON,),
@@ -533,7 +557,7 @@ def test_an_unresolvable_fixture_falls_back_visibly_rather_than_silently() -> No
 
     result = walk_forward(
         history,
-        RateFromFeatures(),
+        [Entrant("model", RateFromFeatures())],
         forecast_config=ForecastConfig(),
         backtest_config=BacktestConfig(minimum_training_matches=3),
         seasons=(SEASON,),
@@ -565,7 +589,7 @@ def test_too_little_history_measures_nothing_and_says_so() -> None:
     with pytest.raises(ValueError, match="measured nothing"):
         walk_forward(
             history,
-            RateFromFeatures(),
+            [Entrant("model", RateFromFeatures())],
             forecast_config=ForecastConfig(),
             backtest_config=BacktestConfig(minimum_training_matches=10),
             seasons=(SEASON,),

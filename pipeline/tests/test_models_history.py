@@ -9,7 +9,7 @@ from typing import Any
 import pytest
 
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
-from fpl_dof.publish.models_history import bootstrap_ci, build_models_history
+from fpl_dof.publish.models_history import build_models_history
 
 ARTEFACT = (
     Path(__file__).resolve().parents[2] / "web" / "public" / "static" / "models_history_2526.json"
@@ -84,12 +84,6 @@ def test_unavailable_models_are_marked_not_invented() -> None:
     assert a["available"] is False and a["unavailable_reason"] == "no run"
     assert all("a" not in g["models"] for g in p["gameweeks"])
     assert p["kind"] == "backtest" and "not real play" in p["caveat"]
-
-
-def test_bootstrap_is_seeded_and_brackets_a_constant() -> None:
-    assert bootstrap_ci([1.0, 2.0, 3.0, 4.0]) == bootstrap_ci([1.0, 2.0, 3.0, 4.0])
-    assert bootstrap_ci([2.0] * 10) == (2.0, 2.0)
-    assert bootstrap_ci([]) == (0.0, 0.0)
 
 
 def test_checked_in_artefact_is_valid_and_consistent() -> None:

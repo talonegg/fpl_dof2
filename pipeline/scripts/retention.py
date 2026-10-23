@@ -12,6 +12,7 @@ Usage (run from the repo root, with `bronze_dir` pointing at a checked-out bronz
 
     python pipeline/scripts/retention.py rolling <bronze_dir> --remote <url>
     python pipeline/scripts/retention.py permanent <payload> --remote <url> --gameweek 3
+    python pipeline/scripts/retention.py permanent <payload> --remote <url> --name <run_id>
     python pipeline/scripts/retention.py archive <bronze_dir> --remote <url>
 
 Both subcommands push to a real remote. `--dry-run` runs the same planning and staging logic
@@ -300,21 +301,30 @@ def append_permanent_snapshot(
     remote: str,
     branch: str,
     source: str,
-    gameweek: int,
     payload_path: Path,
+    gameweek: int | None = None,
+    name: str | None = None,
     dry_run: bool = False,
 ) -> bool:
-    """Append one source/gameweek snapshot to the append-only `snapshots` branch.
+    """Append one snapshot to an append-only branch, as ``{source}/gw{NN}`` or ``{source}/{name}``.
 
     Returns ``False`` (a no-op, not an error) if this exact snapshot is already present — running
-    the same gameweek twice must not grow the branch, since it is meant to be kept forever.
+    the same gameweek twice must not grow the branch, since it is meant to be kept forever. A
+    gameweek's file is rewritten when its bytes change (the advice ledger re-advises an open
+    gameweek); a named file never is: different bytes under an existing name raise (MOD-08's
+    experiments records, keyed by run).
     """
-    destination_relative = f"{source}/gw{gameweek:02d}{payload_path.suffix}"
+    if (gameweek is None) == (name is None):
+        raise ValueError("give exactly one of gameweek and name")
+    key = f"gw{gameweek:02d}" if gameweek is not None else str(name)
+    destination_relative = f"{source}/{key}{payload_path.suffix}"
     branch_exists = _checkout_branch(checkout_dir, remote, branch)
 
     destination = checkout_dir / destination_relative
     if destination.exists() and destination.read_bytes() == payload_path.read_bytes():
         return False  # already recorded, identical bytes — nothing to append
+    if destination.exists() and name is not None:
+        raise FileExistsError(f"{branch}:{destination_relative} exists with other bytes")
 
     destination.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(payload_path, destination)
@@ -323,7 +333,7 @@ def append_permanent_snapshot(
         return True
 
     try:
-        _commit_all(checkout_dir, f"snapshots: {source} gw{gameweek}")
+        _commit_all(checkout_dir, f"snapshots: {source} {key}")
     except GitError as exc:
         # `git commit` on a clean tree is the same fact the byte-comparison above already checks
         # for, reached by a different path (e.g. `git add` normalising line endings or file mode
@@ -477,12 +487,14 @@ def _build_parser() -> argparse.ArgumentParser:
     restore.add_argument("--remote", default="origin")
     restore.add_argument("--branch", default="data")
 
-    permanent = sub.add_parser("permanent", help="Append one snapshot to `snapshots`")
+    permanent = sub.add_parser("permanent", help="Append one snapshot to an append-only branch")
     permanent.add_argument("payload_path", type=Path)
     permanent.add_argument("--remote", required=True)
     permanent.add_argument("--branch", default="snapshots")
     permanent.add_argument("--source", required=True)
-    permanent.add_argument("--gameweek", type=int, required=True)
+    key = permanent.add_mutually_exclusive_group(required=True)
+    key.add_argument("--gameweek", type=int)
+    key.add_argument("--name", help="Key the file by name (a run id); never overwritten")
     permanent.add_argument("--checkout-dir", type=Path, default=Path(".snapshots-staging"))
     permanent.add_argument("--dry-run", action="store_true")
 
@@ -548,6 +560,7 @@ def main(argv: list[str] | None = None) -> int:
         branch=args.branch,
         source=args.source,
         gameweek=args.gameweek,
+        name=args.name,
         payload_path=args.payload_path,
         dry_run=args.dry_run,
     )

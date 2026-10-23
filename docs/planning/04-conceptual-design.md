@@ -404,9 +404,18 @@ not priors.
 
 ### Backtesting (FR-37, B7)
 
-`forecast/backtest.py` walks forward over `backtest.training_seasons`: at each historical deadline it
-refits the chain through `fit_as_of`, as live does, and every baseline on rows strictly before it, strips every outcome column (DL-32), and predicts. `fpl-dof
-backtest` is not part of `run`; CI runs it weekly with the archive enabled (DL-68).
+`forecast/backtest.py` walks forward over `backtest.training_seasons` with every registered
+strategy that is not retired and has live code, the champion first (`factory/experiments.py`
+`grade`, MOD-08; frozen ones are recorded as not graded). At each historical deadline it fits each
+strategy through `Strategy.predictor` (`fit_as_of`, as live does) and every baseline on rows
+strictly before it, strips every outcome column (DL-32), and predicts. Each strategy sees only its
+`training_window`: a `current_season` strategy's features, training rows and fit come from the
+fold's season alone, as live (F3). Every strategy is graded on the same folds — those where every
+window holds `backtest.minimum_training_matches` gameweeks — and the same rows; each is refitted
+every `backtest.refit_every_gameweeks` folds (1) and at each new season. `fpl-dof backtest` is not
+part of `run`; CI runs it weekly with the archive enabled (DL-68). Per fold on the 2024/25–2025/26
+archive (measured 2026-10-23 on a workstation): `c3`, `engine` and `c1` together ~24 s a fold, 68
+folds in 27 min, mostly `c1`; `backtest.yml` allows 150 min.
 
 - **Metrics:** MAE, RMSE and skill; Spearman by position, price band and fixture band; calibration
   slope by position and fixture band; top-20 precision and captaincy hit rate **per gameweek**
@@ -415,11 +424,20 @@ backtest` is not part of `run`; CI runs it weekly with the archive enabled (DL-6
 - **Baselines:** B0 (price within position), a constant, trailing six-gameweek points, the
   status-flag haircut. The model beats B0 when its MAE skill is positive and its Spearman exceeds
   B0's, and beats the model-free bar when its Spearman exceeds trailing form's. Skill is against
-  them, never absolute (DP-12).
+  them, never absolute (DP-12). They stay the harness's own, fitted from each fold's
+  all-seasons training rows, rather than registered strategies.
+- **Pairs:** each strategy minus the champion, per gameweek, for MAE, Spearman and top-20
+  precision, with a 95% gameweek-bootstrap interval (`backtest.bootstrap_draws`,
+  `backtest.bootstrap_seed`; `bootstrap_ci` in `forecast/metrics.py`).
 - **Monolith:** a gradient-boosted regressor on the same declared features, inside `walk_forward`
   only, never promotable, reporting the explainability gap (DL-53).
-- **Outputs:** `backtest.json`, `backtest-predictions.parquet`, `backtest-card.md`; and on every
-  forecast run `model-card.md` — published model, fallback, guardrail, last verdict, weaknesses.
+- **Outputs:** `backtest.json`, `backtest-predictions.parquet`, `backtest-card.md`, and the
+  experiments record `ledger/experiments/<run_id>.json`: one record per registered strategy —
+  id and digest, role, training window, run id, config digest, data window, metrics, paired
+  deltas against the champion; the champion's also carries DL-21's verdict and the baselines. CI
+  appends it to the `ledger` branch, keyed by run and never overwritten. On every forecast run
+  `model-card.md` — published model, fallback, guardrail, the latest verdict for the champion's
+  current digest from `ledger/experiments/` (or a plain statement that none exists), weaknesses.
   **Read it before acting on a ranking** (DL-21): no −8 hit, chip or Wildcard on the chain alone
   (D-13).
 - **Not in the package:** a simulated season of the full optimiser. The chip replay

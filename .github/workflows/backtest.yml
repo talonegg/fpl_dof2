@@ -5,6 +5,10 @@
 # `fpl-dof backtest` is deliberately not part of `run` or pipeline.yml — see
 # pipeline/src/fpl_dof/stages/backtest.py: it is slow, needs the historical backfill, and produces a
 # finding rather than an artefact the weekly decision consumes.
+#
+# It grades every registered strategy against the champion (MOD-08) and appends one record per run
+# to the `ledger` branch under `experiments/`, keyed by run id and never overwritten; the Pipeline
+# run restores that directory so the model card names the champion's verdict for its digest.
 
 name: Backtest
 
@@ -18,12 +22,16 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: read
+  contents: write # appends this run's experiments record to the `ledger` branch (MOD-08)
 
 jobs:
   backtest:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    # Measured locally 2026-10-23: c3, engine and c1 over 2024/25-2025/26 (68 folds, refit every
+    # fold) took 27 min, ~24 s a fold, mostly C1. `a` and `a_odds` add theirs once ported, and a
+    # runner is slower than the workstation, so the walk alone may reach ~100 min. If it outgrows
+    # this, raise `backtest.refit_every_gameweeks` in config/ci-backtest.yaml (a decision, DP-06).
+    timeout-minutes: 150
     steps:
       - uses: actions/checkout@v4
 
@@ -60,9 +68,24 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: backtest-report
-          path: data/gold/**/backtest.json
+          path: |
+            data/gold/**/backtest.json
+            data/ledger/experiments/*.json
           retention-days: 90
           if-no-files-found: warn
+
+      - name: Record this run on the `ledger` branch (MOD-08)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+          shopt -s nullglob
+          for file in data/ledger/experiments/*.json; do
+            python pipeline/scripts/retention.py permanent "$file" \
+              --remote "$remote" --branch ledger --source experiments \
+              --name "$(basename "$file" .json)" --checkout-dir .ledger-staging
+          done
 
   alert:
     needs: [backtest]

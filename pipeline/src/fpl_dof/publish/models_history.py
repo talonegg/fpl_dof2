@@ -14,22 +14,11 @@ from typing import Any
 
 import numpy as np
 
+from fpl_dof.factory import bootstrap_ci
 from fpl_dof.factory.registry import champion, resolve_alias, strategies
 
 BOOTSTRAP_DRAWS = 2000
 BOOTSTRAP_SEED = 0
-
-
-def bootstrap_ci(
-    deltas: Sequence[float], draws: int = BOOTSTRAP_DRAWS, seed: int = BOOTSTRAP_SEED
-) -> tuple[float, float]:
-    """95% iid GW-bootstrap CI of the mean. Seeded, so the checked-in artefact is reproducible."""
-    x = np.asarray(deltas, dtype=float)
-    if x.size == 0:
-        return (0.0, 0.0)
-    rng = np.random.default_rng(seed)
-    means = rng.choice(x, size=(draws, x.size), replace=True).mean(axis=1)
-    return (round(float(np.quantile(means, 0.025)), 2), round(float(np.quantile(means, 0.975)), 2))
 
 
 def _ranks(values: Mapping[str, float]) -> dict[str, int]:
@@ -96,7 +85,9 @@ def build_models_history(
         delta = None
         if champ and m != champ_id:
             d = [a - b for a, b in zip(series, champ, strict=True)]
-            lo, hi = bootstrap_ci(d)
+            lo, hi = (
+                round(v, 2) for v in bootstrap_ci(d, draws=BOOTSTRAP_DRAWS, seed=BOOTSTRAP_SEED)
+            )
             delta = {
                 "mean": round(float(np.mean(d)), 2),
                 "ci_low": lo,

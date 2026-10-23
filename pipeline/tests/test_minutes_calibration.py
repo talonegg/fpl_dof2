@@ -37,6 +37,7 @@ from fpl_dof.forecast.backtest import (
     MINUTES_PREFIX,
     OBSERVED_MINUTES_BAND,
     BacktestResult,
+    Entrant,
     walk_forward,
 )
 from fpl_dof.forecast.features import (
@@ -351,7 +352,7 @@ def test_the_status_flag_haircut_is_a_distribution_and_ranks_a_starter_first() -
 def _walk(config: ForecastConfig, rules: GameRules) -> BacktestResult:
     return walk_forward(
         make_history(),
-        ComponentPredictor(config, rules),
+        [Entrant("c3", ComponentPredictor(config, rules))],
         forecast_config=config,
         backtest_config=BacktestConfig(minimum_training_matches=3),
         seasons=(SEASON,),
@@ -415,7 +416,7 @@ def test_a_predictor_with_no_minutes_model_says_so_rather_than_inventing_a_score
     """An absence, reported. A harness that returned 0.0 here would claim a perfect forecast."""
     result = walk_forward(
         make_history(),
-        RateFromFeatures(),
+        [Entrant("model", RateFromFeatures())],
         forecast_config=ForecastConfig(),
         backtest_config=BacktestConfig(minimum_training_matches=3),
         seasons=(SEASON,),

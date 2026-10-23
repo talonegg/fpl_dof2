@@ -23,6 +23,9 @@ SQUAD_FILENAME = "squad.json"
 BACKTEST_REPORT_FILENAME = "backtest.json"
 QUALITY_REPORT_FILENAME = "quality.json"
 BACKTEST_PREDICTIONS_FILENAME = "backtest-predictions.parquet"
+#: Under ``DataLayout.ledger``: the standing backtest's records, one ``<run_id>.json`` per run, kept
+#: on the ``ledger`` branch in CI (MOD-08).
+EXPERIMENTS_DIRNAME = "experiments"
 
 
 class NoBronzeError(RuntimeError):
