@@ -12,6 +12,7 @@ import random
 import time
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
+from pathlib import Path
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import httpx
@@ -20,9 +21,10 @@ from fpl_dof import __version__
 from fpl_dof.config.models import HttpConfig
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.obs.manifest import utcnow
-from fpl_dof.sources.bronze import SNAPSHOT_SUFFIX, BronzeStore, Snapshot
+from fpl_dof.sources.bronze import SNAPSHOT_SUFFIX, BronzeStore, Snapshot, SnapshotMeta
 from fpl_dof.sources.errors import (
     OfflineWithoutSnapshotError,
+    SourceContractError,
     SourceNotFoundError,
     SourceRateLimitedError,
     SourceUnavailableError,
@@ -138,6 +140,16 @@ class Fetcher:
         self.network_calls = 0
         self.cache_hits = 0
         self.conditional_hits = 0
+        self.contracts: dict[str, Callable[[str, str, bytes], None]] = {}
+        """Each source's contract check, by source name: every adapter registers its own."""
+        self.quarantined: list[Path] = []
+        """Captures this fetcher moved to quarantine for breaking their source's contract."""
+
+    def check_contract(self, meta: SnapshotMeta, payload: bytes) -> None:
+        """Raise :class:`SourceContractError` if ``payload`` breaks its source's contract."""
+        check = self.contracts.get(meta.source)
+        if check is not None:
+            check(meta.resource, meta.key, payload)
 
     def close(self) -> None:
         if self._owns_client:
@@ -264,6 +276,20 @@ class Fetcher:
             etag=response.headers.get("etag"),
             last_modified=response.headers.get("last-modified"),
         )
+        try:
+            self.check_contract(snapshot.meta, response.content)
+        except SourceContractError as exc:
+            # A capture is whole or it is nothing (DL-94): out of bronze before anything reads it,
+            # and the last valid capture at or before this moment is used instead (ORC-10).
+            self.quarantined.append(self.bronze.quarantine(snapshot, str(exc)))
+            log.error(
+                "fetch.quarantined",
+                extra={"source": source, "resource": resource, "key": key, "reason": str(exc)},
+            )
+            previous = self.bronze.latest(source, resource, key, suffix=suffix, as_of=moment)
+            if previous is None:
+                raise
+            return Fetched(payload=previous.read_bytes(), snapshot=previous, from_cache=True)
         return Fetched(payload=response.content, snapshot=snapshot, from_cache=False)
 
     def _request_with_retries(

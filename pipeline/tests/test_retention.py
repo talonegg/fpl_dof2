@@ -633,3 +633,57 @@ def test_the_rolling_window_is_read_from_configuration(
         dry_run=True,
     )
     assert counts["pruned"] == 1  # ten days old: kept by the old literal 30, pruned by config's 5
+
+
+def test_a_quarantined_capture_never_returns_to_data_but_its_record_does(tmp_path: Path) -> None:
+    """ORC-10: a capture quarantined locally is not folded back in from `data`, which keeps only
+    its sidecar, the record the health page counts; a later restore brings the record back."""
+    from fpl_dof.sources import BronzeStore, Snapshot, SnapshotMeta
+
+    retention = _scripts_retention()
+    bare = tmp_path / "remote.git"
+    _git("init", "--bare", str(bare), cwd=tmp_path)
+    root = _store(tmp_path / "local", 20)
+    snapshot = root / "bronze" / "fpl" / "bootstrap_static" / "2026-08-20" / "all__20.json.gz"
+    meta = SnapshotMeta.model_validate(
+        {
+            "source": "fpl",
+            "source_version": "1",
+            "resource": "bootstrap_static",
+            "key": "all",
+            "url": "https://example.invalid/",
+            "http_status": 200,
+            "fetched_at": "2026-08-20T06:00:00Z",
+            "sha256": "0" * 64,
+            "bytes": 7,
+        }
+    )
+    snapshot.with_name(snapshot.name + ".meta.json").write_text(meta.model_dump_json())
+
+    def push() -> None:
+        retention.rebuild_rolling_branch(
+            bronze_dir=root / "bronze",
+            staging_dir=tmp_path / "staging",
+            remote=str(bare),
+            window_days=30,
+            today=dt.date(2026, 8, 31),
+        )
+
+    push()  # the capture reached `data` before the sweep found it malformed
+    BronzeStore(root / "bronze").quarantine(Snapshot(snapshot, meta), "it broke its contract")
+    push()
+
+    clone = tmp_path / "clone"
+    _git("clone", "--branch", "data", str(bare), str(clone), cwd=tmp_path)
+    assert not (clone / "bronze" / "fpl").exists()
+    aside = clone / "quarantine" / "bronze" / "fpl" / "bootstrap_static" / "2026-08-20"
+    assert sorted(p.name for p in aside.iterdir()) == ["all__20.json.gz.meta.json"]
+
+    consumer = tmp_path / "consumer"
+    consumer.mkdir()
+    _git("init", "--quiet", cwd=consumer)
+    restored = tmp_path / "restored" / "data"
+    assert retention.restore_rolling_branch(
+        data_dir=restored, remote=str(bare), branch="data", cwd=consumer
+    )
+    assert BronzeStore(restored / "bronze").quarantined() == {"fpl": 1}

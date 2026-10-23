@@ -166,6 +166,10 @@ class UnderstatAdapter(SourceAdapter):
         self.note_observed(season, fetched)
         return self.parse_players(fetched.payload, key=year)
 
+    def check(self, resource: str, key: str, payload: bytes) -> None:
+        if resource == "league_players":
+            self.parse_players(payload, key=key)
+
     def parse_players(self, payload: bytes, *, key: str) -> list[dict[str, Any]]:
         """Pull the embedded JSON out of the page.
 
@@ -199,7 +203,15 @@ class UnderstatAdapter(SourceAdapter):
                 resource="league_players",
                 key=key,
             )
-        missing = [name for name in REQUIRED_PLAYER_KEYS if name not in data[0]]
+        # Every record, not the first: one malformed row makes the whole page malformed (DL-94).
+        missing = sorted(
+            {
+                name
+                for record in data
+                for name in REQUIRED_PLAYER_KEYS
+                if not isinstance(record, dict) or name not in record
+            }
+        )
         if missing:
             raise SourceContractError(
                 f"playersData is missing required keys: {', '.join(missing)}",

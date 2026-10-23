@@ -305,7 +305,7 @@ flowchart LR
     SR & SA -->|"gates pass:<br/>forecast, decide"| GR
     GR -->|"publish"| WEB
     GR -->|"week"| LEDG
-    BR -.->|"bronze verify --quarantine"| QUA
+    BR -.->|"contract check at ingest;<br/>bronze verify --quarantine"| QUA
     SA -.->|"silver rebuild"| QUA
     BR & BI <-->|"restore / rolling"| DATA
     SA <-->|"price_history only"| DATA
@@ -366,7 +366,7 @@ every clone. That is why R-13 is rated High and why the stores have different me
 
 | Store | Mechanism | Rationale |
 | --- | --- | --- |
-| **`data`** — rolling bronze | Orphan branch, rebuilt from the retained window (`retention.bronze_days`) and the immutable prior-season snapshots by `pipeline/scripts/retention.py`, with the accumulated `price_history`. The script first folds in what the branch holds and force-pushes with a lease on it, so concurrent workflows never drop each other's pushes | History is truncated, not accumulated; these snapshots debug the recent past |
+| **`data`** — rolling bronze | Orphan branch, rebuilt from the retained window (`retention.bronze_days`) and the immutable prior-season snapshots by `pipeline/scripts/retention.py`, with the accumulated `price_history`. The script first folds in what the branch holds and force-pushes with a lease on it, so concurrent workflows never drop each other's pushes. A quarantined capture is never pushed or folded back in; only its sidecar, the record `/health` counts, travels under `quarantine/` within the window (ORC-10) | History is truncated, not accumulated; these snapshots debug the recent past |
 | **`snapshots`** — permanent bronze | Append-only; `bronze-full/<season>/gwNN.tar.gz` holds the bronze dated after the previous deadline day up to the gameweek's own, written once the day after its deadline, and `index.json` lists the gameweeks archived, partial and lost (PIPE-14, DL-81). Gameweeks that closed before it first ran on `main` are listed as lost (DL-85) | The NFR-06 evidence trail, small enough to keep forever |
 | **`ledger`** — advice and prospective records | Append-only; `advice/gwNN.json` written before each deadline, `prospective/gw*.tgz` frozen with it | What was advised, provably before the event (DL-69) |
 | **Published contract** | Actions artefact `web-data-contract` (14 days) → Pages | Serving surface, not an archive |
@@ -457,6 +457,7 @@ No paid tooling exists in a £0 budget, so observability is built from artefacts
 | Failure | Behaviour |
 | --- | --- |
 | A non-essential source is unavailable or blocked | Degraded in the manifest and on `/health`; the run continues without its fields (NFR-15) |
+| A capture breaks its source's contract | The fetcher checks every new capture with the parser conformance uses (`SourceAdapter.check`); one malformed row makes the whole capture malformed. It goes to `data/quarantine/` with `quarantine_reason` in its sidecar, and every reader — the run, training, the backtest, every replay — gets the last valid capture at or before its `as_of` from `BronzeStore.latest`. With none, the source fails as before. The freshness gate and `/health` judge the capture used, by `fetched_at`; `/health` counts the quarantined ones (ORC-10, DL-94) |
 | The FPL API fails | The run stops; the last good publication stays live; an issue is opened |
 | A blocking quality gate fails | Publication blocked; last good publication stays live; issue opened |
 | The solver fails or times out | Greedy fallback; the result is flagged as fallback-quality |
@@ -633,7 +634,7 @@ before they ship.
 | # | Finding | Evidence | Fix |
 | --- | --- | --- | --- |
 | **F1** | **Closed by MOD-09 (DL-90):** M7 never read a player's own card record because `yellow_cards` had no rolling feature. It is in `forecast.features.rolling_statistics` now, the held-out season did not degrade, and a test pins that every `RATE_COMPONENTS` column has one | `config/models.py` `FeatureConfig`, `tests/test_experiments.py` | — |
-| **F2** | **The `snapshot_freshness` gate cannot fire in CI** (Invariant 7). It ages bronze by each sidecar's file modification time, which `retention.py restore` resets to the restore time, so every snapshot looks fresh; it also reads the file system's clock rather than the sidecar's | `stages/quality.py:110-122`, `scripts/retention.py:6-9` | Age each snapshot by `SnapshotMeta.fetched_at` |
+| **F2** | **Closed by ORC-10:** the gate ages bronze by the newest sidecar's `fetched_at` (`BronzeStore.observed`, shared with `/health`), so a fallback to an older valid capture still fails it (`test_malformed_captures.py`). It aged each sidecar by its file modification time, which `retention.py restore` resets, so every snapshot looked fresh in CI | `stages/quality.py` `_newest_snapshot_age` | — |
 | **F3** | **Closed by MOD-08 and DL-91:** each strategy is graded inside its own `training_window` (features, training rows and fit), so the champion is graded on the current season as it ships; widening its window was tried as MOD-09's experiment `f3_training_window` and rejected (`all_seasons` worse on 2024/25-2025/26: MAE +0.0119, Spearman -0.0174 per gameweek, both 95% intervals off zero). It was: the graded model was not the shipped model, the backtest pooling every `backtest.training_seasons` season while live training used the current season | `forecast/backtest.py` `walk_forward` | — |
 | **F4** | **Closed by MOD-05:** M2's time-decay half-life is `forecast.team_strength.half_life_matches`, with its description and justification (`test_team_strength.py::test_the_half_life_is_read_from_config`). It was a hard-coded tunable (DP-06) with no waiver | `config/models.py` `TeamStrengthConfig` | — |
 | **F5** | **Closed by MOD-06 and MOD-08:** the model card's `BACKTESTED_WEAKNESS` and `forecast.yaml` now say `minutes_v2` is on (since DL-76), and `sources/external.py` went with the frozen bundle. It was stale text in code | `forecast/model_card.py`, `config/defaults/forecast.yaml` | — |
@@ -655,7 +656,7 @@ and delivered; its backlog is archived at
 | Prior seasons | **Frozen bronze tier**: completed-season snapshots are marked `immutable`, kept by retention whatever their age, and re-fetched only when forced | PIPE-03 |
 | Transport | **Conditional requests** (`ETag`, `Last-Modified`); a 304 revalidates the held snapshot without a download | PIPE-07 |
 | Ingest safety | A **drift canary** on `bootstrap-static` and `fixtures` halts ingest before per-player fetches and logs a key diff | PIPE-08 |
-| Bronze integrity | `fpl-dof bronze verify` (checksums, gzip, orphans) before transform in CI; `--quarantine` moves bad files to `data/quarantine/` and fails only on what it cannot move (REM-10) | PIPE-11 |
+| Bronze integrity | `fpl-dof bronze verify` (checksums, gzip, orphans) before transform in CI; `--quarantine` moves bad files to `data/quarantine/` and fails only on what it cannot move (REM-10). `--contract` also checks each snapshot against its source's contract: the one-off sweep of history kept before ingest checked every capture, which names `silver rebuild` when it moves one (ORC-10) | PIPE-11 |
 | Silver persistence | `price_history` persisted on `data` and rebuilt by `silver replay-prices`; one restore step, `retention.py restore`, in every workflow | PIPE-06 |
 | Temporal grain | Metrics keyed by `season` and `as_of_gameweek`, stamped `observed_at`; a source added mid-season is backdated to deadline-aligned snapshots, never estimated, with the crosswalk's `ingress` as provenance ([DL-83](../decisions/DL-83.md)) | PIPE-01 |
 | Look-ahead guard | A **blocking temporal non-leakage gate** on silver's own columns (04 §3.4) | PIPE-10 |
