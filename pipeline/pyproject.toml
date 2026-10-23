@@ -104,7 +104,7 @@ source = ["src/fpl_dof"]
 
 # Module boundaries (MOD-01, DL-86, DL-87; target in docs/planning/05-target-architecture.md §3).
 # Logical modules: data platform = sources, silver, quality; core = rules, squad, optimise,
-# decision; model factory = factory, forecast, shadow, prospective; orchestrator = stages,
+# decision; model factory = factory, forecast, shadow; orchestrator = stages,
 # pipeline, cli, week, publish, schedule_cli. config, obs, frames, paths, retention and gold are
 # shared and unconstrained. Data platform may import core (sources and silver read rules, as
 # today); core imports neither data platform, factory nor orchestrator; factory may import core
@@ -122,7 +122,7 @@ type = "forbidden"
 source_modules = ["fpl_dof.rules", "fpl_dof.squad", "fpl_dof.optimise", "fpl_dof.decision"]
 forbidden_modules = [
     "fpl_dof.sources", "fpl_dof.silver", "fpl_dof.quality",
-    "fpl_dof.factory", "fpl_dof.forecast", "fpl_dof.shadow", "fpl_dof.prospective",
+    "fpl_dof.factory", "fpl_dof.forecast", "fpl_dof.shadow",
     "fpl_dof.stages", "fpl_dof.pipeline", "fpl_dof.cli", "fpl_dof.week", "fpl_dof.publish",
     "fpl_dof.schedule_cli",
 ]
@@ -133,7 +133,7 @@ name = "The data platform knows no model and no orchestration"
 type = "forbidden"
 source_modules = ["fpl_dof.sources", "fpl_dof.silver", "fpl_dof.quality"]
 forbidden_modules = [
-    "fpl_dof.factory", "fpl_dof.forecast", "fpl_dof.shadow", "fpl_dof.prospective",
+    "fpl_dof.factory", "fpl_dof.forecast", "fpl_dof.shadow",
     "fpl_dof.stages", "fpl_dof.pipeline", "fpl_dof.cli", "fpl_dof.week", "fpl_dof.publish",
     "fpl_dof.schedule_cli",
 ]
@@ -141,7 +141,7 @@ forbidden_modules = [
 [[tool.importlinter.contracts]]
 name = "The model factory never imports the orchestrator"
 type = "forbidden"
-source_modules = ["fpl_dof.factory", "fpl_dof.forecast", "fpl_dof.shadow", "fpl_dof.prospective"]
+source_modules = ["fpl_dof.factory", "fpl_dof.forecast", "fpl_dof.shadow"]
 forbidden_modules = [
     "fpl_dof.stages", "fpl_dof.pipeline", "fpl_dof.cli", "fpl_dof.week", "fpl_dof.publish",
     "fpl_dof.schedule_cli",
@@ -154,7 +154,7 @@ type = "forbidden"
 source_modules = [
     "fpl_dof.stages", "fpl_dof.week", "fpl_dof.publish", "fpl_dof.pipeline", "fpl_dof.cli",
 ]
-forbidden_modules = ["fpl_dof.forecast", "fpl_dof.shadow", "fpl_dof.prospective"]
+forbidden_modules = ["fpl_dof.forecast", "fpl_dof.shadow"]
 allow_indirect_imports = true
 ignore_imports = []
 
@@ -164,7 +164,7 @@ type = "forbidden"
 source_modules = [
     "fpl_dof.rules", "fpl_dof.squad", "fpl_dof.optimise", "fpl_dof.decision",
     "fpl_dof.sources", "fpl_dof.silver", "fpl_dof.quality",
-    "fpl_dof.factory", "fpl_dof.forecast", "fpl_dof.shadow", "fpl_dof.prospective",
+    "fpl_dof.factory", "fpl_dof.forecast", "fpl_dof.shadow",
     "fpl_dof.week", "fpl_dof.publish", "fpl_dof.schedule_cli",
 ]
 forbidden_modules = ["fpl_dof.stages"]

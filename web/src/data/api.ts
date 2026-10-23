@@ -13,10 +13,9 @@ import type {
   Squad,
   Week,
 } from "../contract/types";
-import type { SeasonReplay } from "../components/history/season";
-import { DATA_BASE, MODELS_HISTORY_URL, SEASON_REPLAY_URL, dataStore } from "./store";
+import { DATA_BASE, dataStore } from "./store";
 
-export { DATA_BASE, MODELS_HISTORY_URL, SEASON_REPLAY_URL };
+export { DATA_BASE };
 
 export function fetchMeta(): Promise<Meta> {
   return dataStore.get("meta");
@@ -67,11 +66,7 @@ export function fetchModels(): Promise<Models | null> {
 }
 
 export function fetchModelsHistory(): Promise<ModelsHistory | null> {
-  return dataStore.get("models_history_2526");
-}
-
-export function fetchSeasonReplay(): Promise<SeasonReplay | null> {
-  return dataStore.get("models_history_2627_replay");
+  return dataStore.get("models_history");
 }
 
 export function resetTrendCaches(): void {

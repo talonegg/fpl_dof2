@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/talonegg/fpl_dof2/contracts/v1/models_history.schema.json",
   "title": "ModelsHistory",
-  "description": "How the five frozen models would have played a finished season in the realistic walk-forward backtest (FPL auto-subs, vice-captain fallback, deadline availability, hits). A backtest, not real play. Built offline and checked in as a static file (web/public/static/models_history_2526.json) because CI cannot run the backtest; it is not written by `fpl-dof publish`.",
+  "description": "How every registered strategy would have played an archive season in the standing backtest (FPL auto-subs, vice-captain fallback, hits, no chips), each on its own fresh squad, scored by the one realised-points scorer. A backtest, not real play. Simulated by the weekly `fpl-dof backtest`, recorded on the `ledger` branch under `models_history/`, and the latest season published by `fpl-dof publish` (ORC-06).",
   "type": "object",
   "additionalProperties": false,
   "required": ["contract_version", "season", "kind", "caveat", "champion", "provenance", "bootstrap", "models", "gameweeks", "summary"],
@@ -14,7 +14,7 @@
     "champion": { "type": "string" },
     "provenance": {
       "type": "object",
-      "description": "Where the numbers came from: frozen tag, simulator commit, forecast caches, settings.",
+      "description": "Where the numbers came from: the backtest run, its config digest, the simulator, the scorer and the settings.",
       "additionalProperties": { "type": "string" }
     },
     "bootstrap": {
@@ -96,7 +96,7 @@
         "model": { "type": "string" },
         "total": { "type": "number" },
         "mean_per_gameweek": { "type": "number" },
-        "gameweeks_won": { "type": "integer", "description": "Gameweeks ranked first of the five (ties shared)." },
+        "gameweeks_won": { "type": "integer", "description": "Gameweeks ranked first among the strategies (ties shared)." },
         "hit_points": { "type": "number" },
         "final_rank": { "type": "integer", "minimum": 1 },
         "delta_vs_champion": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/model_history_delta" }] }

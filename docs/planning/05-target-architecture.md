@@ -58,7 +58,7 @@ module review is [03 §12](03-solution-architecture.md#12-module-design--review-
 | Two of the five compared models (A, A_odds) exist only inside the frozen prospective bundle, a parallel copy of the stack with its own ingest | `prospective/bundle/`, `pipeline.yml:207-216` |
 | Only the champion gets a plan and chips; C1 gets one gameweek, borrows the champion's variance and builds features outside the knowability seam | `shadow/c1.py:63,238-240` |
 | Tuning is a hand-edited flag and a hand-compared backtest; the backtest grades one predictor against fixed baselines; the CI model card never sees the backtest verdict. **Backtest and card parts closed by MOD-08** (§5.3) | `forecast/backtest.py:380,413-436`, `backtest.yml:60-65` |
-| The model-history tables are rebuilt by scripts that depend on branches and caches outside the repository | `scripts/models_history/README.md` |
+| The model-history tables are rebuilt by scripts that depend on branches and caches outside the repository | `scripts/models_history/README.md` (archived by ORC-06: [`archive/R1.3.0/models-history-frozen-era/`](archive/R1.3.0/models-history-frozen-era/README.md)) |
 
 ### 2.3 Web and contract
 
@@ -143,7 +143,7 @@ packages, or per-module versions, waits until these rules prove insufficient (§
 | **Strategy registry** | Factory → orchestrator, web | Built ([04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)), with `Strategy.forecast` for `xp_v1` and C1 and `Strategy.decision_policy` for `decide` ([04 §6](04-conceptual-design.md#6-decision-engine), MOD-04). Still target: `forecast` for `a` and `a_odds` (MOD-05) | Digest of (entry, code, effective config): the entry with its training window, the source that decides advice, and the run config sections it reads |
 | **Forecast frame** | Forecaster → decision engine | Built: [04 §6](04-conceptual-design.md#6-decision-engine) (MOD-02) | `FORECAST_FRAME_VERSION` |
 | **Decision output** | Decision engine → orchestrator, web | Built (MOD-04): the `week` and `plan` schemas, one pair per published strategy | Web contract |
-| **Ledger records** | Orchestrator, factory → evaluation, web | `advice/gwNN.json` (advice of record per strategy), `evaluation/gwNN.json`, `experiments/<run_id>.json` (built, MOD-08: one record per strategy per backtest run), each stamped with strategy digest and `as_of` | Record schema version |
+| **Ledger records** | Orchestrator, factory → evaluation, web | `advice/gwNN.json` (advice of record per strategy), `evaluation/entry-<id>/gwNN.json`, `experiments/<run_id>.json` (built, MOD-08: one record per strategy per backtest run), each stamped with strategy digest and `as_of` | Record schema version |
 | **Web contract and registries** | Publish → web | `contracts/v1/*.schema.json`, plus published `strategies` and `artefacts` registries and `ui` flags | `contract_version` major, `contract_minor` (§7.3) |
 
 A seam with a schema is tested at the seam: every forecaster's frame is validated before the engine
@@ -213,7 +213,7 @@ fell back to A silently (the backtest predictor still falls back per club-gamewe
 retired (MOD-06, 2026-10-23, no parity check): `pipeline.yml` has no `prospective` job and the `run` job
 only restores the harness's last record from `ledger`, read-only. `models.json` carries its records for
 gameweeks before the switch gameweek (the last it scored, plus one; a decision it never scored gives way to the ledger's) and, from the switch, every published
-strategy's ledger advice scored on the owner's real squad with the real free transfers (`week/score_advice.py`).
+strategy's ledger advice scored on the owner's real squad with the real free transfers (`rules/realised.py`, the one scorer, ORC-04).
 Each gameweek carries `record: frozen | live`, the file carries `switch_gameweek`, and every strategy's
 history chart marks it ([DL-87](../decisions/DL-87.md), [DL-89](../decisions/DL-89.md)).
 
@@ -305,7 +305,7 @@ bank and chips:
 3. **Advised against played** — today's reconciliation.
 
 Results are stored per gameweek under `evaluation/` on `ledger` and recomputed only when the
-scorer's version changes; the season log is assembled from them. One realised-points scorer, in
+evaluation's version changes; the season log is assembled from them. One realised-points scorer, in
 `core` and pinned by a conformance corpus, serves evaluation, the backtest and the models history.
 Each strategy's own-path season simulation stays available as a secondary, labelled view.
 

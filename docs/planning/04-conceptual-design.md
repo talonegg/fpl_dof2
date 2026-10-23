@@ -206,7 +206,7 @@ Under `paths.DataLayout`; what persists between CI runs is
 | Silver | `silver/season={s}/{table}.parquet` plus the season's `rules.json`; rebuilt from bronze each run except the accumulating tables (03 §7.1) |
 | Gold | `gold/season={s}/` — `expected_points.parquet`, `player_career_history.parquet`, `team_match_odds.parquet`, `squad.json`, `plan.json`, `week.json` (and `week_<id>.json`, `plan_<id>.json` per other published strategy), `quality.json`, `model-card.md`, backtest outputs |
 | Quarantine | `quarantine/bronze/…` from `bronze verify --quarantine`, and every capture that broke its source's contract, at ingest or by `bronze verify --contract`, with `quarantine_reason` in its sidecar (ORC-10); `quarantine/silver-{time}/` from `silver rebuild` (REM-10). Kept, never read |
-| Ledger | `ledger/advice/gwNN.json`, append-only (DL-69): the champion's advice, and every published strategy's under `models` by registry id: its last success before the deadline, stamped `as_of` and `trigger`, with a later failure noted as `last_failure`, or its "no advice" reason, with the silver tables it lacked as `missing` and the first such run's `as_of` as `since` (MOD-04, [DL-94](../decisions/DL-94.md), ORC-07). The writer refuses a write after the deadline. Beside it, `ledger/predictions/gwNN/<strategy>.parquet` (ORC-08): that strategy's full-pool forecast for the gameweek it advised from (`player_id`, `xp_next`, `xp_next_sd`, `start_probability`), replaced only by a later success and refused after the deadline on the same terms |
+| Ledger | `ledger/advice/gwNN.json`, append-only (DL-69): the champion's advice, and every published strategy's under `models` by registry id: its last success before the deadline, stamped `as_of` and `trigger`, with a later failure noted as `last_failure`, or its "no advice" reason, with the silver tables it lacked as `missing` and the first such run's `as_of` as `since` (MOD-04, [DL-94](../decisions/DL-94.md), ORC-07). The writer refuses a write after the deadline. Beside it, `ledger/predictions/gwNN/<strategy>.parquet` (ORC-08): that strategy's full-pool forecast for the gameweek it advised from (`player_id`, `xp_next`, `xp_next_sd`, `start_probability`), replaced only by a later success and refused after the deadline on the same terms. And `ledger/evaluation/entry-<id>/gwNN.json` (ORC-05): each Finished gameweek judged once, stamped `evaluation_version` (`week/evaluation.py` `EVALUATION_VERSION`) and recomputed only when it changes: per strategy with a record, its realised points and its xP accuracy (MAE, bias, players) from its predictions; and the season log's row for the owner (`log`), with the hindsight optimum. A gameweek waits until every player whose club played has his row and, with a team configured, the game has scored the owner's gameweek and silver holds his picks for it |
 | Runs | `runs/{run_id}/manifest.json` |
 | Web contract | `web/v1/*.json`, served at `/data/v1/` (03 §7.2) |
 
@@ -290,9 +290,13 @@ Not one service:
   decide-by time (DL-11); CI guards are 03 §9. `week/` mixes advice with scheduling (03 §12 P7).
 
 `week/` also owns alerts (availability, price pressure, chip expiry, squad-state warnings), the advice
-ledger (DL-69), advised-versus-played reconciliation, and E14's hindsight work (DL-72): each model's
-advice scored with auto-subs and vice fallback, an oracle that re-solves the single-gameweek transfer
-MILP on actual points, and oracle-gap diagnostics, published through `log.json`.
+ledger (DL-69), advised-versus-played reconciliation, and the evaluation step (ORC-05,
+`week/evaluation.py`), which judges each finished gameweek once: each model's advice scored by the one
+scorer (`rules/realised.py`, ORC-04), its xP accuracy, and E14's hindsight work (DL-72), an oracle
+that re-solves the single-gameweek transfer MILP on actual points from the squad, selling prices,
+clubs and bank the owner had at the deadline, with oracle-gap diagnostics. `log.json`, the live
+gameweeks' points in `models.json` and the live `xp_accuracy.json` are assembled from those
+evaluations, never recomputed on publish.
 
 ### 4.4 Explanation service
 
@@ -416,7 +420,10 @@ strictly before it, strips every outcome column (DL-32), and predicts. Each stra
 `training_window`: a `current_season` strategy's features, training rows and fit come from the
 fold's season alone, as live (F3). Every strategy is graded on the same folds — those where every
 window holds `backtest.minimum_training_matches` gameweeks — and the same rows; each is refitted
-every `backtest.refit_every_gameweeks` folds (1) and at each new season. `fpl-dof backtest` is not
+every `backtest.refit_every_gameweeks` folds (1) and at each new season. Each strategy walks in its
+own process, up to `backtest.strategy_workers` at once, so the grades are the sequential ones; a
+strategy whose fit raises at any fold is recorded as not graded with the fold and the error, and
+the others are graded without it (D-32). `fpl-dof backtest` is not
 part of `run`; CI runs it weekly with the archive enabled (DL-68). Per fold on the 2024/25–2025/26
 archive (measured 2026-10-23 on a workstation): `c3`, `engine` and `c1` together ~24 s a fold, 68
 folds in 27 min, mostly `c1`; `backtest.yml` allows 150 min.
@@ -439,14 +446,22 @@ folds in 27 min, mostly `c1`; `backtest.yml` allows 150 min.
   experiments record `ledger/experiments/<run_id>.json`: one record per registered strategy —
   id and digest, role, training window, run id, config digest, data window, metrics, paired
   deltas against the champion; the champion's also carries DL-21's verdict and the baselines. CI
-  appends it to the `ledger` branch, keyed by run and never overwritten. On every forecast run
+  appends it to the `ledger` branch, keyed by run and never overwritten. Beside it,
+  `ledger/models_history/<run_id>.json`: each graded strategy's simulated season per archive
+  season (below), which publish turns into `models_history.json`. On every forecast run
   `model-card.md` — published model, fallback, guardrail, the latest verdict for the champion's
   current digest from `ledger/experiments/` (or a plain statement that none exists), weaknesses.
   **Read it before acting on a ranking** (DL-21): no −8 hit, chip or Wildcard on the chain alone
   (D-13).
-- **Not in the package:** a simulated season of the full optimiser. The chip replay
-  (`factory/replay.py`, DL-28) covers chip timing only; season replays of the frozen models are built
-  offline as `models_history`; the pre-registered comparison is
+- **Models history** (`factory/history.py`, ORC-06): every graded strategy plays each archive
+  season on its own squad over the backtest's folds — a fresh squad at its first graded gameweek,
+  then each week the decision engine's one-gameweek week on its walk-forward forecast (transfers
+  and hits, XI, its own captain rule), no chips — scored by `rules/realised.py`. In parallel like
+  the walks; a season that cannot be simulated is recorded with the reason. A backtest, not real
+  play. The frozen-era tables it replaced are records in
+  [`archive/R1.3.0/models-history-frozen-era/`](archive/R1.3.0/models-history-frozen-era/README.md).
+- **Not in the package:** a simulated season of the full multi-gameweek optimiser with chips. The
+  chip replay (`factory/replay.py`, DL-28) covers chip timing only; the pre-registered comparison is
   [`prospective/`](../../prospective/README.md).
 
 The question is **"does this beat doing something simple?"** So far it beats price on rank
@@ -669,7 +684,7 @@ global strategy selector lists every published strategy that has a week and choo
 | `/squad` | The optimiser's squad, or the owner's in-season (DL-67); the builder — swap, start, bench, lock, ban, live legality, heuristic re-optimise; plan timeline and chip calendar |
 | `/fixtures` | Clubs × gameweeks shaded by model difficulty (DL-37) |
 | `/league` | Standings, overlap, differentials, captain divergence (DL-40) |
-| `/log` | Per finished gameweek: played, scored, advised, followed (DL-69) |
+| `/log` | Per evaluated gameweek: played, scored, advised, followed, and the hindsight optimum (DL-69, ORC-05) |
 | `/models` | A multi-select comparison of the registry's published strategies against the champion (advice differences, xP on the players they disagree on, historical performance), then summary, details, xP accuracy, hindsight (E14), history (`/history` redirects) |
 | `/settings` | Team and league IDs, kept in the browser (DL-44); a copyable link to dispatch a run |
 | `/health` | Last run, gates, every source's status and freshness, trends from recent manifests (DL-41) |
@@ -766,7 +781,7 @@ one clock every stage reads (PIPE-12); `schema_version` 2 added it.
 
 **Not built as a table.** `publish/health.py` derives the `/health` trends from recent manifests
 (`publish.health.history_runs`). Backtest metrics live in each backtest's outputs; live xP accuracy
-per model is the `xp_accuracy` artefact.
+per model is the published `xp_accuracy` artefact, built from the evaluations (ORC-05).
 
 ### 12.4 Lineage
 

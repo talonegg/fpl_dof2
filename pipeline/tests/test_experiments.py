@@ -10,6 +10,9 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+import json
+import multiprocessing
+import os
 from pathlib import Path
 from typing import Any
 
@@ -17,16 +20,25 @@ import pandas as pd
 import pytest
 
 from fpl_dof.config.models import BacktestConfig, Config, ForecastConfig
-from fpl_dof.factory import ForecastInputs, Graded, experiment_records, latest_verdict
+from fpl_dof.factory import (
+    ChampionNotGradedError,
+    ForecastInputs,
+    Graded,
+    experiment_records,
+    latest_verdict,
+)
 from fpl_dof.factory.experiments import EXPERIMENTS_DIR, entrants, grade, load_declared
 from fpl_dof.factory.registry import load_registry, stamp, strategies
 from fpl_dof.forecast.backtest import BacktestResult, Entrant, prediction_column, walk_forward
 from fpl_dof.forecast.features import rolling_feature_names
 from fpl_dof.forecast.metrics import bootstrap_ci, paired_deltas
 from fpl_dof.forecast.models import RATE_COMPONENTS
+from fpl_dof.paths import DataLayout
+from fpl_dof.pipeline import StageContext
 from fpl_dof.rules.models import GameRules
 from fpl_dof.shadow import c1
 from fpl_dof.silver.tables import Table
+from fpl_dof.stages import backtest as stage
 from test_backtest import SEASON, RateFromFeatures, make_history
 from test_decide import _forecast_config, _snapshot, match_odds
 from test_strategy_registry import _entry, _write
@@ -393,3 +405,130 @@ def test_a_reused_fit_predicts_the_folds_own_gameweek(game_rules: GameRules) -> 
     )
     assert seen == [f.gameweek for f in result.folds]
     assert len(fits) < len(seen)  # a fit was reused
+
+
+class FailsLater(RateFromFeatures):
+    """A forecaster whose third fit raises, as a fit diverging partway through the walk does."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.fits = 0
+
+    def fit_as_of(
+        self,
+        history: pd.DataFrame,
+        deadline: pd.Timestamp,
+        *,
+        training: pd.DataFrame | None = None,
+        season: str,
+    ) -> None:
+        self.fits += 1
+        if self.fits == 3:
+            raise RuntimeError("the fit diverged")
+        super().fit_as_of(history, deadline, training=training, season=season)
+
+
+@pytest.mark.parametrize("workers", [1, 2])
+def test_a_strategy_that_raises_at_a_later_fold_is_not_graded_and_the_others_are(
+    game_rules: GameRules, monkeypatch: pytest.MonkeyPatch, workers: int
+) -> None:
+    """D-32: c1's third fit raises; c3 and engine are graded on every fold and c1 is recorded as
+    not graded with the fold and the error, in this process and across worker processes alike."""
+    history = make_history(gameweeks=8)
+    stubs = [
+        Entrant("c3", RateFromFeatures()),
+        Entrant("engine", Offset()),
+        Entrant("c1", FailsLater()),
+    ]
+    monkeypatch.setattr(
+        "fpl_dof.factory.experiments.entrants", lambda *_a, **_k: (stubs, {"c3_f1": "retired"})
+    )
+    backtest = BacktestConfig(
+        minimum_training_matches=3, training_seasons=(SEASON,), strategy_workers=workers
+    )
+    config = Config().model_copy(update={"backtest": backtest})
+    graded = grade(history, strategies(), game_rules, config)
+
+    alone = _walk(history, Entrant("c3", RateFromFeatures()), Entrant("engine", Offset()))
+    assert list(graded.result.strategies) == ["c3", "engine"]
+    assert graded.result.as_dict()["strategies"] == alone.as_dict()["strategies"]
+    assert graded.skipped["c1"] == f"its fit raised at {SEASON} GW6: RuntimeError: the fit diverged"
+    assert graded.skipped["c3_f1"] == "retired"
+    at = dt.datetime(2026, 10, 24, tzinfo=dt.UTC)
+    records = experiment_records(graded, strategies(), config, run_id="r", recorded_at=at)
+    assert {r["strategy"]["id"]: r.get("not_graded") for r in records}["c1"] == graded.skipped["c1"]
+
+
+class CrashesInAWorker(RateFromFeatures):
+    """A forecaster whose worker process dies outright, as one killed for memory does. In the
+    parent process it fits normally, so an in-process retry succeeds."""
+
+    def fit_as_of(
+        self,
+        history: pd.DataFrame,
+        deadline: pd.Timestamp,
+        *,
+        training: pd.DataFrame | None = None,
+        season: str,
+    ) -> None:
+        if multiprocessing.parent_process() is not None:
+            os._exit(1)
+        super().fit_as_of(history, deadline, training=training, season=season)
+
+
+def test_a_crashed_worker_costs_no_strategy_and_the_champion_is_walked_again() -> None:
+    """ORC-09 item 4: the champion's worker calls ``os._exit``, which breaks the pool and loses
+    every pending walk. Each lost walk is retried here, once: the result is the sequential one."""
+    history = make_history(gameweeks=8)
+
+    def walk(workers: int) -> BacktestResult:
+        return walk_forward(
+            history,
+            [Entrant("c3", CrashesInAWorker()), Entrant("engine", Offset())],
+            forecast_config=ForecastConfig(),
+            backtest_config=BACKTEST,
+            workers=workers,
+        )
+
+    crashed = walk(2)
+    assert crashed.not_graded == {}
+    assert crashed.as_dict()["strategies"] == walk(1).as_dict()["strategies"]
+
+
+@pytest.mark.parametrize("workers", [1, 2])
+def test_a_champion_that_raises_later_is_recorded_not_graded_with_its_reason(
+    game_rules: GameRules,
+    monkeypatch: pytest.MonkeyPatch,
+    config: Config,
+    layout: DataLayout,
+    workers: int,
+) -> None:
+    """D-32: the champion's third fit raises. Nothing can be paired against it, so every strategy
+    is recorded as not graded with why, the experiments record is still written, and the stage
+    then fails visibly."""
+    history = make_history(gameweeks=8)
+
+    def stubs(*_a: Any, **_k: Any) -> tuple[list[Entrant], dict[str, str]]:
+        return [Entrant("c3", FailsLater()), Entrant("engine", Offset())], {"c3_f1": "retired"}
+
+    monkeypatch.setattr("fpl_dof.factory.experiments.entrants", stubs)
+    backtest = BacktestConfig(
+        minimum_training_matches=3, training_seasons=(SEASON,), strategy_workers=workers
+    )
+    run_config = config.model_copy(update={"backtest": backtest})
+    with pytest.raises(ChampionNotGradedError) as raised:
+        grade(history, strategies(), game_rules, run_config)
+    reasons = raised.value.reasons
+    assert reasons["c3"] == f"its fit raised at {SEASON} GW6: RuntimeError: the fit diverged"
+    assert reasons["engine"] == f"no champion to compare against: c3 {reasons['c3']}"
+    assert reasons["c3_f1"] == "retired"
+
+    monkeypatch.setattr(stage, "read_rules", lambda *_a: game_rules)
+    tables = {Table.PLAYER_GAMEWEEK: history}
+    monkeypatch.setattr(stage, "read_table_optional", lambda _s, _y, t: tables.get(t))
+    ctx = StageContext(config=run_config, layout=layout, run_id="r-champion")
+    with pytest.raises(ChampionNotGradedError):
+        stage.run(ctx)
+    written = json.loads((layout.ledger / "experiments" / "r-champion.json").read_text("utf-8"))
+    assert {r["strategy"]["id"]: r["not_graded"] for r in written} == reasons
+    assert all(r["data_window"] is None and "verdict" not in r for r in written)

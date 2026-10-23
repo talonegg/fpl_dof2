@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { dataStore } from "./store";
+import { dataStore, mergeAccuracy } from "./store";
 import { challengerWeek, meta, players, rules, squad, strategiesFixture, week } from "../test/fixtures";
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
@@ -41,5 +41,32 @@ describe("loadPublished", () => {
     expect(data.weeks.c1).toEqual(challengerWeek);
     expect(data.weeks.c3).toEqual(week);
     expect(data.plans.c1).toBeUndefined(); // 404 means none (DP-15)
+  });
+});
+
+describe("mergeAccuracy", () => {
+  const season = (name: string, kind: "backtest" | "replay" | "prospective", mae: number) => ({
+    season: name,
+    kind,
+    gameweeks: [{ gameweek: 1, phase: kind, mae: { c3: mae } }],
+    pooled_mae: { c3: mae },
+    missing_models: {},
+  });
+  const doc = (...seasons: ReturnType<typeof season>[]) => ({ contract_version: 1 as const, metric: "m", seasons });
+
+  it("adds the live season to the checked-in ones, replacing a checked-in copy of it", () => {
+    const checkedIn = doc(season("2025/26", "backtest", 1), season("2026/27", "prospective", 9));
+    const live = doc(season("2026/27", "prospective", 2));
+    expect(mergeAccuracy(checkedIn, live)?.seasons.map((s) => [s.season, s.kind, s.pooled_mae.c3])).toEqual([
+      ["2025/26", "backtest", 1],
+      ["2026/27", "prospective", 2],
+    ]);
+  });
+
+  it("keeps whichever half exists", () => {
+    const live = doc(season("2026/27", "prospective", 2));
+    expect(mergeAccuracy(null, live)).toBe(live);
+    expect(mergeAccuracy(live, null)).toBe(live);
+    expect(mergeAccuracy(null, null)).toBeNull();
   });
 });

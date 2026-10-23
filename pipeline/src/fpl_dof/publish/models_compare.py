@@ -9,7 +9,8 @@ retired prospective harness: its advice (``decisions/GW{n}.json``, recorded *bef
 and its points (``scores.csv``), taken as written, never re-derived. S is the last gameweek it
 scored, plus one (a decision it never scored gives way to the ledger).
 Gameweeks from S come from the live ledger: every published strategy's
-advice, scored on the owner's real squad by ``week.score_advice``, the scorer the season log uses.
+advice, with the points it scored on the owner's real squad taken from the gameweek's evaluation
+(ORC-05, scored once by ``rules.realised``, as the season log's rows are), never rescored here.
 The two quantities differ (a virtual season versus real-squad advice); ``record`` marks which.
 
 Pure: no I/O, no clock. The stage reads the files and hands their contents in (DP-03).
@@ -21,13 +22,6 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from fpl_dof.factory.registry import champion, resolve_alias, strategies
-from fpl_dof.rules.models import GameRules
-from fpl_dof.week.score_advice import (
-    PlayerPerformance,
-    lineup_from_advice,
-    recorded_free_transfers,
-    score_model_recommendations,
-)
 
 
 def _element(code: Any, code_to_element: Mapping[str, Any]) -> int | None:
@@ -138,17 +132,14 @@ def _offline(
 def _live_gameweek(
     gw: int,
     entry: Mapping[str, Any],
-    perfs: Mapping[int, PlayerPerformance] | None,
-    rules: GameRules | None,
+    evaluation: Mapping[str, Any] | None,
     names: Mapping[int, str],
     sources: Mapping[str, Sequence[str]],
     next_check: str | None,
 ) -> dict[str, Any]:
-    """One live gameweek from a ledger entry; scored on the real squad once ``perfs`` exist."""
-    free = recorded_free_transfers(entry)
+    """One live gameweek from a ledger entry; with its points once the gameweek is evaluated."""
     availability: dict[str, dict[str, Any]] = {}
     advice: dict[str, Any] = {}
-    lineups = {}
     for key, m in dict(entry.get("models") or {}).items():
         sid = resolve_alias(key) or key
         advised = m.get("advised") if isinstance(m, Mapping) else None
@@ -161,34 +152,17 @@ def _live_gameweek(
         # The advice of record's own stamp (ORC-03); a pre-R1.3.0 entry has none.
         stamp = {k: m[k] for k in ("as_of", "trigger") if m.get(k)}
         advice[sid] = _live_advice(advised, m.get("recommendation") or {}, names) | stamp
-        lineup = lineup_from_advice(
-            advised,
-            transfers_made=int(m.get("transfers") or 0),
-            free_transfers=free,
-            recommendation=m.get("recommendation"),
-        )
-        if lineup is not None:
-            lineups[sid] = lineup
-    actual = None
-    if perfs and rules is not None and lineups:
-        actual = {
-            r.model_name: {
-                "points": float(r.score.net_points),
-                "points_before_hits": float(r.score.points_before_hits),
-                "hit_points": float(r.score.hit_points),
-                "n_autosubs": len(r.score.autosubs_in),
-                "vice_used": r.score.vice_used,
-                "armband_points": float(r.score.armband_points),
-            }
-            for r in score_model_recommendations(lineups, perfs, rules)
-        }
+    judged = (evaluation or {}).get("strategies") or {}
+    actual = {
+        sid: dict(s["actual"]) for sid, s in judged.items() if sid in advice and s.get("actual")
+    }
     return {
         "gameweek": gw,
         "deadline": None,
         "decided_at": entry.get("recorded_at"),
         "availability": availability,
         "advice": advice,
-        "actual": actual,
+        "actual": actual or None,
         "provisional": False,
         "record": "live",
     }
@@ -203,8 +177,7 @@ def build_models(
     contract_version: int,
     statuses: Mapping[int, Mapping[str, Any]] | None = None,
     ledger: Mapping[int, Mapping[str, Any]] | None = None,
-    performances: Mapping[int, Mapping[int, PlayerPerformance]] | None = None,
-    rules: GameRules | None = None,
+    evaluations: Mapping[int, Mapping[str, Any]] | None = None,
     names: Mapping[int, str] | None = None,
     sources: Mapping[str, Sequence[str]] | None = None,
     open_gameweek: int | None = None,
@@ -294,8 +267,7 @@ def build_models(
         live_gw = _live_gameweek(
             gw,
             live[gw],
-            (performances or {}).get(gw),
-            rules,
+            (evaluations or {}).get(gw),
             names or {},
             sources or {},
             next_check if gw == open_gameweek else None,

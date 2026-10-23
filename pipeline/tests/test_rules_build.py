@@ -12,7 +12,7 @@ from pydantic import ValidationError
 
 from fpl_dof.config.models import RulesConfig, SupplementaryScoring
 from fpl_dof.rules.build import RulesError, build_game_rules
-from fpl_dof.rules.models import ApiRules, GameRules, Position, SquadRules
+from fpl_dof.rules.models import ApiRules, GameRules, Position, SquadRules, TransferRules
 
 
 def test_squad_rules_come_from_the_api(game_rules: GameRules) -> None:
@@ -104,6 +104,17 @@ def test_supplementary_values_are_the_ones_the_api_cannot_provide(game_rules: Ga
     assert scoring.defensive_contribution_threshold[Position.MID] == 12
     assert game_rules.transfers.max_free_transfers == 5
     assert game_rules.transfers.extra_transfer_cost == -4
+
+
+def test_the_weekly_free_transfer_has_one_home_the_config(api_rules: ApiRules) -> None:
+    """DP-14: the rules model carries no default of its own; the value is the config's."""
+    config = RulesConfig()
+    transfers = config.transfers.model_copy(update={"free_transfers_per_gameweek": 2})
+    built = build_game_rules(api_rules, config.model_copy(update={"transfers": transfers}))
+    assert built.transfers.free_transfers_per_gameweek == 2
+    without = built.transfers.model_dump(exclude={"free_transfers_per_gameweek"})
+    with pytest.raises(ValidationError, match="free_transfers_per_gameweek"):
+        TransferRules.model_validate(without)
 
 
 def test_snapshot_checksum_is_recorded_when_supplied(api_rules: ApiRules) -> None:

@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { installFetchStub, renderApp, resetAppState } from "../../test/render";
 import type { ModelHistoryEntry, ModelsHistory } from "../../contract/types";
-import { fetchModelsHistory, MODELS_HISTORY_URL } from "../../data/api";
+import { DATA_BASE, fetchModelsHistory } from "../../data/api";
 import { NAV_ITEMS } from "../../routes/nav";
 import { strategiesFixture } from "../../test/fixtures";
 
@@ -76,7 +76,7 @@ export const historyFixture: ModelsHistory = {
 };
 
 // The checked-in file carries the old ids; the registry's aliases map them.
-const bodies = { models_history_2526: historyFixture, strategies: strategiesFixture };
+const bodies = { models_history: historyFixture, strategies: strategiesFixture };
 
 describe("model history page", () => {
   beforeEach(() => {
@@ -150,9 +150,11 @@ describe("model history page", () => {
   });
 
   it("fetchModelsHistory never throws and rejects malformed bodies", async () => {
-    expect(MODELS_HISTORY_URL).toMatch(/static\/models_history_2526\.json$/);
-    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("offline"))));
+    const offline = vi.fn((_input: RequestInfo | URL) => Promise.reject(new Error("offline")));
+    vi.stubGlobal("fetch", offline);
     expect(await fetchModelsHistory()).toBeNull();
+    // Published data now (ORC-06), not a file shipped with the app.
+    expect(offline.mock.calls.map(([url]) => String(url))).toContain(`${DATA_BASE}/models_history.json`);
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(JSON.stringify({ x: 1 }), { headers: { "content-type": "application/json" } }))));
     expect(await fetchModelsHistory()).toBeNull();
   });

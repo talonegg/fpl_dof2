@@ -4,14 +4,12 @@ import {
   normaliseAccuracy,
   normaliseHistory,
   normaliseModels,
-  normaliseReplay,
   orderIds,
   resolveModel,
   seriesStyle,
 } from "./registry";
 import { modelsFixture, novelRegistry, strategiesFixture } from "../test/fixtures";
 import type { ModelsHistory, XpAccuracy } from "../contract/types";
-import type { SeasonReplay } from "../components/history/season";
 
 const registry = buildRegistry(strategiesFixture);
 
@@ -59,7 +57,7 @@ describe("normalising legacy ids at load", () => {
     expect(m.season_to_date.map((s) => s.model)).toContain("c3");
   });
 
-  it("maps the checked-in history, replay and accuracy files", () => {
+  it("maps the history and accuracy files", () => {
     const entry = { points: 1 } as never;
     const history = normaliseHistory(registry, {
       champion: "champion",
@@ -71,15 +69,6 @@ describe("normalising legacy ids at load", () => {
     expect(history.models[0].id).toBe("c1");
     expect(Object.keys(history.gameweeks[0].models)).toEqual(["c3", "a"]);
     expect(history.summary[0].model).toBe("a_odds");
-
-    const replay = normaliseReplay(registry, {
-      models: ["champion"],
-      missing_models: { A_odds: "x" },
-      gameweeks: [{ gameweek: 1, models: { challenger: entry } }],
-    } as unknown as SeasonReplay);
-    expect(replay.models).toEqual(["c3"]);
-    expect(Object.keys(replay.missing_models)).toEqual(["a_odds"]);
-    expect(Object.keys(replay.gameweeks[0].models)).toEqual(["c1"]);
 
     const acc = normaliseAccuracy(registry, {
       seasons: [{ pooled_mae: { champion: 1 }, missing_models: { A: "x" }, gameweeks: [{ mae: { challenger: 1 } }] }],
