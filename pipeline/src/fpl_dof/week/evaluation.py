@@ -481,7 +481,8 @@ def _hindsight(
     for name, lineup in lineups.items():
         models_captains[name] = lineup.captain
         if name != PLAYED:
-            models_xp[name] = {lineup.captain: lineup.expected_points / 2.0}
+            armband = rules.chips.armband(lineup.chip)
+            models_xp[name] = {lineup.captain: lineup.expected_points / armband}
     try:
         optimal = solve_hindsight_optimal(gameweek=gameweek, state=state, pool=pool, rules=rules)
         diagnostics = diagnose_oracle_gap(

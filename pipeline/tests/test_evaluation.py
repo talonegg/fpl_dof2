@@ -215,6 +215,24 @@ def test_the_hindsight_optimum_honours_the_deadline_clubs_and_selling_prices(
     assert 16 not in {m.player_in_id for m in old.optimal_overall.moves}
 
 
+def test_the_captains_belief_is_divided_by_the_rules_armband(
+    game_rules: GameRules, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The diagnostics read a strategy's captain xP off its lineup's xP, by the armband the rules
+    set for the chip in force, never a literal (Invariant 2)."""
+    chips = game_rules.chips.model_copy(update={"captain_multiplier": 4})
+    rules = game_rules.model_copy(update={"season": SEASON, "chips": chips})
+    seen: dict[str, Any] = {}
+
+    def spy(**kwargs: Any) -> list[Any]:
+        seen.update(kwargs)
+        return []
+
+    monkeypatch.setattr(evaluation, "diagnose_oracle_gap", spy)
+    _evaluate(rules)
+    assert seen["models_xp"]["c3"] == {9: 50.0 / 4}
+
+
 def test_the_evaluation_scores_each_strategy_and_its_xp(game_rules: GameRules) -> None:
     rules = game_rules.model_copy(update={"season": SEASON})
     result = _evaluate(rules)

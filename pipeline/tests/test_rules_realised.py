@@ -211,7 +211,7 @@ def test_captain_vice_fallback(game_rules: GameRules) -> None:
     scored = score_lineup(advised, perfs, game_rules)
     assert scored.vice_used is True
     assert scored.captain_id == 10
-    assert scored.armband_points == 16  # 8 * 2
+    assert scored.armband_points == 8 * game_rules.chips.captain_multiplier
 
 
 def test_transfer_hits_deduction(game_rules: GameRules) -> None:
@@ -232,10 +232,12 @@ def test_transfer_hits_deduction(game_rules: GameRules) -> None:
         free_transfers=1,  # 2 extra transfers -> -8 hit points
     )
     scored = score_lineup(advised, perfs, game_rules)
-    # 11 players * 2 = 22 + captain bonus 2 = 24 points before hits.
-    assert scored.points_before_hits == 24
-    assert scored.hit_points == 8
-    assert scored.net_points == 16
+    # Eleven players score 2 each, the armband adds the captain's 2 again per extra multiple.
+    before = 11 * 2 + 2 * (game_rules.chips.captain_multiplier - 1)
+    hit = 2 * abs(game_rules.transfers.extra_transfer_cost)
+    assert scored.points_before_hits == before
+    assert scored.hit_points == hit
+    assert scored.net_points == before - hit
 
 
 def test_double_gameweek_rows_are_summed_per_player() -> None:
