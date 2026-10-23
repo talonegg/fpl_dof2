@@ -79,6 +79,8 @@ def run(ctx: StageContext) -> StageResult:
             for warning in report.warnings:
                 log.warning("ingest.warning", extra={"source": report.source, "detail": warning})
             result.outputs.extend(Output(path=path) for path in report.snapshots)
+        # Each malformed capture is already out of bronze; the run went on with the last valid one.
+        result.metrics["quarantined"] = len(fetcher.quarantined)
 
     result.metrics["sources"] = len(adapters)
     result.metrics["cadence"] = "fast" if ctx.options.fast_path_only else "full"

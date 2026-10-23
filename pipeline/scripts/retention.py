@@ -96,6 +96,30 @@ def _immutable(bronze_dir: Path, paths: list[str]) -> frozenset[str]:
     return frozenset(keep)
 
 
+QUARANTINE = "quarantine"
+
+
+def _quarantine_dir(bronze_dir: Path) -> Path:
+    """Where the bronze store puts what it quarantines: beside bronze, mirroring its layout."""
+    return bronze_dir.parent / QUARANTINE / bronze_dir.name
+
+
+def _quarantine_records(bronze_dir: Path) -> list[str]:
+    """Sidecars of captures quarantined for breaking their source's contract, relative to the
+    data root. The record travels on `data` so the health page can count it; the capture itself
+    never does (ORC-10)."""
+    aside = _quarantine_dir(bronze_dir)
+    records: list[str] = []
+    for sidecar in sorted(aside.rglob(f"*{META_SUFFIX}")):
+        try:
+            reason = json.loads(sidecar.read_text(encoding="utf-8")).get("quarantine_reason")
+        except OSError, ValueError:
+            continue
+        if reason:
+            records.append(str(sidecar.relative_to(bronze_dir.parent)).replace("\\", "/"))
+    return records
+
+
 #: Pushes to `data` that lose the lease to another workflow are retried this many times.
 PUSH_ATTEMPTS = 3
 
@@ -127,8 +151,19 @@ def _fold_in_remote(
         with tarfile.open(fileobj=io.BytesIO(archive)) as tar:
             tar.extractall(tmp, filter="data")
         held = Path(tmp)
+        aside = _quarantine_dir(bronze_dir)
         for path in (held / "bronze").rglob("*"):
-            target = bronze_dir / path.relative_to(held / "bronze")
+            relative = path.relative_to(held / "bronze")
+            target = bronze_dir / relative
+            # A capture quarantined here stays out, whatever the branch still holds (ORC-10).
+            quarantined = (aside / relative).exists() or (
+                aside / f"{relative}{META_SUFFIX}"
+            ).exists()
+            if path.is_file() and not target.exists() and not quarantined:
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(path, target)
+        for path in (held / QUARANTINE).rglob("*"):
+            target = bronze_dir.parent / path.relative_to(held)
             if path.is_file() and not target.exists():
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copy2(path, target)
@@ -221,6 +256,13 @@ def _stage_rolling(
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
 
+    records = _quarantine_records(bronze_dir)
+    kept = plan_retention(records, today=today or dt.date.today(), window_days=window_days)
+    for relative in kept.retain:
+        destination = staging_dir / relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(bronze_dir.parent / relative, destination)
+
     # PIPE-06: Persist accumulating silver partitions (price_history.parquet)
     silver_count = 0
     if silver_dir is not None and silver_dir.is_dir():
@@ -236,6 +278,7 @@ def _stage_rolling(
         "pruned": len(plan.prune),
         "undated": len(plan.undated),
         "silver": silver_count,
+        "quarantined": len(kept.retain),
     }
 
 
@@ -246,7 +289,8 @@ def restore_rolling_branch(
     branch: str = "data",
     cwd: Path | None = None,
 ) -> bool:
-    """Restore bronze and silver tiers from the rolling data branch (DL-79 O3, O4)."""
+    """Restore bronze and silver tiers, and the quarantine records, from the rolling data branch
+    (DL-79 O3, O4; ORC-10)."""
     work_cwd = cwd or Path.cwd()
     target_data_dir = (work_cwd / data_dir) if not data_dir.is_absolute() else data_dir
     target_data_dir.mkdir(parents=True, exist_ok=True)
@@ -275,7 +319,7 @@ def restore_rolling_branch(
     try:
         _run_git(["worktree", "add", str(worktree_dir), "refs/fpl-dof/data-staging"], cwd=work_cwd)
 
-        for tier in ["bronze", "silver"]:
+        for tier in ["bronze", "silver", QUARANTINE]:
             tier_src = worktree_dir / tier
             if tier_src.is_dir():
                 tier_dst = target_data_dir / tier

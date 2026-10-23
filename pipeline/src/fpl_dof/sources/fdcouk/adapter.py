@@ -201,6 +201,9 @@ class FdcoukAdapter(SourceAdapter):
         # football-data.co.uk serves Latin-1, decoded as prospective/timing.py does.
         return fetched.payload.decode("latin-1")
 
+    def check(self, resource: str, key: str, payload: bytes) -> None:
+        self.parse_fixtures_csv(payload.decode("latin-1"), "", None)
+
     def parse_fixtures_csv(
         self, text: str, season: str, captured_at: pd.Timestamp | None
     ) -> pd.DataFrame:

@@ -177,6 +177,7 @@ def _entry(
     cache_hits: int | None = None,
     check: str | None = None,
     checked_at: dt.datetime | None = None,
+    quarantined: int = 0,
 ) -> dict[str, Any]:
     reference = descriptor is not None and descriptor.kind == REFERENCE
     return {
@@ -197,6 +198,7 @@ def _entry(
         "resources": dict(resources or {}),
         "network_calls": network_calls,
         "cache_hits": cache_hits,
+        "quarantined": quarantined,
     }
 
 
@@ -204,6 +206,7 @@ def _reference_entry(
     descriptor: SourceDescriptor,
     degradation: tuple[str, str] | None,
     generated_at: dt.datetime,
+    quarantined: int = 0,
 ) -> dict[str, Any]:
     """Fixed data: an as-of date and, where the harness pins it, a file check.
 
@@ -220,6 +223,7 @@ def _reference_entry(
         generated_at=generated_at,
         descriptor=descriptor,
         stage=stage,
+        quarantined=quarantined,
     )
 
 
@@ -230,6 +234,7 @@ def build_sources(
     generated_at: dt.datetime,
     catalogue: Sequence[SourceDescriptor] = (),
     stale_after_seconds: float | None = None,
+    quarantined: Mapping[str, int] | None = None,
 ) -> list[dict[str, Any]]:
     """Per-source status and freshness, for every catalogued source and anything else seen.
 
@@ -252,7 +257,12 @@ def build_sources(
     A run that made zero requests and read nothing from cache has done nothing, so 0/0 is never
     ``ok``. A label that is not in the catalogue keeps the original rule: ``ok`` only on this run's
     own report, else ``unknown``.
+
+    ``quarantined`` counts each source's captures held in quarantine for breaking its contract
+    (ORC-10). It does not change the status: the run used the last valid capture, whose age the
+    status already judges.
     """
+    held = quarantined or {}
     ingest = _metrics(manifest, INGEST_STAGE)
     described = {descriptor.key: descriptor for descriptor in catalogue}
     keys = [descriptor.key for descriptor in catalogue]
@@ -269,7 +279,9 @@ def build_sources(
         moment = observed.get(label)
 
         if descriptor is not None and descriptor.kind == REFERENCE:
-            entries.append(_reference_entry(descriptor, degradation, generated_at))
+            entries.append(
+                _reference_entry(descriptor, degradation, generated_at, held.get(label, 0))
+            )
             continue
         if descriptor is not None and not descriptor.enabled:
             status, detail, stage = "disabled", descriptor.disabled_reason, None
@@ -309,6 +321,7 @@ def build_sources(
                 resources=resources,
                 network_calls=network_calls,
                 cache_hits=cache_hits,
+                quarantined=held.get(label, 0),
             )
         )
 
@@ -472,6 +485,7 @@ def build_health(
     contract_version: int,
     catalogue: Sequence[SourceDescriptor] = (),
     stale_after_seconds: float | None = None,
+    quarantined: Mapping[str, int] | None = None,
 ) -> dict[str, Any]:
     """The whole ``health.json`` payload. Pure (DP-03)."""
     return {
@@ -484,6 +498,7 @@ def build_health(
             generated_at=generated_at,
             catalogue=catalogue,
             stale_after_seconds=stale_after_seconds,
+            quarantined=quarantined,
         ),
         "gates": build_gates(gate_report),
         "metrics_history": build_metrics_history(recent, limit=history_limit),

@@ -726,6 +726,8 @@ export interface HealthSource {
   network_calls?: number | null;
   /** A run served entirely from cache is a legitimate, fast run — and also the reason a source can be 'ok' while its data is older than the run. Published so the two are distinguishable. */
   cache_hits?: number | null;
+  /** Captures of this source held in quarantine because they broke its contract (ORC-10). None of them is ever read: the run used the last valid capture, whose age `observed_at` already gives. Absent on artefacts published before R1.3.0; read absent as 0. */
+  quarantined?: number;
 }
 
 /** The quality gate report. A blocking failure means nothing was published and the last good artefact is still live (Invariant 7) — so a health page showing a blocked run is being served by the run before it. */

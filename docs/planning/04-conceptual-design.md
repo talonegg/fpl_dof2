@@ -205,7 +205,7 @@ Under `paths.DataLayout`; what persists between CI runs is
 | Bronze | `bronze/{source}/{resource}/{date}/{key}__{timestamp}.{json,csv,html}.gz` + `.meta.json` (URL, status, fetch time, SHA-256 of the uncompressed payload, size, `run_id`, source version, `immutable`, `ETag`/`Last-Modified`) |
 | Silver | `silver/season={s}/{table}.parquet` plus the season's `rules.json`; rebuilt from bronze each run except the accumulating tables (03 §7.1) |
 | Gold | `gold/season={s}/` — `expected_points.parquet`, `player_career_history.parquet`, `team_match_odds.parquet`, `squad.json`, `plan.json`, `week.json` (and `week_<id>.json`, `plan_<id>.json` per other published strategy), `quality.json`, `model-card.md`, backtest outputs |
-| Quarantine | `quarantine/bronze/…` from `bronze verify --quarantine`; `quarantine/silver-{time}/` from `silver rebuild` (REM-10). Kept, never read |
+| Quarantine | `quarantine/bronze/…` from `bronze verify --quarantine`, and every capture that broke its source's contract, at ingest or by `bronze verify --contract`, with `quarantine_reason` in its sidecar (ORC-10); `quarantine/silver-{time}/` from `silver rebuild` (REM-10). Kept, never read |
 | Ledger | `ledger/advice/gwNN.json`, append-only (DL-69): the champion's advice, and every published strategy's under `models` by registry id, or its "no advice" reason (MOD-04) |
 | Runs | `runs/{run_id}/manifest.json` |
 | Web contract | `web/v1/*.json`, served at `/data/v1/` (03 §7.2) |

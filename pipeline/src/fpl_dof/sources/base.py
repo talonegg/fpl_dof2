@@ -212,6 +212,18 @@ class SourceAdapter(ABC):
         self.options = options or SourceOverride()
         self.observed: dict[str, dt.datetime] = {}
         """The latest snapshot time read per key: what stamps ``observed_at`` (DL-83)."""
+        fetcher.contracts[self.name] = self.check
+
+    def check(self, resource: str, key: str, payload: bytes) -> None:
+        """Raise :class:`~fpl_dof.sources.errors.SourceContractError` if one capture breaks this
+        source's contract, with the same parser conformance uses.
+
+        The fetcher calls it on every new capture before it is kept, and ``bronze verify
+        --contract`` on every capture already kept (ORC-10). One malformed row makes the whole
+        capture malformed (DL-94). The default accepts everything: a source whose captures carry
+        no contract of their own, such as a robots file, need not override it.
+        """
+        return None
 
     def note_observed(self, key: str, fetched: Fetched) -> None:
         """Remember when the bytes just read were captured, keeping the latest per key."""
