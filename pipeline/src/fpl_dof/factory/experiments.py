@@ -26,7 +26,12 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 from fpl_dof.config import config_digest
 from fpl_dof.config.models import Config
 from fpl_dof.factory.registry import Strategy, effective_forecast_config, stamp, unrunnable
-from fpl_dof.forecast.backtest import BacktestResult, Entrant, walk_forward
+from fpl_dof.forecast.backtest import (
+    BacktestResult,
+    ChampionNotGradedError,
+    Entrant,
+    walk_forward,
+)
 from fpl_dof.forecast.inputs import ForecastInputs
 from fpl_dof.rules.models import GameRules
 
@@ -129,17 +134,24 @@ def grade(
     inputs: ForecastInputs | None = None,
 ) -> Graded:
     """Walk every gradeable strategy forward over ``backtest.training_seasons``, one process
-    per strategy (``backtest.strategy_workers``); one whose fit raises is not graded (D-32)."""
+    per strategy (``backtest.strategy_workers``); one whose fit raises is not graded (D-32).
+
+    A champion whose walk fails raises :class:`ChampionNotGradedError` with every strategy's
+    reason, those skipped before the walk included, so the stage can still record them.
+    """
     graded, skipped = entrants(strategies, rules, config, inputs)
-    result = walk_forward(
-        history,
-        graded,
-        forecast_config=config.forecast,
-        backtest_config=config.backtest,
-        seasons=config.backtest.training_seasons or None,
-        metrics=metrics,
-        workers=config.backtest.strategy_workers,
-    )
+    try:
+        result = walk_forward(
+            history,
+            graded,
+            forecast_config=config.forecast,
+            backtest_config=config.backtest,
+            seasons=config.backtest.training_seasons or None,
+            metrics=metrics,
+            workers=config.backtest.strategy_workers,
+        )
+    except ChampionNotGradedError as exc:
+        raise ChampionNotGradedError({**exc.reasons, **skipped}) from exc
     return Graded(result=result, skipped={**skipped, **result.not_graded})
 
 
@@ -204,18 +216,44 @@ def experiment_records(
                 }
             )
         records.append(record)
-    for sid, reason in graded.skipped.items():
-        strategy = by_id[sid]
-        records.append(
-            {
-                "strategy": stamp(strategy, config),
-                "role": strategy.role,
-                "training_window": strategy.forecaster.training_window,
-                **common,
-                "not_graded": reason,
-            }
-        )
-    return records
+    return records + _not_graded(graded.skipped, by_id, config, common)
+
+
+def not_graded_records(
+    reasons: Mapping[str, str],
+    strategies: Sequence[Strategy],
+    config: Config,
+    *,
+    run_id: str,
+    recorded_at: dt.datetime,
+) -> list[dict[str, Any]]:
+    """The record of a run that graded nothing (its champion failed): one per strategy, with why,
+    and no data window, since no fold was graded (D-32)."""
+    common = {
+        "run_id": run_id,
+        "recorded_at": recorded_at.isoformat(),
+        "config_digest": run_config_digest(config),
+        "data_window": None,
+    }
+    return _not_graded(reasons, {s.id: s for s in strategies}, config, common)
+
+
+def _not_graded(
+    reasons: Mapping[str, str],
+    by_id: Mapping[str, Strategy],
+    config: Config,
+    common: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    return [
+        {
+            "strategy": stamp(by_id[sid], config),
+            "role": by_id[sid].role,
+            "training_window": by_id[sid].forecaster.training_window,
+            **common,
+            "not_graded": reason,
+        }
+        for sid, reason in reasons.items()
+    ]
 
 
 def latest_verdict(
@@ -244,5 +282,6 @@ __all__ = [
     "grade",
     "latest_verdict",
     "load_declared",
+    "not_graded_records",
     "run_config_digest",
 ]

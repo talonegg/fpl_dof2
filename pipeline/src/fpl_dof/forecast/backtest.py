@@ -477,8 +477,9 @@ def walk_forward(
     folds, fits and predictions, and the champion's walk also fits the harness's benchmarks. The
     walks share nothing, so the result is the one ``workers=1`` gives in this process. A
     challenger whose fit or prediction raises at any fold is recorded in ``not_graded`` with the
-    reason and the others are graded without it (D-32); the champion's failure fails the backtest,
-    as there is nothing to pair against.
+    reason and the others are graded without it (D-32); the champion's failure raises
+    :class:`ChampionNotGradedError`, naming why each was not graded, as there is nothing to pair
+    against.
 
     Each entrant sees only its training window: a ``current_season`` strategy's features, training
     rows and fit are built from the fold's own season, as they are live (F3). A fold is graded only
@@ -517,6 +518,15 @@ def walk_forward(
         workers=workers,
     )
     champion_walk = walks[champion.id]
+    if champion_walk.failure is not None:
+        # Every metric is graded against the champion's folds and benchmarks, so nothing is.
+        lost = f"no champion to compare against: {champion.id} {champion_walk.failure}"
+        raise ChampionNotGradedError(
+            {
+                champion.id: champion_walk.failure,
+                **{sid: w.failure or lost for sid, w in walks.items() if sid != champion.id},
+            }
+        )
     not_graded = {sid: walk.failure for sid, walk in walks.items() if walk.failure is not None}
     for sid, reason in not_graded.items():
         log.warning("backtest.not_graded", extra={"strategy": sid, "reason": reason})
@@ -684,6 +694,18 @@ def walk_forward(
     return result
 
 
+class ChampionNotGradedError(RuntimeError):
+    """The champion's walk failed, so no strategy could be graded against it (D-32).
+
+    ``reasons`` is strategy id -> why it was not graded, the champion's own first; the backtest
+    stage still records them before it fails.
+    """
+
+    def __init__(self, reasons: Mapping[str, str]) -> None:
+        self.reasons = dict(reasons)
+        super().__init__("; ".join(f"{sid}: {why}" for sid, why in self.reasons.items()))
+
+
 @dataclass(frozen=True, slots=True)
 class _Walk:
     """One entrant's walk: its graded folds, or why it stopped."""
@@ -708,23 +730,30 @@ def _walks(
 ) -> dict[str, _Walk]:
     """Every entrant's walk, champion first, across up to ``workers`` processes (ORC-09 item 4).
 
-    A walk shares nothing with another, so the walks are the ones a single process gives; a
-    challenger whose worker fails is recorded as not graded, the champion's fails the backtest.
+    A walk shares nothing with another, so the walks are the ones a single process gives; an
+    entrant whose walk raises, the champion included, is recorded with why (D-32).
     """
     jobs = [(entrant, index == 0) for index, entrant in enumerate(entrants)]
     count = min(workers, os.process_cpu_count() or 1, len(jobs))
-    if count <= 1:
-        return {e.id: _walk_one(frame, e, harness=h, **common) for e, h in jobs}
+
+    def failed(exc: Exception) -> _Walk:
+        return _Walk(failure=f"its walk failed: {type(exc).__name__}: {exc}")
+
     walks: dict[str, _Walk] = {}
+    if count <= 1:
+        for entrant, harness in jobs:
+            try:
+                walks[entrant.id] = _walk_one(frame, entrant, harness=harness, **common)
+            except Exception as exc:
+                walks[entrant.id] = failed(exc)
+        return walks
     with ProcessPoolExecutor(count) as pool:
-        futures = [(e, h, pool.submit(_walk_one, frame, e, harness=h, **common)) for e, h in jobs]
-        for entrant, harness, future in futures:
+        futures = [(e, pool.submit(_walk_one, frame, e, harness=h, **common)) for e, h in jobs]
+        for entrant, future in futures:
             try:
                 walks[entrant.id] = future.result()
             except Exception as exc:
-                if harness:
-                    raise
-                walks[entrant.id] = _Walk(failure=f"its walk failed: {type(exc).__name__}: {exc}")
+                walks[entrant.id] = failed(exc)
     return walks
 
 
@@ -821,8 +850,6 @@ def _walk_one(
                 )
             predicted = entrant.predictor.predict(visible[view], gameweek=gameweek)
         except Exception as exc:
-            if harness:
-                raise
             # D-32: one strategy's failure is its own; the others are graded without it.
             reason = f"its fit raised at {season} GW{gameweek}: {type(exc).__name__}: {exc}"
             return _Walk(failure=reason)
@@ -1068,6 +1095,7 @@ __all__ = [
     "OUTCOME_COLUMNS",
     "RANKING_IDENTITY",
     "BacktestResult",
+    "ChampionNotGradedError",
     "Entrant",
     "Fold",
     "MinutesReporting",

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import dataclasses
 import datetime as dt
+import json
 from pathlib import Path
 from typing import Any
 
@@ -17,16 +18,25 @@ import pandas as pd
 import pytest
 
 from fpl_dof.config.models import BacktestConfig, Config, ForecastConfig
-from fpl_dof.factory import ForecastInputs, Graded, experiment_records, latest_verdict
+from fpl_dof.factory import (
+    ChampionNotGradedError,
+    ForecastInputs,
+    Graded,
+    experiment_records,
+    latest_verdict,
+)
 from fpl_dof.factory.experiments import EXPERIMENTS_DIR, entrants, grade, load_declared
 from fpl_dof.factory.registry import load_registry, stamp, strategies
 from fpl_dof.forecast.backtest import BacktestResult, Entrant, prediction_column, walk_forward
 from fpl_dof.forecast.features import rolling_feature_names
 from fpl_dof.forecast.metrics import bootstrap_ci, paired_deltas
 from fpl_dof.forecast.models import RATE_COMPONENTS
+from fpl_dof.paths import DataLayout
+from fpl_dof.pipeline import StageContext
 from fpl_dof.rules.models import GameRules
 from fpl_dof.shadow import c1
 from fpl_dof.silver.tables import Table
+from fpl_dof.stages import backtest as stage
 from test_backtest import SEASON, RateFromFeatures, make_history
 from test_decide import _forecast_config, _snapshot, match_odds
 from test_strategy_registry import _entry, _write
@@ -445,3 +455,42 @@ def test_a_strategy_that_raises_at_a_later_fold_is_not_graded_and_the_others_are
     at = dt.datetime(2026, 10, 24, tzinfo=dt.UTC)
     records = experiment_records(graded, strategies(), config, run_id="r", recorded_at=at)
     assert {r["strategy"]["id"]: r.get("not_graded") for r in records}["c1"] == graded.skipped["c1"]
+
+
+@pytest.mark.parametrize("workers", [1, 2])
+def test_a_champion_that_raises_later_is_recorded_not_graded_with_its_reason(
+    game_rules: GameRules,
+    monkeypatch: pytest.MonkeyPatch,
+    config: Config,
+    layout: DataLayout,
+    workers: int,
+) -> None:
+    """D-32: the champion's third fit raises. Nothing can be paired against it, so every strategy
+    is recorded as not graded with why, the experiments record is still written, and the stage
+    then fails visibly."""
+    history = make_history(gameweeks=8)
+
+    def stubs(*_a: Any, **_k: Any) -> tuple[list[Entrant], dict[str, str]]:
+        return [Entrant("c3", FailsLater()), Entrant("engine", Offset())], {"c3_f1": "retired"}
+
+    monkeypatch.setattr("fpl_dof.factory.experiments.entrants", stubs)
+    backtest = BacktestConfig(
+        minimum_training_matches=3, training_seasons=(SEASON,), strategy_workers=workers
+    )
+    run_config = config.model_copy(update={"backtest": backtest})
+    with pytest.raises(ChampionNotGradedError) as raised:
+        grade(history, strategies(), game_rules, run_config)
+    reasons = raised.value.reasons
+    assert reasons["c3"] == f"its fit raised at {SEASON} GW6: RuntimeError: the fit diverged"
+    assert reasons["engine"] == f"no champion to compare against: c3 {reasons['c3']}"
+    assert reasons["c3_f1"] == "retired"
+
+    monkeypatch.setattr(stage, "read_rules", lambda *_a: game_rules)
+    tables = {Table.PLAYER_GAMEWEEK: history}
+    monkeypatch.setattr(stage, "read_table_optional", lambda _s, _y, t: tables.get(t))
+    ctx = StageContext(config=run_config, layout=layout, run_id="r-champion")
+    with pytest.raises(ChampionNotGradedError):
+        stage.run(ctx)
+    written = json.loads((layout.ledger / "experiments" / "r-champion.json").read_text("utf-8"))
+    assert {r["strategy"]["id"]: r["not_graded"] for r in written} == reasons
+    assert all(r["data_window"] is None and "verdict" not in r for r in written)

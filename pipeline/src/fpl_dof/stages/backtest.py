@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -31,7 +32,15 @@ from fpl_dof.artefacts import (
     MODELS_HISTORY_DIRNAME,
     read_rules,
 )
-from fpl_dof.factory import BacktestResult, ForecastInputs, Graded, experiment_records, grade
+from fpl_dof.factory import (
+    BacktestResult,
+    ChampionNotGradedError,
+    ForecastInputs,
+    Graded,
+    experiment_records,
+    grade,
+    not_graded_records,
+)
 from fpl_dof.factory.experiments import run_config_digest
 from fpl_dof.factory.history import SETTINGS, season_histories
 from fpl_dof.factory.registry import Strategy, strategies
@@ -97,7 +106,15 @@ def run(ctx: StageContext) -> StageResult:
         )
 
     registered = strategies()
-    graded = grade(history, registered, rules, ctx.config, metrics=metrics, inputs=inputs)
+    try:
+        graded = grade(history, registered, rules, ctx.config, metrics=metrics, inputs=inputs)
+    except ChampionNotGradedError as exc:
+        # Nothing was graded, but why is evidence: recorded before the stage fails (D-32).
+        records = not_graded_records(
+            exc.reasons, registered, ctx.config, run_id=ctx.run_id, recorded_at=ctx.as_of
+        )
+        _record(ctx, records)
+        raise
     result = graded.result
     for sid, reason in graded.skipped.items():
         log.warning("backtest.not_graded", extra={"strategy": sid, "reason": reason})
@@ -116,9 +133,7 @@ def run(ctx: StageContext) -> StageResult:
     records = experiment_records(
         graded, registered, ctx.config, run_id=ctx.run_id, recorded_at=ctx.as_of
     )
-    record_path = ctx.layout.ledger / EXPERIMENTS_DIRNAME / f"{ctx.run_id}.json"
-    record_path.parent.mkdir(parents=True, exist_ok=True)
-    record_path.write_text(json.dumps(records, indent=2), encoding="utf-8")
+    record_path = _record(ctx, records)
 
     histories = _models_history(ctx, graded, history, registered, rules)
     history_path = ctx.layout.ledger / MODELS_HISTORY_DIRNAME / f"{ctx.run_id}.json"
@@ -184,6 +199,14 @@ def run(ctx: StageContext) -> StageResult:
             Output(path=history_path, rows=len(histories)),
         ],
     )
+
+
+def _record(ctx: StageContext, records: list[dict[str, Any]]) -> Path:
+    """``ledger/experiments/<run_id>.json``, which CI appends to ``ledger`` (MOD-08)."""
+    path = ctx.layout.ledger / EXPERIMENTS_DIRNAME / f"{ctx.run_id}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(records, indent=2), encoding="utf-8")
+    return path
 
 
 def _models_history(
