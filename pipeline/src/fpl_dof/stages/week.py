@@ -258,8 +258,9 @@ def advise_all(
     policy = lead.decision_policy(snapshot.config, snapshot.champion.captain_line)
     week = _week(snapshot, lead, snapshot.champion, dataclasses.replace(policy, plan=False))
     _write_all(gold, {lead.id: (week, None)}, [lead])
-    _record(snapshot, layout, {lead.id: (week, None)}, [lead])
-    _predict(snapshot, layout, lead, snapshot.champion.frame)
+    # Predictions follow the advice of record (ORC-08): written only when the ledger took the entry.
+    if _record(snapshot, layout, {lead.id: (week, None)}, [lead]) is not None:
+        _predict(snapshot, layout, lead.id, snapshot.champion.frame)
 
     advice: dict[str, Advice] = {lead.id: (week, _champion_plan(snapshot, lead, policy))}
     outputs = _write_all(gold, advice, [lead])
@@ -267,12 +268,14 @@ def advise_all(
     held = (read_advice(layout, snapshot.deadline.gameweek) or {}).get("models") or {}
     published: dict[str, Advice] = {}
     missing: dict[str, list[str]] = {}
+    frames: dict[str, pd.DataFrame] = {}
     for strategy in challengers:
         try:
-            advice[strategy.id] = _advise(snapshot, strategy, layout)
+            advice[strategy.id], frame = _advise(snapshot, strategy)
             arrived = _arrived(held.get(strategy.id), advice[strategy.id][0], snapshot.config)
             if arrived is not None:
                 advice[strategy.id][0]["arrived"] = arrived
+            frames[strategy.id] = frame
         except Exception as exc:
             reason = f"no advice: {type(exc).__name__}: {exc}"
             log.warning("week.no_advice", extra={"strategy": strategy.id, "reason": reason})
@@ -292,7 +295,9 @@ def advise_all(
                 published[strategy.id] = (of_record, failed[1])
     # The ledger gets the failure (it keeps the success beside it); the app gets the record.
     outputs += _write_all(gold, advice | published, challengers)
-    _record(snapshot, layout, advice, [lead, *challengers], missing)
+    if _record(snapshot, layout, advice, [lead, *challengers], missing) is not None:
+        for strategy_id, frame in frames.items():
+            _predict(snapshot, layout, strategy_id, frame)
     return advice | published, outputs
 
 
@@ -300,14 +305,11 @@ def _arrived(held: object, week: dict[str, Any], config: Config) -> dict[str, An
     """The source a strategy waited for arrived, and it advised with it (ORC-07).
 
     Derived from the held record, read before this run's write: the strategy had no advice
-    because a table it needs was missing, and now advises in a run a change started. Nothing
-    extra is stored; the next run's week file carries no arrival.
+    because a table it needs was missing, and now advises, whatever started this run (the week
+    file's ``trigger`` says what did). Nothing extra is stored; the next run's week file carries
+    no arrival.
     """
     if not isinstance(held, Mapping) or "advised" in held or not held.get("missing"):
-        return None
-    # shortcut: any change run counts, not only one of the awaited source's own kind; the
-    # change manifest has no kind-to-source map to check against.
-    if not str(week.get("trigger") or "").startswith("change:"):
         return None
     sources = supplying(held["missing"], config.sources)
     return {"sources": sources, "at": week["as_of"]} if sources else None
@@ -346,14 +348,15 @@ def _record(
     advice: dict[str, Advice],
     strategies: list[Strategy],
     missing: Mapping[str, list[str]] | None = None,
-) -> None:
+) -> Path | None:
     """The champion's advice to the ledger, with every strategy's so far under ``models``.
 
     The ledger keeps each strategy's last success and refuses a write after the deadline (DL-94).
+    Returns what :func:`record_advice` returns: ``None`` when it recorded nothing.
     """
     week, _ = advice[strategies[0].id]
     models = ledger_models(advice, strategies, missing)
-    record_advice(
+    return record_advice(
         layout, week | {"models": models}, as_of=snapshot.inputs.as_of, now=snapshot.clock()
     )
 
@@ -395,21 +398,20 @@ def _champion_plan(
     return _plan_payload(snapshot, strategy, plan, reason)
 
 
-def _predict(
-    snapshot: Snapshot, layout: DataLayout, strategy: Strategy, frame: pd.DataFrame
-) -> None:
+def _predict(snapshot: Snapshot, layout: DataLayout, strategy_id: str, frame: pd.DataFrame) -> None:
     """The frame a strategy advised from, to the ledger beside its advice (ORC-08)."""
     record_predictions(
         layout,
         snapshot.deadline.gameweek,
-        strategy.id,
+        strategy_id,
         frame,
         deadline=snapshot.deadline.deadline_utc,
         now=snapshot.clock(),
     )
 
 
-def _advise(snapshot: Snapshot, strategy: Strategy, layout: DataLayout) -> Advice:
+def _advise(snapshot: Snapshot, strategy: Strategy) -> tuple[Advice, pd.DataFrame]:
+    """A challenger's advice, and the frame it advised from for the predictions ledger."""
     forecast = strategy.forecast(snapshot.inputs, snapshot.rules, snapshot.config)
     decision = decide(
         forecast.frame,
@@ -421,10 +423,10 @@ def _advise(snapshot: Snapshot, strategy: Strategy, layout: DataLayout) -> Advic
         last_gameweek=snapshot.last_gameweek,
     )
     week = _payload(snapshot, forecast.frame, decision) | _stamp(strategy, snapshot.config)
-    _predict(snapshot, layout, strategy, forecast.frame)
     if not strategy.policy.plan:
-        return week, None
-    return week, _plan_payload(snapshot, strategy, decision.plan, decision.plan_skipped_reason)
+        return (week, None), forecast.frame
+    plan = _plan_payload(snapshot, strategy, decision.plan, decision.plan_skipped_reason)
+    return (week, plan), forecast.frame
 
 
 def _plan_payload(

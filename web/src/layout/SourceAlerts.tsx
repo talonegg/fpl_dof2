@@ -1,5 +1,6 @@
 import type { PublishedData } from "../data/published";
 import { modelLabel } from "../data/registry";
+import { describeTrigger } from "../components/Header";
 import { formatLocalDateTime } from "../format";
 import "./sourceAlerts.css";
 
@@ -43,7 +44,7 @@ export function SourceAlerts({ data, now = Date.now() }: { data: PublishedData; 
         <p key={id} className="source-alert source-arrived" role="status" data-testid={`source-arrived-${id}`}>
           <strong>{names(w.arrived?.sources ?? [])} arrived</strong> at{" "}
           {formatLocalDateTime(w.arrived?.at ?? "")}, and {modelLabel(data.registry, id)} was refreshed with
-          it.
+          it{w.trigger ? ` (${describeTrigger(w.trigger)})` : ""}.
         </p>
       ))}
     </>

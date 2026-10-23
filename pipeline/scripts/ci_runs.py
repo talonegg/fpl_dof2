@@ -10,7 +10,8 @@ requires that job to have succeeded (a guard-only Pipeline run also concludes "s
 doing anything).
 
 ``budget`` fails when a wall clock exceeds its budget in ``schedule`` config (ORC-09): from
-``--since`` to now, or without it from this run's start to its last finished job.
+``--since`` to now, or without it the time this run's finished jobs were running, from the first to
+the last, so a job's wait in a concurrency queue is not counted as the run's own time.
 """
 
 from __future__ import annotations
@@ -65,10 +66,18 @@ def _at(stamp: str) -> dt.datetime:
     return dt.datetime.fromisoformat(stamp.replace("Z", "+00:00"))
 
 
-def run_seconds(run: dict[str, Any], jobs: list[dict[str, Any]]) -> float:
-    """This run's wall clock so far: its start to the last job that has finished."""
-    finished = [_at(j["completed_at"]) for j in jobs if j.get("completed_at")]
-    return (max(finished) - _at(run["run_started_at"])).total_seconds()
+def run_seconds(jobs: list[dict[str, Any]]) -> float:
+    """The time some finished job of this run was running: the union of their spans."""
+    spans = sorted(
+        (_at(j["started_at"]), _at(j["completed_at"])) for j in jobs if j.get("completed_at")
+    )
+    total, reach = 0.0, dt.datetime.min.replace(tzinfo=dt.UTC)
+    for start, end in spans:
+        start = max(start, reach)
+        if end > start:
+            total += (end - start).total_seconds()
+            reach = end
+    return total
 
 
 def budget(name: str, since: str | None) -> int:
@@ -77,8 +86,7 @@ def budget(name: str, since: str | None) -> int:
         seconds = (dt.datetime.now(dt.UTC) - _at(since)).total_seconds()
     else:
         path = f"repos/{os.environ['GITHUB_REPOSITORY']}/actions/runs/{os.environ['GITHUB_RUN_ID']}"
-        jobs = gh_json("api", f"{path}/jobs")["jobs"]
-        seconds = run_seconds(gh_json("api", path), jobs)
+        seconds = run_seconds(gh_json("api", f"{path}/jobs")["jobs"])
     print(f"{name}: {seconds:.0f}s of {budget_seconds}s")
     if seconds > budget_seconds:
         print(f"::error title=Over budget::{name}: took {seconds:.0f}s, budget {budget_seconds}s")

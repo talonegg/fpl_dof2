@@ -4,10 +4,10 @@
 # GitHub drops and delays cron firings on this repo, so this fires every 20 minutes at odd minutes
 # from 19:07 to 22:47 UTC (05:07–09:47 Sydney under AEST or AEDT). The gate proceeds on the first
 # firing on or after 07:00 Sydney on the day before the next FPL deadline (bootstrap-static), and is
-# idempotent: once an ingest-slow run dispatched since midnight Sydney is queued, running or
-# succeeded, later firings are logged no-ops (a failed one is retried by the next firing). It reads
-# each run's typed event, never its title (ORC-02). Logic and tests:
-# pipeline/src/fpl_dof/week/day_before.py.
+# idempotent: once an ingest-slow run the gate itself dispatched since midnight Sydney is queued,
+# running or succeeded, later firings are logged no-ops (a failed one is retried by the next
+# firing); the owner's manual ingest does not count. It reads each run's typed event and actor,
+# never its title (ORC-02). Logic and tests: pipeline/src/fpl_dof/week/cadence.py `gate`.
 #
 # It reuses the existing chain rather than duplicating it: the gate dispatches ingest-slow.yml with
 # `must_publish=true`, which ends by dispatching pipeline.yml with `trigger=day-before` and

@@ -55,15 +55,8 @@ on:
         required: false
         type: string
 
-concurrency:
-  # `cancel-in-progress: false` is deliberate (E7-S4, NFR-06, R-13): a run in progress is left to
-  # finish rather than killed mid-stage (stages are independently resumable, but a half-finished
-  # publish must never race a fresh one — Invariant 7). With a single group and queueing disabled
-  # for in-progress runs, GitHub Actions still only starts the *newest* queued run once the current
-  # one finishes; older queued runs are superseded, which is "one at a time, newer wins" without
-  # cancelling active work.
-  group: pipeline
-  cancel-in-progress: false
+# Concurrency is the `run` job's, not this workflow's (DL-94 item 4): a tick whose guard says no
+# never joins the queue, so it cannot supersede a pending run that has work to do.
 
 permissions:
   contents: read
@@ -115,8 +108,17 @@ jobs:
   run:
     needs: [guard]
     if: needs.guard.outputs.run == 'true'
+    # `cancel-in-progress: false` is deliberate (E7-S4, NFR-06, R-13): a run in progress is left to
+    # finish rather than killed mid-stage (a half-finished publish must never race a fresh one,
+    # Invariant 7). GitHub Actions starts only the *newest* pending job of the group once the
+    # current one finishes; older pending ones are superseded: one at a time, newer wins. The
+    # ledger and `data` pushes are this job's steps, so they serialise with it; deploy.yml has its
+    # own `deploy` group, shared with push-to-main deploys.
+    concurrency:
+      group: pipeline
+      cancel-in-progress: false
     runs-on: ubuntu-latest
-    # Measured 2026-10-23: local run 360 s, of which the week stage 271 s; the runner is slower.
+    # A local run took about 100 s after ORC-09 (its commits give the figures); the runner is slower.
     timeout-minutes: 45
     permissions:
       contents: write # appends this run's advice to the `ledger` branch (DL-69)
@@ -142,9 +144,29 @@ jobs:
       - name: Install fpl-dof
         run: uv pip install --system -c pipeline/requirements.lock -e pipeline
 
+      # The published directory follows the contract's major version, from its one home (WEB-02).
+      - name: The published contract's directory
+        id: contract
+        run: |
+          version="$(python -c 'from fpl_dof.publish.contract import CONTRACT_VERSION as v; print(v)')"
+          echo "dir=data/web/v$version" >> "$GITHUB_OUTPUT"
+
       - name: Restore data from the `data` branch
         run: python pipeline/scripts/retention.py restore data
 
+      # The guard decided before this job queued. A run that waited behind another must still be
+      # outside the freeze when it starts (R-09), so the decision is asked again, as a dispatched
+      # run: a tick's window was met when it fired, and waiting does not unmeet it. The steps that
+      # do work follow only a yes; a no ends the job green, having done nothing.
+      - name: Still outside the freeze now this run holds the queue
+        id: still
+        env:
+          TRIGGER: ${{ inputs.trigger || 'schedule' }}
+          KINDS: ${{ inputs.kinds }}
+          GAMEWEEK: ${{ inputs.gameweek }}
+        run: |
+          run="$(fpl-dof-schedule --decide pipeline --trigger "$TRIGGER" --kinds "$KINDS" --gameweek "$GAMEWEEK")"
+          echo "run=$run" >> "$GITHUB_OUTPUT"
 
       # The advice ledger (DL-69): what earlier runs advised, per gameweek, so this run can
       # reconcile last week's advice against what was played and publish the season log. Gold is
@@ -176,10 +198,12 @@ jobs:
       # PIPE-11, REM-10: a torn or corrupt snapshot is moved to data/quarantine/ before transform
       # reads bronze, and the step lists it by path. Anything verify cannot move aside fails here.
       - name: Verify bronze before transform
+        if: steps.still.outputs.run == 'true'
         run: fpl-dof bronze verify --quarantine
 
       # Runs the exact E0 code path (D-10): `fpl-dof run --only ...`, no CI-only branch anywhere.
       - name: Run the pipeline (transform through publish)
+        if: steps.still.outputs.run == 'true'
         env:
           # Non-secret public identifiers, sourced from repository variables (Invariant 10,
           # DL-44) — never committed config. Unset is fine: EntryConfig.team_id/league_id default
@@ -196,22 +220,25 @@ jobs:
       # Deploy follows only a run that published (ORC-03): a failed stage stops the job before
       # this step, and a guard-only run never reaches it.
       - name: Mark the run as published
+        if: steps.still.outputs.run == 'true'
         id: published
         run: |
-          test -f data/web/v1/meta.json
+          test -f "${{ steps.contract.outputs.dir }}/meta.json"
           echo "published=true" >> "$GITHUB_OUTPUT"
 
       - name: Upload the published web contract
+        if: steps.still.outputs.run == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: web-data-contract
-          path: data/web/v1
+          path: ${{ steps.contract.outputs.dir }}
           retention-days: 14
 
       # Append-only, through the same mechanism that keeps `snapshots` (E7-S4): identical bytes
       # are a no-op, so re-running inside a gameweek only rewrites the file that changed, and a
       # gameweek whose deadline has passed is never advised again and therefore never rewritten.
       - name: Record this run's advice on the `ledger` branch (DL-69)
+        if: steps.still.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -234,6 +261,7 @@ jobs:
           done
 
       - name: Rebuild the rolling `data` branch
+        if: steps.still.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -249,7 +277,8 @@ jobs:
     with:
       from_pipeline: true
       must_publish: ${{ inputs.must_publish == true }}
-    secrets: inherit
+    secrets:
+      FPL_PASSWORD_HASH: ${{ secrets.FPL_PASSWORD_HASH }}
     permissions:
       contents: read
       actions: read
@@ -257,9 +286,12 @@ jobs:
       id-token: write
       issues: write # deploy.yml's own failure alert
 
-  # From the run's start to its last job, against schedule.pipeline_run_budget_seconds (ORC-09).
+  # From the run's start to its last job, deploy included, against
+  # schedule.pipeline_run_budget_seconds (ORC-09). Over budget the run ends red and alerts; its
+  # contract is already uploaded, and deploy.yml's fallback still finds it.
   budget:
-    needs: [run]
+    needs: [run, deploy]
+    if: ${{ !cancelled() && needs.run.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: read

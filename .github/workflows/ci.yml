@@ -127,7 +127,7 @@ jobs:
         working-directory: web
         run: npm run test -- --run
 
-  # The whole workflow, from its start to its last job, against schedule.ci_workflow_budget_seconds.
+  # The whole workflow, its jobs' time from first to last, against schedule.ci_workflow_budget_seconds.
   budget:
     needs: [pipeline-lint, pipeline-test, web]
     runs-on: ubuntu-latest
