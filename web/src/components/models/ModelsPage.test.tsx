@@ -52,8 +52,20 @@ describe("Models page", () => {
     expect(await screen.findByTestId("model-history")).toBeTruthy();
   });
 
+  it("reads the live season from the published data, and no frozen-era replay", async () => {
+    const live = { season: "2026/27", kind: "prospective" as const, gameweeks: [], pooled_mae: { champion: 1.234 }, missing_models: {} };
+    const spy = installFetchStub({
+      bodies: { models_history: historyFixture, xp_accuracy: { ...accuracy, seasons: [...accuracy.seasons, live] }, strategies: strategiesFixture },
+    });
+    renderApp("/models");
+    await screen.findByTestId("models-page");
+    await screen.findAllByText("1.234");
+    expect(screen.getByTestId("summary-live-mae-c3").textContent).toBe("1.234");
+    expect(spy.mock.calls.map(([url]) => String(url)).filter((url) => url.includes("replay"))).toEqual([]);
+  });
+
   it("degrades when the static files are missing", async () => {
-    installFetchStub({ missing: ["models_history", "xp_accuracy", "models_history_2627_replay"] as never });
+    installFetchStub({ missing: ["models_history", "xp_accuracy"] as never });
     renderApp("/models");
     expect(await screen.findByTestId("accuracy-absent")).toBeTruthy();
     expect(await screen.findByTestId("history-absent")).toBeTruthy();

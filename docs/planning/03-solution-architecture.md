@@ -335,8 +335,9 @@ The single most important seam in the system: the boundary between DL-04's two l
   `health`, `league`, `log`, `xp_accuracy` (the live season's, from the evaluations, ORC-05),
   `strategies` (the strategy registry, [04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)),
   `models_history` (the latest archive season the weekly backtest simulated, from
-  `ledger:models_history/`, ORC-06), and the checked-in 2026/27 GW1–6 replay and earlier
-  `xp_accuracy` seasons under `web/public/static/`, which the app shows beside the live ones. All JSON: ~700 rows needs no query engine.
+  `ledger:models_history/`, ORC-06), and the checked-in 2025/26 backtest `xp_accuracy` season in
+  `web/public/static/`, a frozen-era record nothing rebuilds, which the app shows beside the live
+  one (WEB-04 moves it into the published data). All JSON: ~700 rows needs no query engine.
 - **Versioned.** `/data/v1/`. A breaking change bumps to `v2` and publishes both during the transition.
 - **Behaviour pinned in both languages** by shared corpora in `contracts/conformance/`, read by pytest
   and vitest and never copied (DL-39). Today the legality corpus is the only one.
@@ -621,7 +622,7 @@ import fails CI. Nothing outside `sources/` imports a source subpackage, and
 | **W2** | **Model-labels part closed by MOD-07 (the app reads `strategies.json`); the rest stands: behaviour duplicated across languages without a corpus has already drifted.** Bench order: TS sorts by `xp_next`, Python by P(plays) × xP. Violation codes listed twice. `sellingPrice` in TS has no production caller | `web/src/components/squad/lineup.ts:84-86` vs `squad/selection.py:8-11`; `legality.ts:44` vs `rules/legality.py:23` | A `lineup-corpus.json` beside the legality corpus; violation codes as a schema enum; delete `sellingPrice` |
 | **W3** | **Six loading hooks, three spellings of "absent", six hand-kept artefact lists in TS** plus `ARTEFACTS` in Python. Adding an artefact touches about six files; `retry` drops eight artefacts | `store.ts:35,59,220,244,284`, `offline.ts:44`, `data/api.ts` (15 pass-throughs), `useFixtures.ts`, `useLeague.ts`, `useLog.ts`, `useHealth.ts`, `useLazyArtefact.ts` | One generated artefact registry carrying each loading policy; one `useArtefact(key)` returning `loading | ready | absent | malformed | error`; delete the pass-through layers |
 | **W4** | **Type generation is a side effect of every data run and is not checked in CI**; duplicate `$defs` names would collide silently | `stages/publish.py:166-169`, `publish/typescript.py:96-97` | `fpl-dof contract types --check` in CI; stop writing into `web/src` from the publish stage |
-| **W5** | **Challenger part closed by MOD-04:** every strategy's week and plan go through `Contract.write`. **Still open: one artefact has no schema** (the season replay, typed by hand in TS) | `web/src/components/history/season.ts:34-48` | Add its schema to `ARTEFACTS` |
+| **W5** | **Challenger part closed by MOD-04:** every strategy's week and plan go through `Contract.write`. **Still open: one checked-in file bypasses it** (the 2025/26 backtest's xP accuracy; the hand-typed season replay was archived in R1.3.0) | `web/public/static/xp_accuracy.json` | Publish it through `Contract.write` (WEB-04 item 3) |
 | **W6** | **The data layer imports components**, and `effectiveSquad` is applied twice | `store.ts:17-18`, `DataProvider.tsx:8,121`, `store.ts:199` | Move `effective.ts` and the replay type into `data/`; apply once in `withModel` |
 
 ### 12.5 Orchestration findings

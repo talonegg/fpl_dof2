@@ -16,15 +16,8 @@ import type {
   Week,
 } from "../contract/types";
 import { effectiveSquad } from "../components/squad/effective";
-import type { SeasonReplay } from "../components/history/season";
 import type { XpAccuracy, XpAccuracySeason } from "../contract/types";
-import {
-  buildRegistry,
-  normaliseAccuracy,
-  normaliseHistory,
-  normaliseModels,
-  normaliseReplay,
-} from "./registry";
+import { buildRegistry, normaliseAccuracy, normaliseHistory, normaliseModels } from "./registry";
 import type { Registry } from "./registry";
 import { DATA_DIR, WARMED_ARTEFACTS, warmPublishedCache } from "./offline";
 import { checkMajor } from "./compat";
@@ -33,11 +26,9 @@ import type { WarmOptions, WarmResult } from "./offline";
 /** Base for published data files. Never points outside this origin (Invariant 8). */
 export const DATA_BASE = `${import.meta.env.BASE_URL}${DATA_DIR}`;
 
-/** The checked-in 2026/27 GW1–6 replay. Static, shipped with the app. */
-export const SEASON_REPLAY_URL = `${import.meta.env.BASE_URL}static/models_history_2627_replay.json`;
-
-/** Per-GW all-player xP MAE for the checked-in seasons. Static app data; the live season is
- * published beside the contract as `xp_accuracy.json` (ORC-05) and merged in by `mergeAccuracy`. */
+/** Per-GW all-player xP MAE for the 2025/26 backtest, a frozen-era record nothing rebuilds; WEB-04
+ * moves it into the published data. The live season is published beside the contract as
+ * `xp_accuracy.json` from the evaluations (ORC-05) and merged in by `mergeAccuracy`. */
 export const XP_ACCURACY_URL = `${import.meta.env.BASE_URL}static/xp_accuracy.json`;
 
 export interface ArtefactMap {
@@ -55,7 +46,6 @@ export interface ArtefactMap {
   health: Health | null;
   log: Log | null;
   models_history: ModelsHistory | null;
-  models_history_2627_replay: SeasonReplay | null;
   xp_accuracy: XpAccuracy | null;
 }
 
@@ -154,15 +144,6 @@ function isModelsHistory(body: unknown): body is ModelsHistory {
   );
 }
 
-function isSeasonReplay(body: unknown): body is SeasonReplay {
-  return (
-    typeof body === "object" &&
-    body !== null &&
-    (body as SeasonReplay).kind === "replay" &&
-    Array.isArray((body as SeasonReplay).gameweeks)
-  );
-}
-
 /** The checked-in seasons and the live one the pipeline publishes from its evaluations (ORC-05).
  * A season the live file carries replaces a checked-in copy of the same season and kind. */
 export function mergeAccuracy(checkedIn: XpAccuracy | null, live: XpAccuracy | null): XpAccuracy | null {
@@ -178,7 +159,6 @@ function isXpAccuracy(body: unknown): body is XpAccuracy {
 
 class DataStore {
   readonly DATA_BASE = DATA_BASE;
-  readonly SEASON_REPLAY_URL = SEASON_REPLAY_URL;
   readonly XP_ACCURACY_URL = XP_ACCURACY_URL;
 
   private cache = new Map<ArtefactKey, Promise<unknown>>();
@@ -306,7 +286,6 @@ class DataStore {
       "health",
       "log",
       "models_history",
-      "models_history_2627_replay",
       "xp_accuracy",
     ];
     for (const key of trends) {
@@ -353,8 +332,6 @@ class DataStore {
       case "models_history":
         // Published by the pipeline from the weekly backtest's record (ORC-06); absent until one ran.
         return this.normalised(fetchStaticSafe(`${this.DATA_BASE}/models_history.json`, isModelsHistory), normaliseHistory);
-      case "models_history_2627_replay":
-        return this.normalised(fetchStaticSafe(this.SEASON_REPLAY_URL, isSeasonReplay), normaliseReplay);
       case "xp_accuracy":
         return this.normalised<XpAccuracy>(
           Promise.all([

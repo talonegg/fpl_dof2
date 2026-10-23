@@ -4,7 +4,6 @@ import type { Models, ModelsHistory } from "../../contract/types";
 import { useDataState, useRegistry } from "../../data/DataProvider";
 import { useArtefact } from "../../data/store";
 import { ModelHistoryView } from "../history/ModelHistoryView";
-import { SeasonView } from "../history/SeasonView";
 import "../history/history.css";
 import { useLog } from "../log/useLog";
 import { AccuracySection } from "./AccuracySection";
@@ -55,7 +54,7 @@ function SummaryTable({ history, accuracy, models }: { history: ModelsHistory | 
               xP MAE <span className="history-sub">2025/26</span>
             </th>
             <th scope="col">
-              xP MAE <span className="history-sub">2026/27 GW1–6 replay</span>
+              xP MAE <span className="history-sub">2026/27 live</span>
             </th>
             <th scope="col">Status / caveat</th>
           </tr>
@@ -80,7 +79,7 @@ function SummaryTable({ history, accuracy, models }: { history: ModelsHistory | 
                 <td className="models-what">{description}</td>
                 <td data-testid={`summary-xi-${m}`}>{f(b?.mean_per_gameweek, 2)}</td>
                 <td data-testid={`summary-mae-${m}`}>{f(a2526?.pooled_mae[m], 3)}</td>
-                <td>{f(a2627?.pooled_mae[m], 3)}</td>
+                <td data-testid={`summary-live-mae-${m}`}>{f(a2627?.pooled_mae[m], 3)}</td>
                 <td className="models-what">
                   <strong>
                     {role === "champion"
@@ -105,19 +104,18 @@ function SummaryTable({ history, accuracy, models }: { history: ModelsHistory | 
 
 /**
  * `/models` — every frozen model on one page: (a) summary, (b) per-model details, (c) xP accuracy,
- * (d) history (the backtest's models history, 2026/27 replay then live). `/history` redirects to the History
+ * (d) history (the backtest's models history; the live season is under Details). `/history` redirects to the History
  * section. Every part degrades on its own: a missing file hides or explains its section only.
  */
 export function ModelsPage() {
   const { state } = useDataState();
   const data = state.status === "ready" ? state.data : null;
   const history = useArtefact("models_history");
-  const replay = useArtefact("models_history_2627_replay");
   const accuracy = useArtefact("xp_accuracy");
   const { state: logState } = useLog();
   const [params] = useSearchParams();
   const section = params.get("section");
-  const allLoaded = history.status === "ready" && replay.status === "ready" && accuracy.status === "ready";
+  const allLoaded = history.status === "ready" && accuracy.status === "ready";
   useEffect(() => {
     if (section && allLoaded) document.getElementById(`models-${section}`)?.scrollIntoView?.({ block: "start" });
   }, [section, allLoaded]);
@@ -198,7 +196,6 @@ export function ModelsPage() {
 
       <section className="models-page-section" id="models-history" aria-labelledby="models-history-heading">
         <h2 id="models-history-heading">History</h2>
-        <SeasonView replay={replay.data} models={models} />
         {history.status === "loading" ? (
           <p data-testid="history-loading">Loading the model history…</p>
         ) : history.data ? (

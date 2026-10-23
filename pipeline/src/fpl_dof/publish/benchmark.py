@@ -18,7 +18,7 @@ def build_live_xp_accuracy(
     """The live season's ``xp_accuracy.json``: each evaluated gameweek's MAE per strategy, from the
     xP it recorded before the deadline (ORC-05, ORC-08). ``None`` before any gameweek has one.
 
-    The app shows it beside the checked-in 2025/26 backtest and 2026/27 replay seasons.
+    The app shows it beside the checked-in 2025/26 backtest season.
     """
     gws: dict[int, dict[str, float]] = {}
     tot: dict[str, list[float]] = {}

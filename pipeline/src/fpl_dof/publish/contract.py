@@ -64,7 +64,7 @@ ARTEFACTS: dict[str, str] = {
     # strategy, recorded on `ledger`; the latest season is published. Absent until a backtest ran.
     "models_history": "models_history.schema.json",
     # All-player next-GW xP MAE: the live season's from the evaluations (ORC-05), beside the
-    # checked-in 2025/26 backtest and 2026/27 replay seasons under web/public/static/.
+    # checked-in 2025/26 backtest season under web/public/static/ (WEB-04 publishes it).
     "xp_accuracy": "xp_accuracy.schema.json",
     # The strategy registry as published (MOD-03): every strategy's id, label, role and digest,
     # generated from config/strategies/. Additive, so contract v1 does not bump.

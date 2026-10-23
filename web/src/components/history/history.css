@@ -19,12 +19,9 @@
 .history-summary th[scope="row"], .history-summary th:nth-child(2) { text-align: left; }
 .season { margin-top: 2.5rem; }
 .history-asof { font-weight: 600; }
-.season-legend { list-style: none; padding: 0; }
-.season-legend li { margin: 0.25rem 0; }
 .season-phase { display: inline-block; font-size: 0.75em; font-weight: 700; padding: 0.1rem 0.45rem; border-radius: 999px; border: 1px solid currentColor; }
 .season-phase-replay { color: #8a6d3b; border-style: dashed; background: rgba(217, 130, 43, 0.1); }
 .season-phase-prospective { color: #16a34a; background: rgba(22, 163, 74, 0.12); }
-.season-row-replay td, .season-row-replay th { opacity: 0.8; }
 :root[data-theme="dark"] .season-phase-replay { color: #f0b46a; }
 :root[data-theme="dark"] .season-phase-prospective { color: #4ade80; }
 @media (prefers-color-scheme: dark) {
