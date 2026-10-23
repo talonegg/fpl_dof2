@@ -47,7 +47,7 @@ from dataclasses import dataclass
 
 from fpl_dof.config.models import ScheduleConfig
 from fpl_dof.gameweek import Due, GameweekState
-from fpl_dof.sources import CHANGE_KINDS
+from fpl_dof.triggers import CHANGE, CHANGE_KINDS, DAY_BEFORE, TRIGGERS
 
 MINUTES_PER_HOUR = 60.0
 
@@ -220,21 +220,6 @@ def pipeline_decision(
     )
 
 
-#: What may start a pipeline run (ORC-02), as `pipeline.yml`'s `trigger` input names it. The cron
-#: tick sends none. `schedule` is the daily refresh the slow ingest dispatches; `change` carries the
-#: change manifest's kinds; `day-before` must publish a fresh contract. The one home of the
-#: vocabulary (DP-14): config, the dispatch script and the contract schemas are held to it.
-MANUAL, SCHEDULE, CHANGE, DAY_BEFORE = "manual", "schedule", "change", "day-before"
-TRIGGERS: tuple[str, ...] = (MANUAL, SCHEDULE, CHANGE, DAY_BEFORE)
-
-_KIND = "|".join(CHANGE_KINDS)
-#: What a run stamps on its advice (ORC-03): its trigger, a change as ``change:`` and the kinds
-#: that moved. Every contract schema's ``trigger`` pattern is this one (``test_dispatch.py``).
-TRIGGER_STAMP = (
-    f"^({'|'.join(t for t in TRIGGERS if t != CHANGE)}|{CHANGE}:({_KIND})(,({_KIND}))*)$"
-)
-
-
 def dispatch_decision(
     *,
     trigger: str,
@@ -281,13 +266,8 @@ def dispatch_decision(
 
 
 __all__ = [
-    "CHANGE",
-    "DAY_BEFORE",
-    "MANUAL",
     "MINUTES_PER_HOUR",
-    "SCHEDULE",
     "TRIGGERS",
-    "TRIGGER_STAMP",
     "ScheduleDecision",
     "dispatch_decision",
     "fast_ingest_decision",

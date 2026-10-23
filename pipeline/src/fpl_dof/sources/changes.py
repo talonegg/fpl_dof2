@@ -13,10 +13,7 @@ from collections.abc import Mapping, Sequence
 
 from fpl_dof.sources.base import SourceAdapter, Window
 from fpl_dof.sources.bronze import BronzeStore, Snapshot
-
-#: Everything that starts a pipeline run: a price; a status or news line; a fixture's kick-off or
-#: gameweek; a match of the Open gameweek priced for the first time.
-KINDS: tuple[str, ...] = ("prices", "status", "fixtures", "odds")
+from fpl_dof.triggers import CHANGE_KINDS as KINDS
 
 Before = Mapping[tuple[str, str, str], Snapshot | None]
 

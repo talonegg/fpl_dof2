@@ -21,7 +21,7 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from fpl_dof.week.schedule import CHANGE, DAY_BEFORE, SCHEDULE
+from fpl_dof.triggers import CHANGE, DAY_BEFORE, SCHEDULE
 
 MANIFEST = Path("data/runs/changes.json")
 

@@ -20,8 +20,8 @@ from fpl_dof.config.models import RuntimeConfig, ScheduleConfig
 from fpl_dof.gameweek import GameweekState, Phase
 from fpl_dof.schedule_cli import EXIT_USAGE
 from fpl_dof.schedule_cli import main as schedule_main
-from fpl_dof.sources import CHANGE_KINDS
-from fpl_dof.week.schedule import CHANGE, TRIGGER_STAMP, TRIGGERS, dispatch_decision
+from fpl_dof.triggers import CHANGE, CHANGE_KINDS, TRIGGER_STAMP, TRIGGERS
+from fpl_dof.week.schedule import dispatch_decision
 
 REPO = Path(__file__).resolve().parents[2]
 WORKFLOWS = REPO / ".github" / "workflows"

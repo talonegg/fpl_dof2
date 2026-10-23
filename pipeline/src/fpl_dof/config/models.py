@@ -10,11 +10,12 @@ behaviour change otherwise, and this project cannot afford silent behaviour chan
 from __future__ import annotations
 
 import datetime as dt
-import re
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+from fpl_dof.triggers import MANUAL, TRIGGER_STAMP
 
 #: How captain and vice are picked inside the chosen XI; a strategy's policy names one (MOD-03).
 CaptainRule = Literal["price_position", "model"]
@@ -41,22 +42,13 @@ class RuntimeConfig(_Section):
         ),
     )
     trigger: str = Field(
-        default="manual",
+        default=MANUAL,
+        pattern=TRIGGER_STAMP,
         description=(
             "What started this run, stamped on every advice (ORC-03, DL-94): schedule, "
             "change:<kinds>, manual or day-before. CI sets FPL_DOF_TRIGGER; a local run is manual."
         ),
     )
-
-    @field_validator("trigger")
-    @classmethod
-    def _a_known_trigger(cls, value: str) -> str:
-        # Imported here: the vocabulary's home, fpl_dof.week.schedule, imports this module.
-        from fpl_dof.week.schedule import TRIGGER_STAMP
-
-        if re.search(TRIGGER_STAMP, value) is None:
-            raise ValueError(f"unknown trigger {value!r}; expected {TRIGGER_STAMP}")
-        return value
 
 
 class RateLimitConfig(_Section):
