@@ -635,7 +635,9 @@ class _Model:
     ) -> PlannedWeek:
         multiplier = self._captain_multiplier(chip)
         bench_weight = (
-            1.0 if chip in self.rules.chips.bench_scores_with else self.decision.horizon.bench_weight
+            1.0
+            if chip in self.rules.chips.bench_scores_with
+            else self.decision.horizon.bench_weight
         )
         bench = [i for i in fielded if i not in set(starting)]
 

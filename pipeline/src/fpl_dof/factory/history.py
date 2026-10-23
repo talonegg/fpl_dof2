@@ -10,8 +10,8 @@ forecast and policy alone.
 The forecast is the walk's own: each fold's prediction was made from data strictly before that
 deadline (Invariant 5), and the captain rule's B0 is fitted on the strategy's training window
 before it. Its spread is the strategy's own error over its earlier folds, by position, so it too is
-knowable at the deadline (Invariant 6). Pure: frames in, rows out (DP-03). Strategies are simulated in parallel, one process
-each (``backtest.strategy_workers``); one whose season cannot be simulated is recorded with the
+knowable at the deadline (Invariant 6). Pure: frames in, rows out (DP-03). Strategies are
+simulated in parallel, one process each (``backtest.strategy_workers``); one whose season cannot be simulated is recorded with the
 reason and the others finish (D-32).
 """
 
