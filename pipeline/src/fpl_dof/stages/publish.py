@@ -34,6 +34,7 @@ from fpl_dof.obs.logging import get_logger
 from fpl_dof.obs.manifest import RunManifest, git_sha, read_manifest
 from fpl_dof.paths import find_repo_root
 from fpl_dof.pipeline import Output, StageContext, StageResult
+from fpl_dof.publish.benchmark import build_live_xp_accuracy
 from fpl_dof.publish.contract import CONTRACT_MINOR, CONTRACT_VERSION, Contract, find_contracts_root
 from fpl_dof.publish.fixtures import build_fixtures
 from fpl_dof.publish.health import build_health
@@ -43,12 +44,12 @@ from fpl_dof.publish.models_compare import build_models
 from fpl_dof.publish.season_log import build_log
 from fpl_dof.publish.strategies import artefact_paths, build_strategies
 from fpl_dof.publish.typescript import write_types
-from fpl_dof.rules.models import GameRules, Position
-from fpl_dof.rules.realised import performances as performances_of
+from fpl_dof.rules.models import GameRules
 from fpl_dof.silver.store import read_table, read_table_optional
 from fpl_dof.silver.tables import Table
 from fpl_dof.sources import BronzeStore, supplying
 from fpl_dof.week.cadence import current_gameweek
+from fpl_dof.week.evaluation import read_evaluations
 from fpl_dof.week.ledger import read_all_advice
 from fpl_dof.week.schedule import next_fast_ingest
 
@@ -122,7 +123,8 @@ def run(ctx: StageContext) -> StageResult:
 
     # The season log (DL-69): absent until a team ID is configured and the game has recorded picks
     # for it, for the same reason `league.json` is — a stale one would describe a different owner.
-    season_log = _season_log(ctx, season, rules)
+    evaluations = read_evaluations(ctx.layout)
+    season_log = _season_log(ctx, season, evaluations)
     if season_log is not None:
         outputs.append(
             Output(
@@ -133,8 +135,16 @@ def run(ctx: StageContext) -> StageResult:
     else:
         removed.append("log.json")
 
+    # The live season's xP accuracy (ORC-05): absent until a gameweek with recorded predictions
+    # has been evaluated. The app shows it beside the checked-in seasons.
+    accuracy = build_live_xp_accuracy(season, evaluations, contract_version=CONTRACT_VERSION)
+    if accuracy is not None:
+        outputs.append(Output(path=contract.write("xp_accuracy", accuracy, destination)))
+    else:
+        removed.append("xp_accuracy.json")
+
     # The five-model comparison: absent until the prospective harness has recorded a decision.
-    models_payload = _models(ctx, season, gameweeks)
+    models_payload = _models(ctx, season, gameweeks, evaluations)
     published_models = False
     if models_payload is not None:
         try:
@@ -557,38 +567,26 @@ def _league(ctx: StageContext, season: str, gameweeks: pd.DataFrame) -> dict[str
 
 
 def _season_log(
-    ctx: StageContext, season: str, rules: GameRules | None = None
+    ctx: StageContext, season: str, evaluations: dict[int, dict[str, Any]]
 ) -> dict[str, Any] | None:
-    """The season log, or ``None`` when there is no owner or no picks to log yet (DL-69)."""
+    """The season log from the evaluations, or ``None`` when there is no owner or no gameweek of
+    theirs evaluated yet (DL-69, ORC-05)."""
     entry_id = ctx.config.entry.team_id
     if entry_id is None:
         return None
-    silver = ctx.layout.silver
-    picks = read_table_optional(silver, season, Table.ENTRY_PICK)
-    if picks is None or picks.empty:
-        return None
-    picks = picks[picks["entry_id"] == entry_id]
-    if picks.empty:
-        return None
-    effective_rules = rules if rules is not None else read_rules(ctx, season)
     return build_log(
         entry_id=entry_id,
         season=season,
-        picks=picks,
-        entry_gameweeks=read_table_optional(silver, season, Table.ENTRY_GAMEWEEK),
-        chips=read_table_optional(silver, season, Table.ENTRY_CHIP),
-        advice=read_all_advice(ctx.layout),
+        evaluations=evaluations,
         contract_version=CONTRACT_VERSION,
-        player_gameweek=read_table_optional(silver, season, Table.PLAYER_GAMEWEEK),
-        player_pool=read_table_optional(silver, season, Table.PLAYER),
-        rules=effective_rules,
-        transfer_config=ctx.config.transfers,
-        optimiser_config=ctx.config.optimiser,
     )
 
 
 def _models(
-    ctx: StageContext, season: str, gameweeks: pd.DataFrame | None = None
+    ctx: StageContext,
+    season: str,
+    gameweeks: pd.DataFrame | None = None,
+    evaluations: dict[int, dict[str, Any]] | None = None,
 ) -> dict[str, Any] | None:
     """models.json: the retired harness's record up to the switch, the live ledger from it.
 
@@ -615,24 +613,7 @@ def _models(
                 ]
             for p in sorted((root / "status").glob("GW*.json")):
                 statuses[int(p.stem[2:])] = json.loads(p.read_text(encoding="utf-8"))
-        silver = ctx.layout.silver
-        player_gameweek = read_table_optional(silver, season, Table.PLAYER_GAMEWEEK)
-        players = read_table_optional(silver, season, Table.PLAYER)
-        performances = {}
-        if player_gameweek is not None and not player_gameweek.empty:
-            weeks = read_table(silver, season, Table.GAMEWEEK)
-            finished = {as_int(g) for g in weeks.loc[weeks["finished"], "gameweek"]}
-            current = player_gameweek[player_gameweek["season"] == season]
-            positions = (
-                None
-                if players is None
-                else {as_int(r.player_id): Position(str(r.position)) for r in players.itertuples()}
-            )
-            performances = {
-                as_int(g): performances_of(rows, positions=positions)
-                for g, rows in current.groupby("gameweek")
-                if as_int(g) in finished
-            }
+        players = read_table_optional(ctx.layout.silver, season, Table.PLAYER)
         ledger = read_all_advice(ctx.layout)
         # ORC-07: an awaited source is next checked at the next fast-ingest firing that fetches.
         state = None if gameweeks is None else open_gameweek(SilverTables(gameweeks), (), ctx.as_of)
@@ -647,8 +628,7 @@ def _models(
             contract_version=CONTRACT_VERSION,
             statuses=statuses,
             ledger=ledger,
-            performances=performances,
-            rules=read_rules(ctx, season) if ledger else None,
+            evaluations=evaluations,
             names={}
             if players is None
             else {as_int(r.player_id): str(r.web_name) for r in players.itertuples()},

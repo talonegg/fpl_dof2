@@ -17,7 +17,7 @@ import type {
 } from "../contract/types";
 import { effectiveSquad } from "../components/squad/effective";
 import type { SeasonReplay } from "../components/history/season";
-import type { XpAccuracy } from "../contract/types";
+import type { XpAccuracy, XpAccuracySeason } from "../contract/types";
 import {
   buildRegistry,
   normaliseAccuracy,
@@ -39,7 +39,8 @@ export const MODELS_HISTORY_URL = `${import.meta.env.BASE_URL}static/models_hist
 /** The checked-in 2026/27 GW1–6 replay. Static, shipped with the app. */
 export const SEASON_REPLAY_URL = `${import.meta.env.BASE_URL}static/models_history_2627_replay.json`;
 
-/** Per-GW all-player xP MAE. Static app data. */
+/** Per-GW all-player xP MAE for the checked-in seasons. Static app data; the live season is
+ * published beside the contract as `xp_accuracy.json` (ORC-05) and merged in by `mergeAccuracy`. */
 export const XP_ACCURACY_URL = `${import.meta.env.BASE_URL}static/xp_accuracy.json`;
 
 export interface ArtefactMap {
@@ -163,6 +164,15 @@ function isSeasonReplay(body: unknown): body is SeasonReplay {
     (body as SeasonReplay).kind === "replay" &&
     Array.isArray((body as SeasonReplay).gameweeks)
   );
+}
+
+/** The checked-in seasons and the live one the pipeline publishes from its evaluations (ORC-05).
+ * A season the live file carries replaces a checked-in copy of the same season and kind. */
+export function mergeAccuracy(checkedIn: XpAccuracy | null, live: XpAccuracy | null): XpAccuracy | null {
+  if (!checkedIn || !live) return checkedIn ?? live;
+  const key = (s: XpAccuracySeason) => `${s.season}|${s.kind}`;
+  const fresh = new Set(live.seasons.map(key));
+  return { ...checkedIn, seasons: [...checkedIn.seasons.filter((s) => !fresh.has(key(s))), ...live.seasons] };
 }
 
 function isXpAccuracy(body: unknown): body is XpAccuracy {
@@ -349,7 +359,13 @@ class DataStore {
       case "models_history_2627_replay":
         return this.normalised(fetchStaticSafe(this.SEASON_REPLAY_URL, isSeasonReplay), normaliseReplay);
       case "xp_accuracy":
-        return this.normalised(fetchStaticSafe(this.XP_ACCURACY_URL, isXpAccuracy), normaliseAccuracy);
+        return this.normalised<XpAccuracy>(
+          Promise.all([
+            fetchStaticSafe(this.XP_ACCURACY_URL, isXpAccuracy),
+            fetchStaticSafe(`${this.DATA_BASE}/xp_accuracy.json`, isXpAccuracy),
+          ]).then(([checkedIn, live]) => mergeAccuracy(checkedIn, live)),
+          normaliseAccuracy,
+        );
     }
   }
 

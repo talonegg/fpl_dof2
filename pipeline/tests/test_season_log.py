@@ -1,4 +1,5 @@
-"""The season log's played row is scored by the one scorer, hits charged (D-30, ORC-04).
+"""The season log's played row is scored by the one scorer, hits charged (D-30, ORC-04), when the
+gameweek is evaluated (ORC-05).
 
 The owner's GW4 of 2026/27, from the realised corpus: FPL scored it 83 before a 4-point hit, 79 net.
 The played row used to be scored without the hit and showed 83.
@@ -6,6 +7,7 @@ The played row used to be scored without the hit and showed 83.
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 from pathlib import Path
 
@@ -14,6 +16,7 @@ import pandas as pd
 from fpl_dof.publish.contract import CONTRACT_VERSION
 from fpl_dof.publish.season_log import build_log
 from fpl_dof.rules.models import GameRules
+from fpl_dof.week.evaluation import Evidence, build_evaluation
 
 CORPUS = (
     Path(__file__).resolve().parents[2]
@@ -78,18 +81,29 @@ def test_the_owners_gw4_played_row_charges_the_hit(game_rules: GameRules) -> Non
         [{"player_id": p["player_id"], "position": p["position"]} for p in case["picks"]]
     )
 
+    evaluation = build_evaluation(
+        gameweek,
+        evidence=Evidence(
+            season=game_rules.season,
+            player_gameweek=performances,
+            players=pool,
+            picks=picks,
+            entry_gameweeks=scores,
+        ),
+        advice=None,
+        predictions={},
+        rules=game_rules,
+        entry_id=entry,
+        as_of=dt.datetime(2026, 9, 20, tzinfo=dt.UTC),
+        run_id="r",
+    )
     log = build_log(
         entry_id=entry,
         season=game_rules.season,
-        picks=picks,
-        entry_gameweeks=scores,
-        chips=None,
-        advice={},
+        evaluations={gameweek: evaluation},
         contract_version=CONTRACT_VERSION,
-        player_gameweek=performances,
-        player_pool=pool,
-        rules=game_rules,
     )
+    assert log is not None
 
     rankings = log["gameweeks"][0]["hindsight"]["rankings"]
     played = next(r["score"] for r in rankings if r["model_name"] == "played")

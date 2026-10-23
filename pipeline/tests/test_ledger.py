@@ -19,6 +19,7 @@ from fpl_dof.paths import DataLayout
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
 from fpl_dof.publish.season_log import build_log
 from fpl_dof.rules.models import GameRules
+from fpl_dof.week.evaluation import Evidence, build_evaluation
 from fpl_dof.week.ledger import advice_path, read_advice, read_all_advice, record_advice
 
 SQUAD = list(range(1, 16))
@@ -234,12 +235,55 @@ def test_an_entry_filed_under_the_wrong_gameweek_is_refused(tmp_path: Path) -> N
     assert read_advice(layout, 3) is None
 
 
-# --- the season log --------------------------------------------------------------------------
+# --- the season log -----------------------------------------------------------------------
 
 
-def test_gameweeks_decided_without_the_tool_say_so() -> None:
-    """GW1 to GW4 of 2026/27 have picks and points and no advice. Nothing is reconstructed."""
+def _log(
+    *,
+    entry_id: int,
+    season: str,
+    picks: pd.DataFrame,
+    entry_gameweeks: pd.DataFrame | None,
+    chips: pd.DataFrame | None,
+    advice: dict[int, dict[str, Any]],
+    contract_version: int,
+    rules: GameRules,
+    player_gameweek: pd.DataFrame | None = None,
+    player_pool: pd.DataFrame | None = None,
+) -> dict[str, Any]:
+    """The season log as the pipeline builds it: each gameweek evaluated once (ORC-05), then
+    logged from the evaluations."""
+    evidence = Evidence(
+        season=season,
+        player_gameweek=player_gameweek,
+        players=player_pool,
+        picks=picks,
+        entry_gameweeks=entry_gameweeks,
+        chips=chips,
+    )
+    evaluations = {
+        gw: build_evaluation(
+            gw,
+            evidence=evidence,
+            advice=advice.get(gw),
+            predictions={},
+            rules=rules,
+            entry_id=entry_id,
+            as_of=AS_OF,
+            run_id="r",
+        )
+        for gw in sorted({int(g) for g in picks["gameweek"]})
+    }
     log = build_log(
+        entry_id=entry_id, season=season, evaluations=evaluations, contract_version=contract_version
+    )
+    assert log is not None
+    return log
+
+
+def test_gameweeks_decided_without_the_tool_say_so(game_rules: GameRules) -> None:
+    """GW1 to GW4 of 2026/27 have picks and points and no advice. Nothing is reconstructed."""
+    log = _log(
         entry_id=7,
         season="2026/27",
         picks=pd.concat([_picks(1), _picks(2)], ignore_index=True),
@@ -247,6 +291,7 @@ def test_gameweeks_decided_without_the_tool_say_so() -> None:
         chips=None,
         advice={},
         contract_version=CONTRACT_VERSION,
+        rules=game_rules,
     )
     assert [row["gameweek"] for row in log["gameweeks"]] == [1, 2]
     for row in log["gameweeks"]:
@@ -265,11 +310,13 @@ def test_gameweeks_decided_without_the_tool_say_so() -> None:
     }
 
 
-def test_recorded_advice_is_reconciled_against_what_was_played(tmp_path: Path) -> None:
+def test_recorded_advice_is_reconciled_against_what_was_played(
+    tmp_path: Path, game_rules: GameRules
+) -> None:
     layout = DataLayout(root=tmp_path)
     record_advice(layout, _week_payload(5, captain=1), as_of=AS_OF, now=AS_OF)
     record_advice(layout, _week_payload(6, captain=1), as_of=AS_OF, now=AS_OF)
-    log = build_log(
+    log = _log(
         entry_id=7,
         season="2026/27",
         picks=pd.concat([_picks(5, captain=1), _picks(6, captain=3)], ignore_index=True),
@@ -277,6 +324,7 @@ def test_recorded_advice_is_reconciled_against_what_was_played(tmp_path: Path) -
         chips=pd.DataFrame([{"entry_id": 7, "name": "wildcard", "gameweek": 6}]),
         advice=read_all_advice(layout),
         contract_version=CONTRACT_VERSION,
+        rules=game_rules,
     )
     followed, overridden = log["gameweeks"]
     assert followed["advised"]["run_id"] == "run-gw5"
@@ -292,24 +340,10 @@ def test_recorded_advice_is_reconciled_against_what_was_played(tmp_path: Path) -
     assert log["summary"]["advice_overridden"] == 1
 
 
-def test_a_gameweek_the_game_has_not_scored_yet_has_a_null_score() -> None:
-    log = build_log(
-        entry_id=7,
-        season="2026/27",
-        picks=_picks(3),
-        entry_gameweeks=None,
-        chips=None,
-        advice={},
-        contract_version=CONTRACT_VERSION,
-    )
-    assert log["gameweeks"][0]["score"] is None
-    assert log["summary"]["total_points"] == 0
-
-
-def test_the_log_validates_against_its_contract(tmp_path: Path) -> None:
+def test_the_log_validates_against_its_contract(tmp_path: Path, game_rules: GameRules) -> None:
     layout = DataLayout(root=tmp_path)
     record_advice(layout, _week_payload(2), as_of=AS_OF, now=AS_OF)
-    log = build_log(
+    log = _log(
         entry_id=7,
         season="2026/27",
         picks=pd.concat([_picks(1), _picks(2, captain=5)], ignore_index=True),
@@ -317,6 +351,7 @@ def test_the_log_validates_against_its_contract(tmp_path: Path) -> None:
         chips=None,
         advice=read_all_advice(layout),
         contract_version=CONTRACT_VERSION,
+        rules=game_rules,
     )
     Contract(root=find_contracts_root()).validate("log", log)
 
@@ -365,12 +400,13 @@ def test_hindsight_is_populated_and_validates_against_contract(
                 "web_name": f"P{pid}",
                 "position": pos,
                 "minutes": 90,
+                "price": 5.0,
                 "total_points": 10 if pid in (1, 16) else 4,
             }
         )
 
     def build(gameweek_rows: list[dict[str, Any]]) -> dict[str, Any]:
-        return build_log(
+        return _log(
             entry_id=7,
             season="2026/27",
             picks=pd.concat([_picks(1), _picks(2, captain=1)], ignore_index=True),
@@ -431,13 +467,14 @@ def _hindsight_log(tmp_path: Path, game_rules: GameRules, state: dict[str, float
                 "web_name": f"P{p}",
                 "position": positions[p - 1],
                 "minutes": 90,
+                "price": 5.0,
                 "total_points": 4,
             }
             for gw in (1, 2)
             for p in range(1, 17)
         ]
     )
-    return build_log(
+    return _log(
         entry_id=7,
         season="2026/27",
         picks=pd.concat([_picks(1), _picks(2, captain=1)], ignore_index=True),
@@ -451,22 +488,15 @@ def _hindsight_log(tmp_path: Path, game_rules: GameRules, state: dict[str, float
     )
 
 
-def test_gameweek_without_recorded_state_keeps_rankings_and_has_no_invented_optimal(
+def test_the_optimum_is_solved_from_the_squad_held_at_the_deadline_not_the_record(
     tmp_path: Path, game_rules: GameRules
 ) -> None:
+    """GW2's advice recorded no squad state: its optimum is solved from silver regardless (D-31).
+    GW1 had no squad before it, so it has no optimum, and none is invented."""
     log = _hindsight_log(tmp_path, game_rules, None)
-    for gw in log["gameweeks"]:  # GW1 has no ledger entry; GW2's entry lacks squad_state
-        h = gw["hindsight"]
-        assert h is not None
-        assert "played" in {r["model_name"] for r in h["rankings"]}
-        assert h["optimal"] is None and h["diagnostics"] == []
-        assert h["optimal_unavailable_reason"]
+    gw1, gw2 = (gw["hindsight"] for gw in log["gameweeks"])
+    assert "played" in {r["model_name"] for r in gw1["rankings"]}
+    assert gw1["optimal"] is None and gw1["diagnostics"] == []
+    assert gw1["optimal_unavailable_reason"] == "no squad was held before this gameweek"
+    assert gw2["optimal"] is not None
     Contract(root=find_contracts_root()).validate("log", log)
-
-
-def test_real_zero_bank_and_free_transfers_are_kept_as_zeros(
-    tmp_path: Path, game_rules: GameRules
-) -> None:
-    log = _hindsight_log(tmp_path, game_rules, {"bank": 0.0, "free_transfers": 0})
-    assert log["gameweeks"][1]["hindsight"]["optimal"] is not None
-    assert log["gameweeks"][0]["hindsight"]["optimal"] is None

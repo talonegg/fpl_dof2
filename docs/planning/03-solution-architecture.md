@@ -332,9 +332,9 @@ The single most important seam in the system: the boundary between DL-04's two l
   `plan` and `week` (the champion's; every other published strategy writes `week_<id>` and,
   if its policy plans, `plan_<id>` in the same schemas, at the paths `strategies.json` names;
   publish removes any week or plan file no published strategy writes now), `history`, `models`,
-  `health`, `league`, `log`,
+  `health`, `league`, `log`, `xp_accuracy` (the live season's, from the evaluations, ORC-05),
   `strategies` (the strategy registry, [04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)),
-  and the static `models_history` and `xp_accuracy` series. All JSON: ~700 rows needs no query engine.
+  and the static `models_history` and `xp_accuracy` series, which the app shows beside the live one. All JSON: ~700 rows needs no query engine.
 - **Versioned.** `/data/v1/`. A breaking change bumps to `v2` and publishes both during the transition.
 - **Behaviour pinned in both languages** by shared corpora in `contracts/conformance/`, read by pytest
   and vitest and never copied (DL-39). Today the legality corpus is the only one.
@@ -368,7 +368,7 @@ every clone. That is why R-13 is rated High and why the stores have different me
 | --- | --- | --- |
 | **`data`** — rolling bronze | Orphan branch, rebuilt from the retained window (`retention.bronze_days`) and the immutable prior-season snapshots by `pipeline/scripts/retention.py`, with the accumulated `price_history`. The script first folds in what the branch holds and force-pushes with a lease on it, so concurrent workflows never drop each other's pushes. A quarantined capture is never pushed or folded back in; only its sidecar, the record `/health` counts, travels under `quarantine/` within the window (ORC-10) | History is truncated, not accumulated; these snapshots debug the recent past |
 | **`snapshots`** — permanent bronze | Append-only; `bronze-full/<season>/gwNN.tar.gz` holds the bronze dated after the previous deadline day up to the gameweek's own, written once the day after its deadline, and `index.json` lists the gameweeks archived, partial and lost (PIPE-14, DL-81). Gameweeks that closed before it first ran on `main` are listed as lost (DL-85) | The NFR-06 evidence trail, small enough to keep forever |
-| **`ledger`** — advice and prospective records | Append-only; `advice/gwNN.json` holds each strategy's last success before the deadline, a later failure noted beside it, and the writer refuses a write after the deadline ([DL-94](../decisions/DL-94.md)); `predictions/gwNN/<strategy>.parquet` holds each strategy's forecast under the same rule (ORC-08); `prospective/gw*.tgz` frozen with it | What was advised, provably before the event (DL-69) |
+| **`ledger`** — advice and prospective records | Append-only; `advice/gwNN.json` holds each strategy's last success before the deadline, a later failure noted beside it, and the writer refuses a write after the deadline ([DL-94](../decisions/DL-94.md)); `predictions/gwNN/<strategy>.parquet` holds each strategy's forecast under the same rule (ORC-08); `evaluation/gwNN.json` holds each finished gameweek's judgement, written once and rewritten only when the scorer's version changes (ORC-05); `prospective/gw*.tgz` frozen with it | What was advised, provably before the event (DL-69) |
 | **Published contract** | Actions artefact `web-data-contract` (14 days) → Pages | Serving surface, not an archive |
 
 **CI artefacts never hold anything NFR-06 depends on.** They expire; anything reproducibility needs

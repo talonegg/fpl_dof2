@@ -206,7 +206,7 @@ Under `paths.DataLayout`; what persists between CI runs is
 | Silver | `silver/season={s}/{table}.parquet` plus the season's `rules.json`; rebuilt from bronze each run except the accumulating tables (03 §7.1) |
 | Gold | `gold/season={s}/` — `expected_points.parquet`, `player_career_history.parquet`, `team_match_odds.parquet`, `squad.json`, `plan.json`, `week.json` (and `week_<id>.json`, `plan_<id>.json` per other published strategy), `quality.json`, `model-card.md`, backtest outputs |
 | Quarantine | `quarantine/bronze/…` from `bronze verify --quarantine`, and every capture that broke its source's contract, at ingest or by `bronze verify --contract`, with `quarantine_reason` in its sidecar (ORC-10); `quarantine/silver-{time}/` from `silver rebuild` (REM-10). Kept, never read |
-| Ledger | `ledger/advice/gwNN.json`, append-only (DL-69): the champion's advice, and every published strategy's under `models` by registry id: its last success before the deadline, stamped `as_of` and `trigger`, with a later failure noted as `last_failure`, or its "no advice" reason, with the silver tables it lacked as `missing` and the first such run's `as_of` as `since` (MOD-04, [DL-94](../decisions/DL-94.md), ORC-07). The writer refuses a write after the deadline. Beside it, `ledger/predictions/gwNN/<strategy>.parquet` (ORC-08): that strategy's full-pool forecast for the gameweek it advised from (`player_id`, `xp_next`, `xp_next_sd`, `start_probability`), replaced only by a later success and refused after the deadline on the same terms |
+| Ledger | `ledger/advice/gwNN.json`, append-only (DL-69): the champion's advice, and every published strategy's under `models` by registry id: its last success before the deadline, stamped `as_of` and `trigger`, with a later failure noted as `last_failure`, or its "no advice" reason, with the silver tables it lacked as `missing` and the first such run's `as_of` as `since` (MOD-04, [DL-94](../decisions/DL-94.md), ORC-07). The writer refuses a write after the deadline. Beside it, `ledger/predictions/gwNN/<strategy>.parquet` (ORC-08): that strategy's full-pool forecast for the gameweek it advised from (`player_id`, `xp_next`, `xp_next_sd`, `start_probability`), replaced only by a later success and refused after the deadline on the same terms. And `ledger/evaluation/gwNN.json` (ORC-05): each Finished gameweek judged once, stamped `scorer_version` (`rules/realised.py` `SCORER_VERSION`) and recomputed only when it changes: per strategy with a record, its realised points and its xP accuracy (MAE, bias, players) from its predictions; and the season log's row for the owner (`log`), with the hindsight optimum. A gameweek waits until every player whose club played has his row and the game has scored the owner's gameweek |
 | Runs | `runs/{run_id}/manifest.json` |
 | Web contract | `web/v1/*.json`, served at `/data/v1/` (03 §7.2) |
 
@@ -290,9 +290,13 @@ Not one service:
   decide-by time (DL-11); CI guards are 03 §9. `week/` mixes advice with scheduling (03 §12 P7).
 
 `week/` also owns alerts (availability, price pressure, chip expiry, squad-state warnings), the advice
-ledger (DL-69), advised-versus-played reconciliation, and E14's hindsight work (DL-72): each model's
-advice scored with auto-subs and vice fallback, an oracle that re-solves the single-gameweek transfer
-MILP on actual points, and oracle-gap diagnostics, published through `log.json`.
+ledger (DL-69), advised-versus-played reconciliation, and the evaluation step (ORC-05,
+`week/evaluation.py`), which judges each finished gameweek once: each model's advice scored by the one
+scorer (`rules/realised.py`, ORC-04), its xP accuracy, and E14's hindsight work (DL-72), an oracle
+that re-solves the single-gameweek transfer MILP on actual points from the squad, selling prices,
+clubs and bank the owner had at the deadline, with oracle-gap diagnostics. `log.json`, the live
+gameweeks' points in `models.json` and the live `xp_accuracy.json` are assembled from those
+evaluations, never recomputed on publish.
 
 ### 4.4 Explanation service
 
@@ -669,7 +673,7 @@ global strategy selector lists every published strategy that has a week and choo
 | `/squad` | The optimiser's squad, or the owner's in-season (DL-67); the builder — swap, start, bench, lock, ban, live legality, heuristic re-optimise; plan timeline and chip calendar |
 | `/fixtures` | Clubs × gameweeks shaded by model difficulty (DL-37) |
 | `/league` | Standings, overlap, differentials, captain divergence (DL-40) |
-| `/log` | Per finished gameweek: played, scored, advised, followed (DL-69) |
+| `/log` | Per evaluated gameweek: played, scored, advised, followed, and the hindsight optimum (DL-69, ORC-05) |
 | `/models` | A multi-select comparison of the registry's published strategies against the champion (advice differences, xP on the players they disagree on, historical performance), then summary, details, xP accuracy, hindsight (E14), history (`/history` redirects) |
 | `/settings` | Team and league IDs, kept in the browser (DL-44); a copyable link to dispatch a run |
 | `/health` | Last run, gates, every source's status and freshness, trends from recent manifests (DL-41) |
@@ -766,7 +770,7 @@ one clock every stage reads (PIPE-12); `schema_version` 2 added it.
 
 **Not built as a table.** `publish/health.py` derives the `/health` trends from recent manifests
 (`publish.health.history_runs`). Backtest metrics live in each backtest's outputs; live xP accuracy
-per model is the `xp_accuracy` artefact.
+per model is the published `xp_accuracy` artefact, built from the evaluations (ORC-05).
 
 ### 12.4 Lineage
 

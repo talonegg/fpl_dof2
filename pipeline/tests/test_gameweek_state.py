@@ -221,7 +221,7 @@ def test_the_week_stage_evaluates_finished_gameweeks_and_advises_nothing_once_no
     monkeypatch.setattr(
         week, "read_rules", lambda *_: game_rules.model_copy(update={"season": season})
     )
-    monkeypatch.setattr(week, "evaluate", lambda state, _layout: seen.append(state.gameweek))
+    monkeypatch.setattr(week, "evaluate", lambda _ctx, _rules, due: seen.extend(due))
 
     result = week.run(
         StageContext(config=config, layout=layout, run_id="r", as_of=_at("2027-05-30T00:00:00Z"))

@@ -32,6 +32,10 @@ import pandas as pd
 from fpl_dof.frames import as_int
 from fpl_dof.rules.models import GameRules, Position
 
+#: Stamped on every stored evaluation (ORC-05). Bump it with any change to what this module scores,
+#: or to how an evaluation judges a gameweek: every Finished gameweek is then evaluated again.
+SCORER_VERSION = "1"
+
 
 @dataclass(frozen=True, slots=True)
 class PlayerPerformance:

@@ -156,26 +156,38 @@ def _player_gameweeks_reach_the_latest_finished(
     if finished.empty:
         return True, "no gameweek has finished yet", {}
     latest = int(finished.max())
-    played = fixtures[(fixtures["gameweek"] == latest) & fixtures["finished"].astype(bool)]
-    clubs = set(played["home_team_id"]) | set(played["away_team_id"])
-    rows = frame[frame["season"] == context.get("season")]
-    last = rows.groupby("player_id").agg(gameweek=("gameweek", "max"), team_id=("team_id", "first"))
-    expected = last[last["team_id"].isin(clubs)]
-    if expected.empty:
+    lagging, expected, clubs = lagging_players(
+        frame[frame["season"] == context.get("season")], fixtures, latest
+    )
+    if not expected:
         return (
             not clubs,
             f"no player_gameweek rows this season, though GW{latest} has finished",
             {"latest_finished": latest},
         )
-    lagging = int((expected["gameweek"] < latest).sum())
-    share = lagging / len(expected)
+    share = lagging / expected
     limit = _config(context).maximum_lagging_player_share
     return (
         share <= limit,
-        f"{lagging} of {len(expected)} players have no GW{latest} row ({share:.0%}), "
+        f"{lagging} of {expected} players have no GW{latest} row ({share:.0%}), "
         f"limit is {limit:.0%}",
-        {"latest_finished": latest, "lagging": lagging, "players": len(expected)},
+        {"latest_finished": latest, "lagging": lagging, "players": expected},
     )
+
+
+def lagging_players(
+    season_rows: pd.DataFrame, fixtures: pd.DataFrame, gameweek: int
+) -> tuple[int, int, set[int]]:
+    """``(lagging, expected, clubs)``: of the ``expected`` players whose club played a finished
+    fixture in ``gameweek``, how many have no row for it yet. One season's rows only. The
+    evaluation step asks the same of a gameweek before it judges it once (ORC-05)."""
+    played = fixtures[(fixtures["gameweek"] == gameweek) & fixtures["finished"].astype(bool)]
+    clubs = set(played["home_team_id"]) | set(played["away_team_id"])
+    last = season_rows.groupby("player_id").agg(
+        gameweek=("gameweek", "max"), team_id=("team_id", "first")
+    )
+    expected = last[last["team_id"].isin(clubs)]
+    return int((expected["gameweek"] < gameweek).sum()), len(expected), clubs
 
 
 def _deadlines_are_in_the_future(frame: pd.DataFrame, context: Mapping[str, object]) -> CheckResult:
