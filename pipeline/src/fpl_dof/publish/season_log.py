@@ -346,15 +346,21 @@ def _hindsight(
             )
         )
 
-    if len(held_players) != 15:
-        return None
-
     state_rec = recorded.get("squad_state") if recorded is not None else None
-    if not isinstance(state_rec, Mapping) or None in (
+    state_rec = state_rec if isinstance(state_rec, Mapping) else {}
+    if len(held_players) != 15 or None in (
         state_rec.get("bank"),
         state_rec.get("free_transfers"),
     ):
-        return None  # no recorded bank or free transfers: no honest hindsight squad
+        # The rankings need neither a squad nor its bank; only the optimal does. Never invent them.
+        return {
+            "rankings": [r.as_dict() for r in rankings],
+            "optimal": None,
+            "optimal_unavailable_reason": (
+                "the squad, bank or free transfers were not recorded for this gameweek"
+            ),
+            "diagnostics": [],
+        }
     bank = float(state_rec["bank"])
     free_transfers = int(state_rec["free_transfers"])
 

@@ -27,7 +27,7 @@ from fpl_dof.factory import BacktestResult, ForecastInputs, experiment_records, 
 from fpl_dof.factory.registry import strategies
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.pipeline import Output, StageContext, StageResult
-from fpl_dof.silver.store import read_table, read_table_optional
+from fpl_dof.silver.store import read_table_optional
 from fpl_dof.silver.tables import Table
 
 log = get_logger(__name__)
@@ -56,14 +56,27 @@ def run(ctx: StageContext) -> StageResult:
     # A_odds also reads the match odds; without them it is recorded as not graded, with why.
     odds = read_table_optional(ctx.layout.silver, season, Table.TEAM_MATCH_EXPECTATION)
     inputs = None
-    if odds is not None:
-        silver = ctx.layout.silver
+    silver = ctx.layout.silver
+    players = read_table_optional(silver, season, Table.PLAYER)
+    teams = read_table_optional(silver, season, Table.TEAM)
+    fixtures = read_table_optional(silver, season, Table.FIXTURE)
+    gameweeks = read_table_optional(silver, season, Table.GAMEWEEK)
+    season_history = read_table_optional(silver, season, Table.PLAYER_SEASON_HISTORY)
+    # A missing table means no inputs, so A_odds is recorded as not graded rather than crashing.
+    if (
+        odds is not None
+        and players is not None
+        and teams is not None
+        and fixtures is not None
+        and gameweeks is not None
+        and season_history is not None
+    ):
         inputs = ForecastInputs(
-            players=read_table(silver, season, Table.PLAYER),
-            teams=read_table(silver, season, Table.TEAM),
-            fixtures=read_table(silver, season, Table.FIXTURE),
-            gameweeks=read_table(silver, season, Table.GAMEWEEK),
-            history=read_table(silver, season, Table.PLAYER_SEASON_HISTORY),
+            players=players,
+            teams=teams,
+            fixtures=fixtures,
+            gameweeks=gameweeks,
+            history=season_history,
             as_of=ctx.as_of,
             player_gameweek=history,
             metrics=metrics,
