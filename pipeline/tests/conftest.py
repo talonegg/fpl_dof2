@@ -66,7 +66,12 @@ def no_accidental_network(request: pytest.FixtureRequest) -> Iterator[None]:
         yield
         return
 
+    original = socket.socket.connect
+
     def blocked(self: socket.socket, address: Any) -> None:
+        # A local Unix socket is not the network: the process pool's forkserver uses one (ORC-09).
+        if getattr(socket, "AF_UNIX", None) == self.family:
+            return original(self, address)
         raise RuntimeError(
             f"unmocked network connection to {address!r} — mock it with respx, or mark the test "
             "@pytest.mark.network if it is meant to hit the live API"
@@ -75,7 +80,6 @@ def no_accidental_network(request: pytest.FixtureRequest) -> Iterator[None]:
     # The socket layer, deliberately. respx patches httpx *and* httpcore, so a guard installed at
     # either of those layers fights with it; a mocked request never reaches a socket, so this
     # catches exactly the calls that would have gone out for real and nothing else.
-    original = socket.socket.connect
     socket.socket.connect = blocked  # type: ignore[assignment,method-assign]
     try:
         yield
