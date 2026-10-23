@@ -678,11 +678,12 @@ def test_a_strategy_missing_a_required_table_records_no_advice_and_the_others_ru
     assert not advice["c3"][0]["skipped"] and not advice["c1"][0]["skipped"]
 
 
-def test_a_strategy_whose_odds_arrive_in_a_change_run_says_so_once(
+def test_a_strategy_whose_odds_arrive_says_so_once_whatever_started_the_run(
     game_rules: GameRules, tmp_path: Path
 ) -> None:
-    """ORC-07: offline for its odds in the held record, advising in a run the odds' change
-    started: the week file says the source arrived and when; a later run says nothing more."""
+    """ORC-07: offline for its odds in the held record, advising now, in a run the daily
+    schedule started rather than a change: the week file says the source arrived and when, and
+    its trigger says what started the run; a later run says nothing more."""
     layout, gold = DataLayout(root=tmp_path), tmp_path / "gold"
     lineup = (champion(), load_strategy("a_odds"))
     snapshot = _orchestration(game_rules)
@@ -695,17 +696,18 @@ def test_a_strategy_whose_odds_arrive_in_a_change_run_says_so_once(
     assert held["missing"] == [Table.TEAM_MATCH_EXPECTATION.value]
 
     config = snapshot.config
-    change = config.model_copy(
-        update={"runtime": config.runtime.model_copy(update={"trigger": "change:odds"})}
+    scheduled = config.model_copy(
+        update={"runtime": config.runtime.model_copy(update={"trigger": "schedule"})}
     )
     later = snapshot.inputs.as_of + pd.Timedelta(minutes=10)
     arriving = dataclasses.replace(
-        snapshot, config=change, inputs=dataclasses.replace(snapshot.inputs, as_of=later)
+        snapshot, config=scheduled, inputs=dataclasses.replace(snapshot.inputs, as_of=later)
     )
     second, _ = week.advise_all(arriving, lineup, gold=gold, layout=layout)
     a_odds = second["a_odds"][0]
     sources = supplying([Table.TEAM_MATCH_EXPECTATION.value], config.sources)
     assert sources and a_odds["arrived"] == {"sources": sources, "at": a_odds["as_of"]}
+    assert a_odds["trigger"] == "schedule"
     assert not a_odds["skipped"] and "arrived" not in second["c3"][0]
     Contract(root=find_contracts_root()).validate(
         "week", a_odds | {"contract_version": CONTRACT_VERSION}

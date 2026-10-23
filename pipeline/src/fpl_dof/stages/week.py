@@ -305,14 +305,11 @@ def _arrived(held: object, week: dict[str, Any], config: Config) -> dict[str, An
     """The source a strategy waited for arrived, and it advised with it (ORC-07).
 
     Derived from the held record, read before this run's write: the strategy had no advice
-    because a table it needs was missing, and now advises in a run a change started. Nothing
-    extra is stored; the next run's week file carries no arrival.
+    because a table it needs was missing, and now advises, whatever started this run (the week
+    file's ``trigger`` says what did). Nothing extra is stored; the next run's week file carries
+    no arrival.
     """
     if not isinstance(held, Mapping) or "advised" in held or not held.get("missing"):
-        return None
-    # shortcut: any change run counts, not only one of the awaited source's own kind; the
-    # change manifest has no kind-to-source map to check against.
-    if not str(week.get("trigger") or "").startswith("change:"):
         return None
     sources = supplying(held["missing"], config.sources)
     return {"sources": sources, "at": week["as_of"]} if sources else None

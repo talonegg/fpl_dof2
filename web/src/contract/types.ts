@@ -215,7 +215,7 @@ export interface Week {
     as_of: string;
     reason: string;
   };
-  /** The source this strategy waited for arrived and the strategy was refreshed with it: it had no advice for the gameweek in the ledger's record because the source's data was missing, and advises in this run, which a change started (ORC-07). Absent otherwise, and gone from the next run's file. */
+  /** The source this strategy waited for arrived and the strategy was refreshed with it: it had no advice for the gameweek in the ledger's record because the source's data was missing, and advises in this run, whatever started it; the file's trigger says what did (ORC-07). Absent otherwise, and gone from the next run's file. */
   arrived?: {
     /** The awaited sources' labels, as the data health page names them. */
     sources: string[];
