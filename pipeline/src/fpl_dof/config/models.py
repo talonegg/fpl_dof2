@@ -2320,10 +2320,10 @@ class ModelsArtefactConfig(_Section):
     source_dir: str | None = Field(
         default=None,
         description=(
-            "Directory holding the prospective harness's frozen record: decisions/GW{n}.json "
+            "Directory holding the retired harness's frozen record: decisions/GW{n}.json "
             "(advice recorded before each deadline) and scores.csv (points after each gameweek). "
-            "Unset, or with no decision recorded yet, models.json is not published and any stale "
-            "copy is removed."
+            "Optional: unset, models.json is published from the live ledger alone; it is not "
+            "published only when neither record has a gameweek, and any stale copy is removed."
         ),
     )
     frozen_tag: str | None = Field(

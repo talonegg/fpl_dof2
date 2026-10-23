@@ -212,7 +212,7 @@ fell back to A silently (the backtest predictor still falls back per club-gamewe
 `GameRules`, tunables in `forecast.a_odds`, and A's deviations beneath it. The frozen harness is
 retired (MOD-06, 2026-10-23, no parity check): `pipeline.yml` has no `prospective` job and the `run` job
 only restores the harness's last record from `ledger`, read-only. `models.json` carries its records for
-gameweeks before the switch gameweek (the last it decided, plus one) and, from the switch, every published
+gameweeks before the switch gameweek (the last it scored, plus one; a decision it never scored gives way to the ledger's) and, from the switch, every published
 strategy's ledger advice scored on the owner's real squad with the real free transfers (`week/score_advice.py`).
 Each gameweek carries `record: frozen | live`, the file carries `switch_gameweek`, and every strategy's
 history chart marks it ([DL-87](../decisions/DL-87.md), [DL-89](../decisions/DL-89.md)).

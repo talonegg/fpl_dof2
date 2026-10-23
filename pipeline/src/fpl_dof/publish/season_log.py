@@ -37,6 +37,7 @@ from fpl_dof.week.score_advice import (
     AdvisedLineup,
     lineup_from_advice,
     performances,
+    recorded_free_transfers,
     score_model_recommendations,
 )
 
@@ -225,12 +226,6 @@ def _optional_int(value: object) -> int | None:
     return None
 
 
-def _free_transfers(recorded: Mapping[str, Any]) -> int:
-    """The free transfers the owner really had that gameweek, as the ledger recorded them."""
-    state = recorded.get("squad_state")
-    return int(state.get("free_transfers") or 1) if isinstance(state, Mapping) else 1
-
-
 def _hindsight(
     gameweek: int,
     recorded: Mapping[str, Any] | None,
@@ -268,20 +263,22 @@ def _hindsight(
             captain=played_cap,
             vice_captain=played_vice,
             transfers_made=0,
-            free_transfers=1,
+            free_transfers=None,
             expected_points=0.0,
         )
         models_captains["played"] = played_cap
 
     if recorded is not None and isinstance(recorded.get("advised"), Mapping):
         adv = recorded["advised"]
-        adv_transfers = (
-            int(recorded.get("recommendation", {}).get("transfers") or 0)
-            if isinstance(recorded.get("recommendation"), Mapping)
-            else 0
+        rec = recorded.get("recommendation")
+        adv_transfers = int(rec.get("transfers") or 0) if isinstance(rec, Mapping) else 0
+        adv_free = recorded_free_transfers(recorded)
+        lineup = lineup_from_advice(
+            adv,
+            transfers_made=adv_transfers,
+            free_transfers=adv_free,
+            recommendation=rec if isinstance(rec, Mapping) else None,
         )
-        adv_free = _free_transfers(recorded)
-        lineup = lineup_from_advice(adv, transfers_made=adv_transfers, free_transfers=adv_free)
         if lineup is not None:
             lineups[champ_id] = lineup
             models_captains[champ_id] = lineup.captain
@@ -297,7 +294,8 @@ def _hindsight(
             lineup = lineup_from_advice(
                 m_adv,
                 transfers_made=int(m_data.get("transfers", 0)),
-                free_transfers=_free_transfers(recorded),
+                free_transfers=recorded_free_transfers(recorded),
+                recommendation=m_data.get("recommendation"),
             )
             if lineup is not None:
                 lineups[m_name] = lineup
@@ -351,11 +349,14 @@ def _hindsight(
     if len(held_players) != 15:
         return None
 
-    bank = 0.5
-    free_transfers = 1
-    if recorded is not None and isinstance(recorded.get("squad_state"), Mapping):
-        bank = float(recorded["squad_state"].get("bank") or 0.5)
-        free_transfers = int(recorded["squad_state"].get("free_transfers") or 1)
+    state_rec = recorded.get("squad_state") if recorded is not None else None
+    if not isinstance(state_rec, Mapping) or None in (
+        state_rec.get("bank"),
+        state_rec.get("free_transfers"),
+    ):
+        return None  # no recorded bank or free transfers: no honest hindsight squad
+    bank = float(state_rec["bank"])
+    free_transfers = int(state_rec["free_transfers"])
 
     state = SquadState(
         entry_id=None,
