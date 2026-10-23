@@ -132,7 +132,10 @@ def unready(
 
     An evaluation is kept, so it waits for complete evidence rather than judging once on a partial
     table: every player whose club played has his row (the ``player_gameweek_current`` gate's test,
-    at ``quality.maximum_lagging_player_share``), and the game has scored the owner's gameweek.
+    at ``quality.maximum_lagging_player_share``), and, with a team configured, the game has scored
+    the owner's gameweek and silver holds his picks for it, so a degraded entry ingest never stores
+    ``log: null`` for good. Only an entry the game shows starting later (history for a later
+    gameweek, none for this one) is judged without them.
     """
     rows = evidence.season_rows()
     if rows.empty or not (rows["gameweek"] == gameweek).any():
@@ -141,10 +144,18 @@ def unready(
         lagging, expected, _ = lagging_players(rows, evidence.fixtures, gameweek)
         if expected and lagging / expected > lagging_share:
             return f"{lagging} of {expected} players have no GW{gameweek} row yet"
-    picked = _owner_rows(evidence.picks, entry_id, gameweek)
-    scored = _owner_rows(evidence.entry_gameweeks, entry_id, gameweek)
-    if not picked.empty and scored.empty:
-        return f"the game has not scored the owner's GW{gameweek} yet"
+    if entry_id is None:
+        return None
+    history = evidence.entry_gameweeks
+    started_later = (
+        history is not None
+        and not history.empty
+        and bool(((history["entry_id"] == entry_id) & (history["gameweek"] > gameweek)).any())
+    )
+    if _owner_rows(history, entry_id, gameweek).empty:
+        return None if started_later else f"the game has not scored the owner's GW{gameweek} yet"
+    if _owner_rows(evidence.picks, entry_id, gameweek).empty:
+        return f"silver holds no picks for the owner's GW{gameweek} yet"
     return None
 
 

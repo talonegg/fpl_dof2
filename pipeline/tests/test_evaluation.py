@@ -296,6 +296,30 @@ def test_a_gameweek_waits_for_complete_evidence() -> None:
     assert "not scored" in str(unready(2, late, entry_id=ENTRY, lagging_share=0.02))
 
 
+def test_a_gameweek_waits_for_the_owners_picks_and_history() -> None:
+    """A degraded entry ingest must not store ``log: null`` for good (ORC-05)."""
+    complete = _evidence()
+    picks, scores = complete.picks, complete.entry_gameweeks
+    assert picks is not None and scores is not None
+    for degraded in (
+        dataclasses.replace(complete, picks=None),
+        dataclasses.replace(complete, picks=picks[picks["gameweek"] == 1]),
+        dataclasses.replace(complete, entry_gameweeks=None),
+        dataclasses.replace(complete, picks=None, entry_gameweeks=None),
+    ):
+        assert unready(2, degraded, entry_id=ENTRY, lagging_share=0.02) is not None
+    # An entry the game shows starting at GW3 had no GW2 team: judged, with no log row.
+    later = scores.assign(gameweek=3)
+    joined = dataclasses.replace(
+        complete, picks=picks[picks["gameweek"] > 2], entry_gameweeks=later
+    )
+    assert unready(2, joined, entry_id=ENTRY, lagging_share=0.02) is None
+    assert (
+        unready(2, dataclasses.replace(complete, picks=None), entry_id=None, lagging_share=0.02)
+        is None
+    )
+
+
 def test_a_finished_gameweek_is_evaluated_once_and_again_for_a_new_scorer(
     config: Config, layout: DataLayout, game_rules: GameRules, monkeypatch: pytest.MonkeyPatch
 ) -> None:
