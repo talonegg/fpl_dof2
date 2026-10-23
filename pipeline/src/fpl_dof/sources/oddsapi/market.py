@@ -92,8 +92,13 @@ def _pmf(lam: float) -> tuple[float, ...]:
     return tuple(values)
 
 
+@lru_cache(maxsize=1 << 16)
 def _markets(home: float, away: float, line: float) -> tuple[float, float, float, float]:
-    """Home win, draw, away win and over-the-line, from one pass over the scoreline grid."""
+    """Home win, draw, away win and over-the-line, from one pass over the scoreline grid.
+
+    Cached, and so the same floats (ORC-09): every match's fit walks the same coarse grid and
+    overlapping fine grids, so a season of fits revisits a few thousand points millions of times.
+    """
     home_pmf, away_pmf = _pmf(home), _pmf(away)
     home_win = draw = away_win = over = 0.0
     for home_goals, home_probability in enumerate(home_pmf):
