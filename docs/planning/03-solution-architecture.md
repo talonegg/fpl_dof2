@@ -88,7 +88,7 @@ graph TB
         direction TB
         ING["ingest<br/>source adapters"]
         TRF["transform<br/>bronze to silver"]
-        QUA["quality<br/>17 blocking/warning gates"]
+        QUA["quality<br/>19 blocking/warning gates"]
         FC["forecast<br/>xp_v1 component chain"]
         OPT["optimise<br/>preseason squad MILP (DL-67)"]
         WK["week + decision<br/>deadline, squad state,<br/>transfers, chips, captain"]
@@ -413,6 +413,13 @@ manually dispatchable.
 **1. Per-player summaries never run on the fast path.** They are ~700 requests; at a polite two a
 second that is six minutes. The fast workflow exists to keep *prices, status and ownership* inside the
 NFR-05 freshness window, and those all live in `bootstrap-static` — two requests, seconds.
+A summary is cached for a week, except that one fetched before the latest gameweek was checked
+(`finished` and `data_checked`) is stale whatever its age: its `history` is where `player_gameweek`
+comes from, and it lacks that gameweek. FPL publishes no finish time, so "checked" dates from the
+oldest bronze `bootstrap-static` snapshot that shows it, by sidecar `fetched_at`, never file mtime
+(F2). The first slow ingest after each gameweek is checked therefore re-fetches the whole sweep once;
+the warning gate `player_gameweek_current` flags any player whose club played that gameweek but who
+has no row for it.
 
 **2. The pipeline does not run after every fast ingest.** Re-solving a MILP because a price moved by
 £0.1 is waste. The fast ingest keeps the data fresh; the pipeline turns it into a recommendation on
@@ -573,7 +580,7 @@ import fails CI. Nothing outside `sources/` imports a source subpackage, and
 | --- | --- | --- |
 | Source adapters | `registry.build()`, `SourceAdapter.ingest/conform`, `Fetcher`, `BronzeStore` | Five real adapters behind ~25 names; `ingest` is 77 lines and never names a source. Adding a source is one module plus config |
 | `rules.validate_squad` | One function | The single legality check after every solve and in squad state and selection |
-| Quality gates | `run_gates` over `GATES` as data | Seventeen gates, one entry point |
+| Quality gates | `run_gates` over `GATES` as data | Nineteen gates, one entry point |
 | `squad.load_squad_state` | One function | ~470 lines of transfer and price reconstruction behind it |
 | `pipeline.run_stages` | Stage registry with resolver injection | Owns timing, manifest and failure handling; the injection is a real test seam (nine adapters) |
 | Narrow config sections | `ForecastConfig`, `OptimiserConfig`, … passed in | No core module loads configuration (DP-03) |

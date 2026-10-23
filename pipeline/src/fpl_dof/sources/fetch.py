@@ -175,6 +175,7 @@ class Fetcher:
         immutable: bool = False,
         retain: bool = False,
         rebackfill: bool = False,
+        stale_before: dt.datetime | None = None,
     ) -> Fetched:
         moment = now or utcnow()
         ttl = (
@@ -191,6 +192,9 @@ class Fetcher:
             cached is not None
             and not (force_refresh or rebackfill)
             and (is_immutable or cached.age_seconds(moment) < ttl)
+            # A snapshot fetched before something the caller knows changed it is stale whatever
+            # its age. Judged by the sidecar's fetch time, never file mtime (03 §12.6 F2).
+            and (stale_before is None or cached.meta.fetched_at >= stale_before)
         ):
             self.cache_hits += 1
             log.debug(

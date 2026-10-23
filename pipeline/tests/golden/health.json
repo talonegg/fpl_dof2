@@ -5,7 +5,7 @@
   "counts": {
    "failed": 0,
    "passed": 15,
-   "skipped": 3
+   "skipped": 4
   },
   "passed": true,
   "results": [
@@ -47,6 +47,14 @@
     "message": "newest snapshot is <age> old, limit is 48h",
     "outcome": "passed",
     "requirement": "NFR-07",
+    "severity": "warn"
+   },
+   {
+    "class": "freshness_and_volume",
+    "gate": "player_gameweek_current",
+    "message": "table 'player_gameweek' is not present",
+    "outcome": "skipped",
+    "requirement": "FR-08",
     "severity": "warn"
    },
    {

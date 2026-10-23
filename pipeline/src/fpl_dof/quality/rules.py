@@ -136,6 +136,48 @@ def _snapshot_is_fresh(frame: pd.DataFrame, context: Mapping[str, object]) -> Ch
     )
 
 
+def _player_gameweeks_reach_the_latest_finished(
+    frame: pd.DataFrame, context: Mapping[str, object]
+) -> CheckResult:
+    """Players whose club played the latest finished gameweek but who have no row for it.
+
+    A stale per-player cache produces a table that passes every other gate: the rows it has are
+    right, it just stops a gameweek early, and the forecast trains without the latest result. The
+    weekly per-player cache TTL did exactly that to GW7 in October 2026. Warn, not block: last
+    week's evidence still gives an honest forecast (DP-15), but it must not pass for current.
+    """
+    tables = context.get("tables")
+    tbl_dict: Mapping[str, pd.DataFrame] = tables if isinstance(tables, Mapping) else {}
+    gameweeks = tbl_dict.get(Table.GAMEWEEK.value)
+    fixtures = tbl_dict.get(Table.FIXTURE.value)
+    if gameweeks is None or fixtures is None:
+        return True, "no gameweek or fixture table to check against", {}
+    finished = gameweeks.loc[gameweeks["finished"].astype(bool), "gameweek"]
+    if finished.empty:
+        return True, "no gameweek has finished yet", {}
+    latest = int(finished.max())
+    played = fixtures[(fixtures["gameweek"] == latest) & fixtures["finished"].astype(bool)]
+    clubs = set(played["home_team_id"]) | set(played["away_team_id"])
+    rows = frame[frame["season"] == context.get("season")]
+    last = rows.groupby("player_id").agg(gameweek=("gameweek", "max"), team_id=("team_id", "first"))
+    expected = last[last["team_id"].isin(clubs)]
+    if expected.empty:
+        return (
+            not clubs,
+            f"no player_gameweek rows this season, though GW{latest} has finished",
+            {"latest_finished": latest},
+        )
+    lagging = int((expected["gameweek"] < latest).sum())
+    share = lagging / len(expected)
+    limit = _config(context).maximum_lagging_player_share
+    return (
+        share <= limit,
+        f"{lagging} of {len(expected)} players have no GW{latest} row ({share:.0%}), "
+        f"limit is {limit:.0%}",
+        {"latest_finished": latest, "lagging": lagging, "players": len(expected)},
+    )
+
+
 def _deadlines_are_in_the_future(frame: pd.DataFrame, context: Mapping[str, object]) -> CheckResult:
     """At least one gameweek is still ahead. A season that has entirely ended is a real state,
     but so is a gameweek table cached from last season, and they look identical."""
@@ -506,6 +548,15 @@ GATES: tuple[Gate, ...] = (
         requirement="NFR-07",
         summary="The snapshots behind this run are recent",
         check=_snapshot_is_fresh,
+    ),
+    Gate(
+        name="player_gameweek_current",
+        gate_class=GateClass.FRESHNESS_AND_VOLUME,
+        severity=GateSeverity.WARN,
+        table=Table.PLAYER_GAMEWEEK.value,
+        requirement="FR-08",
+        summary="Per-gameweek player rows reach the latest finished gameweek",
+        check=_player_gameweeks_reach_the_latest_finished,
     ),
     Gate(
         name="deadlines_ahead",
