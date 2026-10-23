@@ -83,12 +83,13 @@ def test_paired_compares_every_strategy_with_the_champion() -> None:
             )
     out = paired(pd.DataFrame([*rows, {**rows[0], "model": "mystery"}]), draws=2000)
     assert all(set(r) == set(PAIRED_FIELDS) for r in out)
+    # Registry order: published challengers by id.
     assert [(r["model"], r["comparator"]) for r in out] == [
+        ("a", "c3"),
         ("c1", "c3"),
         ("engine", "c3"),
-        ("a", "c3"),
     ]
-    assert out[0]["mean_delta"] == pytest.approx(-0.1)
+    assert out[1]["mean_delta"] == pytest.approx(-0.1)
 
 
 def _sha(b: bytes) -> str:

@@ -195,8 +195,21 @@ the two-state mixture; one gameweek, `plan: false`, `all_seasons`, tunables and 
 position); the award gated on recorded defensive contributions, not on the 2025/26 label; tunables
 from config and every fit seeded; refitted every run, not every fourth gameweek, and stopping at
 the first unfinished gameweek; its own variance and availability-scaled P(play), where the frozen
-frame carried a mean; a constant where a component has nothing to learn. Still target: `a_odds`
-goes live in R1.2.2 (it reads odds, so the live run enables football-data.co.uk). The frozen harness is
+frame carried a mean; a constant where a component has nothing to learn. `a_odds` is ported from
+`comp_ot` (`shadow/a_odds.py`): A, with the market's club layer for every player whose club has odds
+for each of its fixtures in the gameweek: clean sheets from the market's P(clean sheet), goals
+conceded and goalkeeper saves from its expected goals against, goals and assists as the club's
+market goals times the player's xG and xA share, shrunk to his position and price band's share;
+A's estimate elsewhere. It reads silver `team_match_expectation` through the forecast inputs'
+`match_odds`, keeps a fixture's latest capture at or before its gameweek's deadline
+(`gold/match_odds.knowable`, the rule gold applies; a past season's deadline is its gameweek's
+first kickoff) and no capture after the run's `as_of`; it `requires` the table, and with no odds
+for the gameweek being decided it records "no advice". Its deviations from the frozen original:
+odds de-vigged by the source adapter, not the bundle's Pinnacle-first Shin reading, with the
+source's P(clean sheet) rather than exp(-lambda); saves per goal conceded from goalkeepers'
+gameweeks, since silver has no shots on target; no advice without odds, where the frozen harness
+fell back to A silently (the backtest predictor still falls back per club-gameweek); points from
+`GameRules`, tunables in `forecast.a_odds`, and A's deviations beneath it. The frozen harness is
 switched off when the ports go live, with no parity check; its records stay on `ledger` as each
 strategy's history up to the switch, which the app marks ([DL-87](../decisions/DL-87.md)).
 

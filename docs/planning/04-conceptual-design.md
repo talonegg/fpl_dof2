@@ -819,8 +819,8 @@ single home of its id, label, description and role (MOD-03):
 | `policy` | `captain_rule` (`price_position` or `model`, §6.5), `plan` (whether the multi-gameweek plan and chips are solved) |
 | `requires` | The silver tables the strategy reads |
 
-Registered ([DL-87](../decisions/DL-87.md)): `c3`, the champion; `engine`, `c1` and `a`, published
-challengers; `a_odds`, a challenger unpublished until it is ported live. A strategy's digest is the sha256
+Registered ([DL-87](../decisions/DL-87.md)): `c3`, the champion; `engine`, `c1`, `a` and `a_odds`,
+published challengers. A strategy's digest is the sha256
 of (entry, code, effective config): its entry and the run config sections it reads (`forecast`,
 `transfers`, `optimiser`, `decision`) as canonical JSON, and the source of the packages that
 decide its advice (`forecast`, `shadow`, `factory`, `optimise`, `decision`, `squad`, `config`)
@@ -859,6 +859,11 @@ Four mechanisms, none promoting automatically:
   two-state mixture; C1's one-gameweek frame and B0 (`week_a.json`, `plan: false`). Tunables and
   the seed are `forecast.a` (DP-06); its deviations from the frozen original are listed in
   [05 §5.2](05-target-architecture.md#52-the-registered-strategies).
+- **The odds challenger, `a_odds`** (`shadow/a_odds.py`): A with the market's club layer where
+  every fixture of a club's gameweek has odds knowable before its deadline, A elsewhere. It reads
+  silver `team_match_expectation` (the forecast inputs' `match_odds`), `requires` it, and records
+  "no advice" without odds for the gameweek being decided (DL-87). Tunables are `forecast.a_odds`;
+  deviations in [05 §5.2](05-target-architecture.md#52-the-registered-strategies).
 - **The monolith**, backtest only (DL-53).
 - **The prospective harness**: five models frozen before each deadline, scored after, published in
   `models.json` under their registry ids and compared on `/models`

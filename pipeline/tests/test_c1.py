@@ -24,7 +24,7 @@ from fpl_dof.forecast.features import LeakageError
 from fpl_dof.forecast.xp_v1 import ComponentPredictor
 from fpl_dof.optimise.frame import ForecastFrameError
 from fpl_dof.rules.models import GameRules
-from fpl_dof.shadow import a, c1
+from fpl_dof.shadow import a, a_odds, c1
 from test_decide import _forecast_config, _snapshot
 
 PRIOR = "2025/26"
@@ -169,22 +169,26 @@ _TUNED_CALLS = {
 }
 
 
-@pytest.mark.parametrize("module", [c1, a], ids=lambda m: m.__name__.rsplit(".", 1)[-1])
+@pytest.mark.parametrize("module", [c1, a, a_odds], ids=lambda m: m.__name__.rsplit(".", 1)[-1])
 def test_no_hyperparameter_window_or_half_life_is_a_literal_in_a_challenger(
     module: ModuleType,
 ) -> None:
     """Every argument to a fit, a rolling window or a half-life comes from the challenger's config
-    section (``forecast.c1``, ``forecast.a``): the estimator keywords are config attributes, and no
-    tuned call takes a number (``min_periods=1``, use whatever history exists, is structural; flags
-    such as ``ignore_na`` are not numbers)."""
+    section (``forecast.c1``, ``forecast.a``, ``forecast.a_odds``): the estimator keywords are
+    config attributes, and no tuned call takes a number (``min_periods=1``, use whatever history
+    exists, is structural; flags such as ``ignore_na`` are not numbers)."""
     tree = ast.parse(inspect.getsource(module))
     keywords = [
         node.value
         for node in ast.walk(tree)
-        if isinstance(node, ast.AnnAssign) and getattr(node.target, "id", None) == "kw"
+        if isinstance(node, ast.AnnAssign)
+        and node.value is not None
+        and getattr(node.target, "id", None) == "kw"
     ]
-    assert len(keywords) == 1 and isinstance(keywords[0], ast.Dict)
-    assert all(isinstance(v, ast.Attribute) for v in keywords[0].values), ast.unparse(keywords[0])
+    assert len(keywords) == (0 if module is a_odds else 1)  # A_odds fits only through A
+    for kw in keywords:
+        assert isinstance(kw, ast.Dict), ast.unparse(kw)
+        assert all(isinstance(v, ast.Attribute) for v in kw.values), ast.unparse(kw)
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue

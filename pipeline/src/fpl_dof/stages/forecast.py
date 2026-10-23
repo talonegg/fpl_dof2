@@ -48,6 +48,7 @@ def run(ctx: StageContext) -> StageResult:
         # nobody has played, and no advanced metrics unless a source that supplies them is enabled.
         player_gameweek=read_table_optional(silver, season, Table.PLAYER_GAMEWEEK),
         metrics=read_table_optional(silver, season, Table.PLAYER_METRIC),
+        match_odds=read_table_optional(silver, season, Table.TEAM_MATCH_EXPECTATION),
         as_of=ctx.as_of,
     )
 
