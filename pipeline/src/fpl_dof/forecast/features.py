@@ -358,51 +358,87 @@ def build_features(
         return pd.DataFrame(columns=["player_code", "as_of", *input_features(config)])
 
     moment = pd.Timestamp(as_of).tz_convert("UTC")
-    known = history[history["kickoff_time"] < moment].copy()
+    known = history[history["kickoff_time"] < moment]
     if known.empty:
         return pd.DataFrame(columns=["player_code", "as_of", *input_features(config)])
 
     known = known.sort_values(["player_code", "kickoff_time"])
-    rows: list[dict[str, object]] = []
+    # Sorted by player, so each player's matches are one contiguous run of rows, oldest first.
+    # Every feature below is a sum, a count or a last value over the tail of that run: array
+    # arithmetic over the whole frame, not a loop over players (ORC-09). The loop it replaced is
+    # kept in tests/test_feature_store_exact.py, which holds this to it to the last bit.
+    sizes = known.groupby("player_code", sort=True).size()
+    lengths = sizes.to_numpy()
+    ends = np.cumsum(lengths)
+    last = ends - 1
 
-    for code, group in known.groupby("player_code", sort=True):
-        row: dict[str, object] = {"player_code": as_int(code), "as_of": moment}
-        for window in config.rolling_windows:
-            recent = group.tail(window)
-            minutes = float(recent["minutes"].sum())
-            row[f"minutes_mean_last{window}"] = float(recent["minutes"].mean())
-            for stat in config.rolling_statistics:
-                if stat not in recent.columns:
-                    row[f"{stat}_per90_last{window}"] = np.nan
-                    continue
-                values = pd.to_numeric(recent[stat], errors="coerce")
-                if values.isna().all() or minutes <= 0:
-                    # Not measured in this window, or no minutes played. Null, not zero — the
-                    # distinction between "did not do it" and "we could not have seen it".
-                    row[f"{stat}_per90_last{window}"] = np.nan
-                else:
-                    row[f"{stat}_per90_last{window}"] = float(values.sum()) / minutes * 90.0
+    def floats(values: pd.Series) -> np.ndarray:
+        return np.asarray(values.to_numpy(dtype="float64", na_value=np.nan))
 
-        last = group.iloc[-1]
-        row["matches_observed"] = len(group)
-        row["appearance_rate"] = float((group["minutes"] > 0).mean())
-        starts = pd.to_numeric(group["starts"], errors="coerce")
-        row["starts_rate"] = float(starts.mean()) if not starts.isna().all() else np.nan
-        row["days_since_last_match"] = float(
-            (moment - pd.Timestamp(last["kickoff_time"])).total_seconds() / 86400.0
-        )
+    def tail_sum(values: np.ndarray, window: int | None) -> tuple[np.ndarray, np.ndarray]:
+        """Each player's sum of the non-null values in their last ``window`` rows, and their count.
 
-        # Fixture density, and a recent absence. Both read only rows already filtered to before the
-        # deadline, so they inherit the knowability of everything else built here (Invariant 5).
-        window_start = moment - pd.Timedelta(days=config.congestion_window_days)
-        row[congestion_feature_name(config)] = float((group["kickoff_time"] >= window_start).sum())
-        returning = group.tail(config.return_window_matches)
-        row[absence_feature_name(config)] = float((returning["minutes"] <= 0).mean())
-        row["price"] = float(last["price"])
-        row["was_home"] = bool(last["was_home"])
-        rows.append(row)
+        Bucketed by run length so each row of a bucket is summed by numpy exactly as a one-
+        dimensional slice is, pairwise, which is what ``Series.sum`` does: equal to the last bit.
+        That needs each bucket C-contiguous along the summed axis, which a one-dimensional array
+        indexed by a two-dimensional index is; a sum along a strided axis adds in another order.
+        """
+        span = lengths if window is None else np.minimum(lengths, window)
+        present = ~np.isnan(values)
+        filled = np.where(present, values, 0.0)
+        total = np.empty(len(span))
+        count = np.empty(len(span))
+        for length in np.unique(span):
+            chosen = np.flatnonzero(span == length)
+            index = (ends[chosen] - length)[:, None] + np.arange(length)
+            total[chosen] = filled[index].sum(axis=-1)
+            count[chosen] = present[index].sum(axis=-1)
+        return total, count
 
-    frame = pd.DataFrame(rows)
+    def mean(values: np.ndarray, window: int | None) -> np.ndarray:
+        total, count = tail_sum(values, window)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            return np.where(count > 0, total / count, np.nan)
+
+    minutes = known["minutes"]
+    played = floats(minutes)
+    columns: dict[str, object] = {
+        "player_code": [as_int(code) for code in sizes.index],
+        "as_of": [moment] * len(sizes),
+    }
+    for window in config.rolling_windows:
+        minutes_sum, _ = tail_sum(played, window)
+        columns[f"minutes_mean_last{window}"] = mean(played, window)
+        for stat in config.rolling_statistics:
+            name = f"{stat}_per90_last{window}"
+            if stat not in known.columns:
+                columns[name] = np.full(len(sizes), np.nan)
+                continue
+            total, count = tail_sum(floats(pd.to_numeric(known[stat], errors="coerce")), window)
+            # Not measured in this window, or no minutes played. Null, not zero — the
+            # distinction between "did not do it" and "we could not have seen it".
+            with np.errstate(invalid="ignore", divide="ignore"):
+                rate = total / minutes_sum * 90.0
+            columns[name] = np.where((count > 0) & (minutes_sum > 0), rate, np.nan)
+
+    columns["matches_observed"] = lengths
+    columns["appearance_rate"] = mean(floats(minutes > 0), None)
+    columns["starts_rate"] = mean(floats(pd.to_numeric(known["starts"], errors="coerce")), None)
+    kickoff = known["kickoff_time"]
+    columns["days_since_last_match"] = [
+        float((moment - pd.Timestamp(value)).total_seconds() / 86400.0)
+        for value in kickoff.iloc[last]
+    ]
+
+    # Fixture density, and a recent absence. Both read only rows already filtered to before the
+    # deadline, so they inherit the knowability of everything else built here (Invariant 5).
+    window_start = moment - pd.Timedelta(days=config.congestion_window_days)
+    columns[congestion_feature_name(config)] = tail_sum(floats(kickoff >= window_start), None)[0]
+    columns[absence_feature_name(config)] = mean(floats(minutes <= 0), config.return_window_matches)
+    columns["price"] = [float(value) for value in known["price"].iloc[last]]
+    columns["was_home"] = [bool(value) for value in known["was_home"].iloc[last]]
+
+    frame = pd.DataFrame(columns)
     frame = _attach_prior_season(frame, known, config=config, metrics=metrics, season=season)
     if positions is not None and not positions.empty:
         frame = frame.merge(
