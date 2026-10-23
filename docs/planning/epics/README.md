@@ -15,7 +15,7 @@ first slice of the modular platform, is tagged; R1.2.1 is a hotfix and **R1.2.2*
 | **R1.2.2** — five models live | The same backlog §2, second drop: the archive and football-data.co.uk live, MOD-05, MOD-08, MOD-09, MOD-06; MOD-01 closed | Tagged 2026-10-23: all five strategies live, the frozen harness retired (switch GW8), F1 shipped ([DL-90](../../decisions/DL-90.md)), F3 rejected ([DL-91](../../decisions/DL-91.md)) |
 | **R1.2.3** — hotfix | Purchase prices are what was paid; an unknown one never overstates the budget ([DL-92](../../decisions/DL-92.md)) | Tagged 2026-10-23 |
 | **R1.2.4** — hotfix | Training rows refresh once a gameweek is checked; a warning gate for lagging rows; dependencies pinned in `pipeline/requirements.lock` ([DL-93](../../decisions/DL-93.md)) | Tagged 2026-10-23 |
-| **R1.3.0** — gameweek orchestration | [R1.3.0 gameweek orchestration](R1.3.0-gameweek-orchestration.md): ORC-01 … ORC-08, in two drops | Open on `dev/R1.3.0`; plan drafted 2026-10-23, awaiting the owner's answers |
+| **R1.3.0** — gameweek orchestration | [R1.3.0 gameweek orchestration](R1.3.0-gameweek-orchestration.md): ORC-01 … ORC-09, in two drops | Open on `dev/R1.3.0`; plan drafted 2026-10-23, awaiting the owner's answers |
 | **R1.4.0** — independent web | [R1.4.0 independent web](R1.4.0-independent-web.md): WEB-01 … WEB-06 | Planned after R1.3.0; plan drafted 2026-10-23, awaiting the owner's answers |
 | Ongoing, every season | [E8 — ongoing in-season monitoring](E8-ongoing-in-season-monitoring.md): the season state and decision points (rewritten each gameweek), the weekly loop, the bar for changing the model mid-season | Live, GW1 → 30 May 2027; updated weekly |
 
