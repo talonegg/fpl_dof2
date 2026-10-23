@@ -350,6 +350,7 @@ def append_permanent_snapshot(
     payload_path: Path,
     gameweek: int | None = None,
     name: str | None = None,
+    replace: bool = False,
     dry_run: bool = False,
 ) -> bool:
     """Append one snapshot to an append-only branch, as ``{source}/gw{NN}`` or ``{source}/{name}``.
@@ -372,7 +373,7 @@ def append_permanent_snapshot(
         destination = checkout_dir / destination_relative
         if destination.exists() and destination.read_bytes() == payload_path.read_bytes():
             return False  # already recorded, identical bytes — nothing to append
-        if destination.exists() and name is not None:
+        if destination.exists() and name is not None and not replace:
             raise FileExistsError(f"{branch}:{destination_relative} exists with other bytes")
 
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -550,6 +551,9 @@ def _build_parser() -> argparse.ArgumentParser:
     key = permanent.add_mutually_exclusive_group(required=True)
     key.add_argument("--gameweek", type=int)
     key.add_argument("--name", help="Key the file by name (a run id); never overwritten")
+    permanent.add_argument(
+        "--replace", action="store_true", help="Let a named file be rewritten when its bytes change"
+    )
     permanent.add_argument("--checkout-dir", type=Path, default=Path(".snapshots-staging"))
     permanent.add_argument("--dry-run", action="store_true")
 
@@ -616,6 +620,7 @@ def main(argv: list[str] | None = None) -> int:
         source=args.source,
         gameweek=args.gameweek,
         name=args.name,
+        replace=args.replace,
         payload_path=args.payload_path,
         dry_run=args.dry_run,
     )
