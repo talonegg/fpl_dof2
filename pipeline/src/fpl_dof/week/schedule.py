@@ -10,8 +10,9 @@ answer. The cost of a firing that decides not to run is a few seconds of a runne
 a public repository (NFR-01) and is much cheaper than the alternatives — a workflow that guesses at
 UK local time, or one that solves a MILP every hour.
 
-This module is pure: it takes a clock reading and a number of minutes, and returns a decision. The
-I/O that produces those inputs lives in :mod:`fpl_dof.schedule_cli` (DP-03). That split is what
+This module is pure: it takes a clock reading and the Open gameweek's state (ORC-01), and returns a
+decision; neither function decides from the clock alone. The I/O that produces those inputs lives in
+:mod:`fpl_dof.schedule_cli` (DP-03). That split is what
 makes "does the T-45m trigger ever fire inside the freeze?" a unit test rather than a question you
 answer by waiting for a Saturday.
 
@@ -43,8 +44,16 @@ import datetime as dt
 from dataclasses import dataclass
 
 from fpl_dof.config.models import ScheduleConfig
+from fpl_dof.gameweek import Due, GameweekState
 
 MINUTES_PER_HOUR = 60.0
+
+
+def _minutes_to_deadline(state: GameweekState | None, now: dt.datetime) -> float | None:
+    """Minutes to the deadline of the gameweek the state says advice is due for; else ``None``."""
+    if state is None or state.due is not Due.ADVISE:
+        return None
+    return (state.deadline - now).total_seconds() / 60
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,13 +84,12 @@ class ScheduleDecision:
 def fast_ingest_decision(
     *,
     now: dt.datetime,
-    minutes_to_deadline: float | None,
-    gameweek: int | None,
+    state: GameweekState | None,
     config: ScheduleConfig,
 ) -> ScheduleDecision:
     """Whether this hourly firing of ``ingest-fast.yml`` should fetch.
 
-    ``minutes_to_deadline`` is ``None`` when no deadline can be established — no silver yet, or the
+    ``state`` is the Open gameweek's, ``None`` when none can be established — no silver yet, or the
     season is over. That falls back to the base four-hourly cadence rather than to hourly: an
     unknown deadline is not evidence that one is imminent, and the conservative reading costs at
     most three hours of staleness (DP-15).
@@ -91,6 +99,8 @@ def fast_ingest_decision(
     recommendation, and keeping prices and availability fresh while you are acting is the whole
     point of the fast cadence.
     """
+    minutes_to_deadline = _minutes_to_deadline(state, now)
+    gameweek = None if state is None else state.gameweek
     hour = now.astimezone(dt.UTC).hour
     on_boundary = hour in set(config.fast_ingest_boundary_hours)
     window_minutes = config.fast_ingest_deadline_window_hours * MINUTES_PER_HOUR
@@ -128,8 +138,8 @@ def fast_ingest_decision(
 
 def pipeline_decision(
     *,
-    minutes_to_deadline: float | None,
-    gameweek: int | None,
+    now: dt.datetime,
+    state: GameweekState | None,
     config: ScheduleConfig,
 ) -> ScheduleDecision:
     """Whether this firing of ``pipeline.yml``'s deadline-relative cron should run the pipeline.
@@ -139,12 +149,17 @@ def pipeline_decision(
     so there is no window for them to be inside or outside.
 
     See the module docstring for how R-09 is enforced. The short version: the freeze is checked
-    first, and every window ends at its offset rather than straddling it.
+    first, and every window ends at its offset rather than straddling it. Only a gameweek whose
+    state makes advice due (Open) has a window at all.
     """
+    minutes_to_deadline = _minutes_to_deadline(state, now)
+    gameweek = None if state is None else state.gameweek
     if minutes_to_deadline is None:
         return ScheduleDecision(
             should_run=False,
-            reason="no deadline could be established; the deadline-relative trigger stands down",
+            reason=(
+                "no open gameweek could be established; the deadline-relative trigger stands down"
+            ),
         )
 
     if minutes_to_deadline < config.deadline_freeze_minutes:

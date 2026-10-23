@@ -15,7 +15,13 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import pandas as pd
 
 from fpl_dof.frames import as_int
-from fpl_dof.gameweek import NoDeadlineError, current_gameweek, gameweek_ahead
+from fpl_dof.gameweek import (
+    NoDeadlineError,
+    SilverTables,
+    current_gameweek,
+    gameweek_ahead,
+    open_gameweek,
+)
 
 #: Standard timezones
 UK_ZONE = "Europe/London"
@@ -91,7 +97,7 @@ def find_next_deadline_event(
     events_or_bootstrap: Mapping[str, Any] | Iterable[Mapping[str, Any]],
     now: dt.datetime,
 ) -> tuple[int, dt.datetime] | None:
-    """Find (gameweek, deadline_utc) from raw bootstrap dict or event list."""
+    """The Open gameweek and its deadline (ORC-01), from a raw bootstrap dict or event list."""
     if isinstance(events_or_bootstrap, Mapping):
         events = events_or_bootstrap.get("events", [])
     else:
@@ -109,11 +115,8 @@ def find_next_deadline_event(
         ],
         columns=["gameweek", "deadline_time", "finished"],
     )
-    gameweek = gameweek_ahead(deadlines, now)
-    if gameweek is None:
-        return None
-    when = deadlines.loc[deadlines["gameweek"] == gameweek, "deadline_time"].iloc[0]
-    return gameweek, pd.Timestamp(when).to_pydatetime()
+    state = open_gameweek(SilverTables(deadlines), (), now)
+    return None if state is None else (state.gameweek, state.deadline)
 
 
 def next_deadline(

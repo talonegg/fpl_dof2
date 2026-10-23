@@ -1,8 +1,9 @@
 """``fpl-dof-schedule`` — the guard the scheduled workflows ask before doing anything.
 
 The effectful edge of :mod:`fpl_dof.week.schedule` (DP-03): load config, read one silver table,
-work out how far away the next deadline is, and print the decision. It writes nothing, fetches
-nothing, and never fails on missing data — a guard that errors out is a guard that stops the season.
+derive the Open gameweek's state from it (ORC-01), and print the decision. It writes nothing,
+fetches nothing, and never fails on missing data — a guard that errors out is a guard that stops
+the season.
 
 A separate console script rather than a ``fpl-dof`` subcommand, on purpose. ``fpl-dof`` is a stage
 runner: every invocation opens a run, allocates a run id and writes a manifest, all of which are
@@ -31,10 +32,10 @@ from collections.abc import Sequence
 import pandas as pd
 
 from fpl_dof.config import Config, ConfigError, layout_for, load_config
+from fpl_dof.gameweek import GameweekState, SilverTables, open_gameweek
 from fpl_dof.paths import DataLayout
 from fpl_dof.silver.store import read_table_optional
 from fpl_dof.silver.tables import Table
-from fpl_dof.week.deadline import NoDeadlineError, next_deadline
 from fpl_dof.week.schedule import (
     MINUTES_PER_HOUR,
     fast_ingest_decision,
@@ -84,10 +85,10 @@ def parse_now(raw: str | None) -> dt.datetime:
     return moment.astimezone(dt.UTC)
 
 
-def time_to_deadline(
+def open_state(
     config: Config, layout: DataLayout, now: dt.datetime
-) -> tuple[float | None, int | None, str | None]:
-    """Minutes to the next deadline, the gameweek it belongs to, and why not, if not.
+) -> tuple[GameweekState | None, str | None]:
+    """The Open gameweek's state, and why there is none, if none.
 
     Every failure is reported as "unknown" rather than raised. Both callers read unknown as "keep
     the fixed cadence and stand down from the deadline-relative behaviour", which degrades to the
@@ -101,7 +102,7 @@ def time_to_deadline(
         # Deliberately broad. Anything at all wrong with the silver tier — absent, half-written,
         # failing its schema — means the deadline is unknown, and unknown is a case both callers
         # already handle safely. It must never be the reason a workflow reports failure.
-        return None, None, f"the gameweek table could not be read: {type(exc).__name__}: {exc}"
+        return None, f"the gameweek table could not be read: {type(exc).__name__}: {exc}"
     if gameweeks is None or gameweeks.empty:
         try:
             from fpl_dof.sources import gameweeks_from_bronze
@@ -111,18 +112,13 @@ def time_to_deadline(
             pass
 
     if gameweeks is None or gameweeks.empty:
-        return None, None, "the gameweek table has not been ingested yet"
+        return None, "the gameweek table has not been ingested yet"
 
-    try:
-        view = next_deadline(
-            gameweeks,
-            now=now,
-            local_zone=config.runtime.timezone,
-            decide_by_hours=config.alerts.decide_by_hours_before_deadline,
-        )
-    except NoDeadlineError as exc:
-        return None, None, str(exc)
-    return view.time_remaining.total_seconds() / 60, view.gameweek, None
+    # Open depends on the deadlines alone, so neither the fixtures nor the ledger is read here.
+    state = open_gameweek(SilverTables(gameweeks), (), now)
+    if state is None:
+        return None, "every gameweek deadline has passed; the season is over"
+    return state, None
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -139,19 +135,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"configuration error: {exc}", file=sys.stderr)
         return EXIT_CONFIG_ERROR
 
-    minutes, gameweek, unknown_reason = time_to_deadline(config, layout_for(config), now)
-
-    fast = fast_ingest_decision(
-        now=now,
-        minutes_to_deadline=minutes,
-        gameweek=gameweek,
-        config=config.schedule,
-    )
-    pipeline = pipeline_decision(
-        minutes_to_deadline=minutes,
-        gameweek=gameweek,
-        config=config.schedule,
-    )
+    state, unknown_reason = open_state(config, layout_for(config), now)
+    fast = fast_ingest_decision(now=now, state=state, config=config.schedule)
+    pipeline = pipeline_decision(now=now, state=state, config=config.schedule)
+    minutes = None if state is None else (state.deadline - now).total_seconds() / 60
 
     if args.decide == "fast":
         print(TRUE if fast.should_run else FALSE)
@@ -164,7 +151,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         json.dumps(
             {
                 "now_utc": now.isoformat().replace("+00:00", "Z"),
-                "gameweek": gameweek,
+                "gameweek": None if state is None else state.gameweek,
+                "gameweek_state": None if state is None else state.phase.value,
                 "minutes_to_deadline": None if minutes is None else round(minutes, 2),
                 "hours_to_deadline": (
                     None if minutes is None else round(minutes / MINUTES_PER_HOUR, 3)
