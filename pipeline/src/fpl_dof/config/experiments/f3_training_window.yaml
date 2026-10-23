@@ -23,4 +23,5 @@ results: >
   Spearman -0.01736 [-0.02466, -0.01006] (worse), top-N precision -0.00221 [-0.01176, +0.00588].
   Pooled MAE 1.9175 against 1.9056, Spearman 0.2628 against 0.2823, calibration slope 0.718
   against 0.758. All-seasons training is significantly worse on the held-out seasons.
-  Rejected by the owner (DL-91).
+  CI record ledger:experiments/20261023T025830Z-e93622d9.json reproduces it (MAE +0.01199, Spearman -0.01680, both
+  significant). Rejected by the owner (DL-91).

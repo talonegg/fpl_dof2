@@ -22,4 +22,6 @@ results: >
   [-0.00021, +0.00121], Spearman +0.00002 [-0.00089, +0.00094], top-N precision +0.00147
   [-0.00368, +0.00735]; none significant. Pooled MAE 1.9061 against 1.9056, RMSE 3.0566 against
   3.0580, Spearman 0.2826 against 0.2823. Not degraded, so shipped as a bug fix (DL-90). The CI
-  backtest's record on the ledger branch is still to come.
+  backtest record is ledger:experiments/20261023T025830Z-e93622d9.json: pre-fix control c3_f1
+  minus the fixed c3,
+  MAE -0.00052 [-0.00121, +0.00021], none significant (DL-91).
