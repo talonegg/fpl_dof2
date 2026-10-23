@@ -1,16 +1,16 @@
 # See c3.yaml for what this file is.
 id: a_odds
 label: A + odds
-description: Model A with the bookmaker-odds team layer. Currently duplicates A until odds rows flow; no saved backtest xP.
+description: Model A with the bookmaker-odds team layer where every fixture of a club's gameweek is priced; no advice without odds.
 role: challenger
-published: false # lives only in the frozen bundle until MOD-05 ports it (R1.2.2)
+published: true # live since R1.2.2 (MOD-05)
 aliases: [A_odds]
 forecaster:
-  type: frozen
-  model: comp_ot # the frozen bundle's factory (Shin de-vig, pre-closing odds)
+  type: recipe
+  model: a_odds_team_layer # shadow/a_odds.py; A's tunables in forecast.a, the odds layer's in forecast.a_odds
   config: {}
-  training_window: prior_seasons_and_current
+  training_window: all_seasons # prior seasons from the archive plus the current, as its frozen original (DL-89)
 policy:
   captain_rule: price_position
-  plan: false
-requires: [player_gameweek, fixture, team_match_expectation]
+  plan: false # one gameweek, as A
+requires: [player_gameweek, fixture, team_match_expectation] # no odds at all: no advice (DL-87)

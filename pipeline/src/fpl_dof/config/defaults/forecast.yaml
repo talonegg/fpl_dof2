@@ -91,11 +91,11 @@ forecast:
     home_advantage_minimum: 1.0
     home_advantage_maximum: 1.30
 
-  # E10's discrimination candidates (DL-47). Every flag here is off and stays off in the shipped
-  # configuration: these are genuine new model behaviours, not delivery bugs, so DP-08 applies in
-  # full — flagged, graded by the backtest against the flag being off, and promoted only once the
-  # E8 §5 bar is met, which includes six live shadow gameweeks that cannot exist before the season
-  # does. Turning one on here is what starts that story's shadow clock.
+  # E10's discrimination candidates (DL-47). Every flag here but minutes_v2 (on since DL-76, below)
+  # is off in the shipped configuration: these are genuine new model behaviours, not delivery
+  # bugs, so DP-08 applies in full — flagged, graded by the backtest against the flag being off,
+  # and promoted only once the E8 §5 bar is met, which includes six live shadow gameweeks that
+  # cannot exist before the season does. Turning one on here is what starts that story's shadow clock.
   #
   # minutes_v2 (E10-S1) adds three adjustments to M1: a rotation prior on fixture density, an
   # injury-return ramp, and a live availability haircut that hits starting harder than appearing.

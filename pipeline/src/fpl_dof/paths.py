@@ -71,6 +71,10 @@ class DataLayout:
         """
         return self.root / "ledger"
 
+    def gold_for(self, season: str) -> Path:
+        """The gold directory of one season: ``gold/season=2026-27``."""
+        return self.gold / f"season={season.replace('/', '-')}"
+
     def all_tiers(self) -> tuple[Path, ...]:
         return (self.bronze, self.silver, self.gold, self.web, self.runs, self.ledger)
 

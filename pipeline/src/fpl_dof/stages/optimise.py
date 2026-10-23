@@ -14,6 +14,7 @@ import json
 
 import pandas as pd
 
+from fpl_dof.artefacts import SQUAD_FILENAME, XP_FILENAME, read_rules
 from fpl_dof.frames import as_float, as_int
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.optimise.squad import SolveReport, optimise_squad
@@ -21,19 +22,16 @@ from fpl_dof.pipeline import Output, StageContext, StageResult
 from fpl_dof.rules.legality import Squad
 from fpl_dof.silver.store import read_table
 from fpl_dof.silver.tables import Table
-from fpl_dof.stages.forecast import XP_FILENAME
-from fpl_dof.stages.transform import read_rules
 
 log = get_logger(__name__)
 
-SQUAD_FILENAME = "squad.json"
 SKIPPED_STATUS = "skipped"
 
 
 def run(ctx: StageContext) -> StageResult:
     rules = read_rules(ctx, ctx.config.rules.season)
     season = rules.season
-    gold = ctx.layout.gold / f"season={season.replace('/', '-')}"
+    gold = ctx.layout.gold_for(season)
 
     forecast = pd.read_parquet(gold / XP_FILENAME)
     forecast["start_floor"] = ctx.config.forecast.minimum_start_probability_for_xi

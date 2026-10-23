@@ -21,12 +21,12 @@ import pytest
 import yaml
 
 from conftest import FIXTURE_QUALITY
+from fpl_dof.artefacts import XP_FILENAME
 from fpl_dof.cli import EXIT_OK, main
 from fpl_dof.sources.base import Conformed, IngestReport, IngestRequest
 from fpl_dof.sources.fbref.adapter import FbrefAdapter
 from fpl_dof.sources.oddsapi.adapter import OddsApiAdapter
 from fpl_dof.sources.understat.adapter import UnderstatAdapter
-from fpl_dof.stages.forecast import XP_FILENAME
 
 pytestmark = pytest.mark.usefixtures("recorded_fpl_api")
 

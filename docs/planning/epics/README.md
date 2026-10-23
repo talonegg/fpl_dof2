@@ -12,8 +12,8 @@ first slice of the modular platform, is tagged; R1.2.1 is a hotfix and **R1.2.2*
 | --- | --- | --- |
 | **R1.2.0** — the registry slice | [Modular platform backlog](R1.2.0-modular-platform-backlog.md) §2, first drop: MOD-01 started, MOD-03, MOD-02, MOD-04, MOD-07; design in [05](../05-target-architecture.md), set by [DL-86](../../decisions/DL-86.md) and [DL-87](../../decisions/DL-87.md) | Tagged 2026-10-23 ([DL-87](../../decisions/DL-87.md)) |
 | **R1.2.1** — hotfix | The prospective job's scoring step creates `raw/` before the frozen `score.py` writes into it ([DL-88](../../decisions/DL-88.md)) | Hotfix from `main` |
-| **R1.2.2** — five models live | The same backlog §2, second drop: the archive and football-data.co.uk live, MOD-05, MOD-08, MOD-09, MOD-06; MOD-01 closed | Planned after R1.2.0 |
-| **R1.3.0** — gameweek orchestration | [Modular platform backlog](R1.2.0-modular-platform-backlog.md) §3, ORC-01 … ORC-06, epic level | Planned after R1.2.0 |
+| **R1.2.2** — five models live | The same backlog §2, second drop: the archive and football-data.co.uk live, MOD-05, MOD-08, MOD-09, MOD-06; MOD-01 closed | Open on `dev/R1.2.2`; not started |
+| **R1.3.0** — gameweek orchestration | [Modular platform backlog](R1.2.0-modular-platform-backlog.md) §3, ORC-01 … ORC-06, epic level | Planned after R1.2.2 |
 | **R1.4.0** — independent web | [Modular platform backlog](R1.2.0-modular-platform-backlog.md) §4, WEB-01 … WEB-06, epic level | Planned after R1.3.0 |
 | Ongoing, every season | [E8 — ongoing in-season monitoring](E8-ongoing-in-season-monitoring.md): the season state and decision points (rewritten each gameweek), the weekly loop, the bar for changing the model mid-season | Live, GW1 → 30 May 2027; updated weekly |
 
@@ -39,7 +39,7 @@ hotfix: feature/<fix> from main ──PR──► pre-release ──PR──► 
 | --- | --- |
 | `main` | Production: scheduled workflows run its code and every merge deploys. Pull requests from `pre-release` only; one annotated tag per release |
 | `pre-release` | `main` plus the promotion under test; brought level with `main` before each promotion. CI and `pre-release.yml`'s smoke test run on it |
-| `dev/Rx.y.z` | The open release (now `dev/R1.2.0`), cut from `main` when the release starts; deleted after its tag exists |
+| `dev/Rx.y.z` | The open release (now `dev/R1.2.2`), cut from `main` when the release starts; deleted after its tag exists |
 | `feature/<description>` | One feature or fix, from the open `dev/Rx.y.z`, merged into it directly after the local checks pass; deleted once the release is tagged. A hotfix branches from `main` and goes by pull request into `pre-release` |
 
 `main` and `pre-release` accept changes only by pull request with passing checks. A release's number

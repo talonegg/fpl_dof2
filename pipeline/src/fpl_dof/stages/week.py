@@ -34,6 +34,7 @@ from typing import Any
 
 import pandas as pd
 
+from fpl_dof.artefacts import CAPTAIN_LINE_FILENAME, XP_FILENAME, read_rules
 from fpl_dof.config.models import Config
 from fpl_dof.decision import Decision, DecisionPolicy, decide, solve_plan
 from fpl_dof.factory import form_by_player_id, trailing_form
@@ -61,8 +62,6 @@ from fpl_dof.squad.state import (
     gameweek_price_index,
     load_squad_state,
 )
-from fpl_dof.stages.forecast import CAPTAIN_LINE_FILENAME, XP_FILENAME
-from fpl_dof.stages.transform import read_rules
 from fpl_dof.week.alerts import Alert, collect_alerts
 from fpl_dof.week.deadline import DeadlineView, describe_deadline, next_deadline, to_contract
 from fpl_dof.week.ledger import read_advice, record_advice
@@ -87,7 +86,7 @@ class Snapshot:
     state: SquadState
     inputs: ForecastInputs
     champion: Forecast
-    """The forecast stage's frame and B0 line. C1 borrows from it (see ``Strategy.forecast``)."""
+    """The forecast stage's frame and B0 line: the champion's forecast, decided first."""
     fixtures: pd.DataFrame | None
     chips: pd.DataFrame | None
     last_gameweek: int
@@ -101,7 +100,7 @@ def run(ctx: StageContext) -> StageResult:
     rules = read_rules(ctx, ctx.config.rules.season)
     season = rules.season
     silver = ctx.layout.silver
-    gold = ctx.layout.gold / f"season={season.replace('/', '-')}"
+    gold = ctx.layout.gold_for(season)
     published = published_strategies()
 
     gameweeks = read_table(silver, season, Table.GAMEWEEK)
@@ -126,7 +125,7 @@ def run(ctx: StageContext) -> StageResult:
             transfers=read_table_optional(silver, season, Table.ENTRY_TRANSFER),
             entry=read_table_optional(silver, season, Table.ENTRY),
             chips=read_table_optional(silver, season, Table.ENTRY_CHIP),
-            gameweek_prices=gameweek_price_index(player_gameweek),
+            gameweek_prices=gameweek_price_index(player_gameweek, season),
         )
     except SquadStateError as exc:
         # Degrade rather than break (DP-15). The forecast is still good; there is simply no squad
@@ -160,6 +159,7 @@ def run(ctx: StageContext) -> StageResult:
             as_of=ctx.as_of,
             player_gameweek=player_gameweek,
             metrics=read_table_optional(silver, season, Table.PLAYER_METRIC),
+            match_odds=read_table_optional(silver, season, Table.TEAM_MATCH_EXPECTATION),
         ),
         champion=Forecast(
             frame=champion_frame,
@@ -297,9 +297,7 @@ def _champion_plan(
 
 
 def _advise(snapshot: Snapshot, strategy: Strategy) -> Advice:
-    forecast = strategy.forecast(
-        snapshot.inputs, snapshot.rules, snapshot.config, variance_from=snapshot.champion
-    )
+    forecast = strategy.forecast(snapshot.inputs, snapshot.rules, snapshot.config)
     decision = decide(
         forecast.frame,
         snapshot.state,

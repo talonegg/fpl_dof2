@@ -44,6 +44,12 @@ class Resource:
     Completed prior seasons (PIPE-03) are immutable: once cached in bronze, they are never
     re-fetched regardless of age unless explicit rebackfill or force-refresh is requested.
     """
+    retain: bool = False
+    """Whether every capture is kept on the `data` branch whatever its age.
+
+    Distinct from ``immutable``: a retained resource is still re-fetched after its TTL (upcoming
+    odds move), but each capture is evidence the backtest and the prospective record cannot recover.
+    """
 
 
 @dataclass(frozen=True, slots=True)

@@ -1,0 +1,115 @@
+{
+ "champion": "c3",
+ "contract_version": 1,
+ "strategies": [
+  {
+   "aliases": [
+    "C3",
+    "champion",
+    "xp_v1"
+   ],
+   "artefacts": {
+    "plan": "plan.json",
+    "week": "week.json"
+   },
+   "description": "Engine forecasts with the minutes_v2 model; captain by price and position. The live advice.",
+   "digest": "<masked>",
+   "id": "c3",
+   "label": "Champion (C3)",
+   "plan": true,
+   "published": true,
+   "role": "champion"
+  },
+  {
+   "aliases": [
+    "A"
+   ],
+   "artefacts": {
+    "plan": null,
+    "week": "week_a.json"
+   },
+   "description": "Component xPts model (goals, assists, clean sheets, bonus, appearance). Comparison only.",
+   "digest": "<masked>",
+   "id": "a",
+   "label": "Model A",
+   "plan": false,
+   "published": true,
+   "role": "challenger"
+  },
+  {
+   "aliases": [
+    "A_odds"
+   ],
+   "artefacts": {
+    "plan": null,
+    "week": "week_a_odds.json"
+   },
+   "description": "Model A with the bookmaker-odds team layer where every fixture of a club's gameweek is priced; no advice without odds.",
+   "digest": "<masked>",
+   "id": "a_odds",
+   "label": "A + odds",
+   "plan": false,
+   "published": true,
+   "role": "challenger"
+  },
+  {
+   "aliases": [
+    "C1",
+    "challenger"
+   ],
+   "artefacts": {
+    "plan": null,
+    "week": "week_c1.json"
+   },
+   "description": "Boosted xG and minutes model; captain by price and position. Pre-registered against C3 on all-player xP MAE, with no look before GW10.",
+   "digest": "<masked>",
+   "id": "c1",
+   "label": "Challenger (C1)",
+   "plan": false,
+   "published": true,
+   "role": "challenger"
+  },
+  {
+   "aliases": [],
+   "artefacts": {
+    "plan": null,
+    "week": "week_engine.json"
+   },
+   "description": "The original engine (minutes_v2 off) with the engine captain, kept as a baseline.",
+   "digest": "<masked>",
+   "id": "engine",
+   "label": "Engine",
+   "plan": false,
+   "published": true,
+   "role": "challenger"
+  },
+  {
+   "aliases": [],
+   "artefacts": {
+    "plan": null,
+    "week": null
+   },
+   "description": "The champion without each player's own card rate, as before DL-90; graded against c3.",
+   "digest": "<masked>",
+   "id": "c3_f1",
+   "label": "C3 before card rates (F1 control)",
+   "plan": true,
+   "published": false,
+   "role": "retired"
+  },
+  {
+   "aliases": [],
+   "artefacts": {
+    "plan": null,
+    "week": null
+   },
+   "description": "The champion with the training window widened from the current season to all seasons.",
+   "digest": "<masked>",
+   "id": "c3_f3",
+   "label": "C3 on all seasons (F3)",
+   "plan": true,
+   "published": false,
+   "role": "retired"
+  }
+ ]
+}

@@ -597,6 +597,50 @@ def test_a_stale_backtest_does_not_retire_the_no_backtesting_claim_on_an_xp_v0_c
     assert "Measured accuracy" not in text
 
 
+def test_the_model_card_names_the_verdict_for_the_current_digest_or_says_there_is_none(
+    inputs: ForecastInputs, game_rules: GameRules, tmp_path: Path
+) -> None:
+    """MOD-08: the card carries the standing backtest's verdict for exactly this digest."""
+    result = build_forecast(inputs, game_rules, CONFIG)
+    current = "ab" * 32
+
+    def card(backtest: dict[str, object] | None) -> str:
+        return write_model_card(
+            tmp_path / "model-card.md",
+            forecast=result,
+            regression=regress_xp_on_price(result),
+            config=CONFIG,
+            rules=game_rules,
+            run_id="run-1",
+            model=V1_MODEL_NAME,
+            backtest=backtest,
+            strategy_digest=current,
+        ).read_text(encoding="utf-8")
+
+    none = card(None)
+    assert f"No backtest verdict exists for the champion's current digest `{current[:12]}`" in none
+    assert "No backtesting" in none
+
+    graded = card(
+        {
+            "verdict": "The forecast beats B0 but not the model-free benchmark.",
+            "run_id": "20261027T161700Z-ab12cd34",
+            "data_window": {
+                "first": {"season": "2024/25", "gameweek": 5},
+                "last": {"season": "2025/26", "gameweek": 38},
+                "folds": 68,
+            },
+            "metrics": {"mae": 1.93, "spearman": 0.25, "top_n_precision": 0.1},
+            "b0": {"mae": 1.96, "spearman": 0.21, "top_n_precision": 0.12},
+            "model_free": {"mae": 2.1, "spearman": 0.29, "top_n_precision": 0.13},
+        }
+    )
+    assert "The forecast beats B0 but not the model-free benchmark." in graded
+    assert "`20261027T161700Z-ab12cd34` over 2024/25 GW5 to 2025/26 GW38 (68 gameweeks)" in graded
+    assert f"`{current[:12]}`" in graded and "No backtest verdict" not in graded
+    assert "| This forecast | 1.93 | 0.25 | 0.1 |" in graded
+
+
 def test_the_model_card_names_the_published_model_and_the_date(
     inputs: ForecastInputs, game_rules: GameRules, tmp_path: Path
 ) -> None:

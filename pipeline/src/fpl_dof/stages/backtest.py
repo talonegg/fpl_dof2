@@ -7,23 +7,30 @@ making the Friday run late.
 
 The report it writes is the thing that closes D-01. Until it exists, the forecast is unvalidated by
 construction and no expensive decision should rest on it.
+
+It grades every registered strategy, champion first, through the model factory (MOD-08), and writes
+one stamped record per strategy to ``ledger/experiments/<run_id>.json``; CI appends that file to the
+``ledger`` branch, and the pipeline's model card reads the champion's verdict from there.
 """
 
 from __future__ import annotations
 
 import json
 
-from fpl_dof.forecast.backtest import BacktestResult, walk_forward
-from fpl_dof.forecast.xp_v1 import ComponentPredictor
+from fpl_dof.artefacts import (
+    BACKTEST_PREDICTIONS_FILENAME,
+    BACKTEST_REPORT_FILENAME,
+    EXPERIMENTS_DIRNAME,
+    read_rules,
+)
+from fpl_dof.factory import BacktestResult, ForecastInputs, experiment_records, grade
+from fpl_dof.factory.registry import strategies
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.pipeline import Output, StageContext, StageResult
 from fpl_dof.silver.store import read_table_optional
 from fpl_dof.silver.tables import Table
-from fpl_dof.stages.transform import read_rules
 
 log = get_logger(__name__)
-
-REPORT_FILENAME = "backtest.json"
 
 
 class NoHistoryError(RuntimeError):
@@ -46,26 +53,59 @@ def run(ctx: StageContext) -> StageResult:
     # degrades to the position priors it has always used when the table is not there (DP-15).
     metrics = read_table_optional(ctx.layout.silver, season, Table.PLAYER_METRIC)
 
-    predictor = ComponentPredictor(ctx.config.forecast, rules)
-    result = walk_forward(
-        history,
-        predictor,
-        forecast_config=ctx.config.forecast,
-        backtest_config=ctx.config.backtest,
-        seasons=ctx.config.backtest.training_seasons or None,
-        metrics=metrics,
-    )
+    # A_odds also reads the match odds; without them it is recorded as not graded, with why.
+    odds = read_table_optional(ctx.layout.silver, season, Table.TEAM_MATCH_EXPECTATION)
+    inputs = None
+    silver = ctx.layout.silver
+    players = read_table_optional(silver, season, Table.PLAYER)
+    teams = read_table_optional(silver, season, Table.TEAM)
+    fixtures = read_table_optional(silver, season, Table.FIXTURE)
+    gameweeks = read_table_optional(silver, season, Table.GAMEWEEK)
+    season_history = read_table_optional(silver, season, Table.PLAYER_SEASON_HISTORY)
+    # A missing table means no inputs, so A_odds is recorded as not graded rather than crashing.
+    if (
+        odds is not None
+        and players is not None
+        and teams is not None
+        and fixtures is not None
+        and gameweeks is not None
+        and season_history is not None
+    ):
+        inputs = ForecastInputs(
+            players=players,
+            teams=teams,
+            fixtures=fixtures,
+            gameweeks=gameweeks,
+            history=season_history,
+            as_of=ctx.as_of,
+            player_gameweek=history,
+            metrics=metrics,
+            match_odds=odds,
+        )
 
-    directory = ctx.layout.gold / f"season={season.replace('/', '-')}"
+    registered = strategies()
+    graded = grade(history, registered, rules, ctx.config, metrics=metrics, inputs=inputs)
+    result = graded.result
+    for sid, reason in graded.skipped.items():
+        log.warning("backtest.not_graded", extra={"strategy": sid, "reason": reason})
+
+    directory = ctx.layout.gold_for(season)
     directory.mkdir(parents=True, exist_ok=True)
-    report_path = directory / REPORT_FILENAME
+    report_path = directory / BACKTEST_REPORT_FILENAME
     report_path.write_text(json.dumps(result.as_dict(), indent=2), encoding="utf-8")
 
-    predictions_path = directory / "backtest-predictions.parquet"
+    predictions_path = directory / BACKTEST_PREDICTIONS_FILENAME
     result.predictions.to_parquet(predictions_path, index=False, compression="snappy")
 
     card_path = directory / "backtest-card.md"
     card_path.write_text(_card(result, ctx), encoding="utf-8")
+
+    records = experiment_records(
+        graded, registered, ctx.config, run_id=ctx.run_id, recorded_at=ctx.as_of
+    )
+    record_path = ctx.layout.ledger / EXPERIMENTS_DIRNAME / f"{ctx.run_id}.json"
+    record_path.parent.mkdir(parents=True, exist_ok=True)
+    record_path.write_text(json.dumps(records, indent=2), encoding="utf-8")
 
     # Logged at warning when the model loses, because that is the headline finding and it must not
     # scroll past as routine output.
@@ -115,11 +155,14 @@ def run(ctx: StageContext) -> StageResult:
             ),
             "prior_season_prior": str(ctx.config.forecast.features.prior_season.enabled),
             "prior_season_rows": 0 if metrics is None else len(metrics),
+            "strategies_graded": len(result.strategies),
+            "strategies_not_graded": len(graded.skipped),
         },
         outputs=[
             Output(path=report_path),
             Output(path=predictions_path, rows=len(result.predictions)),
             Output(path=card_path),
+            Output(path=record_path, rows=len(records)),
         ],
     )
 
@@ -242,6 +285,7 @@ def _card(result: BacktestResult, ctx: StageContext) -> str:
     if not fixture_bands:
         lines.append("| — | — | — | — |")
 
+    lines += _strategies_section(result)
     lines += _head_section(result, ctx)
     lines += _explainability_section(result)
     lines += _minutes_section(result, ctx)
@@ -270,6 +314,36 @@ def _card(result: BacktestResult, ctx: StageContext) -> str:
     if not result.warnings:
         lines.append("None.")
     return "\n".join(lines) + "\n"
+
+
+def _strategies_section(result: BacktestResult) -> list[str]:
+    """Every registered strategy against the champion, on the same folds and rows (MOD-08)."""
+    lines = [
+        "",
+        "## Every strategy against the champion (MOD-08)",
+        "",
+        f"The champion is `{result.champion}`. Each delta is the strategy minus the champion, per "
+        "gameweek, with a seeded 95% bootstrap interval over the gameweeks: lower is better for "
+        "MAE, higher for Spearman and top-N precision.",
+        "",
+        "| Strategy | Window | MAE | Spearman | Top-N precision | ΔMAE | ΔSpearman | ΔTop-N |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for sid, metrics in result.strategies.items():
+        paired = result.paired.get(sid, {})
+        deltas = [
+            "—"
+            if (d := paired.get(m)) is None
+            else f"{_fmt(d.mean)} [{_fmt(d.ci_low)}, {_fmt(d.ci_high)}]"
+            for m in ("mae", "spearman", "top_n_precision")
+        ]
+        lines.append(
+            f"| `{sid}` | {result.training_windows.get(sid, '—')} | {_fmt(metrics.mae)} "
+            f"| {_fmt(metrics.spearman)} | {_fmt(metrics.top_n_precision)} | "
+            + " | ".join(deltas)
+            + " |"
+        )
+    return lines
 
 
 def _head_section(result: BacktestResult, ctx: StageContext) -> list[str]:

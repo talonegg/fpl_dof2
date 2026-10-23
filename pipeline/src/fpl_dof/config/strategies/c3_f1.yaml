@@ -1,0 +1,20 @@
+# Experiment F1 (MOD-09, experiments/f1_card_rates.yaml), shipped into c3 by DL-90. The CI backtest
+# graded this pre-fix control (the champion without yellow_cards in the rolling statistics) against
+# the fixed c3 and recorded it on `ledger`; retired since (DL-91).
+id: c3_f1
+label: C3 before card rates (F1 control)
+description: The champion without each player's own card rate, as before DL-90; graded against c3.
+role: retired
+published: false
+forecaster:
+  type: recipe
+  model: xp_v1
+  config:
+    features:
+      rolling_statistics: [goals_scored, assists, clean_sheets, saves, bonus, bps,
+        defensive_contribution, expected_goals, expected_assists, total_points]
+  training_window: current_season
+policy:
+  captain_rule: price_position
+  plan: true
+requires: [fixture]

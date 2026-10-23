@@ -3,14 +3,15 @@ id: a
 label: Model A
 description: Component xPts model (goals, assists, clean sheets, bonus, appearance). Comparison only.
 role: challenger
-published: false # lives only in the frozen bundle until MOD-05 ports it (R1.2.2)
+published: true # live since R1.2.2 (MOD-05)
 aliases: [A]
 forecaster:
-  type: frozen
-  model: comp_A # the frozen bundle's factory
+  type: recipe
+  model: a_component_xp # shadow/a.py; hyperparameters and seed in forecast.a
   config: {}
-  training_window: prior_seasons_and_current
+  training_window: all_seasons # prior seasons from the archive plus the current, as its frozen original (DL-89)
 policy:
   captain_rule: price_position
+  # A forecasts the next gameweek only (a one-gameweek horizon), as C1 does.
   plan: false
-requires: [player_gameweek, fixture]
+requires: [player_gameweek, fixture] # no cold-start fallback: with no played history, no advice

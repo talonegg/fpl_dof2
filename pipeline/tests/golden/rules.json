@@ -1,0 +1,92 @@
+{
+ "contract_version": 1,
+ "derived": {
+  "scoring.events": "api",
+  "scoring.thresholds": "config",
+  "season": "config",
+  "squad": "api",
+  "transfers": "config"
+ },
+ "scoring": {
+  "assists": 3,
+  "bonus": 1,
+  "bonus_points": [
+   3,
+   2,
+   1
+  ],
+  "clean_sheets": {
+   "DEF": 4,
+   "FWD": 0,
+   "GKP": 4,
+   "MID": 1
+  },
+  "defensive_contribution": {
+   "DEF": 2,
+   "FWD": 2,
+   "GKP": 0,
+   "MID": 2
+  },
+  "defensive_contribution_threshold": {
+   "DEF": 10,
+   "FWD": 12,
+   "GKP": 0,
+   "MID": 12
+  },
+  "goals_conceded": {
+   "DEF": -1,
+   "FWD": 0,
+   "GKP": -1,
+   "MID": 0
+  },
+  "goals_conceded_per_point": 2,
+  "goals_scored": {
+   "DEF": 6,
+   "FWD": 4,
+   "GKP": 10,
+   "MID": 5
+  },
+  "long_play": 2,
+  "long_play_minutes": 60,
+  "own_goals": -2,
+  "penalties_missed": -2,
+  "penalties_saved": 5,
+  "red_cards": -3,
+  "saves": 1,
+  "saves_per_point": 3,
+  "short_play": 1,
+  "yellow_cards": -1
+ },
+ "season": "2026/27",
+ "source_snapshot_sha256": "2ba2034d04503721389f580688cdf3dd566a574692282f609f1963fd1db07adb",
+ "squad": {
+  "budget": 100.0,
+  "club_limit": 3,
+  "composition": {
+   "DEF": 5,
+   "FWD": 3,
+   "GKP": 2,
+   "MID": 5
+  },
+  "formation_max": {
+   "DEF": 5,
+   "FWD": 3,
+   "GKP": 1,
+   "MID": 5
+  },
+  "formation_min": {
+   "DEF": 3,
+   "FWD": 1,
+   "GKP": 1,
+   "MID": 2
+  },
+  "sell_at_purchase_price": false,
+  "sell_on_fee": 0.5,
+  "size": 15,
+  "starting_size": 11
+ },
+ "transfers": {
+  "extra_transfer_cost": -4,
+  "max_free_transfers": 5
+ }
+}

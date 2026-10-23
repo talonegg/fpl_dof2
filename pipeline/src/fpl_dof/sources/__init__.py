@@ -25,7 +25,7 @@ from fpl_dof.sources.errors import (
     SourceRateLimitedError,
     SourceUnavailableError,
 )
-from fpl_dof.sources.feeds import UPCOMING_ODDS_RECORD, LiveFeed
+from fpl_dof.sources.feeds import LiveFeed
 from fpl_dof.sources.fetch import Fetched, Fetcher, RateLimiter
 from fpl_dof.sources.registry import build, known, register
 from fpl_dof.sources.replay import extract_price_history_rows, gameweeks_from_bronze, replay_prices
@@ -36,7 +36,6 @@ __all__ = [
     "LIVE",
     "META_SUFFIX",
     "REFERENCE",
-    "UPCOMING_ODDS_RECORD",
     "BronzeStore",
     "Fetched",
     "Fetcher",

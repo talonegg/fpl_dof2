@@ -57,7 +57,7 @@ module review is [03 §12](03-solution-architecture.md#12-module-design--review-
 | Model ids are restated in at least six places, and `"engine"` names the live champion in `week.json` but the minutes_v2-off reference in `models.json` | `stages/week.py:57`, `publish/benchmark.py:18-24`, `prospective/xp_accuracy.py:24`, `contracts/v1/models.schema.json:33`, `web/src/data/model.ts:13-40` |
 | Two of the five compared models (A, A_odds) exist only inside the frozen prospective bundle, a parallel copy of the stack with its own ingest | `prospective/bundle/`, `pipeline.yml:207-216` |
 | Only the champion gets a plan and chips; C1 gets one gameweek, borrows the champion's variance and builds features outside the knowability seam | `shadow/c1.py:63,238-240` |
-| Tuning is a hand-edited flag and a hand-compared backtest; the backtest grades one predictor against fixed baselines; the CI model card never sees the backtest verdict | `forecast/backtest.py:380,413-436`, `backtest.yml:60-65` |
+| Tuning is a hand-edited flag and a hand-compared backtest; the backtest grades one predictor against fixed baselines; the CI model card never sees the backtest verdict. **Backtest and card parts closed by MOD-08** (§5.3) | `forecast/backtest.py:380,413-436`, `backtest.yml:60-65` |
 | The model-history tables are rebuilt by scripts that depend on branches and caches outside the repository | `scripts/models_history/README.md` |
 
 ### 2.3 Web and contract
@@ -140,10 +140,10 @@ packages, or per-module versions, waits until these rules prove insufficient (§
 | Seam | From → to | Form | Versioning |
 | --- | --- | --- | --- |
 | **Upstream data** | Data platform → everything | Silver and gold schemas (`silver/tables.py`), each row knowable at `as_of` (Invariant 5, DL-83) | Schema change → `silver rebuild` |
-| **Strategy registry** | Factory → orchestrator, web | Built ([04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)), with `Strategy.forecast` for `xp_v1` and C1 and `Strategy.decision_policy` for `decide` ([04 §6](04-conceptual-design.md#6-decision-engine), MOD-04). Still target: `forecast` for every forecaster (MOD-05) | Digest of (entry, code, effective config): the entry with its training window, the source that decides advice, and the run config sections it reads |
+| **Strategy registry** | Factory → orchestrator, web | Built ([04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)), with `Strategy.forecast` for `xp_v1` and C1 and `Strategy.decision_policy` for `decide` ([04 §6](04-conceptual-design.md#6-decision-engine), MOD-04). Still target: `forecast` for `a` and `a_odds` (MOD-05) | Digest of (entry, code, effective config): the entry with its training window, the source that decides advice, and the run config sections it reads |
 | **Forecast frame** | Forecaster → decision engine | Built: [04 §6](04-conceptual-design.md#6-decision-engine) (MOD-02) | `FORECAST_FRAME_VERSION` |
 | **Decision output** | Decision engine → orchestrator, web | Built (MOD-04): the `week` and `plan` schemas, one pair per published strategy | Web contract |
-| **Ledger records** | Orchestrator, factory → evaluation, web | `advice/gwNN.json` (advice of record per strategy), `evaluation/gwNN.json`, `experiments/<id>/…`, each stamped with strategy digest and `as_of` | Record schema version |
+| **Ledger records** | Orchestrator, factory → evaluation, web | `advice/gwNN.json` (advice of record per strategy), `evaluation/gwNN.json`, `experiments/<run_id>.json` (built, MOD-08: one record per strategy per backtest run), each stamped with strategy digest and `as_of` | Record schema version |
 | **Web contract and registries** | Publish → web | `contracts/v1/*.schema.json`, plus published `strategies` and `artefacts` registries and `ui` flags | `contract_version` major, `contract_minor` (§7.3) |
 
 A seam with a schema is tested at the seam: every forecaster's frame is validated before the engine
@@ -163,8 +163,8 @@ built: one file per strategy, its fields and its digest are in
 [04 §13](04-conceptual-design.md#13-configuration-and-feature-flags). Still target:
 
 - **`forecast` for every forecaster**, so the orchestrator runs any registered strategy without
-  naming its code (MOD-05); `forecast` exists for `xp_v1` and C1, and C1 still borrows the
-  champion's variance and later gameweeks through it. `decide` is built (MOD-04).
+  naming its code (MOD-05); `forecast` and `predictor` (the walk-forward harness's
+  `fit_as_of`/`predict`) exist for `xp_v1` and C1, each with its own variance. `decide` is built (MOD-04).
 - **Recipe forecasters** are the default: code version, config, feature set and training window,
   refitted by the orchestrator through `fit_as_of` on fresh data and recorded by digest (DP-11).
 - **Frozen forecasters** carry fitted parameters trained offline by the factory, for heavier models;
@@ -177,11 +177,45 @@ built: one file per strategy, its fields and its digest are in
 ### 5.2 The registered strategies
 
 The five ids are registered ([04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)).
-Still target: `engine`, `a` and `a_odds` go live in R1.2.2 — `c1` rebuilt behind the frame
-contract, `a` and `a_odds` ported from the frozen bundle (they train on prior seasons and A_odds
-reads odds, so the live run enables the archive and football-data.co.uk). The frozen harness is
-switched off when the ports go live, with no parity check; its records stay on `ledger` as each
-strategy's history up to the switch, which the app marks ([DL-87](../decisions/DL-87.md)).
+`engine` is live (R1.2.2, MOD-05): `xp_v1` on the shipped forecast config with `minutes_v2` off,
+the solver's captain, no plan; a strategy's `forecaster.config` is a validated deep-merge override of that
+config, `training_window` (`current_season` or `all_seasons`) filters the history it is fitted on, and `requires`
+is enforced in `Strategy.forecast`. `c1` is rebuilt behind the frame contract (MOD-05): its own
+variance, `FeatureSpec` features checked by `assert_no_look_ahead`, hyperparameters and seed in
+`forecast.c1`, trained on `all_seasons` keyed by `player_code`, one gameweek with `plan: false`
+([04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)). `a` is ported from the
+frozen bundle's `comp_A` (MOD-05, [DL-89](../decisions/DL-89.md) item 7, `shadow/a.py`): on C1's
+features plus rolling goals, assists, saves and award, per-position HistGBMs give P(play), P(a full
+appearance | play), the Poisson rates of bonus, goals and assists (saves for goalkeepers) and
+P(defensive-contribution award); clean sheets and goals conceded come from C1's club xG; every
+event is priced by the rules config; its variance sums each event's (independent events) inside
+the two-state mixture; one gameweek, `plan: false`, `all_seasons`, tunables and seed in
+`forecast.a`. Its deviations from the frozen original: points from `GameRules`, not literals
+(goals conceded priced by position as the rules say, the award's threshold and points by
+position); the award gated on recorded defensive contributions, not on the 2025/26 label; tunables
+from config and every fit seeded; refitted every run, not every fourth gameweek, and stopping at
+the first unfinished gameweek; its own variance and availability-scaled P(play), where the frozen
+frame carried a mean; a constant where a component has nothing to learn. `a_odds` is ported from
+`comp_ot` (`shadow/a_odds.py`): A, with the market's club layer for every player whose club has odds
+for each of its fixtures in the gameweek: clean sheets from the market's P(clean sheet), goals
+conceded and goalkeeper saves from its expected goals against, goals and assists as the club's
+market goals times the player's xG and xA share, shrunk to his position and price band's share;
+A's estimate elsewhere. It reads silver `team_match_expectation` through the forecast inputs'
+`match_odds`, keeps a fixture's latest capture at or before its gameweek's deadline
+(`gold/match_odds.knowable`, the rule gold applies; a past season's deadline is its gameweek's
+first kickoff) and no capture after the run's `as_of`; it `requires` the table, and with no odds
+for the gameweek being decided it records "no advice". Its deviations from the frozen original:
+odds de-vigged by the source adapter, not the bundle's Pinnacle-first Shin reading, with the
+source's P(clean sheet) rather than exp(-lambda); saves per goal conceded from goalkeepers'
+gameweeks, since silver has no shots on target; no advice without odds, where the frozen harness
+fell back to A silently (the backtest predictor still falls back per club-gameweek); points from
+`GameRules`, tunables in `forecast.a_odds`, and A's deviations beneath it. The frozen harness is
+retired (MOD-06, 2026-10-23, no parity check): `pipeline.yml` has no `prospective` job and the `run` job
+only restores the harness's last record from `ledger`, read-only. `models.json` carries its records for
+gameweeks before the switch gameweek (the last it scored, plus one; a decision it never scored gives way to the ledger's) and, from the switch, every published
+strategy's ledger advice scored on the owner's real squad with the real free transfers (`week/score_advice.py`).
+Each gameweek carries `record: frozen | live`, the file carries `switch_gameweek`, and every strategy's
+history chart marks it ([DL-87](../decisions/DL-87.md), [DL-89](../decisions/DL-89.md)).
 
 ### 5.3 Experiments and promotion
 
@@ -190,7 +224,27 @@ strategy, variant (a config or forecaster diff), metric, length in gameweeks, an
 graded by backtest, live shadow or both. The factory runs it locally or in CI on the same commands;
 every result is stamped with the strategy digest and data window and appended to `ledger` under
 `experiments/`. The weekly backtest is a standing experiment over every registered strategy,
-compared in pairs against the champion, and its verdict reaches the model card.
+compared in pairs against the champion, and its verdict reaches the model card. **Built (MOD-08):**
+`factory.grade` walks every non-retired strategy with live code forward on the same folds, each
+in its own training window and each fold predicted as its own gameweek, even on a reused fit;
+`a_odds` is graded on the silver match odds the backtest stage passes in, and a strategy whose
+predictor cannot be built from them is recorded as not graded, with why, rather than failing the
+run; `experiment_records` writes one record per registered strategy (id
+and digest, role, window, run id, config digest, data window, metrics, per-gameweek paired deltas
+against the champion with a seeded bootstrap interval, or why it was not graded) to
+`experiments/<run_id>.json`, which `backtest.yml` appends to `ledger` and never overwrites; the
+pipeline restores it and the model card prints the latest verdict for the champion's current
+digest, or says none exists.
+
+**Declared experiments (MOD-09):** one validated YAML per experiment under
+`pipeline/src/fpl_dof/config/experiments/` (`factory.experiments.load_declared`; unknown fields are
+refused, and the baseline and variant must be registered strategies): `id`, `hypothesis`,
+`falsifier`, `baseline`, `variant`, `metrics`, `decision_rule`, `length`, `graded_by`, `results` and
+a `decision` that stays `open` until it is decided. The variant is an `experiment`-role,
+unpublished registry strategy, so the standing backtest grades it weekly. Declared:
+`f1_card_rates` (shipped, [DL-90](../decisions/DL-90.md)) and `f3_training_window` (rejected,
+[DL-91](../decisions/DL-91.md)); once decided and recorded on `ledger`, a variant's role becomes
+`retired` and the backtest stops grading it.
 
 Nothing promotes itself. Promotion is the owner's decision, recorded as a `DL-nn`, past the
 [E8 §5 bar](epics/E8-ongoing-in-season-monitoring.md#5-the-bar-for-changing-the-model-mid-season)

@@ -251,7 +251,13 @@ def test_the_backtest_fits_the_live_model_through_fit_as_of(
     exactly what a live-style fit at the same deadline does."""
     import fpl_dof.forecast.fit as fit
     from fpl_dof.config.models import BacktestConfig
-    from fpl_dof.forecast.backtest import OUTCOME_COLUMNS, deadlines_for, fold_rows, walk_forward
+    from fpl_dof.forecast.backtest import (
+        OUTCOME_COLUMNS,
+        Entrant,
+        deadlines_for,
+        fold_rows,
+        walk_forward,
+    )
     from fpl_dof.forecast.xp_v1 import ComponentPredictor
 
     config = ForecastConfig()
@@ -267,7 +273,7 @@ def test_the_backtest_fits_the_live_model_through_fit_as_of(
     monkeypatch.setattr(fit, "fit_as_of", spy)
     walk_forward(
         history,
-        ComponentPredictor(config, game_rules),
+        [Entrant("c3", ComponentPredictor(config, game_rules))],
         forecast_config=config,
         backtest_config=BacktestConfig(minimum_training_matches=1),
     )

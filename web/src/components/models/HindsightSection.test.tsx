@@ -44,4 +44,28 @@ describe("HindsightSection", () => {
     expect(screen.getByText("Model Recommendation Performance — GW5")).toBeTruthy();
     expect(screen.getByTestId("oracle-ceiling-pts").textContent).toBe("60 pts");
   });
+
+  it("shows the rankings and a stated reason when a gameweek has no optimal", () => {
+    const log = {
+      ...mockLog,
+      gameweeks: mockLog.gameweeks.map((gw) =>
+        gw.hindsight
+          ? {
+              ...gw,
+              hindsight: {
+                ...gw.hindsight,
+                optimal: null,
+                optimal_unavailable_reason: "the bank was not recorded",
+                diagnostics: [],
+              },
+            }
+          : gw,
+      ),
+    };
+    render(<HindsightSection log={log} players={mockPlayers} status="ready" />);
+
+    expect(screen.getByTestId("rank-row-c1")).toBeTruthy();
+    expect(screen.getByTestId("hindsight-no-optimal").textContent).toBe("the bank was not recorded");
+    expect(screen.queryByTestId("oracle-ceiling-pts")).toBeNull();
+  });
 });

@@ -1,5 +1,5 @@
 import { useModel, useRegistry } from "../../data/DataProvider";
-import { isComparison, modelLabel, seriesStyle } from "../../data/registry";
+import { findStrategy, isComparison, modelLabel, seriesStyle } from "../../data/registry";
 
 /**
  * Which strategy a recommendation came from. Shown on every recommendation. Without an explicit
@@ -18,7 +18,9 @@ export function ModelBadge({ model }: { model?: string }) {
       data-model={shown}
     >
       {modelLabel(registry, shown)}
-      {isComparison(registry, shown) && <span className="model-badge-tag"> · comparison</span>}
+      {isComparison(registry, shown) && (
+        <span className="model-badge-tag"> · {findStrategy(registry, shown)?.role === "experiment" ? "experiment" : "comparison"}</span>
+      )}
     </span>
   );
 }

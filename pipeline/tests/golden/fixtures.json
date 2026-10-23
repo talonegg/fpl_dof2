@@ -1,0 +1,556 @@
+{
+ "contract_version": 1,
+ "from_gameweek": 1,
+ "model": {
+  "home_advantage": 1.09,
+  "league_mean_goals": 1.4,
+  "name": "M2_team_strength",
+  "teams_rated": 0
+ },
+ "scale": {
+  "anchor_ratio": 2.0,
+  "description": "3 is a fixture the model rates exactly league-average; lower is easier. Attack difficulty falls as the goals the model expects this club to score rise above the league mean, defence difficulty rises as the goals it expects them to concede do, and the overall score is the mean of the two. A club expected to score 2x the league mean scores 1 for attack. Scores are clipped to 1-5.",
+  "maximum": 5.0,
+  "minimum": 1.0,
+  "neutral": 3.0
+ },
+ "teams": [
+  {
+   "gameweeks": [
+    {
+     "fixtures": [
+      {
+       "at_home": true,
+       "attack_difficulty": 2.75,
+       "defence_difficulty": 2.75,
+       "difficulty": 2.75,
+       "expected_goals_against": 1.284,
+       "expected_goals_for": 1.526,
+       "kickoff_utc": "2026-08-21T19:00:00Z",
+       "opponent": "COV",
+       "opponent_id": 7
+      }
+     ],
+     "gameweek": 1,
+     "is_blank": false,
+     "is_double": false
+    },
+    {
+     "fixtures": [
+      {
+       "at_home": false,
+       "attack_difficulty": 3.25,
+       "defence_difficulty": 3.25,
+       "difficulty": 3.25,
+       "expected_goals_against": 1.526,
+       "expected_goals_for": 1.284,
+       "kickoff_utc": "2026-08-31T19:00:00Z",
+       "opponent": "AVL",
+       "opponent_id": 2
+      }
+     ],
+     "gameweek": 2,
+     "is_blank": false,
+     "is_double": false
+    },
+    {
+     "fixtures": [
+      {
+       "at_home": true,
+       "attack_difficulty": 2.75,
+       "defence_difficulty": 2.75,
+       "difficulty": 2.75,
+       "expected_goals_against": 1.284,
+       "expected_goals_for": 1.526,
+       "kickoff_utc": "2026-09-06T15:30:00Z",
+       "opponent": "CHE",
+       "opponent_id": 6
+      }
+     ],
+     "gameweek": 3,
+     "is_blank": false,
+     "is_double": false
+    },
+    {
+     "fixtures": [],
+     "gameweek": 4,
+     "is_blank": true,
+     "is_double": false
+    },
+    {
+     "fixtures": [
+      {
+       "at_home": false,
+       "attack_difficulty": 3.25,
+       "defence_difficulty": 3.25,
+       "difficulty": 3.25,
+       "expected_goals_against": 1.526,
+       "expected_goals_for": 1.284,
+       "kickoff_utc": "2026-09-19T14:00:00Z",
+       "opponent": "BHA",
+       "opponent_id": 5
+      }
+     ],
+     "gameweek": 5,
+     "is_blank": false,
+     "is_double": false
+    }
+   ],
+   "mean_attack_difficulty": 3.0,
+   "mean_defence_difficulty": 3.0,
+   "mean_difficulty": 3.0,
+   "name": "Arsenal",
+   "team": "ARS",
+   "team_id": 1
+  },
+  {
+   "gameweeks": [
+    {
+     "fixtures": [
+      {
+       "at_home": false,
+       "attack_difficulty": 3.25,
+       "defence_difficulty": 3.25,
+       "difficulty": 3.25,
+       "expected_goals_against": 1.526,
+       "expected_goals_for": 1.284,
+       "kickoff_utc": "2026-08-23T13:00:00Z",
+       "opponent": "BHA",
+       "opponent_id": 5
+      }
+     ],
+     "gameweek": 1,
+     "is_blank": false,
+     "is_double": false
+    },
+    {
+     "fixtures": [
+      {
+       "at_home": true,
+       "attack_difficulty": 2.75,
+       "defence_difficulty": 2.75,
+       "difficulty": 2.75,
+       "expected_goals_against": 1.284,
+       "expected_goals_for": 1.526,
+       "kickoff_utc": "2026-08-31T19:00:00Z",
+       "opponent": "ARS",
+       "opponent_id": 1
+      }
+     ],
+     "gameweek": 2,
+     "is_blank": false,
+     "is_double": false
+    },
+    {
+     "fixtures": [],
+     "gameweek": 3,
+     "is_blank": true,
+     "is_double": false
+    },
+    {
+     "fixtures": [],
+     "gameweek": 4,
+     "is_blank": true,
+     "is_double": false
+    },
+    {
+     "fixtures": [],
+     "gameweek": 5,
+     "is_blank": true,
+     "is_double": false
+    }
+   ],
+   "mean_attack_difficulty": 3.0,
+   "mean_defence_difficulty": 3.0,
+   "mean_difficulty": 3.0,
+   "name": "Aston Villa",
+   "team": "AVL",
+   "team_id": 2
+  },
+  {
+   "gameweeks": [
+    {
+     "fixtures": [],
+     "gameweek": 1,
+     "is_blank": true,
+     "is_double": false
+    },
+    {
+     "fixtures": [],
+     "gameweek": 2,
+     "is_blank": true,
+     "is_double": false
+    },
+    {
+     "fixtures": [],
+     "gameweek": 3,
+     "is_blank": true,
+     "is_double": false
+    },
+    {
+     "fixtures": [
+      {
+       "at_home": true,
+       "attack_difficulty": 2.75,
+       "defence_difficulty": 2.75,
+       "difficulty": 2.75,
+       "expected_goals_against": 1.284,
+       "expected_goals_for": 1.526,
+       "kickoff_utc": "2026-09-12T14:00:00Z",
+       "opponent": "BRE",
+       "opponent_id": 4
+      }
+     ],
+     "gameweek": 4,
+     "is_blank": false,
+     "is_double": false
+    },
+    {
+     "fixtures": [],
+     "gameweek": 5,
+     "is_blank": true,
+     "is_double": false
+    }
+   ],
+   "mean_attack_difficulty": 2.75,
+   "mean_defence_difficulty": 2.75,
+   "mean_difficulty": 2.75,
+   "name": "Bournemouth",
+   "team": "BOU",
+   "team_id": 3
+  },
+  {
+   "gameweeks": [
+    {
+     "fixtures": [],
+     "gameweek": 1,
+     "is_blank": true,
+     "is_double": false
+    },
+    {
+     "fixtures": [],
+     "gameweek": 2,
+     "is_blank": true,
+     "is_double": false
+    },
+    {
+     "fixtures": [],
+     "gameweek": 3,
+     "is_blank": true,
+     "is_double": false
+    },
+    {
+     "fixtures": [
+      {
+       "at_home": false,
+       "attack_difficulty": 3.25,
+       "defence_difficulty": 3.25,
+       "difficulty": 3.25,
+       "expected_goals_against": 1.526,
+       "expected_goals_for": 1.284,
+       "kickoff_utc": "2026-09-12T14:00:00Z",
+       "opponent": "BOU",
+       "opponent_id": 3
+      }
+     ],
+     "gameweek": 4,
+     "is_blank": false,
+     "is_double": false
+    },
+    {
+     "fixtures": [
+      {
+       "at_home": true,
+       "attack_difficulty": 2.75,
+       "defence_difficulty": 2.75,
+       "difficulty": 2.75,
+       "expected_goals_against": 1.284,
+       "expected_goals_for": 1.526,
+       "kickoff_utc": "2026-09-18T19:00:00Z",
+       "opponent": "CHE",
+       "opponent_id": 6
+      }
+     ],
+     "gameweek": 5,
+     "is_blank": false,
+     "is_double": false
+    }
+   ],
+   "mean_attack_difficulty": 3.0,
+   "mean_defence_difficulty": 3.0,
+   "mean_difficulty": 3.0,
+   "name": "Brentford",
+   "team": "BRE",
+   "team_id": 4
+  },
+  {
+   "gameweeks": [
+    {
+     "fixtures": [
+      {
+       "at_home": true,
+       "attack_difficulty": 2.75,
+       "defence_difficulty": 2.75,
+       "difficulty": 2.75,
+       "expected_goals_against": 1.284,
+       "expected_goals_for": 1.526,
+       "kickoff_utc": "2026-08-23T13:00:00Z",
+       "opponent": "AVL",
+       "opponent_id": 2
+      }
+     ],
+     "gameweek": 1,
+     "is_blank": false,
+     "is_double": false
+    },
+    {
+     "fixtures": [
+      {
+       "at_home": false,
+       "attack_difficulty": 3.25,
+       "defence_difficulty": 3.25,
+       "difficulty": 3.25,
+       "expected_goals_against": 1.526,
+       "expected_goals_for": 1.284,
+       "kickoff_utc": "2026-08-30T13:00:00Z",
+       "opponent": "CHE",
+       "opponent_id": 6
+      }
+     ],
+     "gameweek": 2,
+     "is_blank": false,
+     "is_double": false
+    },
+    {
+     "fixtures": [],
+     "gameweek": 3,
+     "is_blank": true,
+     "is_double": false
+    },
+    {
+     "fixtures": [
+      {
+       "at_home": false,
+       "attack_difficulty": 3.25,
+       "defence_difficulty": 3.25,
+       "difficulty": 3.25,
+       "expected_goals_against": 1.526,
+       "expected_goals_for": 1.284,
+       "kickoff_utc": "2026-09-13T13:00:00Z",
+       "opponent": "COV",
+       "opponent_id": 7
+      }
+     ],
+     "gameweek": 4,
+     "is_blank": false,
+     "is_double": false
+    },
+    {
+     "fixtures": [
+      {
+       "at_home": true,
+       "attack_difficulty": 2.75,
+       "defence_difficulty": 2.75,
+       "difficulty": 2.75,
+       "expected_goals_against": 1.284,
+       "expected_goals_for": 1.526,
+       "kickoff_utc": "2026-09-19T14:00:00Z",
+       "opponent": "ARS",
+       "opponent_id": 1
+      }
+     ],
+     "gameweek": 5,
+     "is_blank": false,
+     "is_double": false
+    }
+   ],
+   "mean_attack_difficulty": 3.0,
+   "mean_defence_difficulty": 3.0,
+   "mean_difficulty": 3.0,
+   "name": "Brighton",
+   "team": "BHA",
+   "team_id": 5
+  },
+  {
+   "gameweeks": [
+    {
+     "fixtures": [],
+     "gameweek": 1,
+     "is_blank": true,
+     "is_double": false
+    },
+    {
+     "fixtures": [
+      {
+       "at_home": true,
+       "attack_difficulty": 2.75,
+       "defence_difficulty": 2.75,
+       "difficulty": 2.75,
+       "expected_goals_against": 1.284,
+       "expected_goals_for": 1.526,
+       "kickoff_utc": "2026-08-30T13:00:00Z",
+       "opponent": "BHA",
+       "opponent_id": 5
+      }
+     ],
+     "gameweek": 2,
+     "is_blank": false,
+     "is_double": false
+    },
+    {
+     "fixtures": [
+      {
+       "at_home": false,
+       "attack_difficulty": 3.25,
+       "defence_difficulty": 3.25,
+       "difficulty": 3.25,
+       "expected_goals_against": 1.526,
+       "expected_goals_for": 1.284,
+       "kickoff_utc": "2026-09-06T15:30:00Z",
+       "opponent": "ARS",
+       "opponent_id": 1
+      }
+     ],
+     "gameweek": 3,
+     "is_blank": false,
+     "is_double": false
+    },
+    {
+     "fixtures": [],
+     "gameweek": 4,
+     "is_blank": true,
+     "is_double": false
+    },
+    {
+     "fixtures": [
+      {
+       "at_home": false,
+       "attack_difficulty": 3.25,
+       "defence_difficulty": 3.25,
+       "difficulty": 3.25,
+       "expected_goals_against": 1.526,
+       "expected_goals_for": 1.284,
+       "kickoff_utc": "2026-09-18T19:00:00Z",
+       "opponent": "BRE",
+       "opponent_id": 4
+      }
+     ],
+     "gameweek": 5,
+     "is_blank": false,
+     "is_double": false
+    }
+   ],
+   "mean_attack_difficulty": 3.08,
+   "mean_defence_difficulty": 3.08,
+   "mean_difficulty": 3.08,
+   "name": "Chelsea",
+   "team": "CHE",
+   "team_id": 6
+  },
+  {
+   "gameweeks": [
+    {
+     "fixtures": [
+      {
+       "at_home": false,
+       "attack_difficulty": 3.25,
+       "defence_difficulty": 3.25,
+       "difficulty": 3.25,
+       "expected_goals_against": 1.526,
+       "expected_goals_for": 1.284,
+       "kickoff_utc": "2026-08-21T19:00:00Z",
+       "opponent": "ARS",
+       "opponent_id": 1
+      }
+     ],
+     "gameweek": 1,
+     "is_blank": false,
+     "is_double": false
+    },
+    {
+     "fixtures": [],
+     "gameweek": 2,
+     "is_blank": true,
+     "is_double": false
+    },
+    {
+     "fixtures": [],
+     "gameweek": 3,
+     "is_blank": true,
+     "is_double": false
+    },
+    {
+     "fixtures": [
+      {
+       "at_home": true,
+       "attack_difficulty": 2.75,
+       "defence_difficulty": 2.75,
+       "difficulty": 2.75,
+       "expected_goals_against": 1.284,
+       "expected_goals_for": 1.526,
+       "kickoff_utc": "2026-09-13T13:00:00Z",
+       "opponent": "BHA",
+       "opponent_id": 5
+      }
+     ],
+     "gameweek": 4,
+     "is_blank": false,
+     "is_double": false
+    },
+    {
+     "fixtures": [],
+     "gameweek": 5,
+     "is_blank": true,
+     "is_double": false
+    }
+   ],
+   "mean_attack_difficulty": 3.0,
+   "mean_defence_difficulty": 3.0,
+   "mean_difficulty": 3.0,
+   "name": "Coventry City",
+   "team": "COV",
+   "team_id": 7
+  },
+  {
+   "gameweeks": [
+    {
+     "fixtures": [],
+     "gameweek": 1,
+     "is_blank": true,
+     "is_double": false
+    },
+    {
+     "fixtures": [],
+     "gameweek": 2,
+     "is_blank": true,
+     "is_double": false
+    },
+    {
+     "fixtures": [],
+     "gameweek": 3,
+     "is_blank": true,
+     "is_double": false
+    },
+    {
+     "fixtures": [],
+     "gameweek": 4,
+     "is_blank": true,
+     "is_double": false
+    },
+    {
+     "fixtures": [],
+     "gameweek": 5,
+     "is_blank": true,
+     "is_double": false
+    }
+   ],
+   "mean_attack_difficulty": null,
+   "mean_defence_difficulty": null,
+   "mean_difficulty": null,
+   "name": "Crystal Palace",
+   "team": "CRY",
+   "team_id": 8
+  }
+ ],
+ "to_gameweek": 5
+}

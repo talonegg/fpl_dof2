@@ -149,7 +149,15 @@ def test_purchase_price_comes_from_the_gameweek_price_when_held_from_the_start(
     players = _players()
     held = [pick.player_id for pick in legal_declaration(players)]
     player_gameweek = pd.DataFrame(
-        [{"gameweek": 1, "player_id": player_id, "price": 4.0} for player_id in held]
+        [
+            {"season": "2026/27", "gameweek": 1, "player_id": player_id, "price": 4.0}
+            for player_id in held
+        ]
+        # A prior season reuses the ids and the gameweek number at another price.
+        + [
+            {"season": "2025/26", "gameweek": 1, "player_id": player_id, "price": 9.0}
+            for player_id in held
+        ]
     )
 
     state = load_squad_state(
@@ -159,7 +167,7 @@ def test_purchase_price_comes_from_the_gameweek_price_when_held_from_the_start(
         next_gameweek=2,
         picks=_picks_frame(held),
         entry=pd.DataFrame([{"bank": 0.0}]),
-        gameweek_prices=gameweek_price_index(player_gameweek),
+        gameweek_prices=gameweek_price_index(player_gameweek, "2026/27"),
     )
 
     assert all(player.purchase_price == 4.0 for player in state.players)

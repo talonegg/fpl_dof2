@@ -22,6 +22,7 @@ from decisions import OPTIMISER, decision, fixture_table, forecast, pool, state
 from fpl_dof.config.loader import load_config
 from fpl_dof.config.models import Config, ForecastConfig
 from fpl_dof.decision import Decision, decide, engine
+from fpl_dof.factory import registry
 from fpl_dof.factory.registry import (
     Forecast,
     ForecastInputs,
@@ -31,13 +32,15 @@ from fpl_dof.factory.registry import (
     load_strategy,
     published_strategies,
 )
+from fpl_dof.forecast.entry import publishable
 from fpl_dof.frames import as_float, as_int
 from fpl_dof.optimise.captain import PricePositionLine
-from fpl_dof.optimise.frame import ForecastFrameError
+from fpl_dof.optimise.frame import STRATEGY_COLUMN, STRATEGY_DIGEST_COLUMN, ForecastFrameError
 from fpl_dof.paths import DataLayout
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
 from fpl_dof.publish.strategies import artefact_paths
 from fpl_dof.rules.models import GameRules
+from fpl_dof.silver.tables import Table
 from fpl_dof.stages import week
 from fpl_dof.week.deadline import DeadlineView, next_deadline
 from fpl_dof.week.ledger import advice_path, read_advice
@@ -179,6 +182,8 @@ def _history(players: pd.DataFrame, fixtures: pd.DataFrame, season: str) -> pd.D
                 rows.append(
                     {
                         "season": season,
+                        "kickoff_time": pd.Timestamp("2026-08-15T14:00:00Z")
+                        + pd.Timedelta(weeks=as_int(fx.gameweek) - 1),
                         "gameweek": as_int(fx.gameweek),
                         "player_id": as_int(p.player_id),
                         "player_code": as_int(p.code),
@@ -194,8 +199,14 @@ def _history(players: pd.DataFrame, fixtures: pd.DataFrame, season: str) -> pd.D
                         "expected_goals": 0.1 * (as_int(p.player_id) % 3),
                         "expected_assists": 0.05,
                         "expected_goals_conceded": 1.0,
-                        "bonus": 0,
+                        "bonus": (as_int(p.player_id) + as_int(fx.gameweek)) % 4 // 3,
                         "bps": 10,
+                        # The counts A models (shadow/a.py), in deterministic patterns.
+                        "goals_scored": int(minutes >= 60 and as_int(p.player_id) % 4 == 0),
+                        "assists": int(minutes > 0 and as_int(p.player_id) % 5 == 1),
+                        "saves": (as_int(p.player_id) + as_int(fx.gameweek)) % 5 if minutes else 0,
+                        "goals_conceded": as_int(fx.gameweek) % 3,
+                        "defensive_contribution": (as_int(p.player_id) * 7) % 15,
                     }
                 )
     return pd.DataFrame(rows)
@@ -214,17 +225,68 @@ def _snapshot(rules: GameRules) -> tuple[ForecastInputs, Forecast]:
             "finished": [g in PLAYED for g in PLAYED + HORIZON],
         }
     )
+    team_ids = sorted(set(players["team_id"]))
+    teams = pd.DataFrame(
+        {
+            "team_id": team_ids,
+            "code": [100 + t for t in team_ids],
+            "name": [_club(t) for t in team_ids],
+        }
+    )
+    as_of = deadlines + pd.Timedelta(weeks=HORIZON[0] - 1, hours=-1)
     inputs = ForecastInputs(
         players=players,
-        teams=pd.DataFrame({"team_id": sorted(set(players["team_id"]))}),
+        teams=teams,
         fixtures=fixtures,
         gameweeks=gameweeks,
         history=pd.DataFrame(),
-        as_of=(deadlines + pd.Timedelta(weeks=HORIZON[0] - 1, hours=-1)).to_pydatetime(),
+        as_of=as_of.to_pydatetime(),
         player_gameweek=_history(players, fixtures, rules.season),
+        match_odds=match_odds(
+            fixtures[fixtures["gameweek"] == HORIZON[0]], rules.season, as_of - pd.Timedelta(days=1)
+        ),
     )
     frame = forecast(players, HORIZON, mean=_mean(players))
     return inputs, Forecast(frame=frame, model="xp_v1", fallback_reason=None, captain_line=LINE)
+
+
+def _club(team_id: int) -> str:
+    """A club name club resolution can tell apart: it compares letters only."""
+    return f"Club {chr(ord('A') + int(team_id) - 1)}"
+
+
+def match_odds(
+    fixtures: pd.DataFrame,
+    season: str,
+    captured_at: pd.Timestamp,
+    *,
+    home_goals: float = 1.5,
+    away_goals: float = 1.1,
+) -> pd.DataFrame:
+    """Silver ``team_match_expectation`` rows for ``fixtures``, clubs by name only, as the odds
+    source writes the current season's (what A_odds reads)."""
+    import math
+
+    return pd.DataFrame(
+        {
+            "season": season,
+            "source": "market",
+            "captured_at": captured_at,
+            "kickoff_time": pd.to_datetime(fixtures["kickoff_time"], utc=True).to_numpy(),
+            "home_team": [_club(t) for t in fixtures["home_team_id"]],
+            "away_team": [_club(t) for t in fixtures["away_team_id"]],
+            "home_team_id": pd.array([None] * len(fixtures), dtype="Int64"),
+            "away_team_id": pd.array([None] * len(fixtures), dtype="Int64"),
+            "expected_goals_home": home_goals,
+            "expected_goals_away": away_goals,
+            "clean_sheet_probability_home": math.exp(-away_goals),
+            "clean_sheet_probability_away": math.exp(-home_goals),
+            "home_win_probability": 0.45,
+            "draw_probability": 0.27,
+            "away_win_probability": 0.28,
+            "total_goals": home_goals + away_goals,
+        }
+    )
 
 
 def _forecast_config() -> Config:
@@ -233,28 +295,135 @@ def _forecast_config() -> Config:
 
 def _c1(rules: GameRules) -> tuple[ForecastInputs, Forecast, Forecast]:
     inputs, champ = _snapshot(rules)
-    c1 = load_strategy("c1").forecast(inputs, rules, _forecast_config(), variance_from=champ)
+    c1 = load_strategy("c1").forecast(inputs, rules, _forecast_config())
     return inputs, champ, c1
 
 
-def test_c1_forecasts_through_the_registry_and_borrows_only_what_it_declares(
-    game_rules: GameRules,
-) -> None:
+def test_c1_forecasts_through_the_registry_with_nothing_borrowed(game_rules: GameRules) -> None:
     _, champ, c1 = _c1(game_rules)
     assert set(c1.frame["strategy"]) == {"c1"}
     assert not c1.frame["xp_next"].equals(champ.frame["xp_next"])  # its own next-gameweek mean
     assert c1.frame["xp_gw_5"].equals(c1.frame["xp_next"])
-    for borrowed in ("xp_next_sd", "xp_horizon_sd", "xp_gw_5_sd", "xp_gw_6", "xp_gw_6_sd"):
-        assert c1.frame[borrowed].equals(champ.frame[borrowed]), borrowed  # MOD-05 removes these
-    assert c1.captain_line == champ.captain_line
+    for own in ("xp_next_sd", "xp_horizon_sd", "start_probability"):
+        assert not c1.frame[own].equals(champ.frame[own]), (
+            own
+        )  # MOD-05: its own, not the champion's
+    assert "xp_gw_6" not in c1.frame.columns  # one gameweek, so plan: false (test_c1.py)
+    assert c1.captain_line is not None and c1.captain_line != champ.captain_line
 
 
-def test_c1_without_the_champions_forecast_to_borrow_from_is_refused(
+def test_engine_is_the_publishable_forecast_with_minutes_v2_off_and_the_solvers_captain(
     game_rules: GameRules,
 ) -> None:
     inputs, _ = _snapshot(game_rules)
-    with pytest.raises(ValueError, match="variance"):
-        load_strategy("c1").forecast(inputs, game_rules, _forecast_config())
+    on = ForecastConfig().discrimination.model_copy(update={"minutes_v2": True})  # as shipped
+    cfg = _config().model_copy(update={"forecast": ForecastConfig(discrimination=on)})
+    got = load_strategy("engine").forecast(inputs, game_rules, cfg)
+    flags = cfg.forecast.discrimination.model_copy(update={"minutes_v2": False})
+    expected = publishable(
+        inputs, game_rules, cfg.forecast.model_copy(update={"discrimination": flags})
+    )
+    assert got.model == expected.model == "xp_v1"
+    stamps = [STRATEGY_COLUMN, STRATEGY_DIGEST_COLUMN]
+    pd.testing.assert_frame_equal(got.frame.drop(columns=stamps), expected.frame)
+    assert set(got.frame[STRATEGY_COLUMN]) == {"engine"}
+    policy = load_strategy("engine").decision_policy(cfg, got.captain_line)
+    assert policy.captain_line is None  # the solver's xp-maximising captain, not B0's line
+
+
+def _with_prior_season(inputs: ForecastInputs) -> ForecastInputs:
+    history = inputs.player_gameweek
+    assert history is not None
+    return dataclasses.replace(
+        inputs, player_gameweek=pd.concat([history.assign(season="2025-26"), history])
+    )
+
+
+@pytest.mark.parametrize(
+    ("strategy_id", "window", "seasons"),
+    [
+        ("c3", "current_season", 1),
+        ("engine", "current_season", 1),
+        ("c1", "current_season", 1),
+        ("c1", "all_seasons", 2),
+        ("c3", "all_seasons", 2),
+    ],
+)
+def test_training_window_decides_which_seasons_the_forecaster_is_fitted_on(
+    game_rules: GameRules,
+    monkeypatch: pytest.MonkeyPatch,
+    strategy_id: str,
+    window: str,
+    seasons: int,
+) -> None:
+    # The guard that stops enabling the archive from silently changing the champion's training set.
+    inputs, champ = _snapshot(game_rules)
+    seen: list[int] = []
+
+    def spy(i: ForecastInputs, *_: Any, **__: Any) -> Forecast:
+        assert i.player_gameweek is not None
+        seen.append(i.player_gameweek["season"].nunique())
+        return champ
+
+    monkeypatch.setattr(registry, "publishable", spy)
+    monkeypatch.setattr("fpl_dof.shadow.c1.forecast", spy)
+    strategy = load_strategy(strategy_id)
+    strategy = strategy.model_copy(
+        update={"forecaster": strategy.forecaster.model_copy(update={"training_window": window})}
+    )
+    strategy.forecast(_with_prior_season(inputs), game_rules, _forecast_config())
+    assert seen == [seasons]
+
+
+def test_the_archive_changes_no_champion_output(game_rules: GameRules) -> None:
+    """DL-89 items 4 and 6, end to end: last season's rows, reusing this season's player ids at
+    other points and prices, change neither c3's forecast frame nor the squad's selling prices."""
+    from fpl_dof.config.models import EntryConfig
+    from fpl_dof.squad.state import gameweek_price_index, load_squad_state
+    from squads import legal_declaration
+    from test_squad_state import _picks_frame
+
+    inputs, _ = _snapshot(game_rules)
+    history = inputs.player_gameweek
+    assert history is not None
+    prior = history.assign(
+        season="2025/26",
+        kickoff_time=history["kickoff_time"] - pd.Timedelta(days=364),
+        total_points=history["total_points"] + 5,
+        price=history["price"] - 1.0,  # cheaper: a leaked purchase price raises the sell value
+    )
+    # Last season after this one: an unfiltered (gameweek, player_id) index would keep its price.
+    both = pd.concat([history, prior])
+    archived = dataclasses.replace(inputs, player_gameweek=both)
+    c3 = load_strategy("c3")
+    pd.testing.assert_frame_equal(
+        c3.forecast(archived, game_rules, _forecast_config()).frame,
+        c3.forecast(inputs, game_rules, _forecast_config()).frame,
+    )
+
+    held = [pick.player_id for pick in legal_declaration(inputs.players)]
+
+    def selling(player_gameweek: pd.DataFrame) -> list[float]:
+        state = load_squad_state(
+            entry_config=EntryConfig(team_id=1234),
+            rules=game_rules,
+            players=inputs.players,
+            next_gameweek=HORIZON[0],
+            picks=_picks_frame(held),
+            entry=pd.DataFrame([{"bank": 0.0}]),
+            gameweek_prices=gameweek_price_index(player_gameweek, game_rules.season),
+        )
+        return [p.selling_price(game_rules) for p in state.players]
+
+    assert selling(both) == selling(history)
+
+
+def test_c1_with_no_played_history_is_refused_by_its_requires(game_rules: GameRules) -> None:
+    inputs, _ = _snapshot(game_rules)
+    with pytest.raises(ValueError, match="player_gameweek"):
+        load_strategy("c1").forecast(
+            dataclasses.replace(inputs, player_gameweek=None), game_rules, _forecast_config()
+        )
 
 
 def test_champion_and_c1_produce_full_weeks_and_plans_through_one_function(
@@ -269,8 +438,8 @@ def test_champion_and_c1_produce_full_weeks_and_plans_through_one_function(
     }
     got: dict[str, Decision] = {}
     for s, fc in ((champion(), champ), (load_strategy("c1"), c1)):
-        # Plan on for both at the policy level: production C1 runs `plan: false` until MOD-05 gives
-        # it means of its own beyond the next gameweek, but the one function plans for either.
+        # Plan on for both at the policy level: production C1 runs `plan: false` (it forecasts one
+        # gameweek), but the one function plans for either.
         policy = dataclasses.replace(s.decision_policy(cfg, fc.captain_line), plan=True)
         got[s.id] = decide(fc.frame, held, game_rules, policy, **calendar)
         assert len(got[s.id].selection.starting) == 11
@@ -371,6 +540,28 @@ def test_a_failing_challenger_records_no_advice_and_stops_nothing_else(
     assert models["c3"]["role"] == "champion"
 
 
+def test_a_strategy_missing_a_required_table_records_no_advice_and_the_others_run(
+    game_rules: GameRules, tmp_path: Path
+) -> None:
+    needy = load_strategy("engine").model_copy(update={"requires": (Table.PLAYER_METRIC,)})
+    advice = _advise_all(game_rules, tmp_path, (champion(), needy, load_strategy("c1")))
+    assert advice["engine"][0]["skipped"]
+    assert "player_metric" in advice["engine"][0]["skipped_reason"]
+    assert not advice["c3"][0]["skipped"] and not advice["c1"][0]["skipped"]
+
+
+def test_the_engine_strategy_writes_its_own_week_file(
+    game_rules: GameRules, tmp_path: Path
+) -> None:
+    advice = _advise_all(game_rules, tmp_path)
+    assert not advice["engine"][0]["skipped"] and advice["engine"][1] is None
+    written = json.loads((tmp_path / "gold" / "week_engine.json").read_text(encoding="utf-8"))
+    assert written["strategy"]["id"] == "engine"
+    Contract(root=find_contracts_root()).validate(
+        "week", written | {"contract_version": CONTRACT_VERSION}
+    )
+
+
 def test_a_failing_champion_fails_the_run(
     game_rules: GameRules, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
@@ -456,4 +647,4 @@ def test_each_strategy_has_its_own_week_and_plan_file() -> None:
     assert artefact_paths(champion()) == {"week": "week.json", "plan": "plan.json"}
     # C1 plans only once MOD-05 gives it its own means beyond the next gameweek.
     assert artefact_paths(load_strategy("c1")) == {"week": "week_c1.json", "plan": None}
-    assert artefact_paths(load_strategy("a")) == {"week": None, "plan": None}  # unpublished
+    assert artefact_paths(load_strategy("a")) == {"week": "week_a.json", "plan": None}
