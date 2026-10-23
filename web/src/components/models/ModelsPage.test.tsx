@@ -3,6 +3,7 @@ import { screen, within } from "@testing-library/react";
 import { installFetchStub, renderApp, resetAppState } from "../../test/render";
 import { historyFixture } from "../history/history.test";
 import { strategiesFixture } from "../../test/fixtures";
+import type { Strategies } from "../../contract/types";
 import type { XpAccuracy } from "./accuracy";
 
 const accuracy: XpAccuracy = {
@@ -57,6 +58,28 @@ describe("Models page", () => {
     expect(await screen.findByTestId("accuracy-absent")).toBeTruthy();
     expect(await screen.findByTestId("history-absent")).toBeTruthy();
     expect(screen.getByTestId("summary-xi-champion").textContent).toBe("—");
+  });
+
+  it("labels experiments as not published and lists no retired strategy", async () => {
+    const strategies: Strategies = {
+      contract_version: 1,
+      champion: "c3",
+      strategies: [
+        { ...strategiesFixture.strategies[0] },
+        { ...strategiesFixture.strategies[1] },
+        { ...strategiesFixture.strategies[2], id: "c3_f3", label: "Experiment (C3 F3)", role: "experiment", published: false },
+        { ...strategiesFixture.strategies[2], id: "old_c2", label: "Old (C2)", role: "retired", published: false },
+      ],
+    };
+    installFetchStub({ bodies: { models_history_2526: historyFixture, xp_accuracy: accuracy, strategies } });
+    renderApp("/models");
+    await screen.findByTestId("models-page");
+    const summary = screen.getByTestId("models-summary");
+    expect(within(summary).getByTestId("models-summary-c3_f3").textContent).toContain("Experiment, not published.");
+    expect(within(summary).getByTestId("models-summary-c3_f3").textContent).not.toContain("Comparison");
+    expect(within(summary).queryByTestId("models-summary-old_c2")).toBeNull();
+    expect(screen.getByTestId("models-detail-c3_f3")).toBeTruthy();
+    expect(screen.queryByTestId("models-detail-old_c2")).toBeNull();
   });
 
   it("redirects the old /history tab to the Models page", async () => {

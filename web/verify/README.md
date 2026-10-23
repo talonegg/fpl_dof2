@@ -17,6 +17,8 @@ npx vite preview --port 4173 --host 127.0.0.1 --strictPort   # in one terminal
 npm run verify:browser -- http://127.0.0.1:4173              # in another
 ```
 
+A plain `npm run build` is password-gated and the check stops at the gate, so build an unlocked site for verification with `VITE_FPL_PASSWORD_HASH` set to the SHA-256 the check unlocks with (by default the hash of `hello`, as CI uses: `2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824`), and set the same variable for the check if you use a different password.
+
 Screenshots land in `verify/screenshots/` — one per viewport at load, one after interacting, and
 `offline.png`, which is the app rendering with the network switched off.
 

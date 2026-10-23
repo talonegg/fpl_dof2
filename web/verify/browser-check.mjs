@@ -129,6 +129,14 @@ for (const viewport of VIEWPORTS) {
   // The app routes on the hash (DL-35), so the dashboard is the bare URL and every other view is a
   // fragment. Loading the bare URL also checks the default route resolves.
   await page.goto(baseUrl, { waitUntil: "networkidle" });
+  // A password-gated build shows the gate, never the app: fail now with the cause, not a pitch timeout.
+  if ((await page.locator('[data-testid="gate"], [data-testid="gate-not-configured"]').count()) > 0) {
+    await browser.close();
+    console.error(
+      `The password gate is showing at ${baseUrl}, so the app cannot be checked. Build an unlocked site (see verify/README.md, "Running it").`,
+    );
+    process.exit(1);
+  }
   await page.waitForSelector('[data-testid="squad-pitch"]', { timeout: 15000 });
 
   check(consoleErrors.length === 0, `no console errors (${consoleErrors.slice(0, 3).join(" | ")})`);
