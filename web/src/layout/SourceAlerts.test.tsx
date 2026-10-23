@@ -52,14 +52,18 @@ describe("source availability alerts (ORC-07)", () => {
     expect(banner.textContent).toContain("Next checked at");
   });
 
-  it("shows the arrival once the strategy advises, and the banner goes", async () => {
-    const arrived = { ...challengerWeek, arrived: { sources: [SOURCE], at: "2099-01-01T16:09:00Z" } };
+  it("shows the arrival once the strategy advises, whatever started the run, and the banner goes", async () => {
+    const arrived = {
+      ...challengerWeek,
+      trigger: "schedule",
+      arrived: { sources: [SOURCE], at: "2099-01-01T16:09:00Z" },
+    };
     serve(ahead, modelsFixture, arrived);
     renderApp("/");
     const notice = await screen.findByTestId("source-arrived-c1");
     expect(notice.getAttribute("role")).toBe("status");
     expect(notice.textContent).toContain(`${SOURCE} arrived`);
-    expect(notice.textContent).toContain("Challenger (C1) was refreshed with it");
+    expect(notice.textContent).toContain("Challenger (C1) was refreshed with it (scheduled run).");
     expect(screen.queryByTestId("source-offline-a_odds")).toBeNull();
   });
 

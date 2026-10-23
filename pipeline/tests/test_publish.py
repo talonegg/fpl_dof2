@@ -8,6 +8,7 @@ which is the slowest place to find anything.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -92,6 +93,28 @@ def test_the_constants_drive_the_path_and_the_generated_types(contract: Contract
     source = generate(contract)
     assert f"export const CONTRACT_VERSION = {CONTRACT_VERSION};" in source
     assert f"export const CONTRACT_MINOR = {CONTRACT_MINOR};" in source
+
+
+def test_no_workflow_hardcodes_the_contract_version() -> None:
+    """WEB-02: the workflows read the version from the constants, so a bump needs no edit there.
+    pipeline.yml asks the Python constant; deploy.yml and pre-release.yml sed the generated one."""
+    repo = Path(__file__).resolve().parents[2]
+    workflows = repo / ".github" / "workflows"
+    hardcoded = [
+        f"{path.name}: {match}"
+        for path in workflows.glob("*.yml")
+        for match in re.findall(r"(?:data|web)/v\d", path.read_text(encoding="utf-8"))
+    ]
+    assert not hardcoded
+    assert "from fpl_dof.publish.contract import CONTRACT_VERSION" in (
+        workflows / "pipeline.yml"
+    ).read_text(encoding="utf-8")
+    sed = r"s/^export const CONTRACT_VERSION = \([0-9][0-9]*\);.*/\1/p"
+    types = (repo / "web" / "src" / "contract" / "types.ts").read_text(encoding="utf-8")
+    found = re.search(r"^export const CONTRACT_VERSION = ([0-9][0-9]*);", types, re.MULTILINE)
+    assert found and int(found.group(1)) == CONTRACT_VERSION  # what the sed below extracts
+    for name in ("deploy.yml", "pre-release.yml"):
+        assert sed in (workflows / name).read_text(encoding="utf-8"), name
 
 
 def test_an_unexpected_field_is_rejected(contract: Contract) -> None:

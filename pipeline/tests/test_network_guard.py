@@ -1,4 +1,4 @@
-"""The test suite's network guard stops real connections and lets local process plumbing through."""
+"""The test harness itself: the network guard, and the shards CI runs side by side."""
 
 from __future__ import annotations
 
@@ -6,6 +6,8 @@ import socket
 from pathlib import Path
 
 import pytest
+
+from conftest import in_shard
 
 
 def test_an_internet_connection_is_refused() -> None:
@@ -21,3 +23,11 @@ def test_a_local_unix_socket_is_not_the_network(tmp_path: Path) -> None:
         server.bind(path)
         server.listen(1)
         client.connect(path)
+
+
+def test_the_shards_partition_the_suite() -> None:
+    """ORC-09: CI's two shards together run every test module exactly once."""
+    modules = [path.name for path in Path(__file__).parent.glob("test_*.py")]
+    for count in (1, 2, 3):
+        for module in modules:
+            assert sum(in_shard(module, index, count) for index in range(count)) == 1

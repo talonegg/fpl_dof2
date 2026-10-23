@@ -171,8 +171,12 @@ def build_features(
             rolled = by_key.rolling(w, min_periods=1).mean()
             g[f"{c}_l{w}"] = rolled.reset_index(0, drop=True)
         g[c + "_sea"] = by_key.expanding().mean().reset_index(0, drop=True)
-        g[c + "_ewm"] = by_key.transform(
-            lambda x: x.ewm(halflife=config.player_halflife, ignore_na=True).mean()
+        # The grouped EWM, not a per-group lambda: the same kernel restarted at each key, so the
+        # same values, without a Python call per player-season (ORC-09).
+        g[c + "_ewm"] = (
+            by_key.ewm(halflife=config.player_halflife, ignore_na=True)
+            .mean()
+            .reset_index(0, drop=True)
         )
     g["gp"] = grouped.cumcount()
     g["min_last"] = grouped["minutes"].shift(1)
@@ -193,8 +197,12 @@ def build_features(
         .sort_values("t")
     )
     for c in ["xgf", "xga"]:
-        tg[c + "_r"] = tg.groupby(["season", "team_id"])[c].transform(
-            lambda x: x.shift(1).ewm(halflife=config.team_halflife).mean()
+        shifted = tg.groupby(["season", "team_id"])[c].shift(1)
+        tg[c + "_r"] = (
+            shifted.groupby([tg["season"], tg["team_id"]])
+            .ewm(halflife=config.team_halflife)
+            .mean()
+            .reset_index([0, 1], drop=True)
         )
     opp = d.groupby(["season", "t", "team_id"], as_index=False).opponent_team_id.first()
     g = g.merge(opp, on=["season", "t", "team_id"], how="left")

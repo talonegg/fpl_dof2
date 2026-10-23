@@ -47,7 +47,7 @@ from dataclasses import dataclass
 
 from fpl_dof.config.models import ScheduleConfig
 from fpl_dof.gameweek import Due, GameweekState
-from fpl_dof.sources import CHANGE_KINDS
+from fpl_dof.triggers import CHANGE, CHANGE_KINDS, DAY_BEFORE, TRIGGERS
 
 MINUTES_PER_HOUR = 60.0
 
@@ -220,12 +220,6 @@ def pipeline_decision(
     )
 
 
-#: What may start a pipeline run (ORC-02), as `pipeline.yml`'s `trigger` input names it. The cron
-#: tick sends none. `schedule` is the daily refresh the slow ingest dispatches; `change` carries the
-#: change manifest's kinds; `day-before` must publish a fresh contract.
-TRIGGERS: tuple[str, ...] = ("manual", "schedule", "change", "day-before")
-
-
 def dispatch_decision(
     *,
     trigger: str,
@@ -246,7 +240,7 @@ def dispatch_decision(
     if trigger and trigger not in TRIGGERS:
         raise ValueError(f"unknown trigger {trigger!r}; expected one of {', '.join(TRIGGERS)}")
     unknown = sorted(set(kinds) - set(CHANGE_KINDS))
-    if unknown or bool(kinds) != (trigger == "change"):
+    if unknown or bool(kinds) != (trigger == CHANGE):
         raise ValueError(
             f"kinds {','.join(kinds) or '(none)'} do not fit trigger {trigger or 'tick'!r}: a "
             f"change carries one or more of {', '.join(CHANGE_KINDS)}, any other trigger none"
@@ -265,7 +259,7 @@ def dispatch_decision(
     if gameweek is not None and gameweek != open_gw:
         reason = f"dispatched for gameweek {gameweek}, but the Open gameweek is {open_gw}"
         return ScheduleDecision(False, reason, minutes_to_deadline, open_gw)
-    if open_gw is None and trigger in ("change", "day-before"):
+    if open_gw is None and trigger in (CHANGE, DAY_BEFORE):
         reason = f"no open gameweek could be established; a {trigger} run has nothing to advise"
         return ScheduleDecision(False, reason)
     return ScheduleDecision(True, f"{trigger} run", minutes_to_deadline, open_gw)

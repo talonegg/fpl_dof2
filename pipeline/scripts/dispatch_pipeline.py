@@ -15,8 +15,13 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
+
+from fpl_dof.triggers import CHANGE, DAY_BEFORE, SCHEDULE
 
 MANIFEST = Path("data/runs/changes.json")
 
@@ -26,16 +31,16 @@ def inputs(manifest: dict[str, Any], *, daily: bool, day_before: bool) -> dict[s
     kinds = ",".join(manifest.get("kinds") or [])
     gameweek = "" if manifest.get("gameweek") is None else str(manifest["gameweek"])
     if day_before:
-        trigger = "day-before"
+        trigger = DAY_BEFORE
     elif kinds:
-        trigger = "change"
+        trigger = CHANGE
     elif daily:
-        trigger = "schedule"
+        trigger = SCHEDULE
     else:
         return None
     return {
         "trigger": trigger,
-        "kinds": kinds if trigger == "change" else "",
+        "kinds": kinds if trigger == CHANGE else "",
         "gameweek": gameweek,
         "must_publish": str(day_before).lower(),
     }

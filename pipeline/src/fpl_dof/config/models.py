@@ -15,6 +15,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from fpl_dof.triggers import MANUAL, TRIGGER_STAMP
+
 #: How captain and vice are picked inside the chosen XI; a strategy's policy names one (MOD-03).
 CaptainRule = Literal["price_position", "model"]
 
@@ -40,8 +42,8 @@ class RuntimeConfig(_Section):
         ),
     )
     trigger: str = Field(
-        default="manual",
-        pattern=r"^(schedule|manual|day-before|change:[a-z_,]+)$",
+        default=MANUAL,
+        pattern=TRIGGER_STAMP,
         description=(
             "What started this run, stamped on every advice (ORC-03, DL-94): schedule, "
             "change:<kinds>, manual or day-before. CI sets FPL_DOF_TRIGGER; a local run is manual."
@@ -2476,7 +2478,8 @@ class ScheduleConfig(_Section):
         default=300,
         gt=0,
         description=(
-            "Wall clock a pipeline.yml run may take, from its start to its last job (DL-94 Q9). "
+            "Wall clock a pipeline.yml run may take, from its start to its last job, deploy "
+            "included and a wait in the run job's queue not (DL-94 Q9). "
             "A dispatched run must finish well inside the freeze, and every extra run per "
             "gameweek multiplies each minute (ORC-09). Over it, a CI step fails, so a slow change "
             "is seen when it lands."

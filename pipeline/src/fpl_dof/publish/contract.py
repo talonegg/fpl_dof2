@@ -23,15 +23,14 @@ import jsonschema
 #: The contract's major version. Bumped only for a breaking change, which publishes ``v{n+1}``
 #: beside ``v{n}`` until the app has moved (WEB-02). It is the single source: ``Contract.directory``
 #: and the generated TypeScript constant (and through it the app's data path, the service
-#: worker's cache name and URL pattern, and the smoke check) all derive from it.
+#: worker's cache name and URL pattern, the smoke check and the workflows' data paths) all derive
+#: from it.
 CONTRACT_VERSION = 1
 
 #: The contract's minor version, published as ``meta.contract_minor``. **Bump it by one with every
 #: additive change** (a new optional field, a new artefact): the schemas' ``const`` stays the major,
 #: so an old app still accepts the data, and an app needing a newer minor than the data carries
 #: shows a warning and renders what it can. Reset to 1 when the major is bumped.
-#: 2: ORC-03 stamps; 3: ORC-07 source alerts; 4: ORC-05 xp_accuracy.json; 5: ORC-06
-#: models_history.json.
 CONTRACT_MINOR = 5
 
 #: Artefact name -> schema filename. The published directory is exactly these files.

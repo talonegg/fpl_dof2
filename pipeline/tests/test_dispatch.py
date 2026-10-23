@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import datetime as dt
 import importlib.util
+import itertools
 import json
 import re
 from pathlib import Path
@@ -13,13 +14,14 @@ from typing import Any
 
 import pytest
 import yaml
+from pydantic import ValidationError
 
-from fpl_dof.config.models import ScheduleConfig
+from fpl_dof.config.models import RuntimeConfig, ScheduleConfig
 from fpl_dof.gameweek import GameweekState, Phase
 from fpl_dof.schedule_cli import EXIT_USAGE
 from fpl_dof.schedule_cli import main as schedule_main
-from fpl_dof.sources import CHANGE_KINDS
-from fpl_dof.week.schedule import TRIGGERS, dispatch_decision
+from fpl_dof.triggers import CHANGE, CHANGE_KINDS, TRIGGER_STAMP, TRIGGERS
+from fpl_dof.week.schedule import dispatch_decision
 
 REPO = Path(__file__).resolve().parents[2]
 WORKFLOWS = REPO / ".github" / "workflows"
@@ -139,10 +141,51 @@ def test_the_kinds_the_manifest_writes_are_the_kinds_the_guard_accepts() -> None
     assert _decide(_open(600), kinds=list(CHANGE_KINDS))
 
 
+def _trigger_patterns(node: object) -> list[str]:
+    """Every `trigger` property's pattern in a JSON Schema, however deep."""
+    if isinstance(node, list):
+        return [p for item in node for p in _trigger_patterns(item)]
+    if not isinstance(node, dict):
+        return []
+    own = (
+        [node["properties"]["trigger"]["pattern"]]
+        if "trigger" in node.get("properties", {})
+        else []
+    )
+    return own + [p for value in node.values() for p in _trigger_patterns(value)]
+
+
+def test_every_trigger_pattern_accepts_exactly_the_vocabulary() -> None:
+    """DP-14: TRIGGERS and CHANGE_KINDS are the one home. JSON Schema cannot import them, so each
+    schema's `trigger` pattern is held to them here; config validates with the same pattern."""
+    stamps = [t for t in TRIGGERS if t != CHANGE] + [
+        f"{CHANGE}:{','.join(kinds)}"
+        for n in range(1, len(CHANGE_KINDS) + 1)
+        for kinds in itertools.permutations(CHANGE_KINDS, n)
+    ]
+    refused = ["", CHANGE, f"{CHANGE}:", "change:weather", "change:prices,", "change:prices,,odds"]
+    refused += ["nightly", "Manual", "manual ", "schedule:prices", "change:prices,weather"]
+    schemas = (REPO / "contracts" / "v1").glob("*.schema.json")
+    patterns = [
+        p for path in schemas for p in _trigger_patterns(json.loads(path.read_text("utf-8")))
+    ]
+    assert len(patterns) == 5  # meta, models (run and per strategy), plan, week
+    for pattern in [*patterns, TRIGGER_STAMP]:
+        assert pattern == TRIGGER_STAMP
+        assert all(re.search(pattern, s) for s in stamps)
+        assert not any(re.search(pattern, s) for s in refused)
+    for stamp in stamps:
+        assert RuntimeConfig(trigger=stamp).trigger == stamp
+    for bad in refused:
+        with pytest.raises(ValidationError):
+            RuntimeConfig(trigger=bad)
+
+
 # --- the wiring ---------------------------------------------------------------------------------
 
 #: Ways one workflow can follow another by its name, a run's title or a cron string (ORC-02).
-CHAINING = (r"workflow_run", r"github\.event\.schedule", r"display_?title", r"title_contains")
+#: `workflow_runs`, the REST API's list of runs, is not the `workflow_run` trigger.
+CHAINING = (r"workflow_run\b", r"github\.event\.schedule", r"display_?title", r"title_contains")
 
 
 def _code(text: str) -> str:
@@ -211,3 +254,40 @@ def test_the_day_before_path_is_typed_and_still_fails_closed() -> None:
     assert "inputs.must_publish && '--day-before'" in start["run"]
     deploy = _workflow("pipeline.yml")["jobs"]["deploy"]
     assert deploy["with"]["must_publish"] == "${{ inputs.must_publish == true }}"
+
+
+def test_deploy_receives_only_the_secrets_it_reads() -> None:
+    """Workflow security: no `secrets: inherit`; deploy.yml declares each secret it reads and the
+    pipeline passes exactly those (GITHUB_TOKEN is every job's own)."""
+    for path in WORKFLOWS.glob("*.yml"):
+        assert "secrets: inherit" not in path.read_text(encoding="utf-8"), path.name
+    text = (WORKFLOWS / "deploy.yml").read_text(encoding="utf-8")
+    read = set(re.findall(r"secrets\.([A-Z_]+)", text)) - {"GITHUB_TOKEN"}
+    assert read == set(_workflow("deploy.yml")[True]["workflow_call"]["secrets"])
+    passed = _workflow("pipeline.yml")["jobs"]["deploy"]["secrets"]
+    assert passed == {name: f"${{{{ secrets.{name} }}}}" for name in read}
+
+
+def test_only_the_run_job_queues_so_a_tick_with_nothing_to_do_supersedes_nothing() -> None:
+    """DL-94 item 4: among runs with work the newest pending one wins; a tick whose guard says no
+    never joins the queue. A run that waited is asked again, so the freeze still binds (R-09)."""
+    pipeline = _workflow("pipeline.yml")
+    assert "concurrency" not in pipeline and "concurrency" not in pipeline["jobs"]["guard"]
+    run = pipeline["jobs"]["run"]
+    assert run["concurrency"] == {"group": "pipeline", "cancel-in-progress": False}
+    # Deploys serialise in their own group, shared with deploy.yml's push and dispatch runs.
+    assert _workflow("deploy.yml")["concurrency"] == {
+        "group": "deploy",
+        "cancel-in-progress": False,
+    }
+
+    index, still = _step(run, "Still outside the freeze now this run holds the queue")
+    assert "fpl-dof-schedule --decide pipeline" in still["run"]
+    assert still["env"]["TRIGGER"] == "${{ inputs.trigger || 'schedule' }}"
+    restore_ledger = "Restore the advice ledger and experiments from the `ledger` branch"
+    work = [s for s in run["steps"][index + 1 :] if s.get("name") != restore_ledger]
+    assert work and all(s["if"] == "steps.still.outputs.run == 'true'" for s in work)
+    # Asked as a dispatched run, a tick that waited out of its window still runs; the freeze holds.
+    assert not _decide(_open(300), trigger="", kinds=[], gameweek=None)
+    assert _decide(_open(300), trigger="schedule", kinds=[], gameweek=None)
+    assert not _decide(_open(CONFIG.deadline_freeze_minutes - 1), trigger="schedule", kinds=[])

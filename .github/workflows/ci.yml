@@ -51,8 +51,13 @@ jobs:
         working-directory: pipeline
         run: lint-imports
 
-  pipeline-test:
+  # Two shards side by side (ORC-09): every test module runs in exactly one (`--shard`, conftest),
+  # so the suite's wall clock is the slower shard's, held to schedule.python_tests_budget_seconds.
+  pipeline-test-shard:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        shard: [0, 1]
     steps:
       - uses: actions/checkout@v4
 
@@ -71,16 +76,29 @@ jobs:
         run: uv pip install --system -c pipeline/requirements.lock -e "pipeline[dev]"
 
       # In parallel (ORC-09), then held to schedule.python_tests_budget_seconds. The coverage gate
-      # is its own run of the four rules test files, exactly as CLAUDE.md states it: measured over
-      # the whole suite it would pass on coverage those files do not give, and tracing every
-      # worker cost the suite more than this second run takes.
-      - name: pytest & rules coverage gate (must be 100%)
+      # is its own run of the rules test files, exactly as CLAUDE.md states it, in the first shard:
+      # measured over the whole suite it would pass on coverage those files do not give, and
+      # tracing every worker cost the suite more than this second run takes.
+      - name: pytest (shard ${{ matrix.shard }} of 2) & rules coverage gate (must be 100%)
         working-directory: pipeline
         run: |
           started="$(date -u +%FT%TZ)"
-          python -m pytest -q -n auto
-          python -m pytest -q --cov=fpl_dof.rules --cov-fail-under=100 tests/test_rules_build.py tests/test_rules_scoring.py tests/test_rules_legality.py tests/test_rules_realised.py
+          python -m pytest -q -n auto --shard ${{ matrix.shard }}/2
+          if [ "${{ matrix.shard }}" = "0" ]; then
+            python -m pytest -q --cov=fpl_dof.rules --cov-fail-under=100 tests/test_rules_build.py tests/test_rules_scoring.py tests/test_rules_legality.py tests/test_rules_realised.py
+          fi
           python scripts/ci_runs.py budget python_tests_budget_seconds --since "$started"
+
+
+  # The required check (branch protection names `pipeline-test`): green only when every shard is.
+  # `always()`, because a skipped required job would count as passing.
+  pipeline-test:
+    needs: [pipeline-test-shard]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every shard passed
+        run: test "${{ needs.pipeline-test-shard.result }}" = "success"
 
   web:
     runs-on: ubuntu-latest
@@ -109,7 +127,7 @@ jobs:
         working-directory: web
         run: npm run test -- --run
 
-  # The whole workflow, from its start to its last job, against schedule.ci_workflow_budget_seconds.
+  # The whole workflow, its jobs' time from first to last, against schedule.ci_workflow_budget_seconds.
   budget:
     needs: [pipeline-lint, pipeline-test, web]
     runs-on: ubuntu-latest
@@ -127,7 +145,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: pipeline/requirements.lock
       # Only what the script imports; it reads pipeline/src from the checkout.
-      - run: uv pip install --system -c pipeline/requirements.lock pandas pydantic pyyaml
+      - run: uv pip install --system -c pipeline/requirements.lock pandas pandera pyarrow pydantic pyyaml httpx
       - name: CI workflow within its budget (ORC-09)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

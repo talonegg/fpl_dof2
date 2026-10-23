@@ -6,7 +6,7 @@ interface HeaderProps {
 }
 
 /** `schedule`, `manual`, `day-before` or `change:<kinds>` in words. */
-function describeTrigger(trigger: string): string {
+export function describeTrigger(trigger: string): string {
   if (trigger.startsWith("change:")) {
     return `after a ${trigger.slice("change:".length).split(",").join(", ")} change`;
   }
