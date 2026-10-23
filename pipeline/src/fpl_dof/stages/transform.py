@@ -75,7 +75,8 @@ APPENDED: frozenset[Table] = frozenset(
 
 def run(ctx: StageContext) -> StageResult:
     result = StageResult()
-    bronze = BronzeStore(ctx.layout.bronze)
+    # Offline, so nothing writes to bronze while the stage reads it (ORC-09).
+    bronze = BronzeStore(ctx.layout.bronze, sole_reader=True)
 
     with Fetcher(config=ctx.config.http, bronze=bronze, run_id=ctx.run_id) as fetcher:
         adapters = build(ctx.config.sources, fetcher)
