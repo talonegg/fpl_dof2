@@ -277,7 +277,8 @@ jobs:
     with:
       from_pipeline: true
       must_publish: ${{ inputs.must_publish == true }}
-    secrets: inherit
+    secrets:
+      FPL_PASSWORD_HASH: ${{ secrets.FPL_PASSWORD_HASH }}
     permissions:
       contents: read
       actions: read

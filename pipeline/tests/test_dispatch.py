@@ -256,6 +256,18 @@ def test_the_day_before_path_is_typed_and_still_fails_closed() -> None:
     assert deploy["with"]["must_publish"] == "${{ inputs.must_publish == true }}"
 
 
+def test_deploy_receives_only_the_secrets_it_reads() -> None:
+    """Workflow security: no `secrets: inherit`; deploy.yml declares each secret it reads and the
+    pipeline passes exactly those (GITHUB_TOKEN is every job's own)."""
+    for path in WORKFLOWS.glob("*.yml"):
+        assert "secrets: inherit" not in path.read_text(encoding="utf-8"), path.name
+    text = (WORKFLOWS / "deploy.yml").read_text(encoding="utf-8")
+    read = set(re.findall(r"secrets\.([A-Z_]+)", text)) - {"GITHUB_TOKEN"}
+    assert read == set(_workflow("deploy.yml")[True]["workflow_call"]["secrets"])
+    passed = _workflow("pipeline.yml")["jobs"]["deploy"]["secrets"]
+    assert passed == {name: f"${{{{ secrets.{name} }}}}" for name in read}
+
+
 def test_only_the_run_job_queues_so_a_tick_with_nothing_to_do_supersedes_nothing() -> None:
     """DL-94 item 4: among runs with work the newest pending one wins; a tick whose guard says no
     never joins the queue. A run that waited is asked again, so the freeze still binds (R-09)."""

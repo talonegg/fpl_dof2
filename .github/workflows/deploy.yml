@@ -31,6 +31,11 @@ on:
         description: "The calling run must publish (the day-before refresh): its contract must be fresh."
         type: boolean
         default: false
+    # Only what this workflow reads; GITHUB_TOKEN needs no declaring.
+    secrets:
+      FPL_PASSWORD_HASH:
+        description: "SHA-256 of the site password; unset, the site is built locked."
+        required: false
 
 concurrency:
   group: deploy
