@@ -66,6 +66,8 @@ class Evidence:
     entry_gameweeks: pd.DataFrame | None = None
     chips: pd.DataFrame | None = None
     transfers: pd.DataFrame | None = None
+    gameweeks: pd.DataFrame | None = None
+    price_history: pd.DataFrame | None = None
 
     def season_rows(self) -> pd.DataFrame:
         """This season's ``player_gameweek``: the table also holds backfilled seasons, whose
@@ -407,12 +409,14 @@ def _optional_int(value: object) -> int | None:
 
 
 def _at_deadline(evidence: Evidence, gameweek: int) -> pd.DataFrame:
-    """Every player as he stood at ``gameweek``'s deadline: his club and price that gameweek.
+    """Every player as he stood at ``gameweek``'s deadline: his club that gameweek, and his price
+    as of the deadline (D-31).
 
-    shortcut: the price is the one FPL recorded for the gameweek's fixture, which a price change
-    between the deadline and kick-off can move by a step; read ``price_history`` at the deadline if
-    that ever matters. A player with no row (his club blanked, or he was not yet registered) keeps
-    the current table's club and price, and only enters the pool if he was held.
+    The price is the last ``price_history`` observation at or before the deadline (PIPE-06). A
+    player it has none for falls back, with a warning, to the price FPL recorded for the
+    gameweek's fixture, which a change between the deadline and kick-off can have moved by a step.
+    A player with no row at all (his club blanked, or he was not yet registered) keeps the current
+    table's club and price, and only enters the pool if he was held.
     """
     rows = evidence.season_rows()
     rows = rows[rows["gameweek"] == gameweek]
@@ -425,7 +429,30 @@ def _at_deadline(evidence: Evidence, gameweek: int) -> pd.DataFrame:
             known = players["player_id"].map(then[column])
             players[column] = known.where(known.notna(), players[column])
     players["has_row"] = players["player_id"].isin(then.index)
+
+    observed = _prices_at(evidence, gameweek)
+    at_deadline = players["player_id"].map(observed)
+    fallback = players["has_row"] & at_deadline.isna()
+    if fallback.any():
+        log.warning(
+            "evaluation.price_not_observed_at_deadline",
+            extra={"gameweek": gameweek, "players": int(fallback.sum())},
+        )
+    players["price"] = at_deadline.where(at_deadline.notna(), players["price"])
     return players
+
+
+def _prices_at(evidence: Evidence, gameweek: int) -> pd.Series:
+    """Player id -> the last price ``price_history`` observed at or before ``gameweek``'s deadline;
+    empty without the history or the deadline."""
+    history, gameweeks = evidence.price_history, evidence.gameweeks
+    if history is None or history.empty or gameweeks is None or gameweeks.empty:
+        return pd.Series(dtype=float)
+    deadline = gameweeks.loc[gameweeks["gameweek"] == gameweek, "deadline_time"]
+    if deadline.empty:
+        return pd.Series(dtype=float)
+    seen = history[history["observed_at"] <= deadline.iloc[0]].sort_values("observed_at")
+    return seen.drop_duplicates("player_id", keep="last").set_index("player_id")["price"]
 
 
 def _hindsight(

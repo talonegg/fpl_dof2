@@ -566,6 +566,8 @@ def evaluate(ctx: StageContext, rules: GameRules, gameweeks: Sequence[int]) -> l
         entry_gameweeks=owners(Table.ENTRY_GAMEWEEK),
         chips=owners(Table.ENTRY_CHIP),
         transfers=owners(Table.ENTRY_TRANSFER),
+        gameweeks=read_table_optional(silver, season, Table.GAMEWEEK),
+        price_history=read_table_optional(silver, season, Table.PRICE_HISTORY),
     )
     written: list[Output] = []
     for gameweek in gameweeks:

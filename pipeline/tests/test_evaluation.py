@@ -215,6 +215,31 @@ def test_the_hindsight_optimum_honours_the_deadline_clubs_and_selling_prices(
     assert 16 not in {m.player_in_id for m in old.optimal_overall.moves}
 
 
+def test_the_optimum_prices_a_player_as_of_the_deadline_not_the_fixture(
+    game_rules: GameRules, caplog: pytest.LogCaptureFixture
+) -> None:
+    """D-31: 16 cost £5.3m at the GW2 deadline and fell to £5.2m before kick-off, which is what his
+    fixture row records. Priced at the deadline, 8's £5.2m no longer buys him."""
+    rules = game_rules.model_copy(update={"season": SEASON})
+    deadline = pd.Timestamp("2026-08-28T17:30:00Z")
+    history = pd.DataFrame(
+        {
+            "observed_at": [deadline - pd.Timedelta(hours=16), deadline + pd.Timedelta(hours=8)],
+            "player_id": [16, 16],
+            "price": [5.3, 5.2],
+        }
+    )
+    gameweeks = pd.DataFrame(
+        {"gameweek": [1, 2], "deadline_time": [deadline - pd.Timedelta(days=14), deadline]}
+    )
+    evidence = dataclasses.replace(_evidence(), price_history=history, gameweeks=gameweeks)
+    with caplog.at_level("WARNING"):
+        optimal = _evaluate(rules, evidence)["log"]["hindsight"]["optimal"]["optimal_overall"]
+    assert (8, 16) not in {(m["player_out_id"], m["player_in_id"]) for m in optimal["moves"]}
+    # Every other player has no observation, so each keeps his fixture's price, said aloud.
+    assert any(r.message == "evaluation.price_not_observed_at_deadline" for r in caplog.records)
+
+
 def test_the_captains_belief_is_divided_by_the_rules_armband(
     game_rules: GameRules, monkeypatch: pytest.MonkeyPatch
 ) -> None:
