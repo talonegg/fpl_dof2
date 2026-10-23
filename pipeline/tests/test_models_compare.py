@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -142,8 +143,11 @@ def test_actuals_and_season_to_date() -> None:
 def _ctx(source: Path | None, data: Path | None = None) -> Any:
     cfg = ModelsArtefactConfig(source_dir=str(source) if source else None)
     return SimpleNamespace(
-        config=SimpleNamespace(publish=SimpleNamespace(models=cfg)),
+        config=SimpleNamespace(
+            publish=SimpleNamespace(models=cfg), runtime=SimpleNamespace(trigger="manual")
+        ),
         layout=DataLayout(root=data or (source or Path()) / "_data"),
+        as_of=dt.datetime(2026, 10, 9, 7, tzinfo=dt.UTC),
     )
 
 
@@ -159,6 +163,7 @@ def test_stage_reads_harness_dir(tmp_path: Path) -> None:
     payload = publish._models(_ctx(tmp_path), "2026/27")
     assert payload is not None
     assert payload["gameweeks"][0]["actual"]["c3"]["vice_used"] is True
+    assert (payload["as_of"], payload["trigger"]) == ("2026-10-09T07:00:00Z", "manual")
     assert payload["gameweeks"][0]["availability"]["a_odds"] == {
         "available": False,
         "reason": "live odds missing",
@@ -229,7 +234,9 @@ def _ledger_entry(gw: int, transfers: int, free: int) -> dict[str, Any]:
         "recorded_at": f"2026-10-{gw:02d}T08:00:00Z",
         "squad_state": {"free_transfers": free},
         "models": {
-            "c3": model("champion", 11, 0),
+            # Stamped as R1.3.0 records it (ORC-03); c1 is a pre-R1.3.0 entry with no stamp.
+            "c3": model("champion", 11, 0)
+            | {"as_of": f"2026-10-{gw:02d}T07:00:00Z", "trigger": "schedule"},
             "c1": model("challenger", 10, transfers),
             "a": {"role": "challenger", "no_advice": "no advice: odds missing"},
         },
@@ -264,6 +271,11 @@ def test_the_switch_gameweek_follows_the_last_frozen_decision(game_rules: GameRu
     ]
     gw9, gw10 = p["gameweeks"][2:]
     assert gw9["advice"]["c3"]["captain_name"] == "Cap"
+    assert (gw9["advice"]["c3"]["as_of"], gw9["advice"]["c3"]["trigger"]) == (
+        "2026-10-09T07:00:00Z",
+        "schedule",
+    )
+    assert "as_of" not in gw9["advice"]["c1"]
     assert gw9["advice"]["c1"]["transfers"][0]["in_name"] == "In"
     assert gw9["availability"]["a"] == {"available": False, "reason": "no advice: odds missing"}
     # Two moves with the two free transfers the owner really had cost nothing.

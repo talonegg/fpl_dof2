@@ -4,3 +4,5 @@ runtime:
   log_level: INFO
   # Rendering only. Storage and computation are UTC everywhere (DL-11).
   timezone: Australia/Sydney
+  # What started the run, stamped on the advice (ORC-03). CI sets FPL_DOF_TRIGGER.
+  trigger: manual

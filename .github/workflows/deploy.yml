@@ -2,23 +2,34 @@
 # public repository — DL-12).
 #
 # `web/public/data/` is gitignored (it is generated, not source), so a build from a bare checkout
-# has no data to serve. This workflow prefers the artefact pipeline.yml just uploaded (the freshest
-# possible contract, from the run that triggered this deploy); if that is unavailable — e.g. a
-# push-to-main deploy with no recent pipeline run — it falls back to a recent pipeline run that
-# actually uploaded `web-data-contract`. Guard-only pipeline skips still report success but ship no
-# artefact; treating those as "latest success" used to redeploy a dataless shell and wipe live week
-# advice. If no contract can be restored, the build fails so actions/deploy-pages leaves the previous
-# site live (DP-15, architecture §10.3).
+# has no data to serve. Two paths (ORC-03, DL-94):
+#
+# - **Called by pipeline.yml** (`from_pipeline`) as its last job, only when that run published. It
+#   deploys that run's own `web-data-contract` and nothing else: a missing artefact fails the build.
+#   A guard-only or failed pipeline run never calls it, so it deploys nothing. Day-before runs also
+#   require the contract to be fresh (`contract_fresh.py`, #39: fail closed).
+# - **push to main or manual dispatch**, to ship web changes until WEB-01 separates the app from the
+#   data. It takes the newest successful pipeline run that uploaded a contract.
+#
+# If no contract can be restored, the build fails so actions/deploy-pages leaves the previous site
+# live (DP-15, architecture §10.3).
 
 name: Deploy
 
 on:
   push:
     branches: [main]
-  workflow_run:
-    workflows: ["Pipeline"]
-    types: [completed]
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      from_pipeline:
+        description: "Deploy the calling pipeline run's own contract."
+        type: boolean
+        default: false
+      day_before:
+        description: "The calling run is the day-before refresh: its contract must be fresh."
+        type: boolean
+        default: false
 
 concurrency:
   group: deploy
@@ -32,49 +43,31 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    # Day-before chain (day-before.yml): deploy only after a successful Pipeline run; a failed one
-    # is skipped outright rather than redeploying an older contract.
-    if: >-
-      !(github.event_name == 'workflow_run'
-        && contains(github.event.workflow_run.display_title, '[day-before')
-        && github.event.workflow_run.conclusion != 'success')
-    env:
-      DAY_BEFORE: ${{ github.event_name == 'workflow_run' && contains(github.event.workflow_run.display_title, '[day-before') }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Ensure the data directory exists
         run: mkdir -p web/public/data/v1
 
-      - name: Download the contract from the triggering pipeline run
-        if: github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success'
-        continue-on-error: true
+      - name: Download this pipeline run's contract
+        if: inputs.from_pipeline
         uses: actions/download-artifact@v4
         with:
           name: web-data-contract
           path: web/public/data/v1
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          run-id: ${{ github.event.workflow_run.id }}
 
-      # The `data` branch has never carried a `web/v1` copy — it is rebuilt from bronze alone on
-      # every ingest — so the previous fallback found nothing (DL-68). Prefer a recent successful
-      # pipeline run that actually uploaded the contract (guard-only skips are "success" with none).
-      # Day-before: only the contract that run just produced, and only if it is fresh. No fallback
-      # to an older run's contract — that would be a stale deploy (#39: fail closed).
       - name: Day-before - require the fresh contract
-        if: env.DAY_BEFORE == 'true'
+        if: inputs.day_before
         run: python pipeline/scripts/contract_fresh.py web/public/data/v1 --max-age-hours 6
 
-      - name: Fall back to a recent pipeline run's contract
-        if: env.DAY_BEFORE != 'true'
+      # push/dispatch only. The `data` branch has never carried a `web/v1` copy (DL-68), so the
+      # contract comes from a recent successful pipeline run that actually uploaded one.
+      - name: Restore the newest pipeline run's contract
+        if: ${{ !inputs.from_pipeline }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -eu
-          if [ -n "$(ls -A web/public/data/v1 2>/dev/null)" ]; then
-            echo "contract already present from the triggering run's artifact"
-            exit 0
-          fi
           restored=""
           while read -r run_id; do
             [ -z "$run_id" ] && continue
@@ -132,6 +125,9 @@ jobs:
   deploy:
     needs: [build]
     runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}

@@ -264,6 +264,7 @@ def _meta(
         "contract_version": CONTRACT_VERSION,
         "contract_minor": CONTRACT_MINOR,
         "generated_at": _iso(ctx.as_of),
+        **_run_stamp(ctx),
         "run_id": ctx.run_id,
         "git_sha": git_sha(find_repo_root()),
         "season": season,
@@ -295,6 +296,11 @@ def _model_name(forecast: pd.DataFrame) -> str:
 
 def _iso(moment: dt.datetime) -> str:
     return moment.astimezone(dt.UTC).isoformat().replace("+00:00", "Z")
+
+
+def _run_stamp(ctx: StageContext) -> dict[str, str]:
+    """The run's snapshot ``as_of`` and what started it, as every advice carries them (ORC-03)."""
+    return {"as_of": _iso(ctx.as_of), "trigger": ctx.config.runtime.trigger}
 
 
 def _rules(rules: GameRules) -> dict[str, Any]:
@@ -617,7 +623,7 @@ def _models(ctx: StageContext, season: str) -> dict[str, Any] | None:
                 if as_int(g) in finished
             }
         ledger = read_all_advice(ctx.layout)
-        return build_models(
+        payload = build_models(
             season=season,
             decisions=decisions,
             scores=scores,
@@ -634,6 +640,7 @@ def _models(ctx: StageContext, season: str) -> dict[str, Any] | None:
     except Exception as exc:
         log.warning("publish.models_dropped", extra={"error": repr(exc)})
         return None
+    return None if payload is None else payload | _run_stamp(ctx)
 
 
 def _latest_finished(gameweeks: pd.DataFrame) -> int | None:
