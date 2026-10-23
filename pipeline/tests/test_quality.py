@@ -17,7 +17,13 @@ import pandas as pd
 import pytest
 
 from fpl_dof.config.models import QualityConfig
-from fpl_dof.quality.gates import GateOutcome, GateSeverity, QualityGateError, run_gates
+from fpl_dof.quality.gates import (
+    GateOutcome,
+    GateResult,
+    GateSeverity,
+    QualityGateError,
+    run_gates,
+)
 from fpl_dof.quality.rules import GATES, GateClass
 from fpl_dof.silver.tables import Table
 
@@ -190,6 +196,68 @@ def test_a_stale_snapshot_warns_but_does_not_block() -> None:
     assert failure.severity is GateSeverity.WARN
     assert not failure.blocks_publication
     assert report.passed, "a stale snapshot must not stop the run"
+
+
+def _played_through(last_gameweek: int, players: int = 40) -> pd.DataFrame:
+    """Every player has a row for every gameweek up to ``last_gameweek``."""
+    return pd.DataFrame(
+        [
+            {
+                "season": "2026/27",
+                "player_id": p,
+                "team_id": (p % 20) + 1,
+                "gameweek": gw,
+                "kickoff_time": pd.NaT,
+            }
+            for p in range(1, players + 1)
+            for gw in range(1, last_gameweek + 1)
+        ]
+    )
+
+
+def _seven_finished() -> dict[str, pd.DataFrame]:
+    gameweeks = _gameweeks()
+    gameweeks.loc[gameweeks["gameweek"] <= 7, "finished"] = True
+    fixtures = _fixtures()
+    fixtures.loc[fixtures["gameweek"] <= 7, "finished"] = True
+    return {Table.GAMEWEEK.value: gameweeks, Table.FIXTURE.value: fixtures}
+
+
+def _currency_report(
+    played: pd.DataFrame, overrides: dict[str, pd.DataFrame] | None = None
+) -> list[GateResult]:
+    tables = _tables(**(overrides or _seven_finished()), player_gameweek=played)
+    report = run_gates(GATES, tables, _context(season="2026/27") | {"tables": tables})
+    return [r for r in report.results if r.gate == "player_gameweek_current"]
+
+
+def test_player_gameweek_rows_a_gameweek_behind_warn_but_do_not_block() -> None:
+    """The October 2026 defect: GW7 had finished, the cached summaries stopped at GW6."""
+    played = _played_through(7)
+    stale = played[~((played["gameweek"] == 7) & (played["player_id"] > 4))]
+    (result,) = _currency_report(stale)
+    assert result.outcome is GateOutcome.FAILED
+    assert result.severity is GateSeverity.WARN
+    assert result.observed["lagging"] == 36
+
+
+def test_player_gameweek_rows_through_the_latest_finished_gameweek_pass() -> None:
+    (result,) = _currency_report(_played_through(7))
+    assert result.outcome is GateOutcome.PASSED
+
+
+def test_a_club_without_a_fixture_in_the_latest_gameweek_is_not_lagging() -> None:
+    """A blank gameweek leaves that club's players without a row, correctly."""
+    played = _played_through(7)
+    played = played[~((played["gameweek"] == 7) & (played["team_id"] == 1))]
+    tables = _seven_finished()
+    fixtures = tables[Table.FIXTURE.value]
+    blank = (fixtures["gameweek"] == 7) & (
+        (fixtures["home_team_id"] == 1) | (fixtures["away_team_id"] == 1)
+    )
+    fixtures.loc[blank, "finished"] = False
+    (result,) = _currency_report(played, tables)
+    assert result.outcome is GateOutcome.PASSED
 
 
 def test_a_missing_table_is_skipped_not_passed() -> None:

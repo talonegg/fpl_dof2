@@ -36,10 +36,10 @@ jobs:
         with:
           python-version: "3.14"
           cache: pip
-          cache-dependency-path: pipeline/pyproject.toml
+          cache-dependency-path: pipeline/requirements.lock
 
       - name: Install fpl-dof
-        run: python -m pip install -e "pipeline[dev]"
+        run: python -m pip install -c pipeline/requirements.lock -e "pipeline[dev]"
 
       - name: Restore data from the `data` branch
         run: python pipeline/scripts/retention.py restore data

@@ -140,4 +140,5 @@ by hand.
 | [DL-90](DL-90.md) | 2026-10-23 | Accepted | F1 ships: M7 reads each player's own card rate |
 | [DL-91](DL-91.md) | 2026-10-23 | Accepted | F3 is rejected: the champion keeps its current-season window; both experiments retire |
 | [DL-92](DL-92.md) | 2026-10-23 | Accepted | Hotfix R1.2.3: a purchase price is what was paid; an unknown one never overstates the budget |
+| [DL-93](DL-93.md) | 2026-10-23 | Accepted | Hotfix R1.2.4: training rows refresh when a gameweek is checked; dependencies are pinned |
 <!-- index:end -->
