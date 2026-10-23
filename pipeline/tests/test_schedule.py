@@ -29,7 +29,12 @@ from fpl_dof.schedule_cli import EXIT_OK
 from fpl_dof.schedule_cli import main as schedule_main
 from fpl_dof.silver.store import write_table
 from fpl_dof.silver.tables import Table
-from fpl_dof.week.schedule import ScheduleDecision, fast_ingest_decision, pipeline_decision
+from fpl_dof.week.schedule import (
+    ScheduleDecision,
+    fast_ingest_decision,
+    next_fast_ingest,
+    pipeline_decision,
+)
 
 SYDNEY = ZoneInfo("Australia/Sydney")
 CONFIG = ScheduleConfig()
@@ -239,6 +244,26 @@ def test_the_shipped_defaults_are_the_ones_the_workflows_assume() -> None:
     assert CONFIG.pipeline_offsets_minutes == (360, 180, 90, 45)
     assert CONFIG.pipeline_cron_interval_minutes == 18
     assert CONFIG.deadline_freeze_minutes == 45.0
+
+
+def test_the_fast_ingest_cron_minute_is_the_workflows() -> None:
+    """ORC-07 reads the next check from config, so config must say what ingest-fast.yml fires."""
+    workflow = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "ingest-fast.yml"
+    assert f'cron: "{CONFIG.fast_ingest_cron_minute} * * * *"' in workflow.read_text("utf-8")
+
+
+def _next(now: dt.datetime, minutes: float | None) -> dt.datetime | None:
+    return next_fast_ingest(now=now, state=_state(now, minutes), config=CONFIG)
+
+
+def test_the_next_check_is_the_next_firing_the_guard_lets_fetch() -> None:
+    """ORC-07: four-hourly days out, hourly inside the window, never at or after the deadline."""
+    minute = CONFIG.fast_ingest_cron_minute
+    assert _next(_at(12, 30), 3 * 24 * 60) == _at(16, minute)  # the next boundary hour
+    assert _next(_at(12, 30), 5 * 60) == _at(13, minute)  # inside the window: the next hour
+    assert _next(_at(12, minute), 5 * 60) == _at(13, minute)  # strictly after now
+    assert _next(_at(12, 30), 20) is None  # the deadline comes first
+    assert _next(_at(12, 30), None) is None  # no Open gameweek
 
 
 # --- the guard command ------------------------------------------------------------------------

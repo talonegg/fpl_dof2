@@ -14,6 +14,18 @@ from dataclasses import dataclass
 import pandas as pd
 
 
+class MissingInputError(ValueError):
+    """A forecast cannot run because silver tables it needs hold nothing for the gameweek decided.
+
+    ``tables`` names them, so the week stage can say which source is awaited without naming one
+    (ORC-07): only ``sources/`` maps a table to its source (Invariant 1).
+    """
+
+    def __init__(self, message: str, tables: tuple[str, ...]) -> None:
+        super().__init__(message)
+        self.tables = tables
+
+
 @dataclass(frozen=True, slots=True)
 class ForecastInputs:
     """Silver tables, as the forecast sees them.

@@ -49,7 +49,10 @@
       "required": ["available", "reason"],
       "properties": {
         "available": { "type": "boolean" },
-        "reason": { "type": ["string", "null"] }
+        "reason": { "type": ["string", "null"] },
+        "sources": { "type": "array", "items": { "type": "string" }, "description": "The sources whose missing data left the strategy without advice, by the labels the data health page uses (ORC-07). Absent when it is not waiting for a source." },
+        "since": { "type": ["string", "null"], "format": "date-time", "description": "UTC instant of the first run in this gameweek that found the source's data missing (ORC-07)." },
+        "next_check": { "type": ["string", "null"], "format": "date-time", "description": "When the source is next fetched: the next fast-ingest firing before the deadline, which GitHub may drop. Null for a gameweek no longer Open, or none before its deadline (ORC-07)." }
       }
     },
     "model_transfer": {

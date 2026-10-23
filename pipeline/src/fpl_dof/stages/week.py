@@ -33,7 +33,7 @@ from __future__ import annotations
 import dataclasses
 import datetime as dt
 import json
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -47,6 +47,7 @@ from fpl_dof.factory import form_by_player_id, trailing_form
 from fpl_dof.factory.registry import (
     Forecast,
     ForecastInputs,
+    MissingInputError,
     Strategy,
     champion,
     published_strategies,
@@ -63,6 +64,7 @@ from fpl_dof.publish.strategies import artefact_paths
 from fpl_dof.rules.models import GameRules
 from fpl_dof.silver.store import read_table, read_table_optional
 from fpl_dof.silver.tables import Table
+from fpl_dof.sources import supplying
 from fpl_dof.squad.state import (
     SquadState,
     SquadStateError,
@@ -264,12 +266,18 @@ def advise_all(
     challengers = [s for s in strategies if s.id != lead.id]
     held = (read_advice(layout, snapshot.deadline.gameweek) or {}).get("models") or {}
     published: dict[str, Advice] = {}
+    missing: dict[str, list[str]] = {}
     for strategy in challengers:
         try:
             advice[strategy.id] = _advise(snapshot, strategy, layout)
+            arrived = _arrived(held.get(strategy.id), advice[strategy.id][0], snapshot.config)
+            if arrived is not None:
+                advice[strategy.id][0]["arrived"] = arrived
         except Exception as exc:
             reason = f"no advice: {type(exc).__name__}: {exc}"
             log.warning("week.no_advice", extra={"strategy": strategy.id, "reason": reason})
+            if isinstance(exc, MissingInputError):
+                missing[strategy.id] = list(exc.tables)
             failed = _no_advice(
                 snapshot.run_id,
                 snapshot.deadline,
@@ -284,8 +292,25 @@ def advise_all(
                 published[strategy.id] = (of_record, failed[1])
     # The ledger gets the failure (it keeps the success beside it); the app gets the record.
     outputs += _write_all(gold, advice | published, challengers)
-    _record(snapshot, layout, advice, [lead, *challengers])
+    _record(snapshot, layout, advice, [lead, *challengers], missing)
     return advice | published, outputs
+
+
+def _arrived(held: object, week: dict[str, Any], config: Config) -> dict[str, Any] | None:
+    """The source a strategy waited for arrived, and it advised with it (ORC-07).
+
+    Derived from the held record, read before this run's write: the strategy had no advice
+    because a table it needs was missing, and now advises in a run a change started. Nothing
+    extra is stored; the next run's week file carries no arrival.
+    """
+    if not isinstance(held, Mapping) or "advised" in held or not held.get("missing"):
+        return None
+    # shortcut: any change run counts, not only one of the awaited source's own kind; the
+    # change manifest has no kind-to-source map to check against.
+    if not str(week.get("trigger") or "").startswith("change:"):
+        return None
+    sources = supplying(held["missing"], config.sources)
+    return {"sources": sources, "at": week["as_of"]} if sources else None
 
 
 def _of_record(
@@ -316,14 +341,18 @@ def _of_record(
 
 
 def _record(
-    snapshot: Snapshot, layout: DataLayout, advice: dict[str, Advice], strategies: list[Strategy]
+    snapshot: Snapshot,
+    layout: DataLayout,
+    advice: dict[str, Advice],
+    strategies: list[Strategy],
+    missing: Mapping[str, list[str]] | None = None,
 ) -> None:
     """The champion's advice to the ledger, with every strategy's so far under ``models``.
 
     The ledger keeps each strategy's last success and refuses a write after the deadline (DL-94).
     """
     week, _ = advice[strategies[0].id]
-    models = ledger_models(advice, strategies)
+    models = ledger_models(advice, strategies, missing)
     record_advice(
         layout, week | {"models": models}, as_of=snapshot.inputs.as_of, now=snapshot.clock()
     )
@@ -428,11 +457,16 @@ def _no_advice(
     return payload | _stamp(strategy, config), plan
 
 
-def ledger_models(advice: dict[str, Advice], strategies: Sequence[Strategy]) -> dict[str, Any]:
+def ledger_models(
+    advice: dict[str, Advice],
+    strategies: Sequence[Strategy],
+    missing: Mapping[str, list[str]] | None = None,
+) -> dict[str, Any]:
     """Every published strategy's advice for the ledger's ``models`` key, by registry id.
 
     A strategy that produced nothing is recorded as ``no_advice`` with its reason, never carried
-    forward from an earlier week (05 §6.3).
+    forward from an earlier week (05 §6.3), and with the silver tables it lacked as ``missing``
+    when that was why (ORC-07).
     """
     models: dict[str, Any] = {}
     for strategy in strategies:
@@ -445,6 +479,8 @@ def ledger_models(advice: dict[str, Advice], strategies: Sequence[Strategy]) -> 
         }
         if week["skipped"]:
             entry["no_advice"] = week[SKIPPED_REASON_KEY]
+            if (tables := (missing or {}).get(strategy.id)) is not None:
+                entry["missing"] = tables
         else:
             entry |= {
                 "advised": week["advised"],

@@ -29,6 +29,7 @@ from fpl_dof.factory import (
 )
 from fpl_dof.factory.registry import published_strategies
 from fpl_dof.frames import as_float, as_int
+from fpl_dof.gameweek import SilverTables, open_gameweek
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.obs.manifest import RunManifest, git_sha, read_manifest
 from fpl_dof.paths import find_repo_root
@@ -45,9 +46,10 @@ from fpl_dof.publish.typescript import write_types
 from fpl_dof.rules.models import GameRules
 from fpl_dof.silver.store import read_table, read_table_optional
 from fpl_dof.silver.tables import Table
-from fpl_dof.sources import BronzeStore
+from fpl_dof.sources import BronzeStore, supplying
 from fpl_dof.week.cadence import current_gameweek
 from fpl_dof.week.ledger import read_all_advice
+from fpl_dof.week.schedule import next_fast_ingest
 from fpl_dof.week.score_advice import performances as performances_of
 
 log = get_logger(__name__)
@@ -132,7 +134,7 @@ def run(ctx: StageContext) -> StageResult:
         removed.append("log.json")
 
     # The five-model comparison: absent until the prospective harness has recorded a decision.
-    models_payload = _models(ctx, season)
+    models_payload = _models(ctx, season, gameweeks)
     published_models = False
     if models_payload is not None:
         try:
@@ -583,7 +585,9 @@ def _season_log(
     )
 
 
-def _models(ctx: StageContext, season: str) -> dict[str, Any] | None:
+def _models(
+    ctx: StageContext, season: str, gameweeks: pd.DataFrame | None = None
+) -> dict[str, Any] | None:
     """models.json: the retired harness's record up to the switch, the live ledger from it.
 
     The frozen record is optional (no ``source_dir`` means the live ledger alone). A malformed
@@ -623,6 +627,11 @@ def _models(ctx: StageContext, season: str) -> dict[str, Any] | None:
                 if as_int(g) in finished
             }
         ledger = read_all_advice(ctx.layout)
+        # ORC-07: an awaited source is next checked at the next fast-ingest firing that fetches.
+        state = None if gameweeks is None else open_gameweek(SilverTables(gameweeks), (), ctx.as_of)
+        check = None
+        if state is not None:
+            check = next_fast_ingest(now=ctx.as_of, state=state, config=ctx.config.schedule)
         payload = build_models(
             season=season,
             decisions=decisions,
@@ -636,6 +645,9 @@ def _models(ctx: StageContext, season: str) -> dict[str, Any] | None:
             names={}
             if players is None
             else {as_int(r.player_id): str(r.web_name) for r in players.itertuples()},
+            sources={t.value: supplying([t.value], ctx.config.sources) for t in Table},
+            open_gameweek=None if state is None else state.gameweek,
+            next_check=None if check is None else _iso(check),
         )
     except Exception as exc:
         log.warning("publish.models_dropped", extra={"error": repr(exc)})

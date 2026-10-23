@@ -10,10 +10,11 @@ The publisher receives descriptors and renders them as data; it never branches o
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 
 from fpl_dof.config.models import SourcesConfig
+from fpl_dof.silver.tables import Table, columns_for
 from fpl_dof.sources.registry import is_enabled, known
 
 LIVE = "live"
@@ -83,4 +84,18 @@ def describe(
     return _registered(config, environ)
 
 
-__all__ = ["KINDS", "LIVE", "REFERENCE", "SourceDescriptor", "describe"]
+def supplying(tables: Iterable[str], config: SourcesConfig) -> list[str]:
+    """The labels of the enabled sources that can supply these silver tables (ORC-07).
+
+    A source supplies a table when a field it ``contributes`` is one of the table's columns: the
+    registry's own metadata, so the app can name the source a strategy waits for while nothing
+    outside this package names one (Invariant 1). A table only the game itself supplies (whose
+    adapter declares no ``contributes``) has none here: its absence is not a source arriving late.
+    """
+    columns = {c for t in tables for c in columns_for(Table(t))}
+    return [
+        d.label for d in describe(config) if d.enabled and columns & set(known()[d.key].contributes)
+    ]
+
+
+__all__ = ["KINDS", "LIVE", "REFERENCE", "SourceDescriptor", "describe", "supplying"]

@@ -139,6 +139,27 @@ def fast_ingest_decision(
     )
 
 
+def next_fast_ingest(
+    *, now: dt.datetime, state: GameweekState | None, config: ScheduleConfig
+) -> dt.datetime | None:
+    """The next firing of ``ingest-fast.yml`` its guard lets fetch, before the Open gameweek's
+    deadline: when a source a strategy awaits is next checked (ORC-07). ``None`` when no gameweek
+    is Open or no such firing falls before its deadline. GitHub may drop the firing (D-35)."""
+    if state is None or state.due is not Due.ADVISE:
+        return None
+    hour = dt.timedelta(hours=1)
+    firing = now.astimezone(dt.UTC).replace(
+        minute=config.fast_ingest_cron_minute, second=0, microsecond=0
+    )
+    if firing <= now:
+        firing += hour
+    while firing < state.deadline:
+        if fast_ingest_decision(now=firing, state=state, config=config).should_run:
+            return firing
+        firing += hour
+    return None
+
+
 def pipeline_decision(
     *,
     now: dt.datetime,
