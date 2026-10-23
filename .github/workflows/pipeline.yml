@@ -240,37 +240,16 @@ jobs:
       # Append-only, through the same mechanism that keeps `snapshots` (E7-S4): identical bytes
       # are a no-op, so re-running inside a gameweek only rewrites the file that changed, and a
       # gameweek whose deadline has passed is never advised again and therefore never rewritten.
+      # Each gameweek's advice, each strategy's forecast for it, replaced by its next success
+      # (ORC-08), and each finished gameweek's evaluation for its entry (ORC-05), rewritten only
+      # when its version changes: one commit and one push for the lot (ORC-09).
       - name: Record this run's advice on the `ledger` branch (DL-69)
         if: steps.still.outputs.run == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -eu
           remote="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
-          shopt -s nullglob
-          for file in data/ledger/advice/gw*.json; do
-            name="$(basename "$file" .json)"
-            gameweek="$((10#${name#gw}))"
-            python pipeline/scripts/retention.py permanent "$file" \
-              --remote "$remote" --branch ledger --source advice --gameweek "$gameweek" \
-              --checkout-dir .ledger-staging
-          done
-          # Each strategy's forecast for the gameweek, replaced by its next success (ORC-08).
-          for file in data/ledger/predictions/gw*/*.parquet; do
-            week="$(basename "$(dirname "$file")")"
-            python pipeline/scripts/retention.py permanent "$file" \
-              --remote "$remote" --branch ledger --source "predictions/$week" \
-              --name "$(basename "$file" .parquet)" --replace --checkout-dir .ledger-staging
-          done
-          # Each finished gameweek's evaluation for the entry it was made for (ORC-05): written
-          # once, rewritten only when the evaluation's version changes, so an unchanged file is a no-op.
-          for file in data/ledger/evaluation/entry-*/gw*.json; do
-            name="$(basename "$file" .json)"
-            entry="$(basename "$(dirname "$file")")"
-            python pipeline/scripts/retention.py permanent "$file" \
-              --remote "$remote" --branch ledger --source "evaluation/$entry" \
-              --gameweek "$((10#${name#gw}))" --checkout-dir .ledger-staging
-          done
+          python pipeline/scripts/retention.py ledger data/ledger --remote "$remote"
 
       - name: Rebuild the rolling `data` branch
         if: steps.still.outputs.run == 'true'

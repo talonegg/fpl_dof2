@@ -127,10 +127,15 @@ class VerifyReport:
 class BronzeStore:
     """Writes and finds snapshots. Knows nothing about HTTP or about any particular source."""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, *, sole_reader: bool = False) -> None:
         self.root = root
         self.quarantine_root = root.parent / "quarantine" / root.name
         """Where :meth:`verify` moves what it cannot trust, mirroring bronze's own layout."""
+        self._listings: dict[Path, dict[str, list[Path]]] | None = {} if sole_reader else None
+        """``sole_reader``: nothing else writes under ``root`` while this store lives, so each
+        resource directory is listed once rather than once per :meth:`latest` (ORC-09). The
+        transform reads every player's summary from one directory of thousands of snapshots.
+        This store's own writes clear the listings."""
 
     def resource_dir(self, source: str, resource: str) -> Path:
         return self.root / source / resource
@@ -154,6 +159,7 @@ class BronzeStore:
         etag: str | None = None,
         last_modified: str | None = None,
     ) -> Snapshot:
+        self._changed()
         moment = now or utcnow()
         directory = self.resource_dir(source, resource) / moment.strftime("%Y-%m-%d")
         directory.mkdir(parents=True, exist_ok=True)
@@ -206,6 +212,7 @@ class BronzeStore:
         different UTC calendar day, hardlinks (or copies) the payload to today's date directory
         so date-based retention and globbing recognise the snapshot at the tip.
         """
+        self._changed()
         moment = now or utcnow()
         day_dir = snapshot.path.parent.parent / moment.strftime("%Y-%m-%d")
         if day_dir != snapshot.path.parent:
@@ -251,8 +258,20 @@ class BronzeStore:
         directory = self.resource_dir(source, resource)
         if not directory.is_dir():
             return None
-        pattern = f"*/{safe_key(key)}__*{suffix}"
-        candidates = sorted(directory.glob(pattern))
+        name = safe_key(key)
+        # The grouping matches the glob exactly only when the name's first `__` follows the key.
+        if self._listings is not None and "__" not in name and not name.endswith("_"):
+            by_key = self._listings.get(directory)
+            if by_key is None:
+                by_key = self._listings[directory] = _by_key(directory)
+            shortest = len(name) + 2 + len(suffix)
+            candidates = [
+                p
+                for p in by_key.get(name, [])
+                if p.name.endswith(suffix) and len(p.name) >= shortest
+            ]
+        else:
+            candidates = sorted(directory.glob(f"*/{name}__*{suffix}"))
         for path in reversed(candidates):
             meta_path = path.with_name(path.name + META_SUFFIX)
             if not meta_path.exists():
@@ -269,12 +288,17 @@ class BronzeStore:
         Every reader goes through :meth:`latest`, so once the capture has gone the last valid one
         at or before a reader's ``as_of`` is what it finds (DL-94).
         """
+        self._changed()
         target = self.quarantine_root / snapshot.path.relative_to(self.root)
         target.parent.mkdir(parents=True, exist_ok=True)
         snapshot.path.replace(target)
         _write_sidecar(target, snapshot.meta.model_copy(update={"quarantine_reason": reason}))
         snapshot.path.with_name(snapshot.path.name + META_SUFFIX).unlink(missing_ok=True)
         return target
+
+    def _changed(self) -> None:
+        if self._listings is not None:
+            self._listings.clear()
 
     def quarantined(self) -> dict[str, int]:
         """How many captures each source has in quarantine for breaking its contract."""
@@ -324,6 +348,7 @@ class BronzeStore:
         sweep of history kept before ingest checked every capture (ORC-10).
         """
         report = VerifyReport()
+        self._changed()
         if not self.root.is_dir():
             return report
 
@@ -418,6 +443,17 @@ class BronzeStore:
                                 continue
                         report.passed += 1
         return report
+
+
+def _by_key(directory: Path) -> dict[str, list[Path]]:
+    """Every file one level below ``directory``, sorted as :meth:`BronzeStore.latest`'s glob
+    sorts them and grouped by the key before the name's first ``__``."""
+    grouped: dict[str, list[Path]] = {}
+    for path in sorted(p for day in directory.iterdir() if day.is_dir() for p in day.iterdir()):
+        head, sep, _ = path.name.partition("__")
+        if sep:
+            grouped.setdefault(head, []).append(path)
+    return grouped
 
 
 _CAPTURE_STAMP = re.compile(r"__(\d{8}T\d{6}Z)")

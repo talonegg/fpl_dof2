@@ -110,7 +110,10 @@ jobs:
         working-directory: web
         run: npm ci
 
+      # A pipeline's deploy changes only the data, which nothing type-checks; the app's code is
+      # the commit CI already checked (ORC-09).
       - name: typecheck
+        if: ${{ !inputs.from_pipeline }}
         working-directory: web
         run: npm run typecheck
 
