@@ -851,6 +851,22 @@ def test_a_failed_strategy_keeps_its_earlier_predictions(
 
 
 @pytest.mark.usefixtures("reused_forecasts")
+def test_an_older_write_the_ledger_ignores_leaves_no_predictions(
+    game_rules: GameRules, tmp_path: Path
+) -> None:
+    """ORC-08: predictions follow the advice of record, so a write older than the held entry,
+    which record_advice ignores, writes no predictions either."""
+    layout = DataLayout(root=tmp_path)
+    newer = {"gameweek": HORIZON[0], "recorded_at": "2099-01-01T00:00:00Z", "models": {}}
+    path = advice_path(layout, HORIZON[0])
+    path.parent.mkdir(parents=True)
+    path.write_text(json.dumps(newer), encoding="utf-8")
+    _advise_all(game_rules, tmp_path)
+    assert json.loads(path.read_text(encoding="utf-8")) == newer
+    assert not (layout.ledger / "predictions").exists()
+
+
+@pytest.mark.usefixtures("reused_forecasts")
 def test_predictions_after_the_deadline_are_refused(game_rules: GameRules, tmp_path: Path) -> None:
     snapshot = _orchestration(game_rules)
     late = dataclasses.replace(

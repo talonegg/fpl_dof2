@@ -108,8 +108,9 @@ def record_predictions(
 ) -> Path | None:
     """Write a strategy's full-pool forecast for the gameweek it advised, as advice is written.
 
-    Called only for a strategy that advised, so a failure never reaches it and the last success
-    stays in place. Refused at or after the deadline, exactly as advice is.
+    Called only for a strategy that advised, once :func:`record_advice` recorded its entry, so a
+    failure or a write the ledger ignored never reaches it and the last success stays in place.
+    Refused at or after the deadline, exactly as advice is.
     """
     if now >= deadline:
         log.warning("ledger.closed", extra={"gameweek": gameweek, "what": "predictions"})
