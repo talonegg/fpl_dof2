@@ -359,9 +359,13 @@ def test_a_recorded_hit_is_charged_as_recorded(game_rules: GameRules) -> None:
     assert scored.as_dict()["hit_points"] == 4
 
 
-def test_an_unknown_position_is_read_as_a_midfielder() -> None:
+def test_an_unknown_or_missing_position_is_a_data_fault_not_a_midfielder() -> None:
+    """DP-15 taken too far: guessing MID would decide a formation check silently."""
     rows = pd.DataFrame([{"player_id": 1, "position": "XXX", "minutes": 1, "total_points": 1}])
-    assert performances(rows)[1].position == Position.MID
+    with pytest.raises(ValueError, match="player 1 has no position the rules know: 'XXX'"):
+        performances(rows)
+    with pytest.raises(ValueError, match="player 1 has no position"):
+        performances(rows.drop(columns="position"))
 
 
 def test_other_rules_give_other_answers(game_rules: GameRules) -> None:

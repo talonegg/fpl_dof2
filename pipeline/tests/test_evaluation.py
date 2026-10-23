@@ -240,6 +240,32 @@ def test_the_optimum_prices_a_player_as_of_the_deadline_not_the_fixture(
     assert any(r.message == "evaluation.price_not_observed_at_deadline" for r in caplog.records)
 
 
+def test_a_failed_optimum_and_armless_picks_are_said_not_swallowed(
+    game_rules: GameRules, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """DP-15 without silence: a solve that raises keeps the rankings and records why there is no
+    optimum, as a squad never held does; picks with no captain are incomplete, so the gameweek is
+    not judged on a guessed armband."""
+
+    def unsolvable(**_k: Any) -> Any:
+        raise RuntimeError("infeasible")
+
+    rules = game_rules.model_copy(update={"season": SEASON})
+    with monkeypatch.context() as patch:
+        patch.setattr(evaluation, "solve_hindsight_optimal", unsolvable)
+        hindsight = _evaluate(rules)["log"]["hindsight"]
+    assert hindsight["optimal"] is None and hindsight["rankings"]
+    assert hindsight["optimal_unavailable_reason"] == (
+        "the hindsight optimum could not be solved: RuntimeError: infeasible"
+    )
+
+    complete = _evidence()
+    assert complete.picks is not None
+    armless = dataclasses.replace(complete, picks=complete.picks.assign(is_captain=False))
+    with pytest.raises(ValueError, match="GW2 picks name no captain"):
+        _evaluate(rules, armless)
+
+
 def test_the_captains_belief_is_divided_by_the_rules_armband(
     game_rules: GameRules, monkeypatch: pytest.MonkeyPatch
 ) -> None:

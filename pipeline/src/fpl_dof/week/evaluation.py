@@ -316,17 +316,22 @@ def _played(for_gameweek: pd.DataFrame) -> dict[str, Any]:
 def _played_lineup(
     played: Mapping[str, Any], gameweek: int, evidence: Evidence, entry_id: int | None
 ) -> Lineup:
-    """The owner's team as the game recorded it: its chip and its hit (D-30)."""
+    """The owner's team as the game recorded it: its chip and its hit (D-30).
+
+    The game records both armbands for every submitted team, so picks without one are incomplete
+    and the gameweek is not judged on them; the evaluation fails, said, and is tried again.
+    """
     starting = tuple(played["starting"])
     bench = tuple(played["bench_order"])
-    captain = played["captain"] or starting[0]
+    if played["captain"] is None or played["vice_captain"] is None:
+        raise ValueError(f"the owner's GW{gameweek} picks name no captain or no vice-captain")
     score = _scores_by_gameweek(_owner_rows(evidence.entry_gameweeks, entry_id, gameweek))
     return Lineup(
         starting=starting,
         bench_order=bench[1:],
         bench_gkp=bench[0] if bench else None,
-        captain=captain,
-        vice_captain=played["vice_captain"] or captain,
+        captain=played["captain"],
+        vice_captain=played["vice_captain"],
         chip=_chips_by_gameweek(evidence.chips).get(gameweek),
         hit_points=(score.get(gameweek) or {}).get("transfers_cost"),
     )
@@ -480,7 +485,7 @@ def _hindsight(
     evidence: Evidence,
     rules: GameRules,
     entry_id: int | None,
-) -> dict[str, Any] | None:
+) -> dict[str, Any]:
     """The rankings, and the best the owner could have done from the squad he held at the deadline,
     on that gameweek's real points, prices, clubs and bank (D-31)."""
     ranked = [r.as_dict() for r in rankings]
@@ -535,8 +540,10 @@ def _hindsight(
             models_xp=models_xp,
             models_captains=models_captains,
         )
-    except Exception:
-        return None
+    except Exception as exc:
+        reason = f"the hindsight optimum could not be solved: {type(exc).__name__}: {exc}"
+        log.warning("evaluation.no_optimum", extra={"gameweek": gameweek, "reason": reason})
+        return _no_optimal(ranked, reason)
     return {
         "rankings": ranked,
         "optimal": optimal.as_dict(),

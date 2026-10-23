@@ -204,11 +204,13 @@ def performances(
     }
     seen: set[int] = set()
     for r in gameweek_rows.itertuples():
-        try:
-            position = Position(str(getattr(r, "position", "MID")))
-        except ValueError:
-            position = Position.MID
         pid = as_int(getattr(r, key))
+        raw = getattr(r, "position", None)
+        try:
+            position = Position(str(raw))
+        except ValueError:
+            # A guessed position would decide auto-substitutions silently: a data fault, said.
+            raise ValueError(f"player {pid} has no position the rules know: {raw!r}") from None
         minutes = as_int(getattr(r, "minutes", 0))
         points = as_int(getattr(r, "total_points", 0))
         if pid in seen:
