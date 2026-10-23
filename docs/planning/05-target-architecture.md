@@ -399,7 +399,7 @@ Each release is a vertical slice that leaves the weekly advice working ([DP-07](
 | **R1.3.0 — Gameweek orchestration** | State machine; change manifest and typed dispatch; refresh-all-together; advice of record; the evaluation step; the one scorer; season log from evaluations; reproducible models history | O1, O2; F2 |
 | **R1.4.0 — Independent web** | Decoupled app and data deploys; `contract_minor` and the runtime check; types in the web build; the artefact registry; UI flags; `experiment.yml` and experiments in the app | W1, W2, W3, W5 |
 
-Stories and acceptance criteria: [R1.2.0 backlog](epics/R1.2.0-modular-platform-backlog.md).
+Stories and acceptance criteria: [R1.2.0 backlog](epics/R1.2.0-modular-platform-backlog.md), [R1.3.0](epics/R1.3.0-gameweek-orchestration.md), [R1.4.0](epics/R1.4.0-independent-web.md).
 
 ---
 
