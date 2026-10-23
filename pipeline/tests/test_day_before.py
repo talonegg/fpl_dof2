@@ -275,6 +275,29 @@ def test_ci_runs_script_says_not_done_when_github_is_unreachable(
     assert out.read_text() == "done=false\n"
 
 
+def test_a_run_over_its_schedule_budget_fails_the_budget_step(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """ORC-09: from the run's start to its last finished job, against `schedule` config."""
+    mod = _script("ci_runs")
+    run = {"run_started_at": "2026-10-23T10:00:00Z"}
+    jobs = [
+        {"completed_at": "2026-10-23T10:02:00Z"},
+        {"completed_at": "2026-10-23T10:03:30Z"},
+        {"completed_at": None},  # the budget job itself, still running
+    ]
+    assert mod.run_seconds(run, jobs) == 210
+    monkeypatch.setattr(
+        mod, "gh_json", lambda *a: {"jobs": jobs} if a[-1].endswith("/jobs") else run
+    )
+    monkeypatch.setenv("GITHUB_REPOSITORY", "owner/repo")
+    monkeypatch.setenv("GITHUB_RUN_ID", "1")
+    assert mod.main(["budget", "ci_workflow_budget_seconds"]) == 1  # 210 s > 180 s
+    assert mod.main(["budget", "pipeline_run_budget_seconds"]) == 0  # 210 s <= 300 s
+    recent = (dt.datetime.now(UTC) - dt.timedelta(seconds=5)).isoformat()
+    assert mod.main(["budget", "python_tests_budget_seconds", "--since", recent]) == 0
+
+
 # --- no early prospective decisions ----------------------------------------------------------
 
 

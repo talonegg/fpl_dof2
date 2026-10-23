@@ -79,7 +79,7 @@ def _walk(history: pd.DataFrame) -> BacktestResult:
     )
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="session")
 def dense_walk_result() -> BacktestResult:
     return _walk(dense_history())
 
@@ -156,7 +156,9 @@ def test_attaching_the_outcome_to_a_scoring_frame_cannot_move_a_prediction() -> 
     pd.testing.assert_series_equal(plain, with_answers)
 
 
-def test_what_happens_after_a_deadline_cannot_change_that_folds_monolith() -> None:
+def test_what_happens_after_a_deadline_cannot_change_that_folds_monolith(
+    dense_walk_result: BacktestResult,
+) -> None:
     """**The look-ahead regression test.** The decisive property, through the real harness.
 
     A second training assembly is a second chance to leak, which is exactly what
@@ -178,7 +180,7 @@ def test_what_happens_after_a_deadline_cannot_change_that_folds_monolith() -> No
         fold = next(fold for fold in result.folds if fold.gameweek == 7)
         return fold.predictions.sort_values("player_code").reset_index(drop=True)
 
-    honest, rewritten = fold_seven(_walk(history)), fold_seven(_walk(tampered))
+    honest, rewritten = fold_seven(dense_walk_result), fold_seven(_walk(tampered))
 
     assert not honest.empty
     pd.testing.assert_series_equal(
@@ -459,10 +461,9 @@ def test_the_monolith_beats_the_constant_baseline(
     assert result.predictions[MONOLITH_COLUMN].std() > 0
 
 
-def test_two_runs_on_one_history_report_one_gap() -> None:
+def test_two_runs_on_one_history_report_one_gap(dense_walk_result: BacktestResult) -> None:
     """DP-11. The fit is otherwise deterministic, so the seed is the only channel that can vary."""
-    history = dense_history()
-    first, second = _walk(history), _walk(history)
+    first, second = dense_walk_result, _walk(dense_history())
     assert first.explainability_gap == pytest.approx(second.explainability_gap, nan_ok=True)
     pd.testing.assert_series_equal(
         first.predictions[MONOLITH_COLUMN], second.predictions[MONOLITH_COLUMN]

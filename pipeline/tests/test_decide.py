@@ -491,10 +491,19 @@ def _advise_all(
     return advice
 
 
+@pytest.fixture(scope="session")
+def advised(
+    game_rules: GameRules, tmp_path_factory: pytest.TempPathFactory
+) -> tuple[dict[str, week.Advice], Path]:
+    """Every published strategy advised once on the snapshot, for the tests that only read it."""
+    root = tmp_path_factory.mktemp("advised")
+    return _advise_all(game_rules, root), root
+
+
 def test_every_published_strategy_gets_a_valid_week_and_plan(
-    game_rules: GameRules, tmp_path: Path
+    advised: tuple[dict[str, week.Advice], Path],
 ) -> None:
-    advice = _advise_all(game_rules, tmp_path)
+    advice, _ = advised
     contract = Contract(root=find_contracts_root())
     assert set(advice) == {s.id for s in published_strategies()}
     for s in published_strategies():
@@ -551,9 +560,9 @@ def test_a_strategy_missing_a_required_table_records_no_advice_and_the_others_ru
 
 
 def test_the_engine_strategy_writes_its_own_week_file(
-    game_rules: GameRules, tmp_path: Path
+    advised: tuple[dict[str, week.Advice], Path],
 ) -> None:
-    advice = _advise_all(game_rules, tmp_path)
+    advice, tmp_path = advised
     assert not advice["engine"][0]["skipped"] and advice["engine"][1] is None
     written = json.loads((tmp_path / "gold" / "week_engine.json").read_text(encoding="utf-8"))
     assert written["strategy"]["id"] == "engine"
@@ -613,8 +622,10 @@ def test_the_champion_is_the_registrys_whatever_order_the_strategies_arrive_in(
     assert written["strategy"]["id"] == champion().id
 
 
-def test_the_ledger_carries_every_published_strategy(game_rules: GameRules, tmp_path: Path) -> None:
-    advice = _advise_all(game_rules, tmp_path)
+def test_the_ledger_carries_every_published_strategy(
+    advised: tuple[dict[str, week.Advice], Path],
+) -> None:
+    advice, tmp_path = advised
     recorded = read_advice(DataLayout(root=tmp_path), HORIZON[0])
     assert recorded is not None
     models = recorded["models"]
