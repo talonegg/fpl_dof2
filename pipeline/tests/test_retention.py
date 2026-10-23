@@ -454,6 +454,44 @@ def test_a_replaceable_named_record_takes_the_newer_success(tmp_path: Path) -> N
     assert (clone / "predictions" / "gw09" / "a.parquet").read_bytes() == b"second"
 
 
+def test_a_runs_ledger_files_are_one_commit_and_an_unchanged_run_is_none(tmp_path: Path) -> None:
+    """ORC-09: advice, predictions and evaluations go in one commit and one push."""
+    retention = _scripts_retention()
+    bare = tmp_path / "remote.git"
+    _git("init", "--bare", str(bare), cwd=tmp_path)
+    ledger = tmp_path / "ledger"
+    files = {
+        "advice/gw09.json": b"{}",
+        "predictions/gw09/a.parquet": b"a",
+        "predictions/gw09/c1.parquet": b"c1",
+        "evaluation/entry-7/gw08.json": b"[]",
+    }
+    for relative, body in files.items():
+        (ledger / relative).parent.mkdir(parents=True, exist_ok=True)
+        (ledger / relative).write_bytes(body)
+
+    def record() -> list[str]:
+        written: list[str] = retention.append_permanent_snapshots(
+            checkout_dir=tmp_path / "checkout",
+            remote=str(bare),
+            branch="ledger",
+            entries=retention.ledger_entries(ledger),
+            message="ledger",
+        )
+        return written
+
+    assert sorted(record()) == sorted(files)
+    assert record() == []  # the same bytes again: no commit, no push
+    (ledger / "predictions" / "gw09" / "a.parquet").write_bytes(b"newer")
+    assert record() == ["predictions/gw09/a.parquet"]  # replaced by its next success
+
+    clone = tmp_path / "clone"
+    _git("clone", "--branch", "ledger", str(bare), str(clone), cwd=tmp_path)
+    assert _git("rev-list", "--count", "HEAD", cwd=clone).strip() == "2"
+    assert (clone / "predictions" / "gw09" / "a.parquet").read_bytes() == b"newer"
+    assert (clone / "evaluation" / "entry-7" / "gw08.json").read_bytes() == b"[]"
+
+
 def test_a_ledger_append_that_loses_a_push_race_appends_again(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

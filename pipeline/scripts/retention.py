@@ -13,6 +13,7 @@ Usage (run from the repo root, with `bronze_dir` pointing at a checked-out bronz
     python pipeline/scripts/retention.py rolling <bronze_dir> --remote <url>
     python pipeline/scripts/retention.py permanent <payload> --remote <url> --gameweek 3
     python pipeline/scripts/retention.py permanent <payload> --remote <url> --name <run_id>
+    python pipeline/scripts/retention.py ledger data/ledger --remote <url>
     python pipeline/scripts/retention.py archive <bronze_dir> --remote <url>
 
 Both subcommands push to a real remote. `--dry-run` runs the same planning and staging logic
@@ -364,26 +365,58 @@ def append_permanent_snapshot(
     if (gameweek is None) == (name is None):
         raise ValueError("give exactly one of gameweek and name")
     key = f"gw{gameweek:02d}" if gameweek is not None else str(name)
-    destination_relative = f"{source}/{key}{payload_path.suffix}"
+    entry = (payload_path, f"{source}/{key}{payload_path.suffix}", name is None or replace)
+    written = append_permanent_snapshots(
+        checkout_dir=checkout_dir,
+        remote=remote,
+        branch=branch,
+        entries=[entry],
+        message=f"snapshots: {source} {key}",
+        dry_run=dry_run,
+    )
+    return bool(written)
+
+
+#: One snapshot for :func:`append_permanent_snapshots`: the payload, where it goes on the branch,
+#: and whether other bytes may replace what is there (a gameweek's file, or a `--replace` name).
+Entry = tuple[Path, str, bool]
+
+
+def append_permanent_snapshots(
+    *,
+    checkout_dir: Path,
+    remote: str,
+    branch: str,
+    entries: list[Entry],
+    message: str,
+    dry_run: bool = False,
+) -> list[str]:
+    """Append every entry in one commit and one push; the destinations written, ``[]`` a no-op.
+
+    An entry whose bytes are already there is skipped. One that may not be replaced and differs
+    raises before anything is pushed.
+    """
     # The backtest and the pipeline both append to `ledger`: a push that loses the race starts
     # again from the moved branch rather than failing the job.
     for attempt in range(1, PUSH_ATTEMPTS + 1):
         branch_exists = _checkout_branch(checkout_dir, remote, branch)
 
-        destination = checkout_dir / destination_relative
-        if destination.exists() and destination.read_bytes() == payload_path.read_bytes():
-            return False  # already recorded, identical bytes — nothing to append
-        if destination.exists() and name is not None and not replace:
-            raise FileExistsError(f"{branch}:{destination_relative} exists with other bytes")
+        written: list[str] = []
+        for payload_path, destination_relative, rewrite in entries:
+            destination = checkout_dir / destination_relative
+            if destination.exists() and destination.read_bytes() == payload_path.read_bytes():
+                continue  # already recorded, identical bytes — nothing to append
+            if destination.exists() and not rewrite:
+                raise FileExistsError(f"{branch}:{destination_relative} exists with other bytes")
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(payload_path, destination)
+            written.append(destination_relative)
 
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(payload_path, destination)
-
-        if dry_run:
-            return True
+        if not written or dry_run:
+            return written
 
         try:
-            _commit_all(checkout_dir, f"snapshots: {source} {key}")
+            _commit_all(checkout_dir, message)
         except GitError as exc:
             # `git commit` on a clean tree is the same fact the byte-comparison above already
             # checks for, reached by a different path (e.g. `git add` normalising line endings or
@@ -393,11 +426,11 @@ def append_permanent_snapshot(
             # exact code path was the one that achieved it".
             if "nothing to commit" not in str(exc):
                 raise
-            return False
+            return []
 
         try:
             _push(checkout_dir, remote, branch, branch_exists)
-            return True
+            return written
         except GitError as exc:
             if "rejected" not in str(exc) and "fetch first" not in str(exc):
                 raise
@@ -440,6 +473,24 @@ def _commit_all(checkout_dir: Path, message: str) -> None:
 def _push(checkout_dir: Path, remote: str, branch: str, branch_exists: bool) -> None:
     push_ref = "HEAD:refs/heads/" + branch if not branch_exists else f"HEAD:{branch}"
     _run_git(["push", remote, push_ref], cwd=checkout_dir)
+
+
+def ledger_entries(ledger_dir: Path) -> list[Entry]:
+    """This run's ledger files, each at its place on `ledger` (DL-69, ORC-05, ORC-08).
+
+    A gameweek's advice and each entry's evaluation of a gameweek are rewritten when their bytes
+    change; each strategy's predictions for a gameweek are replaced by its next success.
+    """
+    entries: list[Entry] = []
+    for path in sorted(ledger_dir.glob("advice/gw*.json")):
+        entries.append((path, f"advice/gw{int(path.stem[2:]):02d}.json", True))
+    for path in sorted(ledger_dir.glob("predictions/gw*/*.parquet")):
+        entries.append((path, f"predictions/{path.parent.name}/{path.name}", True))
+    for path in sorted(ledger_dir.glob("evaluation/entry-*/gw*.json")):
+        entries.append(
+            (path, f"evaluation/{path.parent.name}/gw{int(path.stem[2:]):02d}.json", True)
+        )
+    return entries
 
 
 class NoGameweekScheduleError(RuntimeError):
@@ -557,6 +608,13 @@ def _build_parser() -> argparse.ArgumentParser:
     permanent.add_argument("--checkout-dir", type=Path, default=Path(".snapshots-staging"))
     permanent.add_argument("--dry-run", action="store_true")
 
+    ledger = sub.add_parser("ledger", help="Append this run's ledger files in one commit and push")
+    ledger.add_argument("ledger_dir", type=Path)
+    ledger.add_argument("--remote", required=True)
+    ledger.add_argument("--branch", default="ledger")
+    ledger.add_argument("--checkout-dir", type=Path, default=Path(".ledger-staging"))
+    ledger.add_argument("--dry-run", action="store_true")
+
     archive = sub.add_parser("archive", help="Archive each closed gameweek's bronze once")
     archive.add_argument("bronze_dir", type=Path)
     archive.add_argument("--remote", required=True)
@@ -593,6 +651,20 @@ def main(argv: list[str] | None = None) -> int:
             f"rolling: retained={counts['retained']} pruned={counts['pruned']} "
             f"undated={counts['undated']} silver={counts.get('silver', 0)}"
         )
+        return 0
+
+    if args.command == "ledger":
+        written = append_permanent_snapshots(
+            checkout_dir=args.checkout_dir,
+            remote=args.remote,
+            branch=args.branch,
+            entries=ledger_entries(args.ledger_dir),
+            message="ledger: this run's advice, predictions and evaluations",
+            dry_run=args.dry_run,
+        )
+        print(f"ledger: {len(written)} file(s) appended" if written else "ledger: no-op")
+        for relative in written:
+            print(f"  {relative}")
         return 0
 
     if args.command == "archive":

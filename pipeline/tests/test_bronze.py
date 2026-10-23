@@ -140,3 +140,28 @@ def test_latest_as_of_ignores_what_was_fetched_after_it(tmp_path: Path) -> None:
     assert bounded is not None and bounded.meta.fetched_at == moments[0]
     before_both = moments[0] - dt.timedelta(days=1)
     assert store.latest("fpl", "bootstrap_static", "all", as_of=before_both) is None
+
+
+def test_a_sole_reader_finds_what_the_glob_finds(tmp_path: Path) -> None:
+    """ORC-09: the listing a sole reader keeps answers every `latest` exactly as the glob does,
+    including keys whose own underscores could blur where the key ends, and after its own write."""
+    keys = ["all", "1", "12", "a_", "a", "a__b", "_", "a_b"]
+    writer = BronzeStore(tmp_path)
+    for day in (1, 2, 3):
+        for key in keys:
+            moment = dt.datetime(2026, 8, day, tzinfo=dt.UTC)
+            _write(writer, f"{key}{day}".encode(), key=key, now=moment)
+    torn = tmp_path / "demo" / "things" / "2026-08-03" / "torn__20260803T000000Z.json.gz"
+    torn.write_bytes(b"")
+
+    reader = BronzeStore(tmp_path, sole_reader=True)
+    mid = dt.datetime(2026, 8, 2, 12, tzinfo=dt.UTC)
+    for key in [*keys, "torn", "absent", "a_b_"]:
+        for as_of, suffix in ((None, ".json.gz"), (mid, ".json.gz"), (None, ".csv.gz")):
+            found = reader.latest("demo", "things", key, as_of=as_of, suffix=suffix)
+            expected = writer.latest("demo", "things", key, as_of=as_of, suffix=suffix)
+            assert (found and found.path) == (expected and expected.path), key
+
+    _write(reader, b"later", key="all", now=dt.datetime(2026, 8, 4, tzinfo=dt.UTC))
+    latest = reader.latest("demo", "things", "all")
+    assert latest is not None and latest.read_bytes() == b"later"
