@@ -224,3 +224,39 @@ def test_score_model_recommendations_ranks_properly(game_rules: GameRules) -> No
     assert ranked[0].rank == 1
     assert ranked[1].model_name == "xp_v1"
     assert ranked[1].rank == 2
+
+
+def test_double_gameweek_rows_are_summed_per_player() -> None:
+    import pandas as pd
+
+    from fpl_dof.week.score_advice import performances
+
+    rows = pd.DataFrame(
+        {
+            "player_id": [1, 1, 2],
+            "position": ["MID", "MID", "DEF"],
+            "minutes": [90, 0, 0],
+            "total_points": [6, 2, 0],
+        }
+    )
+    perfs = performances(rows)
+    assert (perfs[1].points, perfs[1].minutes) == (8, 90)  # a 0-minute last row must not sub him
+    assert perfs[2].minutes == 0
+
+
+def test_recorded_hit_is_preferred_and_the_fallback_reads_the_rules(game_rules: GameRules) -> None:
+    from fpl_dof.week.score_advice import lineup_from_advice
+
+    advised = {"starting": list(range(1, 12)), "captain": 1}
+    perfs = {i: _perf(i, Position.MID if i > 1 else Position.GKP, 90, 1) for i in range(1, 12)}
+    rec = lineup_from_advice(
+        advised, transfers_made=3, free_transfers=1, recommendation={"hit_points": -8}
+    )
+    assert rec is not None and score_lineup(rec, perfs, game_rules).hit_points == 8
+    fallback = lineup_from_advice(advised, transfers_made=3, free_transfers=1)
+    assert fallback is not None
+    assert score_lineup(fallback, perfs, game_rules).hit_points == 2 * abs(
+        game_rules.transfers.extra_transfer_cost
+    )
+    zero = lineup_from_advice(advised, transfers_made=3, free_transfers=None)
+    assert zero is not None and score_lineup(zero, perfs, game_rules).hit_points == 0

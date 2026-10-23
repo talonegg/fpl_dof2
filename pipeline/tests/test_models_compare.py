@@ -217,7 +217,11 @@ def _ledger_entry(gw: int, transfers: int, free: int) -> dict[str, Any]:
                 "vice_captain": 1,
                 "expected_points": 50.0,
             },
-            "recommendation": {"transfers": moves, "hit_points": 0, "moves": [move] * moves},
+            "recommendation": {
+                "transfers": moves,
+                "hit_points": -4 * max(0, moves - free),
+                "moves": [move] * moves,
+            },
         }
 
     return {
@@ -267,6 +271,23 @@ def test_the_switch_gameweek_follows_the_last_frozen_decision(game_rules: GameRu
     assert gw10["actual"] is None  # not finished
     totals = {s["model"]: s for s in p["season_to_date"]}
     assert totals["c3"]["per_gameweek"][-1]["gameweek"] == 9
+
+
+def test_an_unscored_frozen_decision_gives_way_to_the_live_ledger(game_rules: GameRules) -> None:
+    p = build_models(
+        season="2026/27",
+        decisions=[_decision(7), _decision(8)],
+        scores=[_score(7, "C3", 60)],  # GW8 was decided but the harness never scored it
+        frozen_tag="t",
+        contract_version=CONTRACT_VERSION,
+        statuses={7: _ok(), 8: _ok()},
+        ledger={8: _ledger_entry(8, 0, 1)},
+        performances={8: _perfs()},
+        rules=game_rules,
+    )
+    assert p is not None and p["switch_gameweek"] == 8
+    assert [(g["gameweek"], g["record"]) for g in p["gameweeks"]] == [(7, "frozen"), (8, "live")]
+    assert p["gameweeks"][1]["actual"] is not None
 
 
 def test_two_moves_on_one_free_transfer_cost_a_hit(game_rules: GameRules) -> None:

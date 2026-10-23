@@ -36,7 +36,7 @@ def _week_payload(gameweek: int, captain: int = 1) -> dict[str, object]:
             "hit_points": 0,
             "moves": [{"out": {"player_id": 99}, "in": {"player_id": 15}}],
         },
-        "squad_state": {"bank": 0.5},
+        "squad_state": {"bank": 0.5, "free_transfers": 1},
         "advised": {
             "gameweek": gameweek,
             "squad": SQUAD,

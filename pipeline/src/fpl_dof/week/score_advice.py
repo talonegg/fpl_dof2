@@ -36,7 +36,8 @@ class AdvisedLineup:
     captain: int
     vice_captain: int
     transfers_made: int = 0
-    free_transfers: int = 1
+    free_transfers: int | None = None  # None: the ledger did not record it
+    hit_points: int | None = None  # the hit the advice recorded; preferred over recomputing
     expected_points: float = 0.0
 
 
@@ -164,8 +165,13 @@ def score_lineup(
         extra_captain_pts = 0
 
     points_before_hits = base_points + extra_captain_pts
-    extra_transfers = max(0, advised.transfers_made - advised.free_transfers)
-    hit_points = extra_transfers * 4
+    if advised.hit_points is not None:
+        hit_points = advised.hit_points
+    elif advised.free_transfers is None:
+        hit_points = 0  # unrecorded free transfers: charge nothing rather than invent a number
+    else:
+        extra_transfers = max(0, advised.transfers_made - advised.free_transfers)
+        hit_points = extra_transfers * abs(rules.transfers.extra_transfer_cost)
     net_points = points_before_hits - hit_points
     delta = round(net_points - advised.expected_points, 2)
 
@@ -206,27 +212,43 @@ def score_model_recommendations(
 
 
 def performances(gameweek_rows: pd.DataFrame) -> dict[int, PlayerPerformance]:
-    """One gameweek's ``player_gameweek`` rows as the scorer's per-player performances."""
+    """One gameweek's ``player_gameweek`` rows as per-player performances.
+
+    The table has one row per fixture, so a double gameweek's points and minutes are summed.
+    """
     perfs: dict[int, PlayerPerformance] = {}
     for r in gameweek_rows.itertuples():
         try:
             position = Position(str(getattr(r, "position", "MID")))
         except ValueError:
             position = Position.MID
-        perfs[as_int(r.player_id)] = PlayerPerformance(
-            player_id=as_int(r.player_id),
-            position=position,
-            minutes=as_int(getattr(r, "minutes", 0)),
-            points=as_int(getattr(r, "total_points", 0)),
-        )
+        pid = as_int(r.player_id)
+        minutes = as_int(getattr(r, "minutes", 0))
+        points = as_int(getattr(r, "total_points", 0))
+        if (prev := perfs.get(pid)) is not None:
+            minutes += prev.minutes
+            points += prev.points
+        perfs[pid] = PlayerPerformance(pid, position, minutes, points)
     return perfs
 
 
+def recorded_free_transfers(entry: Mapping[str, Any]) -> int | None:
+    """The free transfers a ledger entry recorded for the owner, or ``None`` when it did not."""
+    state = entry.get("squad_state")
+    value = state.get("free_transfers") if isinstance(state, Mapping) else None
+    return None if value is None else int(value)
+
+
 def lineup_from_advice(
-    advised: Mapping[str, Any], *, transfers_made: int, free_transfers: int
+    advised: Mapping[str, Any],
+    *,
+    transfers_made: int,
+    free_transfers: int | None,
+    recommendation: Mapping[str, Any] | None = None,
 ) -> AdvisedLineup | None:
     """A ledger ``advised`` block as a scorable lineup, or ``None`` when it names no XI."""
     starting = tuple(advised.get("starting") or ())
+    recorded_hit = (recommendation or {}).get("hit_points")  # recorded non-positive
     if not starting:
         return None
     captain = advised.get("captain") or starting[0]
@@ -238,5 +260,6 @@ def lineup_from_advice(
         vice_captain=advised.get("vice_captain") or captain,
         transfers_made=transfers_made,
         free_transfers=free_transfers,
+        hit_points=None if recorded_hit is None else abs(int(recorded_hit)),
         expected_points=float(advised.get("expected_points") or 0.0),
     )
