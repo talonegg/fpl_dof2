@@ -1,8 +1,9 @@
 # Experiment F3 (MOD-09, experiments/f3_training_window.yaml): c3 trained on every season silver holds.
+# Rejected and retired (DL-91); kept so the declared experiment's variant stays registered.
 id: c3_f3
 label: C3 on all seasons (F3)
 description: The champion with the training window widened from the current season to all seasons.
-role: experiment
+role: retired
 published: false
 forecaster:
   type: recipe
