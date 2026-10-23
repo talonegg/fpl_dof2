@@ -30,6 +30,7 @@ from fpl_dof.artefacts import (
     BACKTEST_REPORT_FILENAME,
     EXPERIMENTS_DIRNAME,
     MODELS_HISTORY_DIRNAME,
+    MODELS_HISTORY_FAILURE_FILENAME,
     read_rules,
 )
 from fpl_dof.factory import (
@@ -135,10 +136,30 @@ def run(ctx: StageContext) -> StageResult:
     )
     record_path = _record(ctx, records)
 
-    histories = _models_history(ctx, graded, history, registered, rules)
-    history_path = ctx.layout.ledger / MODELS_HISTORY_DIRNAME / f"{ctx.run_id}.json"
-    history_path.parent.mkdir(parents=True, exist_ok=True)
-    history_path.write_text(json.dumps(histories, indent=1, ensure_ascii=False), encoding="utf-8")
+    # The history is built from the record above and must never cost it (DP-15): a failure is
+    # written beside the report, which backtest.yml fails on in its own step after the append.
+    outputs = [
+        Output(path=report_path),
+        Output(path=predictions_path, rows=len(result.predictions)),
+        Output(path=card_path),
+        Output(path=record_path, rows=len(records)),
+    ]
+    failure_path = directory / MODELS_HISTORY_FAILURE_FILENAME
+    try:
+        histories = _models_history(ctx, graded, history, registered, rules)
+    except Exception as exc:
+        reason = f"the models history could not be built: {type(exc).__name__}: {exc}"
+        log.error("backtest.models_history_failed", extra={"reason": reason})
+        failure_path.write_text(reason + "\n", encoding="utf-8")
+        outputs.append(Output(path=failure_path))
+    else:
+        failure_path.unlink(missing_ok=True)
+        history_path = ctx.layout.ledger / MODELS_HISTORY_DIRNAME / f"{ctx.run_id}.json"
+        history_path.parent.mkdir(parents=True, exist_ok=True)
+        history_path.write_text(
+            json.dumps(histories, indent=1, ensure_ascii=False), encoding="utf-8"
+        )
+        outputs.append(Output(path=history_path, rows=len(histories)))
 
     # Logged at warning when the model loses, because that is the headline finding and it must not
     # scroll past as routine output.
@@ -191,13 +212,7 @@ def run(ctx: StageContext) -> StageResult:
             "strategies_graded": len(result.strategies),
             "strategies_not_graded": len(graded.skipped),
         },
-        outputs=[
-            Output(path=report_path),
-            Output(path=predictions_path, rows=len(result.predictions)),
-            Output(path=card_path),
-            Output(path=record_path, rows=len(records)),
-            Output(path=history_path, rows=len(histories)),
-        ],
+        outputs=outputs,
     )
 
 

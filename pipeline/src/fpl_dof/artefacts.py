@@ -29,6 +29,9 @@ EXPERIMENTS_DIRNAME = "experiments"
 #: Under ``DataLayout.ledger``: the models history the standing backtest simulated, one
 #: ``<run_id>.json`` per run (a list, one document per archive season), kept on ``ledger`` (ORC-06).
 MODELS_HISTORY_DIRNAME = "models_history"
+#: In gold: why this run's models history could not be built. Its presence fails backtest.yml's
+#: own step for it, after the experiments record is appended (DP-15); a run that builds one removes it.
+MODELS_HISTORY_FAILURE_FILENAME = "models-history-failure.txt"
 
 
 class NoBronzeError(RuntimeError):

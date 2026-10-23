@@ -4,11 +4,14 @@ through ``ledger`` from the backtest stage to the published contract."""
 from __future__ import annotations
 
 import json
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
 import pytest
+import yaml
 
+from fpl_dof.artefacts import MODELS_HISTORY_FAILURE_FILENAME
 from fpl_dof.config.models import BacktestConfig, Config, ForecastConfig
 from fpl_dof.factory import Graded
 from fpl_dof.factory import history as factory_history
@@ -22,6 +25,8 @@ from fpl_dof.publish.models_history import build_models_history
 from fpl_dof.rules.models import GameRules
 from fpl_dof.stages import backtest, publish
 from test_backtest import SEASON, RateFromFeatures, make_history
+
+WORKFLOW = Path(__file__).resolve().parents[2] / ".github" / "workflows" / "backtest.yml"
 
 
 def _row(gw: int, points: float, hit: float = 0.0) -> dict[str, Any]:
@@ -205,6 +210,47 @@ def test_the_parallel_history_is_the_sequential_one(
     history, result, sequential = simulated
     parallel = season_histories(result.predictions, history, strategies(), game_rules, _config(2))
     assert parallel == sequential
+
+
+def test_a_history_that_cannot_be_built_never_costs_the_experiments_record(
+    game_rules: GameRules,
+    simulated: Simulated,
+    config: Config,
+    layout: DataLayout,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """D-32, DP-15: the history fails; the stage still writes the record, writes why beside the
+    report, and backtest.yml appends the record before it fails on that, in its own step."""
+    history, result, _ = simulated
+    monkeypatch.setattr(backtest, "read_rules", lambda *_a: game_rules)
+    monkeypatch.setattr(
+        backtest,
+        "read_table_optional",
+        lambda _s, _y, t: history if t.value == "player_gameweek" else None,
+    )
+    monkeypatch.setattr(backtest, "grade", lambda *_a, **_k: Graded(result=result))
+
+    def broken(*_a: Any) -> Any:
+        raise RuntimeError("the simulator diverged")
+
+    monkeypatch.setattr(backtest, "_models_history", broken)
+    ctx = StageContext(config=config, layout=layout, run_id="r-history")
+    backtest.run(ctx)
+    assert (layout.ledger / "experiments" / "r-history.json").exists()
+    assert not (layout.ledger / "models_history" / "r-history.json").exists()
+    failure = layout.gold_for(game_rules.season) / MODELS_HISTORY_FAILURE_FILENAME
+    assert "the simulator diverged" in failure.read_text("utf-8")
+
+    monkeypatch.setattr(backtest, "_models_history", lambda *_a: [])
+    backtest.run(ctx)
+    assert not failure.exists()  # a run that builds one clears it
+
+    steps = yaml.safe_load(WORKFLOW.read_text("utf-8"))["jobs"]["backtest"]["steps"]
+    names = [s.get("name", "") for s in steps]
+    record = names.index("Record this run on the `ledger` branch (MOD-08, ORC-06)")
+    check = names.index("Check the models history was built")
+    assert steps[record]["if"] == "${{ !cancelled() }}" and record < check
+    assert MODELS_HISTORY_FAILURE_FILENAME in steps[check]["run"]
 
 
 def test_the_backtest_records_it_and_the_pipeline_publishes_the_newest(

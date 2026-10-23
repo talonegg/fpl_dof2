@@ -71,7 +71,10 @@ jobs:
           FPL_DOF_CONFIG_FILE: config/ci-backtest.yaml
         run: fpl-dof backtest
 
+      # The record steps run after a failed backtest too: a champion that could not be graded still
+      # writes its experiments record, with why (D-32), and nothing written means nothing appended.
       - name: Upload the backtest report
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
         with:
           name: backtest-report
@@ -83,6 +86,7 @@ jobs:
           if-no-files-found: warn
 
       - name: Record this run on the `ledger` branch (MOD-08, ORC-06)
+        if: ${{ !cancelled() }}
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -95,6 +99,16 @@ jobs:
                 --remote "$remote" --branch ledger --source "$source" \
                 --name "$(basename "$file" .json)" --checkout-dir .ledger-staging
             done
+          done
+
+      # ORC-06, DP-15: a models history that could not be built never costs the experiments record
+      # appended above; the backtest stage writes why, and the run fails here, on its own.
+      - name: Check the models history was built
+        run: |
+          shopt -s nullglob
+          for failure in data/gold/*/models-history-failure.txt; do
+            echo "::error title=Models history not built::$(cat "$failure")"
+            exit 1
           done
 
   alert:
