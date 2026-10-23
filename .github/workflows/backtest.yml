@@ -39,10 +39,10 @@ jobs:
         with:
           python-version: "3.14"
           cache: pip
-          cache-dependency-path: pipeline/pyproject.toml
+          cache-dependency-path: pipeline/requirements.lock
 
       - name: Install fpl-dof
-        run: python -m pip install -e "pipeline[dev]"
+        run: python -m pip install -c pipeline/requirements.lock -e "pipeline[dev]"
 
       # The archive source and the backfill seasons are configuration, not secrets, and they live in
       # a committed file selected here and nowhere else (DL-68). Without it every weekly run since

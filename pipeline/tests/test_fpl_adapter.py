@@ -245,6 +245,39 @@ def test_ingest_snapshots_everything_and_reuses_the_cache(
     assert second.cache_hits == expected_calls
 
 
+def test_a_gameweek_checked_after_a_summary_was_fetched_makes_it_stale(
+    recorded_api: respx.MockRouter, adapter: FplApiAdapter
+) -> None:
+    """The weekly TTL kept GW7 out of player_gameweek for days after it finished (hotfix).
+
+    Summaries fetched before the latest gameweek was checked are refetched inside their TTL; ones
+    fetched after it are cache hits.
+    """
+    bootstrap = load("bootstrap_static")
+    assert isinstance(bootstrap, dict)
+    checked = json.loads(json.dumps(bootstrap))
+    checked["events"][0].update(finished=True, data_checked=True)
+
+    def summaries_fetched() -> int:
+        return sum("element-summary" in str(call.request.url) for call in recorded_api.calls)
+
+    def ingest_at(day: int) -> None:
+        moment = pd.Timestamp(f"2026-10-{day} 02:00", tz="UTC").to_pydatetime()
+        adapter.ingest(IngestRequest(run_id="run-1", player_limit=2, now=moment))
+
+    ingest_at(16)  # the weekly sweep, before the gameweek finished
+    assert summaries_fetched() == 2
+
+    recorded_api.get(f"{BASE}/bootstrap-static/").mock(
+        return_value=httpx.Response(200, json=checked)
+    )
+    ingest_at(20)  # the gameweek is now checked: the 16th's summaries lack it
+    assert summaries_fetched() == 4
+
+    ingest_at(21)  # fetched after it was checked: inside the TTL and current
+    assert summaries_fetched() == 4
+
+
 def test_player_limit_is_honoured_and_warned_about(
     recorded_api: respx.MockRouter, adapter: FplApiAdapter
 ) -> None:

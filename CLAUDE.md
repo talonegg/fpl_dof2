@@ -37,7 +37,7 @@ Python lives in `.venv` at the repo root, created with `uv`. `uv` is installed a
 
 | Task | Command |
 | --- | --- |
-| First-time setup | `python -m uv venv .venv --python 3.14` then `python -m uv pip install --python .venv\Scripts\python.exe -e "pipeline[dev]"` |
+| First-time setup | `python -m uv venv .venv --python 3.14` then `python -m uv pip install --python .venv\Scripts\python.exe -c pipeline\requirements.lock -e "pipeline[dev]"` (the lock pins every dependency, DP-11; regenerate it deliberately — header of `pipeline/requirements.lock`) |
 | Full local pipeline run | `.venv\Scripts\fpl-dof run` |
 | Single pipeline stage | `.venv\Scripts\fpl-dof ingest\|transform\|quality\|forecast\|optimise\|week\|publish` |
 | This week's decision only | `.venv\Scripts\fpl-dof week` |

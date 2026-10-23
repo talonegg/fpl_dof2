@@ -138,6 +138,26 @@ def test_expired_cache_is_refetched(tmp_path: Path) -> None:
 
 
 @respx.mock
+def test_a_snapshot_fetched_before_stale_before_is_refetched_inside_its_ttl(tmp_path: Path) -> None:
+    """The weekly element-summary TTL must not outlive a gameweek finishing after the fetch."""
+    route = respx.get(URL).mock(return_value=httpx.Response(200, json={"ok": True}))
+    fetched = dt.datetime(2026, 10, 16, 2, 0, tzinfo=dt.UTC)
+    later = dt.datetime(2026, 10, 17, 2, 0, tzinfo=dt.UTC)
+    with _fetcher(tmp_path, _config(default_cache_ttl_seconds=7 * 86400)) as fetcher:
+        fetcher.fetch(URL, now=fetched, **FETCH_KWARGS)  # type: ignore[arg-type]
+        hit = fetcher.fetch(URL, now=later, stale_before=fetched, **FETCH_KWARGS)  # type: ignore[arg-type]
+        assert hit.from_cache is True, "fetched at the moment itself is not before it"
+        miss = fetcher.fetch(
+            URL,
+            now=later,
+            stale_before=fetched + dt.timedelta(hours=1),
+            **FETCH_KWARGS,  # type: ignore[arg-type]
+        )
+    assert miss.from_cache is False
+    assert route.call_count == 2
+
+
+@respx.mock
 def test_offline_uses_a_stale_snapshot_rather_than_failing(tmp_path: Path) -> None:
     """DP-15: degrade, never break."""
     respx.get(URL).mock(return_value=httpx.Response(200, json={"ok": True}))

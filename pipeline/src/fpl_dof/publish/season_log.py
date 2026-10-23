@@ -333,6 +333,8 @@ def _hindsight(
         else pd.DataFrame([{"player_id": pid} for pid in played.get("squad", ())])
     )
 
+    # DP-WAIVER(DP-05): placeholder club and prices until ORC-05 solves the hindsight optimum on
+    # real prices, clubs and bank (debt D-31) — see DL-93
     for r in source_picks.itertuples():
         pid = as_int(r.player_id)
         pos = perfs[pid].position if pid in perfs else Position.MID
