@@ -31,7 +31,7 @@ from fpl_dof.silver.store import write_table
 from fpl_dof.silver.tables import Table
 from fpl_dof.stages import week
 from fpl_dof.week.cadence import find_next_deadline_event
-from fpl_dof.week.evaluation import SCORER_VERSION, evaluated, evaluation_path
+from fpl_dof.week.evaluation import EVALUATION_VERSION, evaluated, evaluation_path
 
 DEADLINES = {36: "2027-05-08T10:00:00Z", 37: "2027-05-15T10:00:00Z", 38: "2027-05-23T13:30:00Z"}
 
@@ -201,9 +201,9 @@ def test_the_day_before_gate_reads_the_open_gameweek() -> None:
 # --- the ledger's evaluations, and the week stage asking the state ----------------------------
 
 
-def test_only_evaluations_for_the_current_scorer_version_count(layout: DataLayout) -> None:
-    current = {"scorer_version": SCORER_VERSION, "entry_id": 7}
-    for gw, body in ((35, "not json"), (36, json.dumps({**current, "scorer_version": "old"}))):
+def test_only_evaluations_for_the_current_evaluation_version_count(layout: DataLayout) -> None:
+    current = {"evaluation_version": EVALUATION_VERSION, "entry_id": 7}
+    for gw, body in ((35, "not json"), (36, json.dumps({**current, "evaluation_version": "old"}))):
         evaluation_path(layout, gw, 7).parent.mkdir(parents=True, exist_ok=True)
         evaluation_path(layout, gw, 7).write_text(body, encoding="utf-8")
     evaluation_path(layout, 37, 7).write_text(json.dumps(current), encoding="utf-8")
@@ -214,7 +214,7 @@ def test_another_entrys_evaluation_never_counts(layout: DataLayout) -> None:
     """ORC-05: a run for team ID 1 evaluates for entry 1; the owner's gameweek stays unjudged."""
     path = evaluation_path(layout, 5, 1)
     path.parent.mkdir(parents=True)
-    path.write_text(json.dumps({"scorer_version": SCORER_VERSION, "entry_id": 1}), "utf-8")
+    path.write_text(json.dumps({"evaluation_version": EVALUATION_VERSION, "entry_id": 1}), "utf-8")
     assert evaluated(layout, 1) == frozenset({5})
     assert evaluated(layout, 4529900) == frozenset()
     # Nor does one misfiled under the owner's directory.

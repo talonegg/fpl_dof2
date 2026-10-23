@@ -305,7 +305,7 @@ bank and chips:
 3. **Advised against played** — today's reconciliation.
 
 Results are stored per gameweek under `evaluation/` on `ledger` and recomputed only when the
-scorer's version changes; the season log is assembled from them. One realised-points scorer, in
+evaluation's version changes; the season log is assembled from them. One realised-points scorer, in
 `core` and pinned by a conformance corpus, serves evaluation, the backtest and the models history.
 Each strategy's own-path season simulation stays available as a secondary, labelled view.
 

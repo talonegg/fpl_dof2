@@ -287,7 +287,7 @@ def test_the_captains_belief_is_divided_by_the_rules_armband(
 def test_the_evaluation_scores_each_strategy_and_its_xp(game_rules: GameRules) -> None:
     rules = game_rules.model_copy(update={"season": SEASON})
     result = _evaluate(rules)
-    assert result["scorer_version"] == evaluation.SCORER_VERSION
+    assert result["evaluation_version"] == evaluation.EVALUATION_VERSION
     c3 = result["strategies"]["c3"]
     # The XI scores 2 each but 8 (0), 13 (1), 15 (0); the captain, 9, doubles his 2.
     assert c3["actual"]["points"] == 2 * 8 + 1 + 2
@@ -346,7 +346,7 @@ def test_a_gameweek_waits_for_the_owners_picks_and_history() -> None:
     )
 
 
-def test_a_finished_gameweek_is_evaluated_once_and_again_for_a_new_scorer(
+def test_a_finished_gameweek_is_evaluated_once_and_again_for_a_new_version(
     config: Config, layout: DataLayout, game_rules: GameRules, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     rules = game_rules.model_copy(update={"season": SEASON})
@@ -399,7 +399,7 @@ def test_a_finished_gameweek_is_evaluated_once_and_again_for_a_new_scorer(
     assert evaluation_path(layout, 2, ENTRY).read_bytes() == written
     assert run() == []
 
-    monkeypatch.setattr(evaluation, "SCORER_VERSION", "next")
+    monkeypatch.setattr(evaluation, "EVALUATION_VERSION", "next")
     assert run() == [1, 2]
     stored = json.loads(evaluation_path(layout, 2, ENTRY).read_text("utf-8"))
-    assert stored["scorer_version"] == "next"
+    assert stored["evaluation_version"] == "next"

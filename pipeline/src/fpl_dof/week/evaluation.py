@@ -6,7 +6,7 @@ what happened (xP accuracy, from ORC-08's predictions), and what its advice scor
 owner: what was played and scored, the advice of record and its reconciliation, and the hindsight
 optimum, solved on the owner's real squad, selling prices, clubs and bank as of the deadline (D-31).
 
-The result is ``ledger:evaluation/entry-<id>/gwNN.json``, stamped with :data:`SCORER_VERSION`. A
+The result is ``ledger:evaluation/entry-<id>/gwNN.json``, stamped with :data:`EVALUATION_VERSION`. A
 gameweek is Evaluated for an entry once that entry's file carries the current version (ORC-01), so
 it is computed once and recomputed only when the version changes; another entry's evaluation never
 counts. The season log, ``models.json``'s live gameweeks and the live xP
@@ -36,7 +36,7 @@ from fpl_dof.obs.logging import get_logger
 from fpl_dof.paths import DataLayout
 from fpl_dof.quality.rules import lagging_players
 from fpl_dof.rules.models import GameRules, Position
-from fpl_dof.rules.realised import SCORER_VERSION, Lineup, PlayerPerformance, performances
+from fpl_dof.rules.realised import Lineup, PlayerPerformance, performances
 from fpl_dof.squad.state import SquadStateError, gameweek_price_index, load_squad_state
 from fpl_dof.week.diagnose import diagnose_oracle_gap
 from fpl_dof.week.oracle import solve_hindsight_optimal
@@ -52,7 +52,11 @@ log = get_logger(__name__)
 
 EVALUATION_DIRECTORY = "evaluation"
 PLAYED = "played"
-__all__ = ["SCORER_VERSION", "Evidence", "build_evaluation", "evaluated", "unready"]
+#: Stamped on every stored evaluation (ORC-05). Bump it with any change to how a gameweek is
+#: judged, the realised-points scorer (``rules/realised.py``) included: every Finished gameweek is
+#: then evaluated again.
+EVALUATION_VERSION = "3"  # 3: per entry, deadline prices, the rules' armband; 2: D-36
+__all__ = ["EVALUATION_VERSION", "Evidence", "build_evaluation", "evaluated", "unready"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,7 +95,7 @@ def evaluation_path(layout: DataLayout, gameweek: int, entry_id: int | None) -> 
 
 
 def read_evaluations(layout: DataLayout, entry_id: int | None) -> dict[int, dict[str, Any]]:
-    """Every evaluation made for ``entry_id`` stamped with :data:`SCORER_VERSION`, by gameweek.
+    """Every evaluation made for ``entry_id`` stamped with :data:`EVALUATION_VERSION`, by gameweek.
 
     Another entry's never counts: it is in another directory, and a file whose own ``entry_id``
     is not this one is skipped. An unreadable file counts as not evaluated, logged: the step runs
@@ -103,17 +107,17 @@ def read_evaluations(layout: DataLayout, entry_id: int | None) -> dict[int, dict
         try:
             gameweek = int(path.stem.removeprefix("gw"))
             body = json.loads(path.read_text(encoding="utf-8"))
-            stamp = body.get("scorer_version"), body.get("entry_id")
+            stamp = body.get("evaluation_version"), body.get("entry_id")
         except (ValueError, OSError, AttributeError) as exc:
             log.warning("evaluation.unreadable", extra={"path": str(path), "detail": str(exc)})
             continue
-        if stamp == (SCORER_VERSION, entry_id):
+        if stamp == (EVALUATION_VERSION, entry_id):
             done[gameweek] = body
     return done
 
 
 def evaluated(layout: DataLayout, entry_id: int | None) -> frozenset[int]:
-    """The gameweeks evaluated for ``entry_id`` and stamped with :data:`SCORER_VERSION`."""
+    """The gameweeks evaluated for ``entry_id`` and stamped with :data:`EVALUATION_VERSION`."""
     return frozenset(read_evaluations(layout, entry_id))
 
 
@@ -203,7 +207,7 @@ def build_evaluation(
     return {
         "gameweek": gameweek,
         "season": evidence.season,
-        "scorer_version": SCORER_VERSION,
+        "evaluation_version": EVALUATION_VERSION,
         "evaluated_at": as_of.astimezone(dt.UTC).isoformat().replace("+00:00", "Z"),
         "run_id": run_id,
         "entry_id": entry_id,

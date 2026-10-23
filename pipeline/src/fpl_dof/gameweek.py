@@ -76,7 +76,7 @@ class Phase(StrEnum):
     FINISHED = "finished"
     """FPL has marked it finished and data-checked: its points are final."""
     EVALUATED = "evaluated"
-    """The ledger holds its evaluation for the current scorer version (ORC-05)."""
+    """The ledger holds its evaluation for the current evaluation version (ORC-05)."""
 
 
 class Due(StrEnum):
@@ -136,7 +136,7 @@ def gameweek_state(
     gameweek: int, silver: SilverTables, ledger: Collection[int], now: dt.datetime
 ) -> GameweekState:
     """The state of ``gameweek`` at ``now``; ``ledger`` is the gameweeks evaluated for the current
-    scorer version.
+    evaluation version.
 
     A blank or postponed fixture changes which fixtures a gameweek has, and so when it starts
     Playing, never which phase it is in by any other route: the deadline and FPL's flags decide.

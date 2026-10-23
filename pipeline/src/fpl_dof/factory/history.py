@@ -3,8 +3,8 @@
 A virtual season per strategy and archive season: a fresh squad at its first graded gameweek, then
 every graded gameweek the decision engine's week (transfers and hits, XI, captain) on that
 strategy's walk-forward forecast, scored by the one realised-points scorer (ORC-04) on what the
-players actually did. No chips, a one-gameweek horizon, one free transfer a week rolling to the
-maximum. A backtest, not real play: every strategy plays its own squad, so the seasons differ by
+players actually did. No chips, a one-gameweek horizon, free transfers as the rules earn and roll
+them. A backtest, not real play: every strategy plays its own squad, so the seasons differ by
 forecast and policy alone.
 
 The forecast is the walk's own: each fold's prediction was made from data strictly before that
@@ -36,7 +36,7 @@ from fpl_dof.frames import as_float, as_int
 from fpl_dof.optimise.squad import optimise_squad
 from fpl_dof.optimise.transfer import TransferOption
 from fpl_dof.rules.models import GameRules, Position
-from fpl_dof.rules.realised import SCORER_VERSION, Lineup, performances, score_lineup
+from fpl_dof.rules.realised import Lineup, performances, score_lineup
 from fpl_dof.squad.state import HeldPlayer, Provenance, SquadState, free_transfers_after
 
 #: What every simulated season assumes, published as the history's provenance.
@@ -45,14 +45,14 @@ SETTINGS: dict[str, str] = {
         "fpl_dof.factory.history: the decision engine's week on each strategy's walk-forward "
         "forecast (ORC-06)"
     ),
-    "scorer": f"rules/realised.py, scorer version {SCORER_VERSION} (ORC-04)",
+    "scorer": "rules/realised.py, the one realised-points scorer (ORC-04)",
     "captain": (
         "each strategy's own captain rule (registry policy.captain_rule); B0 fitted on its "
         "training window before each deadline"
     ),
     "settings": (
-        "fresh squad at the first graded gameweek; FPL auto-subs and vice fallback; one free "
-        "transfer a week rolling to the maximum, extra transfers charged; no chips; a "
+        "fresh squad at the first graded gameweek; the game's auto-subs and vice fallback; free "
+        "transfers earned and rolled as the rules set, extra transfers charged; no chips; a "
         "one-gameweek horizon; no availability news (the archive carries none)"
     ),
 }
