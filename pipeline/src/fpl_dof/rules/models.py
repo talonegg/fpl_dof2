@@ -167,6 +167,10 @@ class ChipRules(_Frozen):
         description="Chips under which the gameweek's transfers cost no points."
     )
 
+    def armband(self, chip: str | None) -> int:
+        """The armband's multiplier in a gameweek with ``chip`` played (or none)."""
+        return self.captain_multiplier_by_chip.get(chip or "", self.captain_multiplier)
+
 
 class ApiScoring(_Frozen):
     """Exactly the scoring values a source publishes. No supplementary values may appear here."""

@@ -72,8 +72,11 @@ A case that the scorer cannot reproduce is a failing test, not an expectation to
 
 ### How a case is built from the public endpoints
 
-From `entry/{id}/event/{gw}/picks/`, `event/{gw}/live/` and `entry/{id}/history/`, with no
-credentials (Invariant 4):
+`scripts/realised_corpus.py` builds the file (DP-11). The committed cut is
+`python scripts/realised_corpus.py --owner 4529900 --league 1656895 --last-gameweek 7`, the owner
+and the mini-league's ten others; it keeps the owner's gameweeks and every other case with a tag.
+It reads `entry/{id}/event/{gw}/picks/`, `event/{gw}/live/` and `entry/{id}/history/`, with no
+credentials (Invariant 4), one request a second, cached under `data/`:
 
 1. **The submitted team.** A finished gameweek's picks are the XI *after* substitution. Each pair in
    `automatic_subs` is swapped back, last first, to recover the team as it stood at the deadline.

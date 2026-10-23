@@ -137,7 +137,7 @@ def score_lineup(
                     break
         fielded = starting
 
-    multiplier = chips.captain_multiplier_by_chip.get(lineup.chip or "", chips.captain_multiplier)
+    multiplier = chips.armband(lineup.chip)
     vice_used = False
     captain_id = lineup.captain
     if not played(lineup.captain) and played(lineup.vice_captain):

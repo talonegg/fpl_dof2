@@ -192,7 +192,7 @@ def build_plan(
             scored[key] = ScoredPlan(key, plan, None)
             order.append(key)
 
-    scored = _simulate_all(scored, pool, decision, weeks)
+    scored = _simulate_all(scored, pool, rules, decision, weeks)
     ordered = _order(scored, order)
 
     recommended, rationale = _choose(ordered, scored[BASELINE_KEY], decision)
@@ -400,6 +400,7 @@ def _choose(
 def _simulate_all(
     scored: Mapping[str, ScoredPlan],
     pool: pd.DataFrame,
+    rules: GameRules,
     decision: DecisionConfig,
     weeks: tuple[int, ...],
 ) -> dict[str, ScoredPlan]:
@@ -411,7 +412,7 @@ def _simulate_all(
     for offset, (key, candidate) in enumerate(sorted(scored.items())):
         entries: list[PlayerDraw] = []
         for week in candidate.plan.weeks:
-            entries.extend(_draws(week, lookup, decision, weeks))
+            entries.extend(_draws(week, lookup, rules, decision, weeks))
         simulation = simulate(
             entries, decision.simulation, dial=decision.risk.dial, seed_offset=offset
         )
@@ -422,12 +423,13 @@ def _simulate_all(
 def _draws(
     week: PlannedWeek,
     lookup: Mapping[int, object],
+    rules: GameRules,
     decision: DecisionConfig,
     weeks: tuple[int, ...],
 ) -> list[PlayerDraw]:
     """One gameweek of a plan, as sampling entries. Discounted exactly as the objective is."""
     discount = decision.horizon.discount ** weeks.index(week.gameweek)
-    captain_multiplier = decision.chips.captain_multiplier_by_chip.get(week.chip or "", 2)
+    captain_multiplier = rules.chips.armband(week.chip)
     bench_weight = 1.0 if week.chip == "bboost" else decision.horizon.bench_weight
     starting = set(week.starting)
 

@@ -378,12 +378,8 @@ class _Model:
         problem += pulp.lpSum(terms)
 
     def _captain_multiplier(self, chip: str | None) -> int:
-        """The captain multiplier in force. Configuration, never a literal (Invariant 2)."""
-        if chip is None:
-            return self.optimiser.captain_multiplier
-        return self.decision.chips.captain_multiplier_by_chip.get(
-            chip, self.optimiser.captain_multiplier
-        )
+        """The captain multiplier in force: the rules' own, never a literal (Invariant 2)."""
+        return self.rules.chips.armband(chip)
 
     def _squad_constraints(self, problem: pulp.LpProblem, week: int) -> None:
         rules = self.squad_rules
