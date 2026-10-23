@@ -10,7 +10,7 @@
     "contract_version": { "type": "integer", "const": 1 },
     "season": { "type": "string" },
     "as_of": { "type": "string", "format": "date-time", "description": "UTC instant of the input snapshot the advice was decided on (ORC-03, DL-94). Absent before R1.3.0." },
-    "trigger": { "type": "string", "pattern": "^(schedule|manual|day-before|change:[a-z_,]+)$", "description": "What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0." },
+    "trigger": { "type": "string", "pattern": "^(manual|schedule|day-before|change:(prices|status|fixtures|odds)(,(prices|status|fixtures|odds))*)$", "description": "What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0." },
     "champion": { "type": "string", "description": "The model id whose advice is live." },
     "switch_gameweek": { "type": ["integer", "null"], "description": "The first gameweek recorded live. Earlier gameweeks are the retired frozen harness's virtual seasons; later ones are each strategy's advice on the owner's real squad (DL-87, DL-89). Null when the frozen record decided nothing. Absent means null." },
     "frozen": {
@@ -76,7 +76,7 @@
         "hit_points": { "type": "integer", "maximum": 0 },
         "starting": { "type": "array", "items": { "type": "integer" } },
         "as_of": { "type": "string", "format": "date-time", "description": "UTC instant of the input snapshot the advice was decided on (ORC-03, DL-94). Absent before R1.3.0." },
-        "trigger": { "type": "string", "pattern": "^(schedule|manual|day-before|change:[a-z_,]+)$", "description": "What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0." },
+        "trigger": { "type": "string", "pattern": "^(manual|schedule|day-before|change:(prices|status|fixtures|odds)(,(prices|status|fixtures|odds))*)$", "description": "What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0." },
         "starting_names": { "type": "array", "items": { "type": "string" } },
         "bench_order": { "type": "array", "items": { "type": "integer" } },
         "bench_names": { "type": "array", "items": { "type": "string" } },

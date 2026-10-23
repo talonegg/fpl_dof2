@@ -222,8 +222,17 @@ def pipeline_decision(
 
 #: What may start a pipeline run (ORC-02), as `pipeline.yml`'s `trigger` input names it. The cron
 #: tick sends none. `schedule` is the daily refresh the slow ingest dispatches; `change` carries the
-#: change manifest's kinds; `day-before` must publish a fresh contract.
-TRIGGERS: tuple[str, ...] = ("manual", "schedule", "change", "day-before")
+#: change manifest's kinds; `day-before` must publish a fresh contract. The one home of the
+#: vocabulary (DP-14): config, the dispatch script and the contract schemas are held to it.
+MANUAL, SCHEDULE, CHANGE, DAY_BEFORE = "manual", "schedule", "change", "day-before"
+TRIGGERS: tuple[str, ...] = (MANUAL, SCHEDULE, CHANGE, DAY_BEFORE)
+
+_KIND = "|".join(CHANGE_KINDS)
+#: What a run stamps on its advice (ORC-03): its trigger, a change as ``change:`` and the kinds
+#: that moved. Every contract schema's ``trigger`` pattern is this one (``test_dispatch.py``).
+TRIGGER_STAMP = (
+    f"^({'|'.join(t for t in TRIGGERS if t != CHANGE)}|{CHANGE}:({_KIND})(,({_KIND}))*)$"
+)
 
 
 def dispatch_decision(
@@ -246,7 +255,7 @@ def dispatch_decision(
     if trigger and trigger not in TRIGGERS:
         raise ValueError(f"unknown trigger {trigger!r}; expected one of {', '.join(TRIGGERS)}")
     unknown = sorted(set(kinds) - set(CHANGE_KINDS))
-    if unknown or bool(kinds) != (trigger == "change"):
+    if unknown or bool(kinds) != (trigger == CHANGE):
         raise ValueError(
             f"kinds {','.join(kinds) or '(none)'} do not fit trigger {trigger or 'tick'!r}: a "
             f"change carries one or more of {', '.join(CHANGE_KINDS)}, any other trigger none"
@@ -265,15 +274,20 @@ def dispatch_decision(
     if gameweek is not None and gameweek != open_gw:
         reason = f"dispatched for gameweek {gameweek}, but the Open gameweek is {open_gw}"
         return ScheduleDecision(False, reason, minutes_to_deadline, open_gw)
-    if open_gw is None and trigger in ("change", "day-before"):
+    if open_gw is None and trigger in (CHANGE, DAY_BEFORE):
         reason = f"no open gameweek could be established; a {trigger} run has nothing to advise"
         return ScheduleDecision(False, reason)
     return ScheduleDecision(True, f"{trigger} run", minutes_to_deadline, open_gw)
 
 
 __all__ = [
+    "CHANGE",
+    "DAY_BEFORE",
+    "MANUAL",
     "MINUTES_PER_HOUR",
+    "SCHEDULE",
     "TRIGGERS",
+    "TRIGGER_STAMP",
     "ScheduleDecision",
     "dispatch_decision",
     "fast_ingest_decision",
