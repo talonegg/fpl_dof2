@@ -341,7 +341,7 @@ def test_deploy_runs_only_after_a_pipeline_run_that_published() -> None:
     run = pipeline["jobs"]["run"]
     assert run["outputs"]["published"] == "${{ steps.published.outputs.published }}"
     marker_step = next(s for s in run["steps"] if s.get("id") == "published")
-    assert "test -f data/web/v1/meta.json" in marker_step["run"]
+    assert 'test -f "${{ steps.contract.outputs.dir }}/meta.json"' in marker_step["run"]
     steps = [s.get("name") or s.get("uses") for s in run["steps"]]
     assert steps.index(marker_step["name"]) > steps.index(
         "Run the pipeline (transform through publish)"

@@ -144,6 +144,13 @@ jobs:
       - name: Install fpl-dof
         run: uv pip install --system -c pipeline/requirements.lock -e pipeline
 
+      # The published directory follows the contract's major version, from its one home (WEB-02).
+      - name: The published contract's directory
+        id: contract
+        run: |
+          version="$(python -c 'from fpl_dof.publish.contract import CONTRACT_VERSION as v; print(v)')"
+          echo "dir=data/web/v$version" >> "$GITHUB_OUTPUT"
+
       - name: Restore data from the `data` branch
         run: python pipeline/scripts/retention.py restore data
 
@@ -216,7 +223,7 @@ jobs:
         if: steps.still.outputs.run == 'true'
         id: published
         run: |
-          test -f data/web/v1/meta.json
+          test -f "${{ steps.contract.outputs.dir }}/meta.json"
           echo "published=true" >> "$GITHUB_OUTPUT"
 
       - name: Upload the published web contract
@@ -224,7 +231,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: web-data-contract
-          path: data/web/v1
+          path: ${{ steps.contract.outputs.dir }}
           retention-days: 14
 
       # Append-only, through the same mechanism that keeps `snapshots` (E7-S4): identical bytes

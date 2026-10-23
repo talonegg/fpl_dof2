@@ -47,19 +47,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Ensure the data directory exists
-        run: mkdir -p web/public/data/v1
+      # The data directory follows the contract version the app was generated for (WEB-02).
+      - name: The data directory for the app's contract version
+        id: contract
+        run: |
+          version="$(sed -n 's/^export const CONTRACT_VERSION = \([0-9][0-9]*\);.*/\1/p' web/src/contract/types.ts)"
+          test -n "$version"
+          mkdir -p "web/public/data/v$version"
+          echo "dir=web/public/data/v$version" >> "$GITHUB_OUTPUT"
 
       - name: Download this pipeline run's contract
         if: inputs.from_pipeline
         uses: actions/download-artifact@v4
         with:
           name: web-data-contract
-          path: web/public/data/v1
+          path: ${{ steps.contract.outputs.dir }}
 
       - name: Must publish - require the fresh contract
         if: inputs.must_publish
-        run: python pipeline/scripts/contract_fresh.py web/public/data/v1 --max-age-hours 6
+        run: python pipeline/scripts/contract_fresh.py ${{ steps.contract.outputs.dir }} --max-age-hours 6
 
       # push/dispatch only. The `data` branch has never carried a contract (DL-68), so it comes from
       # the newest pipeline run that uploaded one, whatever that run's conclusion: a run over its
@@ -76,7 +82,7 @@ jobs:
           while read -r artefact; do
             [ -z "$artefact" ] && continue
             if gh api "$artefacts/$artefact/zip" > "$RUNNER_TEMP/contract.zip" \
-                && unzip -oq "$RUNNER_TEMP/contract.zip" -d web/public/data/v1; then
+                && unzip -oq "$RUNNER_TEMP/contract.zip" -d ${{ steps.contract.outputs.dir }}; then
               echo "restored contract artefact $artefact"
               restored=1
               break
@@ -84,7 +90,7 @@ jobs:
             echo "::warning::contract artefact $artefact could not be downloaded"
           done < <(gh api "$artefacts?name=web-data-contract&per_page=100" \
             --jq '.artifacts | map(select(.expired | not)) | sort_by(.created_at) | reverse | .[].id')
-          if [ -z "$restored" ] || [ -z "$(ls -A web/public/data/v1 2>/dev/null)" ]; then
+          if [ -z "$restored" ] || [ -z "$(ls -A ${{ steps.contract.outputs.dir }} 2>/dev/null)" ]; then
             echo "::error::no published contract found; failing so the previous Pages site stays live"
             exit 1
           fi
@@ -103,7 +109,7 @@ jobs:
         working-directory: web
         run: npm run typecheck
 
-      # Client-side password gate (deterrence only; data/v1 and the bundle stay public). With no
+      # Client-side password gate (deterrence only; the data and the bundle stay public). With no
       # secret the build still succeeds, but the site fails closed: it shows "Site locked: password
       # not configured" and never renders the app.
       - name: Check the password hash secret
