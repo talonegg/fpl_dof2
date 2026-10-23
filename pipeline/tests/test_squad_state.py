@@ -174,6 +174,88 @@ def test_purchase_price_comes_from_the_gameweek_price_when_held_from_the_start(
     assert not any("no purchase price" in w for w in state.warnings)
 
 
+def test_purchase_price_is_what_was_paid_not_the_price_at_the_latest_picks(
+    game_rules: GameRules,
+) -> None:
+    """Production GW8, 2026-10-23: picks ran to GW7, but the per-gameweek prices (element
+    summaries, refreshed in a weekly sweep) stopped at GW6. Looking up the price at the latest picks
+    found nothing, every player fell back to the current price, and the budget was overstated.
+    What was paid is the transfer cost for a player bought in, and the price at the first held
+    gameweek for one held since the start — neither depends on the latest week's prices."""
+    players = _players()
+    held = [pick.player_id for pick in legal_declaration(players)]
+    sold, bought = same_position_swap(players, held)
+    after = [bought if player_id == sold else player_id for player_id in held]
+    transfers = pd.DataFrame(
+        [
+            {
+                "entry_id": 1234,
+                "gameweek": 2,
+                "player_in_id": bought,
+                "player_in_cost": 3.7,
+                "player_out_id": sold,
+                "player_out_cost": 4.0,
+                "made_at": pd.Timestamp("2026-08-25T10:00:00Z"),
+            }
+        ]
+    )
+    # Only GW1 is known, at a price below today's for everyone.
+    player_gameweek = pd.DataFrame(
+        [
+            {"season": "2026/27", "gameweek": 1, "player_id": player_id, "price": 3.5}
+            for player_id in held
+        ]
+    )
+
+    state = load_squad_state(
+        entry_config=EntryConfig(team_id=1234),
+        rules=game_rules,
+        players=players,
+        next_gameweek=3,
+        picks=pd.concat([_picks_frame(held, 1), _picks_frame(after, 2)]),
+        transfers=transfers,
+        entry=pd.DataFrame([{"bank": 0.0}]),
+        gameweek_prices=gameweek_price_index(player_gameweek, "2026/27"),
+    )
+
+    assert state.as_of_gameweek == 2
+    paid = {player.player_id: player.purchase_price for player in state.players}
+    assert paid.pop(bought) == 3.7, "the transfer log is what was paid"
+    assert set(paid.values()) == {3.5}, "held since GW1: the GW1 price"
+    assert not any("no purchase price" in w for w in state.warnings)
+
+
+def test_an_unknown_purchase_price_never_overstates_the_budget(game_rules: GameRules) -> None:
+    """When what was paid is unknowable, assume the lowest price seen this season: the sell-on fee
+    can then only be overstated, so the budget never claims money the squad cannot raise."""
+    players = _players()
+    held = [pick.player_id for pick in legal_declaration(players)]
+    current = players.set_index("player_id")["price"]
+    # GW2 is the first held gameweek, but only GW1 and GW3 prices are known.
+    player_gameweek = pd.DataFrame(
+        [
+            {"season": "2026/27", "gameweek": gw, "player_id": player_id, "price": price}
+            for player_id in held
+            for gw, price in ((1, current[player_id] - 0.6), (3, current[player_id] - 0.2))
+        ]
+    )
+
+    state = load_squad_state(
+        entry_config=EntryConfig(team_id=1234),
+        rules=game_rules,
+        players=players,
+        next_gameweek=4,
+        picks=pd.concat([_picks_frame(held, 2), _picks_frame(held, 3)]),
+        entry=pd.DataFrame([{"bank": 0.0}]),
+        gameweek_prices=gameweek_price_index(player_gameweek, "2026/27"),
+    )
+
+    for player in state.players:
+        assert player.purchase_price == pytest.approx(current[player.player_id] - 0.6)
+    assert state.sell_value(game_rules) < round(sum(current[p] for p in held), 1)
+    assert sum("no purchase price" in w for w in state.warnings) == SQUAD_SIZE
+
+
 def test_a_missing_purchase_price_warns_rather_than_pretending(game_rules: GameRules) -> None:
     players = _players()
     held = [pick.player_id for pick in legal_declaration(players)]
