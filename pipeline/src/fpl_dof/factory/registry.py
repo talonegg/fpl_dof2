@@ -30,7 +30,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, field_valida
 from fpl_dof.config.models import CaptainRule, Config, ForecastConfig
 from fpl_dof.decision import DecisionPolicy
 from fpl_dof.forecast import xp_v1
-from fpl_dof.forecast.backtest import StrategyPredictor
+from fpl_dof.forecast.backtest import StrategyPredictor, TrainingWindow
 from fpl_dof.forecast.entry import Forecast, publishable
 from fpl_dof.forecast.inputs import ForecastInputs
 from fpl_dof.obs.logging import get_logger
@@ -75,7 +75,7 @@ class Forecaster(_Entry):
     config: dict[str, Any] = Field(
         default_factory=dict, description="Overrides on the shipped forecast config"
     )
-    training_window: Literal["current_season", "all_seasons"] = Field(
+    training_window: TrainingWindow = Field(
         description=(
             "Which seasons of player-gameweek history the forecaster is fitted on. "
             "`current_season` keeps the champion's training set fixed when the archive is "
