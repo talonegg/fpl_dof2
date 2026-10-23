@@ -497,6 +497,50 @@ def test_past_season_odds_keep_permanent_club_codes_through_enrichment(tmp_path:
     assert list(enriched["away_team_id"]) == [39, 36, 9]
 
 
+@pytest.mark.parametrize("current_names", [[], ["Arsenal", "Leeds"]])
+def test_enrichment_tolerates_int_coded_past_rows_with_any_current_season_set(
+    current_names: list[str],
+) -> None:
+    """backtest.yml crashed in transform on pandas 3.1: past rows' club codes made the id columns
+    int64, and the current-season write (empty, or with an unmapped club) cannot land in int64.
+    Codes survive, mapped clubs get their id, unmapped ones stay null; club_coded then reads it."""
+    import pandas as pd
+
+    from fpl_dof.gold.match_odds import club_coded
+    from fpl_dof.sources.enrich import _attach_team_ids
+
+    past = pd.DataFrame(
+        {
+            "season": ["2024/25"],
+            "home_team": ["Arsenal"],
+            "away_team": ["Wolves"],
+            "home_team_id": [3],
+            "away_team_id": [39],
+        }
+    )
+    current = pd.DataFrame(
+        {
+            "season": ["2026/27"] * len(current_names),
+            "home_team": current_names,
+            "away_team": current_names[::-1],
+            "home_team_id": [None] * len(current_names),
+            "away_team_id": [None] * len(current_names),
+        }
+    )
+    frame = pd.concat([past, current], ignore_index=True) if current_names else past
+    if not current_names:
+        assert frame["home_team_id"].dtype == "int64"  # the CI shape
+    teams = pd.DataFrame({"team_id": [1], "name": ["Arsenal"], "short_name": ["ARS"]})
+
+    enriched = _attach_team_ids(frame, teams, "2026/27")
+
+    expected_home = [3, *[1 if n == "Arsenal" else None for n in current_names]]
+    assert [None if pd.isna(v) else int(v) for v in enriched["home_team_id"]] == expected_home
+    assert enriched["away_team_id"].iloc[0] == 39
+    coded = club_coded(enriched, "2026/27", teams.assign(code=[3]))
+    assert coded["home_team_code"].iloc[0] == 3
+
+
 def test_a_completed_seasons_odds_are_fetched_once_and_never_again(tmp_path: Path) -> None:
     """REM-06 / PIPE-04: a past season's match file is immutable bronze; a second run makes no
     request for it (PIPE-03)."""

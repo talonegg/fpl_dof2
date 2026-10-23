@@ -131,5 +131,5 @@ def test_the_a_predictor_scores_a_fold_as_the_harness_hands_it(game_rules: GameR
     predictor = load_strategy("a").predictor(game_rules, _forecast_config())
     assert isinstance(predictor, a.APredictor)
     predictor.fit_as_of(history, deadline, season=game_rules.season)
-    got = predictor.predict(visible)
+    got = predictor.predict(visible, gameweek=4)
     assert got.index.equals(visible.index) and got.notna().all() and (got != 0).any()
