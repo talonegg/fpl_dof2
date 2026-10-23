@@ -279,8 +279,9 @@ jobs:
 
   # From the run's start to its last job, deploy included, against
   # schedule.pipeline_run_budget_seconds (ORC-09). Over budget the run ends red and alerts; its
-  # contract is already uploaded, and deploy.yml's fallback still finds it.
-  budget:
+  # contract is already uploaded, and deploy.yml's fallback still finds it. Named apart from CI's
+  # `budget` job, since both report on the same commit.
+  pipeline-budget:
     needs: [run, deploy]
     if: ${{ !cancelled() && needs.run.result == 'success' }}
     runs-on: ubuntu-latest
@@ -304,7 +305,7 @@ jobs:
         run: python pipeline/scripts/ci_runs.py budget pipeline_run_budget_seconds
 
   alert:
-    needs: [guard, run, budget]
+    needs: [guard, run, pipeline-budget]
     if: failure()
     uses: ./.github/workflows/alert-on-failure.yml
     with:
