@@ -3,7 +3,7 @@
 **Companion to:** [03-solution-architecture.md](03-solution-architecture.md) (what runs today) and
 [04-conceptual-design.md](04-conceptual-design.md) (each component's design)
 **Adopted by:** [DL-86](../decisions/DL-86.md), 2026-10-22 · **Delivered by:** R1.2.0, R1.3.0 and
-R1.4.0 ([backlog](epics/R1.2.0-modular-platform-backlog.md))
+R1.4.0 ([backlog](archive/R1.2.0/R1.2.0-modular-platform-backlog.md))
 
 This page is the design the platform is moving to, downstream of the data pipeline. It is living:
 when a release builds part of it, that part is rewritten into 03 as what runs today and cut down
@@ -336,8 +336,9 @@ user, so there is no split testing.
   app's; the app checks `contract_version` at runtime and fails visibly.
 - An additive change stays in `v1` and bumps `contract_minor`; a breaking change goes to `v2`,
   published beside `v1` until the app has moved.
-- The web build generates the TypeScript types from `contracts/`; CI checks them. The publish stage
-  writes nothing into `web/src`.
+- The TypeScript types are generated from `contracts/` and checked in; CI checks them, so the web
+  build needs no Python. The publish stage writes nothing into `web/src`.
+- Decoupled deploys and UI flags are deferred past R1.4.0 ([DL-95](../decisions/DL-95.md)).
 
 ---
 
@@ -401,9 +402,10 @@ Each release is a vertical slice that leaves the weekly advice working ([DP-07](
 | --- | --- | --- |
 | **R1.2.0 and R1.2.2 — Registry and five models live**, two drops (DL-87) | Boundaries and `core` (a ratchet); the forecast-frame contract; the registry; all five strategies through one engine with full recommendations; the archive and football-data.co.uk live; the frozen harness retired, the switch marked; N-way comparison UI from the registry; the standing multi-strategy backtest and the experiments store; the first two experiments (card rates, training window) | 03 §12 P1, P3, P6, P9, P10; F1, F3 as experiments; F4, F5 |
 | **R1.3.0 — Gameweek orchestration** | State machine; change manifest and typed dispatch; refresh-all-together; advice of record; the evaluation step; the one scorer; season log from evaluations; reproducible models history | O1, O2; F2 |
-| **R1.4.0 — Independent web** | Decoupled app and data deploys; `contract_minor` and the runtime check; types in the web build; the artefact registry; UI flags; `experiment.yml` and experiments in the app | W1, W2, W3, W5 |
+| **R1.4.0 — UI redesign** ([DL-95](../decisions/DL-95.md)) | The app in eight sections on the artefact registry and one hook; types checked in CI; each model's options, underlying xP, the live season as if played, rivals' moves and odds published. `contract_minor` and the runtime check came in R1.3.0 | W2, W3, W4, W5, W6 |
+| **Later** | Decoupled app and data deploys; UI flags; `experiment.yml` and experiments in the app | W1 |
 
-Stories and acceptance criteria: [R1.2.0 backlog](epics/R1.2.0-modular-platform-backlog.md), [R1.3.0](epics/R1.3.0-gameweek-orchestration.md), [R1.4.0](epics/R1.4.0-independent-web.md).
+Stories and acceptance criteria: [R1.2.0 backlog](archive/R1.2.0/R1.2.0-modular-platform-backlog.md), [R1.3.0](archive/R1.3.0/R1.3.0-gameweek-orchestration.md), [R1.4.0](epics/R1.4.0-ui-redesign.md).
 
 ---
 

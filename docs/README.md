@@ -78,7 +78,7 @@ review in §12) and [conceptual design](planning/04-conceptual-design.md) (each 
 - **R1.1.0 — delivered 2026-10-21: data pipeline uplift.** Remediated before release
   ([DL-81](decisions/DL-81.md)); its backlog is archived in [`planning/archive/R1.1.0/`](planning/archive/README.md).
   **R1.1.1 — tagged 2026-10-22:** the permanent archive verified on `main` ([DL-85](decisions/DL-85.md)). Its effect on the architecture: [architecture §13](planning/03-solution-architecture.md#13-r110--data-architecture-as-delivered).
-- **R1.2.0 and R1.2.2 — tagged 2026-10-23 (R1.2.1 a hotfix, [DL-88](decisions/DL-88.md)); R1.3.0 Drop A tagged, R1.3.1 (Drop B) tagged, and R1.4.0 follows: the modular platform.** Orchestrator, model factory and web as
+- **R1.2.0 and R1.2.2 — tagged 2026-10-23 (R1.2.1 a hotfix, [DL-88](decisions/DL-88.md)); R1.3.0, R1.3.1 and R1.3.2 (gameweek orchestration) tagged; R1.4.0, the UI redesign, open ([DL-95](decisions/DL-95.md)): the modular platform.** Orchestrator, model factory and web as
   independent modules around a strategy registry ([DL-86](decisions/DL-86.md)); design in
   [`planning/05-target-architecture.md`](planning/05-target-architecture.md).
 - **The season — live.** [E8 — ongoing in-season monitoring](planning/epics/E8-ongoing-in-season-monitoring.md)
@@ -95,7 +95,7 @@ criteria. The [release register](planning/epics/README.md) decides the order.
 - A chip calendar for set 1 before GW15; set 1 expires at the GW19 deadline.
 
 **The modular platform — R1.2.0 to R1.4.0 ([DL-86](decisions/DL-86.md))**
-- Stories and order in the [backlog](planning/epics/R1.2.0-modular-platform-backlog.md). It takes in
+- Stories and order in the [backlog](planning/archive/R1.2.0/R1.2.0-modular-platform-backlog.md). It takes in
   P1, P3, P6, P9, P10, W1–W5, O1, O2 and F1–F5 from
   [architecture §12](planning/03-solution-architecture.md#12-module-design--review-of-2026-10-17).
 
@@ -127,8 +127,8 @@ settled DL-11, DL-72 and OD-04 and recorded DL-76 to DL-79.
 | The target design: orchestrator, model factory and web as independent modules, the 2026-10-22 code review | [Target architecture](planning/05-target-architecture.md) |
 | Each component's design: sources, data layer, models, the strategy registry, optimiser, UX, testing, extensibility; open questions (`Q-nn`) | [Conceptual design](planning/04-conceptual-design.md) |
 | Releases (`Rx.y.z`): what is being built now, how to choose what next, and the branching and release model | [Release register](planning/epics/README.md); the procedure is the `release` skill |
-| R1.2.0 and R1.2.2 (tagged): the modular platform's stories | [`planning/epics/R1.2.0-modular-platform-backlog.md`](planning/epics/R1.2.0-modular-platform-backlog.md) |
-| R1.3.0 and R1.4.0: gameweek orchestration and independent web, stories and owner questions | [`R1.3.0-gameweek-orchestration.md`](planning/epics/R1.3.0-gameweek-orchestration.md), [`R1.4.0-independent-web.md`](planning/epics/R1.4.0-independent-web.md) |
+| R1.2.0 and R1.2.2 (tagged): the modular platform's stories | [`planning/archive/R1.2.0/R1.2.0-modular-platform-backlog.md`](planning/archive/R1.2.0/R1.2.0-modular-platform-backlog.md) |
+| R1.3.0 gameweek orchestration (archived) and R1.4.0 UI redesign: stories and owner questions | [`R1.3.0-gameweek-orchestration.md`](planning/archive/R1.3.0/R1.3.0-gameweek-orchestration.md), [`R1.4.0-ui-redesign.md`](planning/epics/R1.4.0-ui-redesign.md) |
 | Where the season stands (rewritten each gameweek), the weekly loop, and the bar for changing the model mid-season | [E8 — ongoing in-season monitoring](planning/epics/E8-ongoing-in-season-monitoring.md) |
 | Environment variables and secrets handling | [`environment.md`](environment.md) |
 | FPL scoring, prices, chips; the FPL API | The `fpl-rules` and `fpl-api` skills in `.claude/skills/` |

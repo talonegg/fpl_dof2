@@ -6,7 +6,7 @@ below
 
 This is the one epic that never closes mid-season. It is not a build plan: it is the weekly
 monitoring loop, the record of where the season stands, and the bar any model change must clear. It
-runs alongside whichever release is open (R1.1.0 now). It is archived to `../archive/R1.0/` with a
+runs alongside whichever release is open (R1.4.0 now). It is archived to `../archive/R1.0/` with a
 filled Status line only after GW38, when §7 is ticked.
 
 **Keeping it current.** At step 5 of each weekly loop, rewrite the season state in place — do not
