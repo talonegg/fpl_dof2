@@ -1,5 +1,5 @@
 // Generated from contracts/v1/*.schema.json — do not edit by hand.
-// Regenerate with: fpl-dof publish
+// Regenerate with: fpl-dof contract types
 //
 // These types are generated from the same schemas the publisher validates against, so the app
 // cannot compile against a shape the pipeline does not produce.
