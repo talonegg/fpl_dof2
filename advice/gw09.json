@@ -1,8 +1,8 @@
 {
   "gameweek": 9,
-  "run_id": "20261024T045554Z-178a7dc7",
-  "recorded_at": "2026-10-24T04:55:54.001187Z",
-  "trigger": "manual",
+  "run_id": "20261024T051315Z-6deb6ea8",
+  "recorded_at": "2026-10-24T05:13:15.851417Z",
+  "trigger": "change:status",
   "advised": {
     "gameweek": 9,
     "squad": [
@@ -307,8 +307,8 @@
         "id": "c3",
         "digest": "3b7f9aea54be23b3bb6e4a01d4c1a436b2c6056655eb0bc7317ff6aeb48e190a"
       },
-      "as_of": "2026-10-24T04:55:54.001187Z",
-      "trigger": "manual",
+      "as_of": "2026-10-24T05:13:15.851417Z",
+      "trigger": "change:status",
       "advised": {
         "gameweek": 9,
         "squad": [
@@ -603,8 +603,8 @@
         "id": "a",
         "digest": "44d9b03c849731068c6976485c4ea877fd221ff85b2909dff680de661e58d4f3"
       },
-      "as_of": "2026-10-24T04:55:54.001187Z",
-      "trigger": "manual",
+      "as_of": "2026-10-24T05:13:15.851417Z",
+      "trigger": "change:status",
       "advised": {
         "gameweek": 9,
         "squad": [
@@ -899,8 +899,8 @@
         "id": "a_odds",
         "digest": "6353a0277234806131a3a10a3f80b601101ee81d4aa6baea19d42c6bf68cd4d1"
       },
-      "as_of": "2026-10-24T04:55:54.001187Z",
-      "trigger": "manual",
+      "as_of": "2026-10-24T05:13:15.851417Z",
+      "trigger": "change:status",
       "no_advice": "no advice: MissingOddsError: no match odds knowable before the gameweek 9 deadline",
       "missing": [
         "team_match_expectation"
@@ -913,8 +913,8 @@
         "id": "c1",
         "digest": "08780568cf73b08fd0a48e6ba95f9575816c0d84fa815141d9260837a01b852d"
       },
-      "as_of": "2026-10-24T04:55:54.001187Z",
-      "trigger": "manual",
+      "as_of": "2026-10-24T05:13:15.851417Z",
+      "trigger": "change:status",
       "advised": {
         "gameweek": 9,
         "squad": [
@@ -1209,8 +1209,8 @@
         "id": "engine",
         "digest": "7225cec1a7acc7ec5057b22fa9401f5d8a04e21927a224b2665ddb5540ff6fdf"
       },
-      "as_of": "2026-10-24T04:55:54.001187Z",
-      "trigger": "manual",
+      "as_of": "2026-10-24T05:13:15.851417Z",
+      "trigger": "change:status",
       "advised": {
         "gameweek": 9,
         "squad": [
