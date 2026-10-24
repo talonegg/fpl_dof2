@@ -21,6 +21,7 @@ describe("This gameweek", () => {
     expect(screen.getByTestId("week-moves")).toBeTruthy();
     expect(screen.getByTestId("dashboard-roll-comparison")).toBeTruthy();
     expect(screen.getByTestId("squad-pitch")).toBeTruthy();
+    expect(screen.getByTestId("squad-budget-check").textContent).toContain("Within budget");
     expect(screen.getByTestId("bench")).toBeTruthy();
     expect(screen.getByText("Why this number")).toBeTruthy();
     expect(screen.getByTestId("decomposition")).toBeTruthy();

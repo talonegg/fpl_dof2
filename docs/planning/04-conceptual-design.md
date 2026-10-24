@@ -710,7 +710,7 @@ Each section's views as they stand; WEB-08 to WEB-14 rebuild them to the R1.4.0 
 | `/models/2025-26` | The 2025/26 playthrough of every frozen model (`/history` redirects) |
 | `/review` Last gameweek | The hindsight optimum against each model's advice (E14), and the options each model weighed at the deadline beside the hindsight's (ORC-11) |
 | `/review/all` | Per evaluated gameweek: played, scored, advised, followed, and the hindsight optimum (DL-69, ORC-05; `/log` redirects) |
-| `/gameweek` This gameweek | Both deadlines, the move with every option weighed, including the roll, the selected model's roll, best single and best overall in the hindsight's table (ORC-11), and the alerts |
+| `/gameweek` This gameweek | Both deadlines, the move with every option weighed, including the roll, the selected model's roll, best single and best overall in the hindsight's table (ORC-11), the squad's value at today's prices with the budget check of the advice, and the alerts |
 | `/gameweek/plan` | Plan ahead: the multi-gameweek plan as a timeline and the chip calendar with its expiry clock |
 | `/scout` Scouting | Every player, virtualised (DL-36): filter, sort, presets, xP with range, trailing form beside it (DL-70), decomposition, "owned" filter, select into Compare |
 | `/scout/fixtures` | Clubs × gameweeks shaded by model difficulty (DL-37; `/fixtures` redirects) |

@@ -1,9 +1,9 @@
 import type { Squad, Week } from "../../contract/types";
-import { formatPoints, formatPrice, formatXpRange } from "../../format";
+import { formatPoints, formatXpRange } from "../../format";
 import { squadTotals } from "../dashboard/totals";
 
 /**
- * What the squad is currently worth, in points rather than pounds.
+ * What the squad is currently worth, in points; its worth in pounds is `SquadBudget`.
  *
  * Every figure here is a *sum of forecasts*, and the panel says so rather than presenting a total
  * as though it were a measurement (DP-09, Invariant 6):
@@ -28,8 +28,6 @@ export function SquadSummary({
   advised?: Week["advised"];
 }) {
   const totals = squadTotals(squad);
-  const budget = squad.budget;
-
   return (
     <section
       className="dash-squad-summary"
@@ -57,16 +55,6 @@ export function SquadSummary({
           detail={`All ${squad.players.length} players total ${formatPoints(totals.squadXpNext)}`}
           testId="dashboard-xp-bench"
         />
-        <Metric
-          label="Squad value"
-          value={formatPrice(squad.total_price)}
-          detail={
-            budget === undefined
-              ? `Solve status: ${squad.status}`
-              : `of a ${formatPrice(budget)} budget · ${squad.status}`
-          }
-          testId="dashboard-squad-value"
-        />
       </div>
 
       {advised?.expected_points !== undefined && (
@@ -86,7 +74,7 @@ export function SquadSummary({
   );
 }
 
-function Metric({
+export function Metric({
   label,
   value,
   detail,
