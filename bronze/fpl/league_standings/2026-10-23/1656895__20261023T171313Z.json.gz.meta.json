@@ -1,0 +1,17 @@
+{
+  "source": "fpl",
+  "source_version": "1",
+  "resource": "league_standings",
+  "key": "1656895",
+  "url": "https://fantasy.premierleague.com/api/leagues-classic/1656895/standings/",
+  "http_status": 200,
+  "fetched_at": "2026-10-23T17:13:13.379853Z",
+  "sha256": "d3931e524b267b6c24dc80af41699d74616e47e9dc0d29d63146a5a057ea9229",
+  "bytes": 2895,
+  "content_encoding": "gzip",
+  "run_id": "20261023T171313Z-e7d7510a",
+  "immutable": false,
+  "retain": false,
+  "etag": null,
+  "last_modified": null
+}
