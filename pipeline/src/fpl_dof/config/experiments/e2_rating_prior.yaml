@@ -22,7 +22,10 @@ length: walk-forward over backtest.training_seasons, then at least six live shad
 graded_by: both
 decision: open
 results: >
-  Not yet graded by the standing backtest. Prior diagnostic that motivated it, not the result: in
+  Condition 1 met: the standing backtest of 2026-10-24 (run 20261024T045556Z-d645e97e, 2024/25 to
+  2025/26, 68 folds) gave MAE -0.0074 [-0.0114, -0.0040] against c3 (better) and Spearman -0.0012
+  [-0.0039, 0.0016] (no change). Live in shadow from R1.4.2, one gameweek at a time (DL-98), for
+  condition 2's six gameweeks. Prior diagnostic that motivated it, not the result: in
   EXP-01's held-out run (2024/25 to 2025/26, 68 folds) setting rating_prior_matches to 8 gave MAE
   -0.0074 [-0.0114, -0.0040] against c3 (better) and moved the goalkeeper share of the predicted
   top 10 only to 32.8% from 33.1%.
