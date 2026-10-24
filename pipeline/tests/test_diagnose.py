@@ -115,3 +115,27 @@ def test_a_model_that_did_not_price_a_player_is_left_out_not_read_as_zero() -> N
     assert henderson.models_xp == {"xp_v1": 2.6}
     assert henderson.category == DiagnosticCategory.HIGH_VARIANCE_OUTLIER  # not a 2.6 spread
     assert henderson.as_dict()["underlying_points"] == 6.12
+
+
+def test_a_player_no_model_priced_is_not_described_as_zero_xp() -> None:
+    """D-37 again: with no model's xP recorded, the words must not say "max 0.0 xP"."""
+    optimal = HindsightOptimalPlan(
+        transfers_count=1,
+        moves=(HindsightMove(10, "Rogers", 16, "Kostoulas", 5.0, 5.0),),
+        starting=(16,),
+        captain_id=13,
+        captain_name="Haaland",
+        points_before_hits=30,
+        hit_points=0,
+        net_points=30,
+        gain_over_roll=5.0,
+    )
+    (move,) = diagnose_oracle_gap(
+        optimal=optimal,
+        player_actuals={16: 12, 13: 8},
+        models_xp={},
+        models_captains={"c3": 13},
+    )
+    assert move.models_xp == {}
+    assert "0.0 xP" not in move.explanation
+    assert "no model's xP for him was recorded" in move.explanation

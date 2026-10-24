@@ -62,6 +62,19 @@ describe("the strategy selector is driven by the registry", () => {
     expect(window.localStorage.getItem(MODEL_STORAGE_KEY)).toBe("zeta_3");
   });
 
+  it("names an experiment as one, not as a comparison", async () => {
+    const strategies = {
+      ...novel.registry,
+      strategies: novel.registry.strategies.map((s) => (s.id === "zeta_5" ? { ...s, role: "experiment" as const } : s)),
+    };
+    installFetchStub({ bodies: { ...five, strategies } });
+    renderApp("/gameweek");
+    await waitFor(() => expect(screen.getByTestId("model-toggle")).toBeTruthy());
+    expect(screen.getByTestId("model-toggle-zeta_5").getAttribute("aria-label")).toBe("Zeta 5 (experiment)");
+    const option = [...(screen.getByTestId("model-select") as HTMLSelectElement).options].find((o) => o.value === "zeta_5");
+    expect(option?.textContent).toBe("Zeta 5 — experiment");
+  });
+
   it("honours ?model= for an id only the registry knows", async () => {
     installFetchStub({ bodies: five });
     window.history.replaceState(null, "", "/?model=zeta_5");

@@ -334,3 +334,17 @@ def test_no_references_is_not_an_error() -> None:
 def test_clubs_resolve_by_full_name_and_by_abbreviation() -> None:
     mapping = resolve_teams(pd.Series(["Arsenal", "AVL", "Nowhere United"]), TEAMS)
     assert mapping == {"Arsenal": 1, "AVL": 2}
+
+
+def test_a_source_name_reaches_its_own_club_never_a_namesake() -> None:
+    """football-data writes "Man United" and "Tottenham": with the generic suffixes dropped,
+    "Man United" reduced to Man City's key and took its fixture; Tottenham matched nothing."""
+    teams = pd.DataFrame(
+        [
+            {"team_id": 15, "name": "Man City", "short_name": "MCI"},
+            {"team_id": 16, "name": "Man Utd", "short_name": "MUN"},
+            {"team_id": 19, "name": "Spurs", "short_name": "TOT"},
+        ]
+    )
+    mapping = resolve_teams(pd.Series(["Man City", "Man United", "Tottenham"]), teams)
+    assert mapping == {"Man City": 15, "Man United": 16, "Tottenham": 19}

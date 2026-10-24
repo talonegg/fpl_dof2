@@ -113,6 +113,12 @@ def diagnose_oracle_gap(
                 f"{move.player_in_name} hauled with {in_actual} pts. Some models projected "
                 f"high upside ({max_xp:.1f} xP) while others discounted the player."
             )
+        elif not in_xps:  # D-37: no recorded xP is not 0.0 xP
+            cat = DiagnosticCategory.HIGH_VARIANCE_OUTLIER
+            exp = (
+                f"{move.player_in_name} hauled with {in_actual} pts; "
+                "no model's xP for him was recorded."
+            )
         else:
             cat = DiagnosticCategory.HIGH_VARIANCE_OUTLIER
             exp = (

@@ -305,18 +305,17 @@ def resolve(
 def resolve_teams(names: pd.Series, teams: pd.DataFrame) -> dict[str, int]:
     """Map club names as a source writes them onto canonical team ids.
 
-    Exact on the reduced key only. A wrong club is cheap to notice and expensive to guess at: it
-    silently reassigns a whole fixture's goal expectation to the wrong twenty players.
+    Exact on the reduced key only, after :data:`CLUB_ALIASES`. A wrong club is cheap to notice and
+    expensive to guess at: it silently reassigns a whole fixture's goal expectation to the wrong
+    twenty players. The aliases come first because the reduced key drops "United" and "City", so
+    "Man United" alone reduces to Man City's key.
     """
     lookup: dict[str, int] = {}
     for row in teams.itertuples():
         lookup[team_key(str(row.name))] = as_int(row.team_id)
         lookup.setdefault(team_key(str(row.short_name)), as_int(row.team_id))
-    return {
-        str(value): lookup[team_key(str(value))]
-        for value in names.dropna().unique()
-        if team_key(str(value)) in lookup
-    }
+    keys = {str(v): team_key(CLUB_ALIASES.get(str(v), str(v))) for v in names.dropna().unique()}
+    return {value: lookup[key] for value, key in keys.items() if key in lookup}
 
 
 CLUB_ALIASES: dict[str, str] = {
