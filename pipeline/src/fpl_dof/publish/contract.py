@@ -80,7 +80,9 @@ ARTEFACTS: dict[str, Artefact] = {
     "models_history": Artefact("models_history.schema.json"),
     # All-player next-GW xP MAE: the 2025/26 backtest season, a frozen-era record carried forward
     # from `publish/records/` (WEB-04), and the live season's from the evaluations (ORC-05).
-    "xp_accuracy": Artefact("xp_accuracy.schema.json", required=True),
+    # shortcut: optional for the release that starts writing it, whose smoke test runs against the
+    # previous release's data; make it required in R1.4.1, once a publication carrying it is live.
+    "xp_accuracy": Artefact("xp_accuracy.schema.json"),
     # The strategy registry as published (MOD-03): every strategy's id, label, role and digest,
     # generated from config/strategies/.
     "strategies": Artefact("strategies.schema.json", warm=True),
