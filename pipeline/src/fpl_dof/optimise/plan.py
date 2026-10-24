@@ -429,8 +429,13 @@ def _draws(
     decision: DecisionConfig,
     weeks: tuple[int, ...],
 ) -> list[PlayerDraw]:
-    """One gameweek of a plan, as sampling entries. Discounted exactly as the objective is."""
-    discount = decision.horizon.discount ** weeks.index(week.gameweek)
+    """One gameweek of a plan, as sampling entries. Discounted exactly as the objective is, unless
+    the D-21 experiment's ``undiscounted_percentile`` arm asks otherwise."""
+    discount = (
+        1.0
+        if decision.simulation.undiscounted_percentile
+        else decision.horizon.discount ** weeks.index(week.gameweek)
+    )
     captain_multiplier = rules.chips.armband(week.chip)
     bench_weight = (
         1.0 if week.chip in rules.chips.bench_scores_with else decision.horizon.bench_weight

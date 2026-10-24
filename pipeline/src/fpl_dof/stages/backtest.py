@@ -45,6 +45,7 @@ from fpl_dof.factory import (
 from fpl_dof.factory.experiments import run_config_digest
 from fpl_dof.factory.history import SETTINGS, season_histories
 from fpl_dof.factory.registry import Strategy, strategies
+from fpl_dof.factory.replay import replay_chip_timing
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.pipeline import Output, StageContext, StageResult
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
@@ -161,6 +162,9 @@ def run(ctx: StageContext) -> StageResult:
         )
         outputs.append(Output(path=history_path, rows=len(histories)))
 
+    if ctx.config.backtest.chip_replay.timing_experiment:
+        outputs.append(_chip_timing(ctx, history, rules))
+
     # Logged at warning when the model loses, because that is the headline finding and it must not
     # scroll past as routine output.
     if not result.beats_b0 or not result.beats_model_free:
@@ -222,6 +226,38 @@ def _record(ctx: StageContext, records: list[dict[str, Any]]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(records, indent=2), encoding="utf-8")
     return path
+
+
+def _chip_timing(ctx: StageContext, history: pd.DataFrame, rules: GameRules) -> Output:
+    """EXP-02's record, ``ledger/experiments/<run_id>-chip-timing.json``, appended by CI.
+
+    Runs after the strategies' record is written and never costs it (DP-15): a replay that fails
+    records why in the same file instead.
+    """
+    config = ctx.config
+    path = ctx.layout.ledger / EXPERIMENTS_DIRNAME / f"{ctx.run_id}-chip-timing.json"
+    try:
+        chips = read_table_optional(ctx.layout.silver, rules.season, Table.CHIP)
+        if chips is None or chips.empty:
+            raise ValueError("silver holds no chip table")
+        record: dict[str, Any] = replay_chip_timing(
+            history,
+            rules=rules,
+            chips=chips,
+            forecast_config=config.forecast,
+            backtest_config=config.backtest,
+            decision=config.decision,
+            optimiser=config.optimiser,
+        )
+        log.info("backtest.chip_timing", extra={"verdict": record["verdict"]})
+    except Exception as exc:
+        reason = f"{type(exc).__name__}: {exc}"
+        log.error("backtest.chip_timing_failed", extra={"reason": reason})
+        record = {"experiment": "d21_chip_timing", "not_run": reason}
+    record.update(run_id=ctx.run_id, config_digest=run_config_digest(config))
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(record, indent=2, default=str), encoding="utf-8")
+    return Output(path=path)
 
 
 def _models_history(

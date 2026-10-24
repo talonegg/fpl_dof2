@@ -8,3 +8,7 @@ backtest:
   training_seasons:
     - 2024/25
     - 2025/26
+  # EXP-02 (D-21): the chip-timing experiment, config/experiments/d21_chip_timing.yaml, written to
+  # ledger/experiments/<run_id>-chip-timing.json after the strategies' record. Advice is untouched.
+  chip_replay:
+    timing_experiment: true
