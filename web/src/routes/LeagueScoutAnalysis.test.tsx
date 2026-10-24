@@ -46,6 +46,41 @@ describe("League: a team's last gameweek (WEB-09)", () => {
     expect(note.textContent).not.toContain("not published");
   });
 
+  it("shows a rival's transfers, hit, chip and differentials with the points each was worth (ORC-14)", async () => {
+    const withThree = {
+      ...history,
+      players: [
+        ...history.players,
+        { id: 3, gameweeks: [{ gw: 3, pts: 7, mins: 90, goals: 0, assists: 0, price: 5 }], prices: [] },
+      ],
+    };
+    installFetchStub({ bodies: { history: withThree } });
+    renderApp("/league/100");
+    const moves = await screen.findByTestId("league-team-moves");
+    expect(moves.textContent).toContain("→ #4");
+    expect(moves.textContent).toContain("−4 points");
+    // The chip by its label, not the API's "3xc".
+    expect(moves.textContent).toContain("Chip: Triple Captain");
+    const diff = screen.getByTestId("league-team-diff");
+    // Only the fielded XI scores: their #4 and your #3 (7 raw points) are both on the bench.
+    await waitFor(() => expect(within(diff).getByTestId("diff-3").textContent).toContain("0"));
+    expect(within(diff).getByTestId("diff-4").textContent).toContain("0");
+    // Both hold Raya (8): their Triple Captain armband from rules.json makes him 24; you field him at 8.
+    expect(within(diff).getByTestId("diff-1").textContent).toContain("24 for them, 8 for you");
+    // 24 - 8, less their 4-point hit: 12 to them.
+    expect(within(diff).getByTestId("diff-net").textContent).toContain("12 points");
+    expect(within(diff).getByTestId("diff-net").textContent).toContain("their hit of 4 counted");
+  });
+
+  it("degrades only the team whose moves were not fetched (ORC-14, NFR-15)", async () => {
+    installFetchStub({ bodies: { history } });
+    renderApp("/league/400");
+    expect((await screen.findByTestId("league-team-no-moves")).textContent).toContain("not available");
+    // Its squad and differentials still render.
+    expect(screen.getByTestId("league-team-player-2")).toBeTruthy();
+    expect(screen.getByTestId("league-team-diff").textContent).toContain("They hold, you do not");
+  });
+
   it("says a team's squad was not published", async () => {
     installFetchStub({ bodies: { history } });
     renderApp("/league/300");

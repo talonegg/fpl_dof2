@@ -120,6 +120,8 @@ class Strategy(_Entry):
         inputs: ForecastInputs,
         rules: GameRules,
         config: Config,
+        *,
+        fitted: Any = None,
     ) -> Forecast:
         """This strategy's forecast frame, validated and stamped with its id and digest.
 
@@ -130,7 +132,8 @@ class Strategy(_Entry):
         refuses to publish one, :func:`unrunnable`).
         A required silver table that is absent or empty is a :class:`MissingInputError` naming it,
         so the stage records "no advice", and which table it waits for, rather than a forecast on
-        missing data.
+        missing data. ``fitted``, an earlier :attr:`Forecast.fitted` of this strategy, predicts with
+        those weights instead of a new fit: the in-sample replay's way in (ORC-13, DL-97).
         """
         recipe = self.forecaster
         if (problem := unrunnable(self)) is not None:
@@ -147,10 +150,12 @@ class Strategy(_Entry):
             )
         forecast_config = effective_forecast_config(config.forecast, recipe.config)
         if (module := _CHALLENGERS.get(recipe.model)) is not None:
-            run: Callable[[ForecastInputs, GameRules, ForecastConfig], Forecast] = module.forecast
-            result = run(inputs, rules, forecast_config)
+            run: Callable[..., Forecast] = module.forecast
+            # Passed only when given, so a test's stand-in ``forecast`` keeps its three arguments.
+            extra = {"fitted": fitted} if fitted is not None else {}
+            result = run(inputs, rules, forecast_config, **extra)
         else:
-            result = publishable(inputs, rules, forecast_config)
+            result = publishable(inputs, rules, forecast_config, fitted=fitted)
         result.frame[STRATEGY_COLUMN] = self.id
         result.frame[STRATEGY_DIGEST_COLUMN] = digest(self, config)
         return result

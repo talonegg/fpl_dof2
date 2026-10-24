@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { installFetchStub, renderApp, resetAppState } from "../../test/render";
-import { modelsFixture, strategiesFixture } from "../../test/fixtures";
+import { modelsFixture, optionSet, strategiesFixture } from "../../test/fixtures";
 import type { Log, Models } from "../../contract/types";
 import { mockLog } from "./fixtures";
 
@@ -67,20 +67,75 @@ describe("Last gameweek", () => {
     expect(screen.getByTestId("review-no-optimal").textContent).toContain("GW7 is not in the season log");
   });
 
-  it("sets out the hindsight options and the players who decided them, without the unreliable per-model xP", async () => {
+  it("sets out the hindsight options and the players who decided them, with each model's xP for them", async () => {
     installFetchStub({ bodies });
     renderApp("/review");
     const options = await screen.findByTestId("review-options");
     expect(within(options).getAllByRole("row")).toHaveLength(3);
-    expect(screen.getByTestId("review-option-0").textContent).toContain("roll");
-    expect(screen.getByTestId("review-option-1").textContent).toContain("best single transfer, best overall");
-    expect(screen.getByTestId("review-option-1").textContent).toContain("Raya → Watkins");
+    expect(screen.getByTestId("review-options-0").textContent).toContain("roll");
+    expect(screen.getByTestId("review-options-1").textContent).toContain("best single transfer, best overall");
+    expect(screen.getByTestId("review-options-1").textContent).toContain("Raya → Watkins");
     const watkins = screen.getByTestId("review-diagnostic-17");
     expect(watkins.textContent).toContain("Model blind spot");
     expect(watkins.textContent).toContain("14 pts");
     expect(watkins.textContent).toContain("Caught out: Champion (C3)");
-    expect(watkins.textContent).not.toContain("5.8");
-    expect(screen.getByTestId("review-diagnostics-xp-note")).toBeTruthy();
+    expect(watkins.textContent).toContain("14 pts (9.43 underlying xP)");
+    const xp = screen.getByTestId("review-diagnostic-xp-17").textContent ?? "";
+    expect(xp).toContain("Champion (C3) 2.10");
+    expect(xp).toContain("5.80");
+  });
+
+  it("does not show an evaluation's per-model xP from before it was the player's own (D-37)", async () => {
+    const before: Log = {
+      ...log,
+      gameweeks: log.gameweeks.map((g) =>
+        g.hindsight
+          ? { ...g, hindsight: { ...g.hindsight, diagnostics: g.hindsight.diagnostics.map(({ underlying_points: _, ...d }) => d) } }
+          : g,
+      ),
+    };
+    installFetchStub({ bodies: { ...bodies, log: before } });
+    renderApp("/review");
+    const watkins = await screen.findByTestId("review-diagnostic-17");
+    expect(watkins.textContent).not.toContain("5.80");
+    expect(watkins.textContent).not.toContain("underlying");
+    expect(screen.queryByTestId("review-diagnostic-xp-17")).toBeNull();
+  });
+
+  it("sets each model's options at the deadline beside the hindsight's (ORC-11)", async () => {
+    const weighed: Models = {
+      ...modelsFixture,
+      gameweeks: modelsFixture.gameweeks.map((g) =>
+        g.gameweek !== 9
+          ? g
+          : {
+              ...g,
+              advice: {
+                ...g.advice,
+                c3: {
+                  ...g.advice.c3,
+                  option_set: optionSet(9, "Haaland", [
+                    [0, [], 60.5, 0],
+                    [1, [["Raya", "Pope"]], 61.25, 0],
+                  ]),
+                },
+              },
+            },
+      ),
+    };
+    installFetchStub({ bodies: { ...bodies, models: weighed } });
+    renderApp("/review");
+    const table = await screen.findByTestId("review-weighed");
+    const optimum = within(table).getByTestId("review-weighed-optimum").textContent;
+    expect(optimum).toContain("70");
+    expect(optimum).toContain("Raya → Watkins · 84 (+14)");
+    const c3 = within(table).getByTestId("review-weighed-c3").textContent;
+    expect(c3).toContain("60.50");
+    expect(c3).toContain("Raya → Pope · 61.25 (+0.75)");
+    expect(within(table).getByTestId("review-weighed-c1").textContent).toContain("Not recorded at the deadline");
+
+    fireEvent.change(screen.getByTestId("review-gameweek"), { target: { value: "8" } });
+    expect(screen.getByTestId("review-no-weighed").textContent).toContain("GW8 deadline");
   });
 
   it("says why when the optimum was not worked out", async () => {

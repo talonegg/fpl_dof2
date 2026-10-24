@@ -8,11 +8,18 @@ Verifies the hindsight oracle transfer and lineup solver:
 
 from __future__ import annotations
 
-import pandas as pd
+import dataclasses
 
+import pandas as pd
+import pytest
+
+from fpl_dof.config.models import OptimiserConfig, TransferConfig
+from fpl_dof.frames import as_float, as_int
+from fpl_dof.optimise.transfer import recommend_transfers
+from fpl_dof.rules.legality import Squad, SquadPlayer, validate_squad
 from fpl_dof.rules.models import GameRules, Position
 from fpl_dof.squad.state import HeldPlayer, Provenance, SquadState
-from fpl_dof.week.oracle import solve_hindsight_optimal
+from fpl_dof.week.oracle import HindsightOptimalResult, option_set, solve_hindsight_optimal
 
 
 def _player_row(
@@ -244,3 +251,77 @@ def test_solve_hindsight_optimal_finds_winning_transfer(game_rules: GameRules) -
     in_names = [m.player_in_name for m in result.optimal_single.moves]
     assert "Mbeumo" in in_names or "Watkins" in in_names
     assert result.optimal_overall.net_points >= result.optimal_single.net_points
+
+
+# --- ORC-11: each model's options this gameweek, in the hindsight optimum's shape -----------------
+
+
+def _forward_options(
+    rules: GameRules, *, max_transfers: int = 2
+) -> tuple[SquadState, HindsightOptimalResult]:
+    """The option set on *predicted* points: the oracle's pool with fractional xP and a variance,
+    and the keeper moved to a club of his own so the held squad is itself legal."""
+    state, pool = _legal_squad_and_pool()
+    xp = pool["xp_next"] + 0.37
+    pool = pool.assign(
+        xp_next=xp, xp_next_sd=1.0, xp_horizon=xp, xp_horizon_sd=1.0, start_probability=1.0
+    )
+    recommendation = recommend_transfers(
+        pool, state, rules, TransferConfig(max_transfers=max_transfers), OptimiserConfig()
+    )
+    names = dict(zip(pool["player_id"], pool["web_name"], strict=True))
+    return state, option_set(6, recommendation, names, digits=2)
+
+
+def _legal_squad_and_pool() -> tuple[SquadState, pd.DataFrame]:
+    state, pool = _build_test_squad_and_pool()
+    pool.loc[pool["player_id"] == 1, "team_id"] = 13
+    keeper = dataclasses.replace(state.players[0], team_id=13)
+    return dataclasses.replace(state, players=(keeper, *state.players[1:])), pool
+
+
+def test_the_forward_options_keep_the_roll_as_a_first_class_option(game_rules: GameRules) -> None:
+    _, options = _forward_options(game_rules)
+    roll = options.baseline_roll
+    assert (roll.transfers_count, roll.moves, roll.gain_over_roll) == (0, (), 0.0)
+    assert options.all_options[0] == roll  # ranked with the rest, not a fallback (FR-24)
+    assert options.optimal_single is not None and len(options.optimal_single.moves) == 1
+    assert options.optimal_overall == max(options.all_options, key=lambda p: p.net_points)
+
+
+def test_the_forward_options_are_legal_and_their_arithmetic_adds_up(
+    game_rules: GameRules,
+) -> None:
+    state, options = _forward_options(game_rules)
+    held = {p.player_id for p in state.players}
+    _, pool = _legal_squad_and_pool()
+    rows = pool.set_index("player_id")
+    for plan in options.all_options:
+        assert plan.transfers_count == len(plan.moves)
+        outs = {m.player_out_id for m in plan.moves}
+        ins = {m.player_in_id for m in plan.moves}
+        assert outs <= held and not ins & held
+        players = tuple(
+            SquadPlayer(
+                player_id=pid,
+                position=Position(str(rows.loc[pid, "position"])),
+                team_id=as_int(rows.loc[pid, "team_id"]),
+                price=as_float(rows.loc[pid, "price"]),
+            )
+            for pid in sorted((held - outs) | ins)
+        )
+        lineup = Squad(players=players, starting=plan.starting, captain=plan.captain_id)
+        assert validate_squad(lineup, game_rules, budget=state.budget(game_rules)) == []
+        assert plan.net_points == pytest.approx(plan.points_before_hits + plan.hit_points, abs=0.01)
+        roll_net = options.baseline_roll.net_points
+        assert plan.gain_over_roll == pytest.approx(plan.net_points - roll_net, abs=0.02)
+    # Predicted points keep their decimals; only realised points are whole (the hindsight's).
+    points = options.baseline_roll.points_before_hits
+    assert points != round(points)
+
+
+def test_with_no_transfer_allowed_there_is_no_best_single(game_rules: GameRules) -> None:
+    _, options = _forward_options(game_rules, max_transfers=0)
+    assert options.optimal_single is None
+    assert options.all_options == (options.baseline_roll,)
+    assert options.optimal_overall == options.baseline_roll

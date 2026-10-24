@@ -40,6 +40,7 @@ Differences from the frozen original, all deliberate (05 §5.2):
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass
 
 import numpy as np
@@ -203,6 +204,10 @@ class FittedAOdds:
     def b0(self) -> FittedBaseline:
         return self.base.b0
 
+    def rebased(self, past: pd.DataFrame, as_of: pd.Timestamp) -> FittedAOdds:
+        """These weights, predicting at an earlier deadline from ``past`` (ORC-13, DL-97)."""
+        return dataclasses.replace(self, base=self.base.rebased(past, as_of))
+
     def predict(self, upcoming: pd.DataFrame) -> pd.DataFrame:
         """A's prediction, with the market's club layer for every player whose club's gameweek
         it covers."""
@@ -291,9 +296,15 @@ def fit_as_of(
     )
 
 
-def forecast(inputs: ForecastInputs, rules: GameRules, config: ForecastConfig) -> Forecast:
+def forecast(
+    inputs: ForecastInputs,
+    rules: GameRules,
+    config: ForecastConfig,
+    *,
+    fitted: FittedAOdds | None = None,
+) -> Forecast:
     """A_odds' forecast frame for the gameweek being decided, or :class:`MissingOddsError` when
-    no odds are knowable for it."""
+    no odds are knowable for it. Given ``fitted``, its weights read these inputs' odds."""
     gameweek, _, _ = live.next_deadline(inputs.gameweeks, config, as_of=inputs.as_of)
     odds = team_odds(inputs, rules.season)
     if not ((odds["season"] == rules.season) & (odds["gameweek"] == gameweek)).any():
@@ -304,6 +315,7 @@ def forecast(inputs: ForecastInputs, rules: GameRules, config: ForecastConfig) -
         config,
         MODEL_NAME,
         lambda past, cutoff: fit_as_of(past, cutoff, config, rules, odds),
+        fitted=None if fitted is None else dataclasses.replace(fitted, odds=odds),
     )
 
 

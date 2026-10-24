@@ -146,6 +146,12 @@ AUXILIARY_STAGES: tuple[Stage, ...] = (
         summary="Walk-forward replay against history, with baselines. Not part of `run`",
         target="fpl_dof.stages.backtest:run",
     ),
+    # Today's models replayed in-sample on the live season (ORC-13, DL-97): too slow for `run`.
+    Stage(
+        name="as-if-played",
+        summary="Replay today's models on the season's finished gameweeks, in-sample. Not `run`",
+        target="fpl_dof.stages.as_if_played:run",
+    ),
 )
 
 STAGE_NAMES: tuple[str, ...] = tuple(stage.name for stage in STAGES)

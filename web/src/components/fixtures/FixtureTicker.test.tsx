@@ -148,3 +148,46 @@ describe("FixtureTicker", () => {
     expect(screen.getByTestId("ticker-counts-ARS").textContent).toBe("0 fixtures, 4 blanks");
   });
 });
+
+describe("FixtureTicker odds (ORC-15)", () => {
+  const priced: Fixtures = {
+    ...fixtureGrid,
+    odds_next_check: "2026-08-19T06:00:00Z",
+    teams: fixtureGrid.teams.map((t) =>
+      t.team !== "ARS"
+        ? t
+        : {
+            ...t,
+            gameweeks: t.gameweeks.map((g, i) =>
+              i !== 0
+                ? g
+                : {
+                    ...g,
+                    fixtures: g.fixtures.map((f) => ({
+                      ...f,
+                      odds: { win: 0.55, draw: 0.25, loss: 0.2, over_2_5: 0.63, as_of: "2026-08-18T09:00:00Z" },
+                    })),
+                  },
+            ),
+          },
+    ),
+  };
+
+  it("shows the odds beside a priced fixture, readable by a screen reader", () => {
+    renderTicker(priced);
+    const odds = within(cell("ARS", 1)).getByTestId("ticker-odds");
+    // Over 2.5 is visible text, not hover-only; the sentence is real (visually hidden) text, not an
+    // aria-label on a role-less span (NFR-14).
+    expect(odds.querySelector("[aria-hidden='true']")?.textContent).toBe("W 55% D 25% L 20% O2.5 63%");
+    expect(odds.querySelector(".visually-hidden")?.textContent).toContain("over 2.5 goals 63%");
+    expect(odds.getAttribute("aria-label")).toBeNull();
+  });
+
+  it("says when the next check is for fixtures without odds", () => {
+    renderTicker(priced);
+    expect(screen.getByTestId("ticker-odds-missing").textContent).toMatch(
+      /^Odds not posted yet; next check at .+\.$/,
+    );
+    expect(within(cell("MUN", 2)).queryAllByTestId("ticker-odds")).toHaveLength(0);
+  });
+});

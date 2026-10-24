@@ -28,10 +28,31 @@ import pandas as pd
 
 from fpl_dof.config.models import FixtureTickerConfig
 from fpl_dof.factory import TeamStrengthModel
-from fpl_dof.frames import as_int
+from fpl_dof.frames import as_float, as_int
 from fpl_dof.optimise.chips import GameweekShape, gameweek_shapes
 
 MODEL_NAME = "M2_team_strength"
+
+
+def _odds_by_fixture(odds: pd.DataFrame | None) -> dict[int, dict[str, Any]]:
+    """Match odds per ``fixture_id``, in the home side's terms (margin already removed upstream).
+
+    ``over_2_5`` is the margin-free over/under 2.5 price, None where no totals market is posted.
+    """
+    if odds is None or odds.empty:
+        return {}
+    return {
+        as_int(row.fixture_id): {
+            "home": round(as_float(row.home_win_prob), 4),
+            "draw": round(as_float(row.draw_prob), 4),
+            "away": round(as_float(row.away_win_prob), 4),
+            "over_2_5": None
+            if pd.isna(row.over_2_5_prob)
+            else round(as_float(row.over_2_5_prob), 4),
+            "as_of": _iso(row.captured_at),
+        }
+        for row in odds.dropna(subset=["fixture_id"]).itertuples()
+    }
 
 
 def difficulty_scale(config: FixtureTickerConfig) -> dict[str, Any]:
@@ -89,6 +110,8 @@ def build_fixtures(
     to_gameweek: int,
     config: FixtureTickerConfig,
     contract_version: int,
+    odds: pd.DataFrame | None = None,
+    odds_next_check: str | None = None,
 ) -> dict[str, Any]:
     """The whole ``fixtures.json`` payload. Pure: no I/O, no clock, no config loading (DP-03)."""
     team_ids = [as_int(row.team_id) for row in teams.itertuples()]
@@ -97,7 +120,7 @@ def build_fixtures(
 
     window = list(range(from_gameweek, to_gameweek + 1))
     shapes = gameweek_shapes(fixtures, team_ids)
-    scheduled = _by_team_and_gameweek(fixtures, window)
+    scheduled = _by_team_and_gameweek(fixtures, window, _odds_by_fixture(odds))
 
     payload_teams = [
         _team(
@@ -127,12 +150,13 @@ def build_fixtures(
             # honest answer and is visible rather than silent (DP-15).
             "teams_rated": len(model.attack),
         },
+        "odds_next_check": odds_next_check,
         "teams": payload_teams,
     }
 
 
 def _by_team_and_gameweek(
-    fixtures: pd.DataFrame, window: Sequence[int]
+    fixtures: pd.DataFrame, window: Sequence[int], odds: Mapping[int, dict[str, Any]]
 ) -> dict[tuple[int, int], list[dict[str, Any]]]:
     """Index the fixture table by (club, gameweek), from each club's own perspective.
 
@@ -155,12 +179,25 @@ def _by_team_and_gameweek(
             continue
         home, away = as_int(row.home_team_id), as_int(row.away_team_id)
         kickoff = _iso(getattr(row, "kickoff_time", None))
-        index.setdefault((home, gameweek), []).append(
-            {"opponent_id": away, "at_home": True, "kickoff_utc": kickoff}
-        )
-        index.setdefault((away, gameweek), []).append(
-            {"opponent_id": home, "at_home": False, "kickoff_utc": kickoff}
-        )
+        priced = None if bool(row.finished) else odds.get(as_int(row.fixture_id))
+        # Each club sees the match from its own side: win / draw / loss.
+        for team, opponent, at_home in ((home, away, True), (away, home, False)):
+            index.setdefault((team, gameweek), []).append(
+                {
+                    "opponent_id": opponent,
+                    "at_home": at_home,
+                    "kickoff_utc": kickoff,
+                    "odds": None
+                    if priced is None
+                    else {
+                        "win": priced["home" if at_home else "away"],
+                        "draw": priced["draw"],
+                        "loss": priced["away" if at_home else "home"],
+                        "over_2_5": priced["over_2_5"],
+                        "as_of": priced["as_of"],
+                    },
+                }
+            )
     return index
 
 
@@ -251,6 +288,7 @@ def _entry(
         "difficulty": round((attack + defence) / 2, 2),
         "attack_difficulty": attack,
         "defence_difficulty": defence,
+        "odds": fixture.get("odds"),
     }
 
 

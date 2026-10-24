@@ -40,6 +40,7 @@ Differences from the frozen original, all deliberate (05 §5.2):
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass
 from typing import Any
 
@@ -257,6 +258,10 @@ class FittedA:
     models: dict[str, dict[str, Any]]
     b0: FittedBaseline
 
+    def rebased(self, past: pd.DataFrame, as_of: pd.Timestamp) -> FittedA:
+        """These weights, predicting at an earlier deadline from ``past`` (ORC-13, DL-97)."""
+        return dataclasses.replace(self, past=past, as_of=c1.utc_deadline(as_of))
+
     def rows(self, upcoming: pd.DataFrame) -> pd.DataFrame:
         """The feature rows of the players in ``upcoming`` (one gameweek, a row per fixture)."""
         missing = {c: np.nan for c in OUTCOMES if c not in upcoming.columns}
@@ -360,7 +365,13 @@ def fit_as_of(
     )
 
 
-def forecast(inputs: ForecastInputs, rules: GameRules, config: ForecastConfig) -> Forecast:
+def forecast(
+    inputs: ForecastInputs,
+    rules: GameRules,
+    config: ForecastConfig,
+    *,
+    fitted: c1.Fitted | None = None,
+) -> Forecast:
     """A's forecast frame for the gameweek being decided, fitted on history before its cutoff."""
     return c1.forecast_with(
         inputs,
@@ -368,6 +379,7 @@ def forecast(inputs: ForecastInputs, rules: GameRules, config: ForecastConfig) -
         config,
         MODEL_NAME,
         lambda past, cutoff: fit_as_of(past, cutoff, config.a, rules),
+        fitted=fitted,
     )
 
 

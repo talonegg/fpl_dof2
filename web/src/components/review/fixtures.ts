@@ -232,6 +232,7 @@ export const mockLog: Log = {
             explanation: "High xG and favorable fixture; missed by the champion.",
             models_xp: { c3: 2.1, c1: 5.8 },
             models_trapped: ["c3"],
+            underlying_points: 9.43,
           },
         ],
       },

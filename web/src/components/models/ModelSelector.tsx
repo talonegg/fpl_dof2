@@ -2,7 +2,7 @@ import { useId, useRef } from "react";
 import type { KeyboardEvent } from "react";
 import { Link } from "react-router-dom";
 import { useModel, useRegistry } from "../../data/DataProvider";
-import { isComparison, modelDescription, modelLabel, orderIds } from "../../data/registry";
+import { findStrategy, isComparison, modelDescription, modelLabel, orderIds } from "../../data/registry";
 import type { ModelChoice } from "../../data/model";
 import { PROVISIONAL_TITLE, ProvisionalBadge } from "./ProvisionalBadge";
 import "./models.css";
@@ -49,6 +49,9 @@ export function ModelSelector({
   const noteId = `model-selector-note-${useId().replace(/:/g, "")}`;
   const refs = useRef<Partial<Record<ModelChoice, HTMLButtonElement | null>>>({});
   const enabled = orderIds(registry, available);
+  // Tagged as ModelBadge tags it: an experiment is not a comparison model.
+  const tag = (choice: ModelChoice) =>
+    !isComparison(registry, choice) ? "live" : findStrategy(registry, choice)?.role === "experiment" ? "experiment" : "comparison";
 
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
     const i = enabled.indexOf(effective);
@@ -92,7 +95,7 @@ export function ModelSelector({
               type="button"
               role="radio"
               aria-checked={checked}
-              aria-label={`${modelLabel(registry, choice)}${isComparison(registry, choice) ? " (comparison)" : " (live)"}${prov ? " (provisional)" : ""}`}
+              aria-label={`${modelLabel(registry, choice)} (${tag(choice)})${prov ? " (provisional)" : ""}`}
               tabIndex={checked ? 0 : -1}
               title={
                 prov
@@ -124,7 +127,7 @@ export function ModelSelector({
           {enabled.map((choice) => (
             <option key={choice} value={choice}>
               {modelLabel(registry, choice)}
-              {isComparison(registry, choice) ? " — comparison" : " — live"}
+              {` — ${tag(choice)}`}
               {provisional.includes(choice) ? " (provisional)" : ""}
             </option>
           ))}

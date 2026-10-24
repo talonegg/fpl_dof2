@@ -9,6 +9,7 @@ Keeps prediction and decision apart (DP-02):
 
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -169,6 +170,13 @@ class FittedForecastModel:
     deadline: pd.Timestamp
     training: pd.DataFrame
     past: pd.DataFrame
+
+    def rebased(self, history: pd.DataFrame, deadline: pd.Timestamp) -> FittedForecastModel:
+        """These weights, predicting at an earlier ``deadline`` from what had kicked off before it
+        (DL-97, ORC-13): the features are that deadline's; only the fit is later (Invariant 5)."""
+        moment = pd.Timestamp(deadline).tz_convert("UTC")
+        past = history[history["kickoff_time"] < moment]
+        return dataclasses.replace(self, deadline=moment, past=past)
 
     def predict(
         self,

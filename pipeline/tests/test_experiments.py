@@ -383,6 +383,9 @@ class _Recording:
     def past(self) -> pd.DataFrame:
         return self.inner.past
 
+    def rebased(self, past: pd.DataFrame, as_of: pd.Timestamp) -> _Recording:
+        return _Recording(self.inner.rebased(past, as_of), self.seen)
+
     @property
     def b0(self) -> Any:
         return self.inner.b0

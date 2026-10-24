@@ -19,7 +19,7 @@
  *   owner owns is a bet. One number cannot say both, so they are never summed.
  */
 
-import type { League, LeagueEntry, LeagueSquad, Players } from "../../contract/types";
+import type { League, LeagueEntry, LeagueSquad, Players, Rules } from "../../contract/types";
 
 /** Why a comparison could or could not be anchored. Drives the copy, and is not cosmetic. */
 export type AnchorState =
@@ -136,6 +136,32 @@ export function compareSquads(owner: LeagueSquad, rival: LeagueSquad): SquadComp
         ? null
         : owner.captain_id !== rival.captain_id,
   };
+}
+
+/**
+ * What each of a squad's fifteen scored for that team in the published gameweek (ORC-14). Only the
+ * fielded players count: `starting_ids` is the picks' own multipliers, so it is the XI after the
+ * game's automatic substitutions (all fifteen under a bench chip); the bench earns nothing. The
+ * armband is `rules.json`'s multiplier for the chip played, worn by the captain or, when he was not
+ * fielded, the vice-captain. Null for a fielded player with no recorded points. Without published
+ * chip rules no multiplier is applied (Invariant 9: never a literal).
+ */
+export function fieldedPoints(
+  squad: LeagueSquad,
+  chip: string | null,
+  chips: Rules["chips"],
+  pointsOf: (id: number) => number | null,
+): Map<number, number | null> {
+  const armband = chips ? (chips.captain_multiplier_by_chip[chip ?? ""] ?? chips.captain_multiplier) : 1;
+  const fielded = new Set(squad.starting_ids);
+  const wearer = [squad.captain_id, squad.vice_captain_id].find((id) => id !== null && fielded.has(id));
+  return new Map(
+    squad.player_ids.map((id): [number, number | null] => {
+      if (!fielded.has(id)) return [id, 0];
+      const points = pointsOf(id);
+      return [id, points === null ? null : points * (id === wearer ? armband : 1)];
+    }),
+  );
 }
 
 /** Player id to display name, for turning an id list into something a human can read. */

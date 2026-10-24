@@ -555,6 +555,38 @@ def test_every_published_strategy_gets_a_valid_week_and_plan(
             contract.validate("plan", plan_payload | {"contract_version": CONTRACT_VERSION})
 
 
+def test_every_published_strategy_publishes_and_records_the_options_it_weighed(
+    advised: tuple[dict[str, week.Advice], Path],
+) -> None:
+    """ORC-11: roll, best single and best overall on the model's own xP, in the hindsight's shape,
+    in its week file and in the ledger's advice of record, so Last gameweek can read them later."""
+    advice, root = advised
+    gameweek = _deadline().gameweek
+    recorded = read_advice(DataLayout(root=root), gameweek)
+    assert recorded is not None
+    for s in published_strategies():
+        recommendation = advice[s.id][0]["recommendation"]
+        options = recommendation["option_set"]
+        assert options["gameweek"] == gameweek
+        assert options["baseline_roll"]["transfers_count"] == 0
+        assert len(options["all_options"]) == len(recommendation["options"])
+        chosen = next(
+            o for o in options["all_options"] if o["transfers_count"] == recommendation["transfers"]
+        )
+        assert chosen["net_points"] == pytest.approx(
+            recommendation["net_expected_points"], abs=0.01
+        )
+        assert recorded["models"][s.id]["recommendation"]["option_set"] == options
+        # One home: the older `options` shape is derived from the option set, in its rounding.
+        assert [
+            (o["transfers"], o["hit_points"], o["net_expected_points"], o["gain_over_roll"])
+            for o in recommendation["options"]
+        ] == [
+            (p["transfers_count"], p["hit_points"], p["net_points"], p["gain_over_roll"])
+            for p in options["all_options"]
+        ]
+
+
 def _fail_c1(monkeypatch: pytest.MonkeyPatch) -> None:
     real = Strategy.forecast
 

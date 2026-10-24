@@ -7,6 +7,7 @@
   "name": "M2_team_strength",
   "teams_rated": 0
  },
+ "odds_next_check": "2026-08-15T12:07:00Z",
  "scale": {
   "anchor_ratio": 2.0,
   "description": "3 is a fixture the model rates exactly league-average; lower is easier. Attack difficulty falls as the goals the model expects this club to score rise above the league mean, defence difficulty rises as the goals it expects them to concede do, and the overall score is the mean of the two. A club expected to score 2x the league mean scores 1 for attack. Scores are clipped to 1-5.",
@@ -27,6 +28,7 @@
        "expected_goals_against": 1.284,
        "expected_goals_for": 1.526,
        "kickoff_utc": "2026-08-21T19:00:00Z",
+       "odds": null,
        "opponent": "COV",
        "opponent_id": 7
       }
@@ -45,6 +47,7 @@
        "expected_goals_against": 1.526,
        "expected_goals_for": 1.284,
        "kickoff_utc": "2026-08-31T19:00:00Z",
+       "odds": null,
        "opponent": "AVL",
        "opponent_id": 2
       }
@@ -63,6 +66,7 @@
        "expected_goals_against": 1.284,
        "expected_goals_for": 1.526,
        "kickoff_utc": "2026-09-06T15:30:00Z",
+       "odds": null,
        "opponent": "CHE",
        "opponent_id": 6
       }
@@ -87,6 +91,7 @@
        "expected_goals_against": 1.526,
        "expected_goals_for": 1.284,
        "kickoff_utc": "2026-09-19T14:00:00Z",
+       "odds": null,
        "opponent": "BHA",
        "opponent_id": 5
       }
@@ -115,6 +120,7 @@
        "expected_goals_against": 1.526,
        "expected_goals_for": 1.284,
        "kickoff_utc": "2026-08-23T13:00:00Z",
+       "odds": null,
        "opponent": "BHA",
        "opponent_id": 5
       }
@@ -133,6 +139,7 @@
        "expected_goals_against": 1.284,
        "expected_goals_for": 1.526,
        "kickoff_utc": "2026-08-31T19:00:00Z",
+       "odds": null,
        "opponent": "ARS",
        "opponent_id": 1
       }
@@ -197,6 +204,7 @@
        "expected_goals_against": 1.284,
        "expected_goals_for": 1.526,
        "kickoff_utc": "2026-09-12T14:00:00Z",
+       "odds": null,
        "opponent": "BRE",
        "opponent_id": 4
       }
@@ -249,6 +257,7 @@
        "expected_goals_against": 1.526,
        "expected_goals_for": 1.284,
        "kickoff_utc": "2026-09-12T14:00:00Z",
+       "odds": null,
        "opponent": "BOU",
        "opponent_id": 3
       }
@@ -267,6 +276,7 @@
        "expected_goals_against": 1.284,
        "expected_goals_for": 1.526,
        "kickoff_utc": "2026-09-18T19:00:00Z",
+       "odds": null,
        "opponent": "CHE",
        "opponent_id": 6
       }
@@ -295,6 +305,7 @@
        "expected_goals_against": 1.284,
        "expected_goals_for": 1.526,
        "kickoff_utc": "2026-08-23T13:00:00Z",
+       "odds": null,
        "opponent": "AVL",
        "opponent_id": 2
       }
@@ -313,6 +324,7 @@
        "expected_goals_against": 1.526,
        "expected_goals_for": 1.284,
        "kickoff_utc": "2026-08-30T13:00:00Z",
+       "odds": null,
        "opponent": "CHE",
        "opponent_id": 6
       }
@@ -337,6 +349,7 @@
        "expected_goals_against": 1.526,
        "expected_goals_for": 1.284,
        "kickoff_utc": "2026-09-13T13:00:00Z",
+       "odds": null,
        "opponent": "COV",
        "opponent_id": 7
       }
@@ -355,6 +368,7 @@
        "expected_goals_against": 1.284,
        "expected_goals_for": 1.526,
        "kickoff_utc": "2026-09-19T14:00:00Z",
+       "odds": null,
        "opponent": "ARS",
        "opponent_id": 1
       }
@@ -389,6 +403,7 @@
        "expected_goals_against": 1.284,
        "expected_goals_for": 1.526,
        "kickoff_utc": "2026-08-30T13:00:00Z",
+       "odds": null,
        "opponent": "BHA",
        "opponent_id": 5
       }
@@ -407,6 +422,7 @@
        "expected_goals_against": 1.526,
        "expected_goals_for": 1.284,
        "kickoff_utc": "2026-09-06T15:30:00Z",
+       "odds": null,
        "opponent": "ARS",
        "opponent_id": 1
       }
@@ -431,6 +447,7 @@
        "expected_goals_against": 1.526,
        "expected_goals_for": 1.284,
        "kickoff_utc": "2026-09-18T19:00:00Z",
+       "odds": null,
        "opponent": "BRE",
        "opponent_id": 4
       }
@@ -459,6 +476,7 @@
        "expected_goals_against": 1.526,
        "expected_goals_for": 1.284,
        "kickoff_utc": "2026-08-21T19:00:00Z",
+       "odds": null,
        "opponent": "ARS",
        "opponent_id": 1
       }
@@ -489,6 +507,7 @@
        "expected_goals_against": 1.284,
        "expected_goals_for": 1.526,
        "kickoff_utc": "2026-09-13T13:00:00Z",
+       "odds": null,
        "opponent": "BHA",
        "opponent_id": 5
       }

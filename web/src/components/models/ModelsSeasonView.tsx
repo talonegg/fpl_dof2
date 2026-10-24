@@ -1,5 +1,5 @@
 import type { Models } from "../../contract/types";
-import { formatPoints } from "../../format";
+import { formatPoints, signed } from "../../format";
 import { useRegistry } from "../../data/DataProvider";
 import { modelLabel, orderIds, seriesStyle } from "../../data/registry";
 import { transfersText } from "../../data/season";
@@ -156,6 +156,70 @@ function SeasonLadder({ models, order }: { models: Models; order: string[] }) {
   );
 }
 
+/**
+ * Each model's miss split in two per gameweek (ORC-12): forecast error, its XI's xP less the
+ * underlying xP (the game's rules applied to FPL's expected goals, assists and goals conceded, and
+ * the minutes played), and luck, the points before hits less the underlying xP.
+ */
+function ForecastSplit({ models, order }: { models: Models; order: string[] }) {
+  const registry = useRegistry();
+  const split = models.gameweeks.filter((g) => Object.values(g.actual ?? {}).some((a) => a.underlying_points !== undefined));
+  return (
+    <section data-testid="models-split">
+      <h3>Forecast error and luck</h3>
+      <p className="models-note">
+        Underlying xP scores what each player produced, his minutes and FPL&rsquo;s expected goals, assists
+        and goals conceded, by the game&rsquo;s rules. <strong>Forecast error</strong> is the XI&rsquo;s xP
+        less its underlying xP (above zero: the model expected too much). <strong>Luck</strong> is the points
+        before hits less the underlying xP (above zero: the finishing beat the chances).
+      </p>
+      <p className="models-note" data-testid="models-split-actuals">
+        Saves, penalties, cards, own goals, Defensive Contribution and bonus have no expected figure, so
+        underlying xP scores their actual points, as it does any match without an expected figure. Their luck
+        therefore reads zero, and the model&rsquo;s miss on them counts as forecast error.
+      </p>
+      {split.length === 0 ? (
+        <p className="models-note" data-testid="models-split-empty">
+          No gameweek has been evaluated with underlying xP yet.
+        </p>
+      ) : (
+        <div className="table-scroll" tabIndex={0} role="region" aria-label="Forecast error and luck per gameweek by model">
+          <table className="models-table" data-testid="models-split-table">
+            <caption className="visually-hidden">Forecast error and luck per gameweek, by model</caption>
+            <thead>
+              <tr>
+                <th scope="col">GW</th>
+                {order.map((m) => (
+                  <th scope="col" key={m}>
+                    {modelLabel(registry, m)}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {split.map((g) => (
+                <tr key={g.gameweek}>
+                  <th scope="row">{g.gameweek}</th>
+                  {order.map((m) => {
+                    const a = g.actual?.[m];
+                    return (
+                      <td key={m} data-testid={`models-split-${g.gameweek}-${m}`}>
+                        {a?.forecast_error === undefined || a.luck === undefined
+                          ? "—"
+                          : `error ${signed(a.forecast_error, 1)}, luck ${signed(a.luck, 1)}`}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
+  );
+}
+
 /** Season to date across every model: the ladder, a per-GW table, a chart, and the latest advice. */
 export function ModelsSeasonView({ models }: { models: Models | null }) {
   const registry = useRegistry();
@@ -248,6 +312,7 @@ export function ModelsSeasonView({ models }: { models: Models | null }) {
         </table>
       </div>
       <CumulativeChart models={models} />
+      <ForecastSplit models={models} order={order} />
       {latest && (
         <>
           <h3>GW{latest.gameweek} advice by model</h3>

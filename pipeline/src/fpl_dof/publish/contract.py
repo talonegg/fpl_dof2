@@ -31,7 +31,7 @@ CONTRACT_VERSION = 1
 #: additive change** (a new optional field, a new artefact): the schemas' ``const`` stays the major,
 #: so an old app still accepts the data, and an app needing a newer minor than the data carries
 #: shows a warning and renders what it can. Reset to 1 when the major is bumped.
-CONTRACT_MINOR = 5
+CONTRACT_MINOR = 6
 
 
 @dataclass(frozen=True, slots=True)
@@ -78,11 +78,12 @@ ARTEFACTS: dict[str, Artefact] = {
     # The models history (ORC-06): the weekly backtest's season simulation of every graded
     # strategy, recorded on `ledger`; the latest season is published. Absent until a backtest ran.
     "models_history": Artefact("models_history.schema.json"),
+    # The live season as if each strategy had played it (ORC-13), in the models history's shape:
+    # the weekly backtest's replay, recorded on `ledger`, labelled replayed or live at publish.
+    "as_if_played": Artefact("models_history.schema.json"),
     # All-player next-GW xP MAE: the 2025/26 backtest season, a frozen-era record carried forward
     # from `publish/records/` (WEB-04), and the live season's from the evaluations (ORC-05).
-    # shortcut: optional for the release that starts writing it, whose smoke test runs against the
-    # previous release's data; make it required in R1.4.1, once a publication carrying it is live.
-    "xp_accuracy": Artefact("xp_accuracy.schema.json"),
+    "xp_accuracy": Artefact("xp_accuracy.schema.json", required=True),
     # The strategy registry as published (MOD-03): every strategy's id, label, role and digest,
     # generated from config/strategies/.
     "strategies": Artefact("strategies.schema.json", warm=True),

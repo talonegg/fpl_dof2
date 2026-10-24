@@ -13,6 +13,7 @@
 # strategy's season and appends the models history under `models_history/` (ORC-06), which the
 # Pipeline run publishes as models_history.json. Locally, from a clean checkout, the same rebuild is
 # one command: `fpl-dof run --only ingest transform backtest` with this config file (CLAUDE.md).
+# Its second job replays today's models in-sample on the live season (ORC-13, below).
 
 name: Backtest
 
@@ -113,8 +114,75 @@ jobs:
             exit 1
           done
 
+  # ORC-13, DL-97: today's published models replayed in-sample on the live season's finished
+  # gameweeks, appended under `as_if_played/`, which the Pipeline run publishes as
+  # as_if_played.json. A job of its own, beside the backtest rather than inside it: measured locally
+  # 2026-10-24 with four workers, every published model (no odds, so no A + odds) over GW1-5 took
+  # 158 s, ~35 s a gameweek for c3's plan and chips, the rest in parallel with it; by GW38 that is
+  # ~25 min locally, perhaps ~60 on a runner, which the backtest's 300 min (already ~210) could
+  # not take. Its silver is built as the backtest's is: the all-seasons models train on the archive.
+  as-if-played:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.19"
+          enable-cache: true
+          cache-dependency-glob: pipeline/requirements.lock
+
+      - name: Install fpl-dof
+        run: uv pip install --system -c pipeline/requirements.lock -e "pipeline[dev]"
+
+      - name: Restore data from the `data` branch
+        run: python pipeline/scripts/retention.py restore data
+
+      - name: Fetch the archive backfill and conform it
+        env:
+          FPL_DOF_CONFIG_FILE: config/ci-backtest.yaml
+        run: |
+          fpl-dof ingest
+          fpl-dof transform
+
+      - name: Replay today's models on the season so far, in-sample
+        env:
+          FPL_DOF_CONFIG_FILE: config/ci-backtest.yaml
+        run: |
+          fpl-dof as-if-played || {
+            echo "::error title=As-if-played replay not built::fpl-dof as-if-played failed; see this step's log"
+            exit 1
+          }
+
+      - name: Upload the as-if-played record
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: as-if-played
+          path: data/ledger/as_if_played/*.json
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: Record this run on the `ledger` branch (ORC-13)
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          remote="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
+          shopt -s nullglob
+          for file in data/ledger/as_if_played/*.json; do
+            python pipeline/scripts/retention.py permanent "$file" \
+              --remote "$remote" --branch ledger --source as_if_played \
+              --name "$(basename "$file" .json)" --checkout-dir .ledger-staging
+          done
+
   alert:
-    needs: [backtest]
+    needs: [backtest, as-if-played]
     if: failure()
     uses: ./.github/workflows/alert-on-failure.yml
     with:

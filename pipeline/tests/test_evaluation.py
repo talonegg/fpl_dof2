@@ -266,22 +266,17 @@ def test_a_failed_optimum_and_armless_picks_are_said_not_swallowed(
         _evaluate(rules, armless)
 
 
-def test_the_captains_belief_is_divided_by_the_rules_armband(
-    game_rules: GameRules, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """The diagnostics read a strategy's captain xP off its lineup's xP, by the armband the rules
-    set for the chip in force, never a literal (Invariant 2)."""
-    chips = game_rules.chips.model_copy(update={"captain_multiplier": 4})
-    rules = game_rules.model_copy(update={"season": SEASON, "chips": chips})
-    seen: dict[str, Any] = {}
-
-    def spy(**kwargs: Any) -> list[Any]:
-        seen.update(kwargs)
-        return []
-
-    monkeypatch.setattr(evaluation, "diagnose_oracle_gap", spy)
-    _evaluate(rules)
-    assert seen["models_xp"]["c3"] == {9: 50.0 / 4}
+def test_a_transfer_in_gets_each_models_own_xp_not_zero(game_rules: GameRules) -> None:
+    """D-37: the diagnostics read each strategy's recorded xP for the player himself, and his
+    underlying points, rather than a team's xP keyed by its own captain (0.0 for anyone else)."""
+    rules = game_rules.model_copy(update={"season": SEASON})
+    diagnostics = _evaluate(rules)["log"]["hindsight"]["diagnostics"]
+    brought = {d["player_id"]: d for d in diagnostics if d["role"] == "transfer_in"}
+    assert set(brought) == {16, 18}
+    # c1 advised nothing but priced every player, so its belief is shown too.
+    assert brought[16]["models_xp"] == {"c3": 2.0, "c1": 3.0}
+    # 90 minutes and no expected figures recorded: the appearance alone.
+    assert brought[16]["underlying_points"] == rules.scoring.long_play
 
 
 def test_the_evaluation_scores_each_strategy_and_its_xp(game_rules: GameRules) -> None:
@@ -291,6 +286,12 @@ def test_the_evaluation_scores_each_strategy_and_its_xp(game_rules: GameRules) -
     c3 = result["strategies"]["c3"]
     # The XI scores 2 each but 8 (0), 13 (1), 15 (0); the captain, 9, doubles his 2.
     assert c3["actual"]["points"] == 2 * 8 + 1 + 2
+    # Every one of the XI played 90 minutes with no expected figures: the appearance each, the
+    # captain's again. The forecast error is the advice's 50.0 xP over it; the luck, the points.
+    underlying = rules.scoring.long_play * (11 + rules.chips.captain_multiplier - 1)
+    assert c3["actual"]["underlying_points"] == underlying
+    assert c3["actual"]["forecast_error"] == 50.0 - underlying
+    assert c3["actual"]["luck"] == c3["actual"]["points_before_hits"] - underlying
     # c3 forecast 2.0 for all: 2 off for 8 and 15, 1 for 13, 18 for 16, 10 for 17, 23 for 18.
     assert c3["xp_accuracy"] == {
         "mae": round((2 + 2 + 1 + 18 + 10 + 23) / 18, 4),

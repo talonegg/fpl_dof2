@@ -1,0 +1,14 @@
+/* The options a solve weighed (ORC-11), shared by This gameweek and Last gameweek. */
+.options-note { opacity: 0.85; }
+.options-scroll { overflow-x: auto; position: relative; }
+.options-table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+.options-table th, .options-table td { padding: 0.4rem 0.6rem; text-align: right; border-bottom: 1px solid rgba(127,127,127,0.3); white-space: nowrap; }
+.options-table th:first-child { text-align: left; }
+.options-caption { caption-side: top; text-align: left; font-weight: 600; padding: 0.4rem 0; }
+.options-moves { text-align: left !important; white-space: normal !important; min-width: 12rem; }
+@media (max-width: 767px) {
+  .options-moves { min-width: 9rem; }
+}
+/* The best row is marked in words ("best overall") as well as by weight. */
+.options-table tr.is-best td, .options-table tr.is-best th { font-weight: 600; }
+.options-tag { display: inline-block; font-size: 0.75em; font-weight: 600; padding: 0 0.4rem; border: 1px solid currentColor; border-radius: 999px; white-space: nowrap; }

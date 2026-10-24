@@ -58,6 +58,7 @@ from fpl_dof.sources.base import (
 from fpl_dof.sources.errors import (
     OfflineWithoutSnapshotError,
     SourceContractError,
+    SourceError,
     SourceNotFoundError,
 )
 from fpl_dof.sources.registry import register
@@ -1076,6 +1077,15 @@ class FplApiAdapter(SourceAdapter):
                 if payload is not None:
                     picks[entry_id] = payload
 
+        moves: dict[int, tuple[dict[str, Any], list[dict[str, Any]]]] = {}
+        if gameweek is not None:
+            for entry_id in _league_entry_ids(standings, request.league_rival_limit):
+                try:
+                    moves[entry_id] = self._rival_moves(entry_id, gameweek, request)
+                except SourceError as exc:
+                    # Only this team's drill-down loses its moves (NFR-15); the reason is kept.
+                    warnings.append(f"no moves for league entry {entry_id}: {exc}")
+
         if request.league_rival_limit > 0 and not picks:
             # Says which of the two reasons applies, because "no overlap shown" has a very
             # different meaning preseason than it does in October (DP-15: visible degradation).
@@ -1087,7 +1097,65 @@ class FplApiAdapter(SourceAdapter):
         return {
             Table.LEAGUE_STANDING.value: self._league_standings(league_id, standings),
             Table.LEAGUE_PICK.value: self._league_picks(gameweek, picks),
+            Table.LEAGUE_GAMEWEEK.value: pd.DataFrame(
+                [
+                    {"entry_id": e, "gameweek": gameweek, **row}
+                    for e, (row, _) in sorted(moves.items())
+                ],
+                columns=columns_for(Table.LEAGUE_GAMEWEEK),
+            ),
+            Table.LEAGUE_TRANSFER.value: pd.DataFrame(
+                [
+                    {"entry_id": e, "gameweek": gameweek, **t}
+                    for e, (_, ts) in sorted(moves.items())
+                    for t in ts
+                ],
+                columns=columns_for(Table.LEAGUE_TRANSFER),
+            ),
         }
+
+    def _rival_moves(
+        self, entry_id: int, gameweek: int, request: IngestRequest
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        """One rival's hit, chip and transfers for ``gameweek``, from the public entry endpoints.
+
+        The fetch checks each payload's shape, not its rows, so a malformed row is raised here as
+        a contract error: the callers then degrade only this team, as for a failed fetch (DP-15).
+        """
+        history = self.fetch_entry_history(entry_id, request)
+        transfers = self.fetch_entry_transfers(entry_id, request)
+        try:
+            return self._read_rival_moves(history, transfers, gameweek)
+        except (KeyError, ValueError, TypeError) as exc:
+            raise SourceContractError(
+                f"malformed history or transfers row: {exc!r}",
+                source=self.name,
+                resource="entry_history",
+                key=str(entry_id),
+            ) from exc
+
+    @staticmethod
+    def _read_rival_moves(
+        history: dict[str, Any], transfers: list[dict[str, Any]], gameweek: int
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+        current = next(
+            (r for r in history.get("current") or [] if int(r["event"]) == gameweek), None
+        )
+        chip = next(
+            (str(c["name"]) for c in history.get("chips") or [] if int(c["event"]) == gameweek),
+            None,
+        )
+        row = {
+            "transfers": int((current or {}).get("event_transfers") or 0),
+            "transfers_cost": int((current or {}).get("event_transfers_cost") or 0),
+            "chip": chip,
+        }
+        moved = [
+            {"player_in_id": int(t["element_in"]), "player_out_id": int(t["element_out"])}
+            for t in transfers
+            if int(t["event"]) == gameweek
+        ]
+        return row, moved
 
     def _league_standings(self, league_id: int, standings: dict[str, Any]) -> pd.DataFrame:
         name = str((standings.get("league") or {}).get("name") or "")
@@ -1326,14 +1394,20 @@ class FplApiAdapter(SourceAdapter):
             # fetch and the standings alone are the honest answer.
             return counts
 
-        fetched = 0
+        fetched = moves = 0
         for entry_id in _league_entry_ids(standings, request.league_rival_limit):
             try:
                 if self.fetch_entry_picks(entry_id, gameweek, request) is not None:
                     fetched += 1
             except OfflineWithoutSnapshotError:
                 report.warnings.append(f"no picks snapshot for league entry {entry_id}")
+            try:
+                self._rival_moves(entry_id, gameweek, request)
+                moves += 1
+            except SourceError as exc:
+                report.warnings.append(f"no moves for league entry {entry_id}: {exc}")
         counts["league_entry_picks"] = fetched
+        counts["league_entry_moves"] = moves
         return counts
 
     def _ingest_entry(
