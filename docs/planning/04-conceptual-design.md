@@ -562,8 +562,8 @@ maximise  Σ_w γ^(w−1) · [ Σ_p μ[p,w] · ( start + (m_w − 1)·cap )   �
 The squad MILP maximises `xp_horizon` over starters and a weighted bench plus a captain bonus on
 `xp_next`, under C1–C5 and the floor. The transfer MILP solves that single-gameweek problem on
 `xp_next` per transfer count up to `transfers.max_transfers`, subtracting hits afterwards; a move must
-gain more than `transfers.min_gain_over_hit`. `xp_horizon` uses the forecast's own horizon and
-discount (`forecast.horizon_*`), which differ from the plan's `H` and `γ` (Q-01, Q-02).
+gain more than `transfers.min_gain_over_hit`. `xp_horizon` uses the one planning horizon,
+`decision.horizon` (gameweeks and discount; DL-78, D-29) — the forecast and the plan share it.
 
 #### The tie-break term, and why it is not cosmetic
 

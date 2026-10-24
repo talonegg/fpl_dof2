@@ -2172,15 +2172,6 @@ class TransferConfig(_Section):
             "Zero means break-even is enough; raise it to demand a margin against forecast error."
         ),
     )
-    horizon_gameweeks: int = Field(
-        default=1,
-        ge=1,
-        le=38,
-        description=(
-            "Gameweeks the transfer decision is judged over. E1 is single-gameweek by scope; the "
-            "multi-gameweek version is E4."
-        ),
-    )
 
 
 class AlertsConfig(_Section):
