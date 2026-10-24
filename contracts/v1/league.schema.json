@@ -48,7 +48,31 @@
           "type": "boolean",
           "description": "This row is the configured team. **The comparison is anchored on this row and no other**: differentials are measured against the squad actually fielded, never against the squad the optimiser recommended, because a differential against a team you do not own is not a differential (DP-09). At most one entry has this set, and none does when no team is configured or the owner is not in this league."
         },
-        "squad": { "oneOf": [{ "$ref": "#/$defs/league_squad" }, { "type": "null" }] }
+        "squad": { "oneOf": [{ "$ref": "#/$defs/league_squad" }, { "type": "null" }] },
+        "moves": { "oneOf": [{ "$ref": "#/$defs/league_moves" }, { "type": "null" }], "description": "What this manager did in the published gameweek (ORC-14). Null when it was not read - outside the squad budget, or the fetch failed - which is a different claim from a manager who made no transfers (an object with an empty list). A failed fetch degrades this one team only (NFR-15)." }
+      }
+    },
+    "league_moves": {
+      "type": "object",
+      "description": "A manager's transfers, hit and chip for one gameweek, from the public entry history and transfers endpoints. Players are ids; the app names them from players.json.",
+      "additionalProperties": false,
+      "required": ["gameweek", "hit_cost", "chip", "transfers"],
+      "properties": {
+        "gameweek": { "type": "integer", "minimum": 1, "maximum": 38 },
+        "hit_cost": { "type": "integer", "minimum": 0, "description": "Points deducted for extra transfers, as the game reports it." },
+        "chip": { "type": ["string", "null"], "description": "The chip played that gameweek, by the API's own name. Null when none." },
+        "transfers": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["out_id", "in_id"],
+            "properties": {
+              "out_id": { "type": "integer", "minimum": 1 },
+              "in_id": { "type": "integer", "minimum": 1 }
+            }
+          }
+        }
       }
     },
     "league_squad": {

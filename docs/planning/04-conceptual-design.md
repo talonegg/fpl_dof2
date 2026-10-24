@@ -173,7 +173,7 @@ name is rejected. A failing non-essential source removes its fields and nothing 
 | Game | `player`, `team`, `fixture`, `gameweek`, `chip`, `set_piece_note` |
 | Performance | `player_gameweek`, `player_season_history`, `price_history` |
 | The owner | `entry`, `entry_pick`, `entry_transfer`, `entry_chip`, `entry_gameweek` (DL-69) |
-| Mini-league | `league_standing`, `league_pick` |
+| Mini-league | `league_standing`, `league_pick`, `league_transfer`, `league_gameweek` (ORC-14) |
 | Cross-source | `player_crosswalk`, `player_advanced`, `player_metric`, `team_match_expectation` |
 
 Identity is FPL's stable player `code`; season-local ids never cross a season (DL-19, DL-52).

@@ -19,7 +19,7 @@ import type {
 
 export const meta: Meta = {
   contract_version: 1,
-  contract_minor: 5,
+  contract_minor: 6,
   generated_at: "2026-08-10T10:15:58.217761Z",
   run_id: "20260810T101557Z-d705a43f",
   git_sha: "14c97bc018cebb4fa8b7ac525097ca54d402af75",
@@ -506,6 +506,7 @@ export const leagueTable: League = {
       // Shares Raya and Watkins, captains Raya where the owner captains Watkins, and holds one
       // player the owner does not (#4, deliberately absent from `players.json`).
       squad: { player_ids: [1, 2, 4], starting_ids: [1, 2], captain_id: 1, vice_captain_id: 2 },
+      moves: { gameweek: 3, hit_cost: 4, chip: "bboost", transfers: [{ out_id: 3, in_id: 4 }] },
     },
     {
       entry_id: 200,

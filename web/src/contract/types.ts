@@ -6,7 +6,7 @@
 
 export const CONTRACT_VERSION = 1;
 
-export const CONTRACT_MINOR = 5;
+export const CONTRACT_MINOR = 6;
 
 /** What this publication is, when it was made, and what produced it. The browser reads this first and can render an honest 'as at' line without trusting anything else. */
 export interface Meta {
@@ -672,6 +672,21 @@ export interface LeagueEntry {
   /** This row is the configured team. **The comparison is anchored on this row and no other**: differentials are measured against the squad actually fielded, never against the squad the optimiser recommended, because a differential against a team you do not own is not a differential (DP-09). At most one entry has this set, and none does when no team is configured or the owner is not in this league. */
   is_owner: boolean;
   squad?: LeagueSquad | null;
+  /** What this manager did in the published gameweek (ORC-14). Null when it was not read - outside the squad budget, or the fetch failed - which is a different claim from a manager who made no transfers (an object with an empty list). A failed fetch degrades this one team only (NFR-15). */
+  moves?: LeagueMoves | null;
+}
+
+/** A manager's transfers, hit and chip for one gameweek, from the public entry history and transfers endpoints. Players are ids; the app names them from players.json. */
+export interface LeagueMoves {
+  gameweek: number;
+  /** Points deducted for extra transfers, as the game reports it. */
+  hit_cost: number;
+  /** The chip played that gameweek, by the API's own name. Null when none. */
+  chip: string | null;
+  transfers: {
+    out_id: number;
+    in_id: number;
+  }[];
 }
 
 /** A manager's fifteen for the published gameweek, as the public picks endpoint reports them. Carries no prices: the endpoint does not report another manager's purchase or selling price, and this project will never authenticate to obtain one (Invariant 4). */
