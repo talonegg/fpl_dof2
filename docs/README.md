@@ -100,7 +100,6 @@ criteria. The [release register](planning/epics/README.md) decides the order.
   [architecture §12](planning/03-solution-architecture.md#12-module-design--review-of-2026-10-17).
 
 **Design fixes not yet scheduled ([architecture §12](planning/03-solution-architecture.md#12-module-design--review-of-2026-10-17))**
-- One planning horizon: `xp_horizon` reads `decision.horizon` (D-29, [DL-78](decisions/DL-78.md)).
 - Shared MILP legality constraints and a solver setting that is actually read (P2); `week/` facades
   and scheduling (P7); very large files (P8); the data layer importing components (W6).
 
