@@ -36,6 +36,7 @@ from fpl_dof.factory import (
 from fpl_dof.factory.registry import published_strategies
 from fpl_dof.frames import as_float, as_int
 from fpl_dof.gameweek import SilverTables, open_gameweek
+from fpl_dof.gold import read_team_match_odds
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.obs.manifest import RunManifest, git_sha, read_manifest
 from fpl_dof.paths import find_repo_root
@@ -81,7 +82,7 @@ def run(ctx: StageContext) -> StageResult:
     players = _players(forecast, teams, form=_form(ctx, season, forecast))
     squad_payload = _squad(squad, rules)
     history = _history(ctx, season, rules)
-    fixtures = _fixtures(ctx, season, teams, gameweeks)
+    fixtures = _fixtures(ctx, season, teams, gameweeks, gold)
     health = _health(ctx, gold)
 
     outputs = [
@@ -410,8 +411,19 @@ def _history(ctx: StageContext, season: str, rules: GameRules) -> dict[str, Any]
     )
 
 
+def _next_odds_check(ctx: StageContext, gameweeks: pd.DataFrame) -> str | None:
+    """ORC-07's next check, reused for odds not posted yet: the next fast-ingest firing."""
+    if gameweeks.empty:
+        return None
+    state = open_gameweek(SilverTables(gameweeks), (), ctx.as_of)
+    if state is None:
+        return None
+    check = next_fast_ingest(now=ctx.as_of, state=state, config=ctx.config.schedule)
+    return None if check is None else _iso(check)
+
+
 def _fixtures(
-    ctx: StageContext, season: str, teams: pd.DataFrame, gameweeks: pd.DataFrame
+    ctx: StageContext, season: str, teams: pd.DataFrame, gameweeks: pd.DataFrame, gold: Path
 ) -> dict[str, Any]:
     """The model-derived fixture difficulty grid (E6-S8, DL-37).
 
@@ -446,6 +458,8 @@ def _fixtures(
         to_gameweek=min(first + span - 1, last_gameweek),
         config=ctx.config.publish.fixtures,
         contract_version=CONTRACT_VERSION,
+        odds=read_team_match_odds(gold, season=season),
+        odds_next_check=_next_odds_check(ctx, gameweeks),
     )
 
 

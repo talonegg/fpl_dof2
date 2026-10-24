@@ -275,3 +275,21 @@
     min-width: 5rem;
   }
 }
+
+/* ORC-15: odds on their own line inside the chip, in letters so colour never carries them. */
+.ticker-chip {
+  flex-wrap: wrap;
+}
+
+.ticker-odds {
+  flex-basis: 100%;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  opacity: 0.85;
+}
+
+.ticker-odds-note {
+  margin: var(--space-2) 0 0;
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}

@@ -451,3 +451,51 @@ def test_the_published_scale_describes_the_arithmetic_actually_used() -> None:
     assert entry["attack_difficulty"] == pytest.approx(
         max(config.minimum, min(config.maximum, expected_attack)), abs=0.01
     )
+
+
+# ORC-15: odds published per fixture, from the club's own side.
+def _odds_rows() -> pd.DataFrame:
+    return pd.DataFrame(
+        [
+            {
+                "fixture_id": 1,
+                "captured_at": pd.Timestamp("2026-08-18T09:00:00Z"),
+                "home_win_prob": 0.55,
+                "draw_prob": 0.25,
+                "away_win_prob": 0.20,
+                "expected_home_goals": 1.8,
+                "expected_away_goals": 0.9,
+            }
+        ]
+    )
+
+
+def test_odds_are_published_from_each_clubs_own_side(contract: Contract) -> None:
+    grid = build_fixtures(
+        fixtures=_fixture_rows([(1, 1, 2), (1, 3, 1)]),
+        teams=_teams(),
+        model=_strong_model(),
+        from_gameweek=1,
+        to_gameweek=1,
+        config=FixtureTickerConfig(),
+        contract_version=1,
+        odds=_odds_rows(),
+        odds_next_check="2026-08-19T06:00:00Z",
+    )
+    contract.validate("fixtures", grid)
+    home, away = _entry(grid, 1, 1), _entry(grid, 2, 1)
+    assert (home["odds"]["win"], home["odds"]["loss"]) == (0.55, 0.2)
+    assert (away["odds"]["win"], away["odds"]["loss"]) == (0.2, 0.55)
+    assert home["odds"]["win"] + home["odds"]["draw"] + home["odds"]["loss"] == pytest.approx(1)
+    # Poisson(2.7): P(total <= 2) = e^-2.7 * (1 + 2.7 + 3.645)
+    assert home["odds"]["over_2_5"] == pytest.approx(1 - 0.0672055 * 7.345, abs=1e-3)
+    assert home["odds"]["over_2_5"] == away["odds"]["over_2_5"]
+    # The second match has no odds row: null, not a guess.
+    assert _entry(grid, 3, 1)["odds"] is None
+    assert grid["odds_next_check"] == "2026-08-19T06:00:00Z"
+
+
+def test_a_grid_without_odds_still_validates(contract: Contract) -> None:
+    grid = _grid(_strong_model(), [(1, 1, 2)])
+    contract.validate("fixtures", grid)
+    assert _entry(grid, 1, 1)["odds"] is None

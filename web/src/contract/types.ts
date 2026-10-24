@@ -6,7 +6,7 @@
 
 export const CONTRACT_VERSION = 1;
 
-export const CONTRACT_MINOR = 5;
+export const CONTRACT_MINOR = 6;
 
 /** What this publication is, when it was made, and what produced it. The browser reads this first and can render an honest 'as at' line without trusting anything else. */
 export interface Meta {
@@ -628,6 +628,21 @@ export interface FixtureEntry {
   attack_difficulty: number;
   /** Difficulty for this club's defenders and goalkeeper, from expected goals against. */
   defence_difficulty: number;
+  /** The bookmaker market for this fixture, margin removed. Null until odds are posted, and for a finished fixture (ORC-15). */
+  odds?: FixtureOdds | null;
+}
+
+/** Match odds as probabilities, always from the perspective of the club whose row it sits in: win is this club winning, loss is the opponent winning. There are no player odds; no free source has them. */
+export interface FixtureOdds {
+  /** This club wins. win + draw + loss is 1 to rounding: the bookmaker margin is removed proportionally. */
+  win: number;
+  draw: number;
+  /** The opponent wins. */
+  loss: number;
+  /** More than 2.5 goals in the match, from the goals the margin-free market implies; the same for both clubs. */
+  over_2_5: number;
+  /** UTC time the odds were captured. */
+  as_of: string;
 }
 
 /** The fixture ticker: a team-by-gameweek difficulty grid built from the model's own expected goals rather than FPL's static preseason FDR (DL-37). Covers the same gameweek window plan.json does, so the ticker and the plan cannot disagree about how far ahead 'ahead' is. Doubles and blanks come from the same fixture-counting the chip calendar uses, not from a second derivation of the same fact. */
@@ -639,6 +654,8 @@ export interface Fixtures {
   to_gameweek: number;
   scale: DifficultyScale;
   model: FixtureModel;
+  /** UTC instant of the next fast-ingest firing that fetches fixture odds, for the 'odds not posted yet' wording (ORC-07, ORC-15). Null when no check is due before the deadline. */
+  odds_next_check?: string | null;
   teams: TeamFixtures[];
 }
 
