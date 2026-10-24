@@ -8,7 +8,7 @@ import { EMPTY_REGISTRY, resolveModel } from "./registry";
 import type { Registry } from "./registry";
 import type { ModelGameweek } from "../contract/types";
 import type { ModelChoice } from "./model";
-import { effectiveSquad } from "../components/squad/effective";
+import { effectiveSquad } from "./effective";
 
 /** Loading state, as a discriminated union so no view can read `data` before it exists. */
 export type DataState =
@@ -122,15 +122,15 @@ export function useData(): PublishedData {
 /**
  * The published data as the chosen strategy sees it: its week (and the in-season squad derived
  * from it) and its plan. Everything else is strategy-independent. A strategy with no week of its
- * own shows the champion.
+ * own shows the champion. The one place the effective squad is applied (DL-67).
  */
 export function withModel(data: PublishedData, model: ModelChoice): PublishedData {
-  const week = data.weeks[model];
-  if (model === data.registry.champion || !week) return data;
+  const own = model === data.registry.champion ? undefined : data.weeks[model];
+  const week = own ?? data.week;
   return {
     ...data,
     week,
-    plan: data.plans[model] ?? null,
+    plan: own ? (data.plans[model] ?? null) : data.plan,
     squad: effectiveSquad(data.publishedSquad, week, data.players),
   };
 }

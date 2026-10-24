@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { players as fixturePlayers } from "../../test/fixtures";
-import { resetTrendCaches } from "../../data/api";
+import { resetPublishedDataCache } from "../../data/store";
 import { history } from "../player/testFixtures";
 import { ComparisonView } from "./ComparisonView";
 
@@ -30,7 +30,7 @@ function installStub(options: { missing?: boolean } = {}) {
 }
 
 beforeEach(() => {
-  resetTrendCaches();
+  resetPublishedDataCache();
   installStub();
 });
 

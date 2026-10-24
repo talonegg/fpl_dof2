@@ -3,7 +3,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { installFetchStub, renderApp, resetAppState } from "../../test/render";
 import { modelsFixture, novelRegistry, strategiesFixture } from "../../test/fixtures";
 import { MODEL_STORAGE_KEY } from "../../data/model";
-import { fetchModels } from "../../data/api";
+import { dataStore } from "../../data/store";
 
 // Five published strategies, none of which the TypeScript has ever named.
 const novel = novelRegistry(5);
@@ -105,23 +105,24 @@ describe("models data", () => {
   beforeEach(() => resetAppState());
   afterEach(() => vi.unstubAllGlobals());
 
-  it("fetchModels never throws and rejects non-JSON or malformed bodies", async () => {
+  it("loads models.json as error, absent, malformed or ready, never throwing", async () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new Error("offline"))));
-    expect(await fetchModels()).toBeNull();
+    expect((await dataStore.get("models")).status).toBe("error");
     vi.stubGlobal(
       "fetch",
       vi.fn(() => Promise.resolve(new Response("<html>", { headers: { "content-type": "text/html" } }))),
     );
-    expect(await fetchModels()).toBeNull();
+    expect((await dataStore.get("models")).status).toBe("absent");
     vi.stubGlobal(
       "fetch",
       vi.fn(() => Promise.resolve(new Response(JSON.stringify({ nope: 1 }), { headers: { "content-type": "application/json" } }))),
     );
-    expect(await fetchModels()).toBeNull();
+    expect((await dataStore.get("models")).status).toBe("malformed");
     vi.stubGlobal(
       "fetch",
       vi.fn(() => Promise.resolve(new Response(JSON.stringify(modelsFixture), { headers: { "content-type": "application/json" } }))),
     );
-    expect((await fetchModels())?.models).toHaveLength(5);
+    const loaded = await dataStore.get("models");
+    expect(loaded.status === "ready" && loaded.data.models).toHaveLength(5);
   });
 });

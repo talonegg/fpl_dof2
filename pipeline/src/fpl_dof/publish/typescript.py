@@ -10,6 +10,7 @@ handles every keyword.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from typing import Any
 
@@ -99,7 +100,7 @@ def generate(contract: Contract) -> str:
                 if seen != subschema:
                     raise ContractViolationError(
                         f"$defs name {name!r} is defined with different shapes in "
-                        f"{ARTEFACTS[first]} and {ARTEFACTS[artefact]}; rename one"
+                        f"{ARTEFACTS[first].schema} and {ARTEFACTS[artefact].schema}; rename one"
                     )
                 continue
             emitted[type_name] = (artefact, subschema)
@@ -112,6 +113,20 @@ def generate(contract: Contract) -> str:
         if description:
             parts.append(f"/** {description} */")
         parts.append(f"export interface {_type_name(artefact)} {_render(schema, defs)}\n")
+
+    # The artefact registry (WEB-04): the app's loader, its offline warm-up list and the smoke
+    # check read this, so a new artefact is one schema and one `ARTEFACTS` entry. Emitted as JSON
+    # so the Node verify scripts can read it without compiling TypeScript.
+    registry = {
+        name: {"path": f"{name}.json", "required": a.required, "warm": a.warm}
+        for name, a in ARTEFACTS.items()
+    }
+    parts.append("/** Every published artefact and how the app loads it, from `ARTEFACTS`. */")
+    parts.append(f"export const ARTEFACTS = {json.dumps(registry, indent=2)} as const;\n")
+    fields = "".join(f"  {name}: {_type_name(name)};\n" for name in ARTEFACTS)
+    parts.append("/** Each artefact's type, by key. */")
+    parts.append(f"export interface ArtefactMap {{\n{fields}}}\n")
+    parts.append("export type ArtefactKey = keyof ArtefactMap;\n")
 
     return "\n".join(parts)
 

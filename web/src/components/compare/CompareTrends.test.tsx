@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import type { History } from "../../contract/types";
 import { players as fixturePlayers } from "../../test/fixtures";
-import { resetTrendCaches } from "../../data/api";
+import { resetPublishedDataCache } from "../../data/store";
 import { history, preseasonHistory } from "../player/testFixtures";
 import { CompareTrends } from "./CompareTrends";
 
@@ -31,7 +31,7 @@ function renderTrends(players = [raya, watkins]) {
 
 describe("CompareTrends forecast charts (E6-S5)", () => {
   beforeEach(() => {
-    resetTrendCaches();
+    resetPublishedDataCache();
     installStub();
   });
   afterEach(() => vi.unstubAllGlobals());
@@ -92,7 +92,7 @@ describe("CompareTrends forecast charts (E6-S5)", () => {
 
 describe("CompareTrends history overlays", () => {
   beforeEach(() => {
-    resetTrendCaches();
+    resetPublishedDataCache();
     installStub();
   });
   afterEach(() => vi.unstubAllGlobals());

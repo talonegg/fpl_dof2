@@ -33,42 +33,57 @@ CONTRACT_VERSION = 1
 #: shows a warning and renders what it can. Reset to 1 when the major is bumped.
 CONTRACT_MINOR = 5
 
-#: Artefact name -> schema filename. The published directory is exactly these files.
-ARTEFACTS: dict[str, str] = {
-    "meta": "meta.schema.json",
-    "rules": "rules.schema.json",
-    "players": "players.schema.json",
-    "squad": "squad.schema.json",
-    "week": "week.schema.json",
-    "plan": "plan.schema.json",
-    # The two trend artefacts (DL-37). Additive, so contract v1 does not bump: a client that has
-    # never heard of them keeps working, which is the whole point of versioning the seam (DP-04).
-    # Both are fetched lazily by the routes that need them, never in the app shell's eager load.
-    "history": "history.schema.json",
-    "fixtures": "fixtures.schema.json",
+
+@dataclass(frozen=True, slots=True)
+class Artefact:
+    """One published artefact and how the app loads it (WEB-04). The app's registry, its offline
+    warm-up list and the smoke check are generated from these, so a new artefact is one entry here
+    and one schema."""
+
+    schema: str
+    #: Every successful publication writes it, so the deployed smoke check fails without it.
+    #: Optional ones are legitimately absent in a normal published state (DL-20, DL-40).
+    required: bool = False
+    #: Cached for offline use on the first visit (E6-S9). Large or route-only artefacts are not.
+    warm: bool = False
+
+
+#: Artefact name -> its schema and loading policy. The published directory is exactly these files.
+ARTEFACTS: dict[str, Artefact] = {
+    "meta": Artefact("meta.schema.json", required=True, warm=True),
+    "rules": Artefact("rules.schema.json", required=True, warm=True),
+    "players": Artefact("players.schema.json", required=True, warm=True),
+    "squad": Artefact("squad.schema.json", required=True, warm=True),
+    # The champion's week and plan: absent before the season is scored (DL-20). Each strategy's
+    # own pair is warmed from the strategy registry, which names their paths (MOD-07).
+    "week": Artefact("week.schema.json"),
+    "plan": Artefact("plan.schema.json"),
+    # The two trend artefacts (DL-37). Fetched lazily by the routes that need them, never in the
+    # app shell's eager load, and not warmed: `history.json` fully populated is larger than the
+    # warmed set together.
+    "history": Artefact("history.schema.json", required=True),
+    "fixtures": Artefact("fixtures.schema.json", required=True),
     # The mini-league (E6-S10). Written only when a league is configured, and it is not by default:
-    # unlike every other artefact here, its *absence* is the normal published state.
-    "league": "league.schema.json",
-    # The data health page's artefact (E7-S6, DL-41). Additive like the trend pair above, and
-    # fetched lazily by `/health` alone: it is the page you open when something looks wrong, so
-    # putting it on the first-paint path would tax every other page for it.
-    "health": "health.schema.json",
+    # its *absence* is the normal published state.
+    "league": Artefact("league.schema.json"),
+    # The data health page's artefact (E7-S6, DL-41), fetched lazily by `/health` alone: it is the
+    # page you open when something looks wrong, so the first paint does not pay for it.
+    "health": Artefact("health.schema.json", required=True),
     # The season log (DL-69). Written only when a team ID is configured and the game has recorded
-    # picks for it, so like `league` its absence is a normal published state. Fetched lazily by
-    # `/log` alone.
-    "log": "log.schema.json",
+    # picks for it, so like `league` its absence is a normal published state.
+    "log": Artefact("log.schema.json"),
     # The five-model comparison, from the frozen harness's records. Written only when the
     # prospective harness has recorded a decision, so its absence is a normal published state.
-    "models": "models.schema.json",
+    "models": Artefact("models.schema.json", warm=True),
     # The models history (ORC-06): the weekly backtest's season simulation of every graded
     # strategy, recorded on `ledger`; the latest season is published. Absent until a backtest ran.
-    "models_history": "models_history.schema.json",
-    # All-player next-GW xP MAE: the live season's from the evaluations (ORC-05), beside the
-    # checked-in 2025/26 backtest season under web/public/static/ (WEB-04 publishes it).
-    "xp_accuracy": "xp_accuracy.schema.json",
+    "models_history": Artefact("models_history.schema.json"),
+    # All-player next-GW xP MAE: the 2025/26 backtest season, a frozen-era record carried forward
+    # from `publish/records/` (WEB-04), and the live season's from the evaluations (ORC-05).
+    "xp_accuracy": Artefact("xp_accuracy.schema.json"),
     # The strategy registry as published (MOD-03): every strategy's id, label, role and digest,
-    # generated from config/strategies/. Additive, so contract v1 does not bump.
-    "strategies": "strategies.schema.json",
+    # generated from config/strategies/.
+    "strategies": Artefact("strategies.schema.json", warm=True),
 }
 
 
@@ -88,7 +103,7 @@ class Contract:
         return self.root / f"v{self.version}"
 
     def schema(self, artefact: str) -> dict[str, Any]:
-        path = self.directory / ARTEFACTS[artefact]
+        path = self.directory / ARTEFACTS[artefact].schema
         if not path.exists():
             raise ContractViolationError(f"no schema for {artefact!r} at {path}")
         loaded: dict[str, Any] = json.loads(path.read_text(encoding="utf-8"))
@@ -103,7 +118,7 @@ class Contract:
                 for error in errors[:10]
             )
             raise ContractViolationError(
-                f"{artefact}.json does not match {ARTEFACTS[artefact]}: {detail}"
+                f"{artefact}.json does not match {ARTEFACTS[artefact].schema}: {detail}"
             )
 
     def write(

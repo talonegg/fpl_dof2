@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, within } from "@testing-library/react";
 import { installFetchStub, renderApp, resetAppState } from "../../test/render";
 import type { ModelHistoryEntry, ModelsHistory } from "../../contract/types";
-import { DATA_BASE, fetchModelsHistory } from "../../data/api";
+import { DATA_BASE, dataStore } from "../../data/store";
 import { NAV_ITEMS } from "../../routes/nav";
 import { strategiesFixture } from "../../test/fixtures";
 
@@ -149,13 +149,13 @@ describe("model history page", () => {
     expect(await screen.findByTestId("history-absent")).toBeTruthy();
   });
 
-  it("fetchModelsHistory never throws and rejects malformed bodies", async () => {
+  it("loads the models history from the published data, and calls a wrong body malformed", async () => {
     const offline = vi.fn((_input: RequestInfo | URL) => Promise.reject(new Error("offline")));
     vi.stubGlobal("fetch", offline);
-    expect(await fetchModelsHistory()).toBeNull();
+    expect((await dataStore.get("models_history")).status).toBe("error");
     // Published data now (ORC-06), not a file shipped with the app.
     expect(offline.mock.calls.map(([url]) => String(url))).toContain(`${DATA_BASE}/models_history.json`);
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(new Response(JSON.stringify({ x: 1 }), { headers: { "content-type": "application/json" } }))));
-    expect(await fetchModelsHistory()).toBeNull();
+    expect((await dataStore.get("models_history")).status).toBe("malformed");
   });
 });

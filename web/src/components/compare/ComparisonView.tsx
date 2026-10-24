@@ -230,7 +230,7 @@ function ComparisonBoard({
 
       {/*
         TODO(E6-S8): the fixture run for each compared player's club over the horizon, reading
-        `fetchFixtures()` from `data/api.ts` — `player/fixtureRun.ts` already builds a run for one
+        `useArtefact("fixtures")` from `data/store.ts` — `player/fixtureRun.ts` already builds a run for one
         player and is the thing to reuse. Note `model.teams_rated === 0` means the grid is unrated,
         and must be labelled as such rather than rendered as a rating (DP-09).
       */}

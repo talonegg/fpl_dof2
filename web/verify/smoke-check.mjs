@@ -28,7 +28,7 @@
  * built with that prefix as its base. Passing the bare origin would check a 404 page.
  */
 import { chromium } from "playwright";
-import { CONTRACT_VERSION } from "./contract-version.mjs";
+import { ARTEFACTS, CONTRACT_VERSION } from "./contract-version.mjs";
 
 const baseUrl = (process.argv[2] ?? "http://127.0.0.1:4173").replace(/\/+$/, "");
 
@@ -36,13 +36,14 @@ const baseUrl = (process.argv[2] ?? "http://127.0.0.1:4173").replace(/\/+$/, "")
 const EXPECTED_CONTRACT_VERSION = CONTRACT_VERSION;
 
 /**
- * Artefacts every successful publication writes, so any one of them missing is a real fault.
+ * Artefacts every successful publication writes, so any one of them missing is a real fault: those the
+ * generated registry marks `required` (WEB-04, `ARTEFACTS` in publish/contract.py).
  *
- * `week.json`, `plan.json` and `league.json` are deliberately absent from this list: each is legitimately
- * missing in a normal published state (DL-20, DL-40), and a smoke test that failed on them would
- * fail every deploy made before the first gameweek is scored.
+ * `week.json`, `plan.json` and `league.json` are not required: each is legitimately missing in a
+ * normal published state (DL-20, DL-40), and a smoke test that failed on them would fail every
+ * deploy made before the first gameweek is scored.
  */
-const REQUIRED_ARTEFACTS = ["meta", "rules", "players", "squad", "fixtures", "history", "health"];
+const REQUIRED_ARTEFACTS = Object.keys(ARTEFACTS).filter((key) => ARTEFACTS[key].required);
 
 /**
  * Routes that must render their real view, named by the `data-testid` of the component that fills

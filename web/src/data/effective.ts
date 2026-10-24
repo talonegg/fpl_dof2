@@ -1,4 +1,4 @@
-import type { Players, Squad, Week } from "../../contract/types";
+import type { Players, Squad, Week } from "../contract/types";
 
 /**
  * The squad the app should show, given that the from-scratch solve is skipped in-season (DL-67).

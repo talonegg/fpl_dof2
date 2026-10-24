@@ -1,55 +1,39 @@
 import { useCallback, useEffect, useState } from "react";
-import type {
-  Fixtures,
-  Health,
-  History,
-  League,
-  Log,
-  Meta,
-  Models,
-  ModelsHistory,
-  Plan,
-  Players,
-  Rules,
-  Squad,
-  Strategies,
-  Week,
-} from "../contract/types";
-import { effectiveSquad } from "../components/squad/effective";
-import type { XpAccuracy, XpAccuracySeason } from "../contract/types";
+import { ARTEFACTS } from "../contract/types";
+import type { ArtefactKey, ArtefactMap, Health, Meta, Models, Plan, Players, Rules, Squad, Week } from "../contract/types";
 import { buildRegistry, normaliseAccuracy, normaliseHistory, normaliseModels } from "./registry";
 import type { Registry } from "./registry";
 import { DATA_DIR, WARMED_ARTEFACTS, warmPublishedCache } from "./offline";
 import { checkMajor } from "./compat";
 import type { WarmOptions, WarmResult } from "./offline";
 
+export type { ArtefactKey, ArtefactMap };
+
 /** Base for published data files. Never points outside this origin (Invariant 8). */
 export const DATA_BASE = `${import.meta.env.BASE_URL}${DATA_DIR}`;
 
-/** Per-GW all-player xP MAE for the 2025/26 backtest, a frozen-era record nothing rebuilds; WEB-04
- * moves it into the published data. The live season is published beside the contract as
- * `xp_accuracy.json` from the evaluations (ORC-05) and merged in by `mergeAccuracy`. */
-export const XP_ACCURACY_URL = `${import.meta.env.BASE_URL}static/xp_accuracy.json`;
+/**
+ * What loading one artefact came to — the one spelling of each state (WEB-04).
+ *
+ * **Absent is a state, not a failure** (DP-15): `league.json` and `log.json` are absent by default,
+ * and a bundle deployed against an older published directory 404s on anything newer. `malformed`
+ * is a file that parses and is not this artefact, which TypeScript cannot see coming off the
+ * network: handed on, it would crash the view on its first missing field.
+ */
+export type Loaded<T> =
+  | { status: "ready"; data: T }
+  | { status: "absent" }
+  | { status: "malformed" }
+  | { status: "error"; message: string };
 
-export interface ArtefactMap {
-  meta: Meta;
-  rules: Rules;
-  players: Players;
-  squad: Squad;
-  week: Week | null;
-  plan: Plan | null;
-  strategies: Strategies | null;
-  models: Models | null;
-  history: History | null;
-  fixtures: Fixtures | null;
-  league: League | null;
-  health: Health | null;
-  log: Log | null;
-  models_history: ModelsHistory | null;
-  xp_accuracy: XpAccuracy | null;
+export type ArtefactState<T> = { status: "loading" } | Loaded<T>;
+
+/** Why a settled artefact is not ready, in a sentence (`absent` is the caller's), or null. */
+export function unready(state: ArtefactState<unknown>, absent: string): string | null {
+  if (state.status === "loading" || state.status === "ready") return null;
+  if (state.status === "absent") return absent;
+  return state.status === "error" ? state.message : "the published file is malformed.";
 }
-
-export type ArtefactKey = keyof ArtefactMap;
 
 /**
  * Everything the published contract carries, loaded as one unit.
@@ -58,6 +42,7 @@ export interface PublishedData {
   meta: Meta;
   rules: Rules;
   players: Players;
+  /** As published; `useData` gives the effective squad of the chosen strategy (`withModel`). */
   squad: Squad;
   /** The champion's week and plan. */
   week: Week | null;
@@ -70,127 +55,104 @@ export interface PublishedData {
   plans: Record<string, Plan>;
 }
 
-export interface ArtefactState<T> {
-  status: "loading" | "ready" | "error";
-  data: T | null;
-  value: T | null;
-  error: string | null;
-  retry: () => void;
-}
+const isObject = (body: unknown): body is Record<string, unknown> => typeof body === "object" && body !== null;
+const hasArrays = (...keys: string[]) => (body: unknown) => isObject(body) && keys.every((k) => Array.isArray(body[k]));
+const hasDeadline = (body: unknown) => isObject(body) && "deadline" in body;
 
-async function fetchRequired<T>(file: string): Promise<T> {
-  const res = await fetch(`${DATA_BASE}/${file}`);
-  if (!res.ok) {
-    throw new Error(`Failed to load ${file}: ${res.status} ${res.statusText}`);
-  }
-  return (await res.json()) as T;
-}
-
-async function fetchNullable<T>(file: string): Promise<T | null> {
-  const res = await fetch(`${DATA_BASE}/${file}`);
-  if (res.status === 404) return null;
-  if (!res.ok) {
-    throw new Error(`Failed to load ${file}: ${res.status} ${res.statusText}`);
-  }
-  return (await res.json()) as T;
-}
-
-async function fetchLazy<T>(file: string): Promise<T | null> {
-  const res = await fetch(`${DATA_BASE}/${file}`);
-  if (res.status === 404) return null;
-  if (!res.ok) {
-    throw new Error(`Failed to load ${file}: ${res.status} ${res.statusText}`);
-  }
-  const contentType = res.headers.get("content-type") ?? "";
-  if (contentType && !contentType.includes("json")) return null;
-  return (await res.json()) as T;
-}
-
-async function fetchStaticSafe<T>(url: string, validator: (body: unknown) => body is T): Promise<T | null> {
-  try {
-    const res = await fetch(url);
-    if (!res.ok) return null;
-    const contentType = res.headers.get("content-type") ?? "";
-    if (contentType && !contentType.includes("json")) return null;
-    const body: unknown = await res.json();
-    return validator(body) ? body : null;
-  } catch {
-    return null;
-  }
-}
-
-function isWeek(body: unknown): body is Week {
-  return typeof body === "object" && body !== null && "deadline" in body;
-}
-
-function isPlan(body: unknown): body is Plan {
-  return typeof body === "object" && body !== null && "deadline" in body;
-}
-
-function isStrategies(body: unknown): body is Strategies {
-  return typeof body === "object" && body !== null && Array.isArray((body as Strategies).strategies);
-}
-
-function isModels(body: unknown): body is Models {
-  return typeof body === "object" && body !== null && Array.isArray((body as Models).gameweeks);
-}
-
-function isModelsHistory(body: unknown): body is ModelsHistory {
+/**
+ * The minimum shape the health page renders from: the run excerpt, a source list, and the gate slot.
+ *
+ * A floor, not a full validation: the publisher validates against the JSON Schema before writing
+ * (DP-04), so a payload that fails *this* is a different or truncated file, not schema drift.
+ */
+export function looksLikeHealth(value: unknown): value is Health {
+  if (!isObject(value)) return false;
+  const candidate = value as Partial<Health>;
   return (
-    typeof body === "object" &&
-    body !== null &&
-    Array.isArray((body as ModelsHistory).summary) &&
-    Array.isArray((body as ModelsHistory).gameweeks)
+    typeof candidate.generated_at === "string" &&
+    isObject(candidate.run) &&
+    Array.isArray(candidate.run.stages) &&
+    Array.isArray(candidate.sources) &&
+    // `gates: null` is the documented "no report" case, so the key must exist, not be truthy.
+    "gates" in candidate
   );
 }
 
-/** The checked-in seasons and the live one the pipeline publishes from its evaluations (ORC-05).
- * A season the live file carries replaces a checked-in copy of the same season and kind. */
-export function mergeAccuracy(checkedIn: XpAccuracy | null, live: XpAccuracy | null): XpAccuracy | null {
-  if (!checkedIn || !live) return checkedIn ?? live;
-  const key = (s: XpAccuracySeason) => `${s.season}|${s.kind}`;
-  const fresh = new Set(live.seasons.map(key));
-  return { ...checkedIn, seasons: [...checkedIn.seasons.filter((s) => !fresh.has(key(s))), ...live.seasons] };
+/** Each artefact's shape floor; the rest need only be an object. */
+const GUARDS: Partial<Record<ArtefactKey, (body: unknown) => boolean>> = {
+  week: hasDeadline,
+  plan: hasDeadline,
+  strategies: hasArrays("strategies"),
+  models: hasArrays("gameweeks"),
+  models_history: hasArrays("summary", "gameweeks"),
+  xp_accuracy: hasArrays("seasons"),
+  health: looksLikeHealth,
+};
+
+/** Artefacts keyed by strategy id, mapped onto the registry's ids as they load. */
+const NORMALISE: Partial<Record<ArtefactKey, (registry: Registry, body: never) => unknown>> = {
+  models: normaliseModels,
+  models_history: normaliseHistory,
+  xp_accuracy: normaliseAccuracy,
+};
+
+const message = (error: unknown) => (error instanceof Error ? error.message : String(error));
+
+/**
+ * One published file. A 404, or a single-page host's HTML fallback for a missing path, is absent
+ * (DL-37); a body that fails its guard is malformed. Never rejects.
+ */
+async function load<T>(path: string, looksRight: (body: unknown) => boolean = isObject): Promise<Loaded<T>> {
+  try {
+    const res = await fetch(`${DATA_BASE}/${path}`);
+    if (res.status === 404) return { status: "absent" };
+    if (!res.ok) return { status: "error", message: `Failed to load ${path}: ${res.status} ${res.statusText}` };
+    const contentType = res.headers.get("content-type") ?? "";
+    if (contentType && !contentType.includes("json")) return { status: "absent" };
+    let body: unknown;
+    try {
+      body = await res.json();
+    } catch {
+      return { status: "malformed" };
+    }
+    return looksRight(body) ? { status: "ready", data: body as T } : { status: "malformed" };
+  } catch (error) {
+    return { status: "error", message: message(error) };
+  }
 }
 
-function isXpAccuracy(body: unknown): body is XpAccuracy {
-  return typeof body === "object" && body !== null && Array.isArray((body as XpAccuracy).seasons);
+/** The data, or null for an artefact the app can do without. */
+const optional = <T,>(loaded: Loaded<T>): T | null => (loaded.status === "ready" ? loaded.data : null);
+
+/** The data, or a thrown error for one the app cannot render without. */
+function need<T>(key: ArtefactKey, loaded: Loaded<T>): T {
+  if (loaded.status === "ready") return loaded.data;
+  throw new Error(loaded.status === "error" ? loaded.message : `Failed to load ${key}.json: ${loaded.status}`);
 }
 
 class DataStore {
-  readonly DATA_BASE = DATA_BASE;
-  readonly XP_ACCURACY_URL = XP_ACCURACY_URL;
-
-  private cache = new Map<ArtefactKey, Promise<unknown>>();
-  private files = new Map<string, Promise<unknown>>();
+  private cache = new Map<ArtefactKey, Promise<Loaded<unknown>>>();
+  private files = new Map<string, Promise<Loaded<unknown>>>();
   private publishedPromise: Promise<PublishedData> | null = null;
   private registryPromise: Promise<Registry> | null = null;
 
-  get<K extends ArtefactKey>(key: K): Promise<ArtefactMap[K]> {
-    const existing = this.cache.get(key);
-    if (existing) {
-      return existing as Promise<ArtefactMap[K]>;
-    }
-
-    const promise = this.fetchArtefact(key);
-    promise
-      .then((val) => {
-        if (val === null && this.cache.get(key) === promise) {
-          this.cache.delete(key);
-        }
-      })
-      .catch(() => {
-        if (this.cache.get(key) === promise) {
-          this.cache.delete(key);
-        }
+  /** One artefact. Only a ready one is kept; anything else is asked for again next time. */
+  get<K extends ArtefactKey>(key: K): Promise<Loaded<ArtefactMap[K]>> {
+    let promise = this.cache.get(key);
+    if (!promise) {
+      const fetched = this.fetchArtefact(key);
+      promise = fetched;
+      this.cache.set(key, fetched);
+      void fetched.then((loaded) => {
+        if (loaded.status !== "ready" && this.cache.get(key) === fetched) this.cache.delete(key);
       });
-    this.cache.set(key, promise);
-    return promise as Promise<ArtefactMap[K]>;
+    }
+    return promise as Promise<Loaded<ArtefactMap[K]>>;
   }
 
   /** The strategy registry; a deployment without `strategies.json` gets the champion alone. */
   registry(): Promise<Registry> {
-    this.registryPromise ??= this.get("strategies").then(buildRegistry);
+    this.registryPromise ??= this.get("strategies").then((loaded) => buildRegistry(optional(loaded)));
     return this.registryPromise;
   }
 
@@ -208,10 +170,10 @@ class DataStore {
     const key = `${kind}:${path}`;
     let promise = this.files.get(key);
     if (!promise) {
-      promise = fetchStaticSafe(`${this.DATA_BASE}/${path}`, kind === "week" ? isWeek : isPlan);
+      promise = load(path, GUARDS[kind]);
       this.files.set(key, promise);
     }
-    return (await promise) as (K extends "week" ? Week : Plan) | null;
+    return optional(await promise) as (K extends "week" ? Week : Plan) | null;
   }
 
   loadPublished(): Promise<PublishedData> {
@@ -234,7 +196,7 @@ class DataStore {
       });
       this.publishedPromise = Promise.all([
         this.registry(),
-        this.get("meta").then(checkMajor),
+        this.get("meta"),
         this.get("rules"),
         this.get("players"),
         this.get("squad"),
@@ -244,20 +206,28 @@ class DataStore {
         others,
       ])
         .then(([registry, meta, rules, players, squad, week, plan, models, other]) => {
+          const published = {
+            meta: checkMajor(need("meta", meta)),
+            rules: need("rules", rules),
+            players: need("players", players),
+            squad: need("squad", squad),
+          };
+          // A week or plan that failed to load is an error; one not published yet is none (DL-20).
+          if (week.status === "error") throw new Error(week.message);
+          if (plan.status === "error") throw new Error(plan.message);
           const weeks: Record<string, Week> = { ...other.weeks };
           const plans: Record<string, Plan> = { ...other.plans };
-          if (week) weeks[registry.champion] = week;
-          if (plan) plans[registry.champion] = plan;
+          const championWeek = optional(week);
+          const championPlan = optional(plan);
+          if (championWeek) weeks[registry.champion] = championWeek;
+          if (championPlan) plans[registry.champion] = championPlan;
           void this.warm();
           return {
-            meta,
-            rules,
-            players,
-            squad: effectiveSquad(squad, week, players),
-            week,
-            plan,
-            models,
-            publishedSquad: squad,
+            ...published,
+            week: championWeek,
+            plan: championPlan,
+            models: optional(models),
+            publishedSquad: published.squad,
             registry,
             weeks,
             plans,
@@ -278,74 +248,33 @@ class DataStore {
     this.registryPromise = null;
   }
 
-  resetTrends(): void {
-    const trends: ArtefactKey[] = [
-      "history",
-      "fixtures",
-      "league",
-      "health",
-      "log",
-      "models_history",
-      "xp_accuracy",
-    ];
-    for (const key of trends) {
-      this.cache.delete(key);
-    }
-  }
-
   resetKey(key: ArtefactKey): void {
     this.cache.delete(key);
   }
 
-  /** Warm the offline cache with the fixed artefacts and every file the registry publishes. */
+  /** Warm the offline cache with the registry's warmed artefacts and every file each strategy publishes. */
   async warm(options?: Partial<WarmOptions>): Promise<WarmResult> {
     const registry = await this.registry();
     const published = registry.entries.flatMap((e) => (e.published ? [e.artefacts.week, e.artefacts.plan] : []));
     const names = [...WARMED_ARTEFACTS, ...published.filter((p): p is string => !!p).map((p) => p.replace(/\.json$/, ""))];
-    return warmPublishedCache({ dataBase: this.DATA_BASE, names, ...options });
+    return warmPublishedCache({ dataBase: DATA_BASE, names, ...options });
   }
 
-  private fetchArtefact(key: ArtefactKey): Promise<unknown> {
-    switch (key) {
-      case "meta":
-      case "rules":
-      case "players":
-      case "squad":
-        return fetchRequired(`${key}.json`);
-      case "week":
-      case "plan":
-        // The champion's, at the path the registry publishes; nothing is published without one.
-        return this.registry().then((r) => {
-          const path = r.entries.find((e) => e.id === r.champion)?.artefacts[key];
-          return path ? fetchNullable(path) : null;
-        });
-      case "strategies":
-        return fetchStaticSafe(`${this.DATA_BASE}/strategies.json`, isStrategies);
-      case "models":
-        return this.normalised(fetchStaticSafe(`${this.DATA_BASE}/models.json`, isModels), normaliseModels);
-      case "history":
-      case "fixtures":
-      case "league":
-      case "health":
-      case "log":
-        return fetchLazy(`${key}.json`);
-      case "models_history":
-        // Published by the pipeline from the weekly backtest's record (ORC-06); absent until one ran.
-        return this.normalised(fetchStaticSafe(`${this.DATA_BASE}/models_history.json`, isModelsHistory), normaliseHistory);
-      case "xp_accuracy":
-        return this.normalised<XpAccuracy>(
-          Promise.all([
-            fetchStaticSafe(this.XP_ACCURACY_URL, isXpAccuracy),
-            fetchStaticSafe(`${this.DATA_BASE}/xp_accuracy.json`, isXpAccuracy),
-          ]).then(([checkedIn, live]) => mergeAccuracy(checkedIn, live)),
-          normaliseAccuracy,
-        );
+  private async fetchArtefact(key: ArtefactKey): Promise<Loaded<unknown>> {
+    if (key === "week" || key === "plan") {
+      // The champion's, at the path the registry publishes; nothing is published without one.
+      const registry = await this.registry();
+      const path = registry.entries.find((e) => e.id === registry.champion)?.artefacts[key];
+      return path ? load(path, GUARDS[key]) : { status: "absent" };
     }
-  }
-
-  private async normalised<T>(body: Promise<T | null>, fix: (registry: Registry, body: T) => T): Promise<T | null> {
-    const [loaded, registry] = await Promise.all([body, this.registry()]);
-    return loaded && fix(registry, loaded);
+    const loaded = await load(ARTEFACTS[key].path, GUARDS[key]);
+    const fix = NORMALISE[key] as ((registry: Registry, body: unknown) => unknown) | undefined;
+    if (loaded.status !== "ready" || !fix) return loaded;
+    try {
+      return { status: "ready", data: fix(await this.registry(), loaded.data) };
+    } catch {
+      return { status: "malformed" };
+    }
   }
 }
 
@@ -359,58 +288,31 @@ export function resetPublishedDataCache(): void {
   dataStore.reset();
 }
 
-export function useArtefact<K extends ArtefactKey>(key: K): ArtefactState<ArtefactMap[K]> {
-  const [state, setState] = useState<ArtefactState<ArtefactMap[K]>>({
-    status: "loading",
-    data: null,
-    value: null,
-    error: null,
-    retry: () => {},
-  });
+/**
+ * The one loading hook (WEB-04): any artefact by its registry key, as `loading`, `ready`, `absent`,
+ * `malformed` or `error`. The promise is cached in the store, so remounting costs a render and
+ * not a request; `retry` asks again.
+ */
+export function useArtefact<K extends ArtefactKey>(key: K): { state: ArtefactState<ArtefactMap[K]>; retry: () => void } {
+  const [state, setState] = useState<ArtefactState<ArtefactMap[K]>>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    setState({ status: "loading" });
+    void dataStore.get(key).then((loaded) => {
+      // A view unmounted mid-flight must not be written to.
+      if (!cancelled) setState(loaded);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [key, attempt]);
 
   const retry = useCallback(() => {
     dataStore.resetKey(key);
     setAttempt((n) => n + 1);
   }, [key]);
 
-  useEffect(() => {
-    let cancelled = false;
-    setState({
-      status: "loading",
-      data: null,
-      value: null,
-      error: null,
-      retry,
-    });
-
-    dataStore
-      .get(key)
-      .then((data) => {
-        if (cancelled) return;
-        setState({
-          status: "ready",
-          data,
-          value: data,
-          error: null,
-          retry,
-        });
-      })
-      .catch((err: unknown) => {
-        if (cancelled) return;
-        setState({
-          status: "error",
-          data: null,
-          value: null,
-          error: err instanceof Error ? err.message : String(err),
-          retry,
-        });
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [key, attempt, retry]);
-
-  return state;
+  return { state, retry };
 }
