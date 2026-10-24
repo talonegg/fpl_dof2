@@ -21,7 +21,9 @@ class MissingInputError(ValueError):
     (ORC-07): only ``sources/`` maps a table to its source (Invariant 1).
     """
 
-    def __init__(self, message: str, tables: tuple[str, ...]) -> None:
+    # The default lets pickle rebuild it from ``args`` (the message), then restore ``tables`` from
+    # its state, so it survives the replay's worker processes (run_isolated).
+    def __init__(self, message: str, tables: tuple[str, ...] = ()) -> None:
         super().__init__(message)
         self.tables = tables
 

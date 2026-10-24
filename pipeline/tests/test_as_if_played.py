@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import pickle
 import re
 from pathlib import Path
 from typing import Any, ClassVar
@@ -418,6 +419,14 @@ def test_a_model_whose_fit_today_fails_is_unavailable_for_the_season(
     assert unavailable == {
         "a_odds": "today's fit could not be replayed: MissingInputError: a_odds: no odds"
     }
+
+
+def test_absent_inputs_cross_the_worker_boundary_intact() -> None:
+    """Replays run in worker processes (run_isolated): an error that cannot be unpickled breaks
+    the pool, and every strategy still pending is rerun serially."""
+    error = pickle.loads(pickle.dumps(MissingInputError("a_odds: no odds", ("odds",))))
+    assert isinstance(error, MissingInputError)
+    assert (str(error), error.tables) == ("a_odds: no odds", ("odds",))
 
 
 def test_the_live_forecast_predicts_an_earlier_deadline_with_its_fitted_weights(
