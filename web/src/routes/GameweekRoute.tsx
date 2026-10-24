@@ -1,16 +1,17 @@
 import { useMemo } from "react";
 import { useData } from "../data/DataProvider";
-import { WeekPanel } from "../components/WeekPanel";
+import { DecisionView } from "../components/gameweek/DecisionView";
+import { PlanPanel } from "../components/PlanPanel";
 import { PlanTimeline } from "../components/squad/PlanTimeline";
 import { indexPlayers } from "../components/squad/draft";
 import "../components/squad/squad.css";
 
 /**
- * `/gameweek` — this gameweek's decision for the chosen strategy (WEB-07 interim; WEB-12 builds it
- * out). No `week.json` is the normal preseason answer (DL-20), said rather than left blank (DP-15).
+ * `/gameweek` — this gameweek's decision for the chosen strategy (WEB-12). No `week.json`
+ * is the normal preseason answer (DL-20), said rather than left blank (DP-15).
  */
 export function GameweekRoute() {
-  const { week } = useData();
+  const { week, plan, squad, rules, players, meta } = useData();
   if (!week) {
     return (
       <section className="placeholder" data-testid="gameweek-absent">
@@ -21,7 +22,16 @@ export function GameweekRoute() {
       </section>
     );
   }
-  return <WeekPanel week={week} />;
+  return (
+    <DecisionView
+      week={week}
+      plan={plan}
+      squad={squad}
+      rules={rules}
+      players={players}
+      horizonGameweeks={meta.horizon_gameweeks}
+    />
+  );
 }
 
 /** `/gameweek/plan` — Plan ahead: the multi-gameweek plan and the chip calendar, from `plan.json`. */
@@ -38,5 +48,10 @@ export function PlanAheadRoute() {
       </section>
     );
   }
-  return <PlanTimeline plan={plan} index={index} />;
+  return (
+    <>
+      <PlanPanel plan={plan} />
+      <PlanTimeline plan={plan} index={index} />
+    </>
+  );
 }
