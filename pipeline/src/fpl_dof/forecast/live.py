@@ -28,9 +28,9 @@ import datetime as dt
 import pandas as pd
 
 from fpl_dof.config.models import ForecastConfig
-from fpl_dof.forecast.baselines import FittedBaseline
 from fpl_dof.forecast.fit import (
     ColdStartError,
+    FittedForecastModel,
     fit_as_of,
     training_set,
 )
@@ -102,21 +102,29 @@ def next_deadline(
 
 
 def build(
-    inputs: ForecastInputs, rules: GameRules, config: ForecastConfig
-) -> tuple[pd.DataFrame, FittedBaseline]:
-    """Produce the expected-points table from the component chain, and B0 fitted beside it.
+    inputs: ForecastInputs,
+    rules: GameRules,
+    config: ForecastConfig,
+    *,
+    fitted: FittedForecastModel | None = None,
+) -> tuple[pd.DataFrame, FittedForecastModel]:
+    """Produce the expected-points table from the component chain, and the fitted chain behind it.
 
     The frame has exactly the shape :func:`fpl_dof.forecast.xp_v0.build_forecast` returns — one row
     per player, per-gameweek expectations, a horizon total, a component decomposition, a standard
     deviation on every mean (Invariant 6) and a confidence tier — so the optimiser, the weekly
-    decision and the publisher need no knowledge of which model produced it. B0 is returned beside
-    it, not in it: it is the captain policy's input (DL-76, MOD-02).
+    decision and the publisher need no knowledge of which model produced it. The fitted chain is
+    returned beside it, not in it: its B0 is the captain policy's input (DL-76, MOD-02). Given
+    ``fitted``, that chain's weights predict at this deadline instead of a new fit (ORC-13).
     """
     history = inputs.player_gameweek
     _next_gameweek, deadline, horizon = next_deadline(inputs.gameweeks, config, as_of=inputs.as_of)
-    fitted = fit_as_of(history, deadline, config, rules)
+    if fitted is not None and history is not None:
+        fitted = fitted.rebased(history, deadline)
+    else:
+        fitted = fit_as_of(history, deadline, config, rules)
     frame: pd.DataFrame = fitted.predict(horizon, inputs=inputs)
-    return frame, fitted.b0
+    return frame, fitted
 
 
 def build_forecast(

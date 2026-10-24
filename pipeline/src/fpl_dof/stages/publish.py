@@ -20,6 +20,7 @@ from typing import Any
 import pandas as pd
 
 from fpl_dof.artefacts import (
+    AS_IF_PLAYED_DIRNAME,
     MODELS_HISTORY_DIRNAME,
     QUALITY_REPORT_FILENAME,
     SQUAD_FILENAME,
@@ -36,6 +37,7 @@ from fpl_dof.factory import (
 from fpl_dof.factory.registry import published_strategies
 from fpl_dof.frames import as_float, as_int
 from fpl_dof.gameweek import SilverTables, open_gameweek
+from fpl_dof.gold import read_team_match_odds
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.obs.manifest import RunManifest, git_sha, read_manifest
 from fpl_dof.paths import find_repo_root
@@ -81,7 +83,7 @@ def run(ctx: StageContext) -> StageResult:
     players = _players(forecast, teams, form=_form(ctx, season, forecast))
     squad_payload = _squad(squad, rules)
     history = _history(ctx, season, rules)
-    fixtures = _fixtures(ctx, season, teams, gameweeks)
+    fixtures = _fixtures(ctx, season, teams, gameweeks, gold)
     health = _health(ctx, gold)
 
     outputs = [
@@ -145,19 +147,24 @@ def run(ctx: StageContext) -> StageResult:
     accuracy = with_record(live_accuracy, contract_version=CONTRACT_VERSION)
     outputs.append(Output(path=contract.write("xp_accuracy", accuracy, destination)))
 
-    # The models history (ORC-06): the latest season the weekly backtest simulated, from `ledger`.
-    # Absent until a backtest has recorded one; like models.json it never fails the publish.
-    models_history = _models_history(ctx)
-    published_history = False
-    if models_history is not None:
-        try:
-            path = contract.write("models_history", models_history, destination)
-            outputs.append(Output(path=path, rows=len(models_history["gameweeks"])))
-            published_history = True
-        except Exception as exc:
-            log.warning("publish.models_history_dropped", extra={"error": repr(exc)})
-    if not published_history:
-        removed.append("models_history.json")
+    # The models history (ORC-06), the latest season the weekly backtest simulated, and today's
+    # models replayed in-sample on the live season (ORC-13), each the newest record on `ledger`.
+    # Absent until a weekly run has recorded one; like models.json neither fails the publish.
+    for artefact, dirname in (
+        ("models_history", MODELS_HISTORY_DIRNAME),
+        ("as_if_played", AS_IF_PLAYED_DIRNAME),
+    ):
+        document = _models_history(ctx, dirname)
+        published_history = False
+        if document is not None:
+            try:
+                path = contract.write(artefact, document, destination)
+                outputs.append(Output(path=path, rows=len(document["gameweeks"])))
+                published_history = True
+            except Exception as exc:
+                log.warning(f"publish.{artefact}_dropped", extra={"error": repr(exc)})
+        if not published_history:
+            removed.append(f"{artefact}.json")
 
     # The five-model comparison: absent until the prospective harness has recorded a decision.
     models_payload = _models(ctx, season, gameweeks, evaluations)
@@ -330,9 +337,8 @@ def _run_stamp(ctx: StageContext) -> dict[str, str]:
 
 def _rules(rules: GameRules) -> dict[str, Any]:
     """Publish the rules the pipeline actually used, so the browser obeys the same numbers."""
-    # The chip rules only score finished gameweeks, which the browser never does; not published.
-    payload: dict[str, Any] = json.loads(rules.model_dump_json(exclude={"chips"}))
-    payload["derived"].pop("chips", None)
+    # The chip rules too: the League scores a rival's finished gameweek with the armband (ORC-14).
+    payload: dict[str, Any] = json.loads(rules.model_dump_json())
     payload["contract_version"] = CONTRACT_VERSION
     return payload
 
@@ -410,8 +416,19 @@ def _history(ctx: StageContext, season: str, rules: GameRules) -> dict[str, Any]
     )
 
 
+def _next_odds_check(ctx: StageContext, gameweeks: pd.DataFrame) -> str | None:
+    """ORC-07's next check, reused for odds not posted yet: the next fast-ingest firing."""
+    if gameweeks.empty:
+        return None
+    state = open_gameweek(SilverTables(gameweeks), (), ctx.as_of)
+    if state is None:
+        return None
+    check = next_fast_ingest(now=ctx.as_of, state=state, config=ctx.config.schedule)
+    return None if check is None else _iso(check)
+
+
 def _fixtures(
-    ctx: StageContext, season: str, teams: pd.DataFrame, gameweeks: pd.DataFrame
+    ctx: StageContext, season: str, teams: pd.DataFrame, gameweeks: pd.DataFrame, gold: Path
 ) -> dict[str, Any]:
     """The model-derived fixture difficulty grid (E6-S8, DL-37).
 
@@ -446,6 +463,8 @@ def _fixtures(
         to_gameweek=min(first + span - 1, last_gameweek),
         config=ctx.config.publish.fixtures,
         contract_version=CONTRACT_VERSION,
+        odds=read_team_match_odds(gold, season=season),
+        odds_next_check=_next_odds_check(ctx, gameweeks),
     )
 
 
@@ -572,6 +591,8 @@ def _league(ctx: StageContext, season: str, gameweeks: pd.DataFrame) -> dict[str
         standings=standings,
         league_picks=read_table_optional(silver, season, Table.LEAGUE_PICK),
         entry_picks=read_table_optional(silver, season, Table.ENTRY_PICK),
+        league_gameweeks=read_table_optional(silver, season, Table.LEAGUE_GAMEWEEK),
+        league_transfers=read_table_optional(silver, season, Table.LEAGUE_TRANSFER),
         owner_entry_id=ctx.config.entry.team_id,
         gameweek=_latest_finished(gameweeks),
         squad_limit=ctx.config.entry.league_rival_limit,
@@ -595,13 +616,16 @@ def _season_log(
     )
 
 
-def _models_history(ctx: StageContext) -> dict[str, Any] | None:
-    """The newest backtest record's latest season under ``ledger/models_history/`` (ORC-06).
+def _models_history(
+    ctx: StageContext, dirname: str = MODELS_HISTORY_DIRNAME
+) -> dict[str, Any] | None:
+    """The newest record's latest season under ``ledger/<dirname>/``: the backtest's models history
+    (ORC-06), or the in-sample as-if-played season (ORC-13).
 
     Run ids sort by time, so the last readable file is the newest run; an unreadable one is logged
     and the one before it is used.
     """
-    for path in sorted((ctx.layout.ledger / MODELS_HISTORY_DIRNAME).glob("*.json"), reverse=True):
+    for path in sorted((ctx.layout.ledger / dirname).glob("*.json"), reverse=True):
         try:
             documents = json.loads(path.read_text(encoding="utf-8"))
         except OSError, json.JSONDecodeError:

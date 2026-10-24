@@ -12,6 +12,11 @@
     "to_gameweek": { "type": "integer", "minimum": 1, "maximum": 38, "description": "Last gameweek in the grid, inclusive. Clipped at the end of the season." },
     "scale": { "$ref": "#/$defs/difficulty_scale" },
     "model": { "$ref": "#/$defs/fixture_model" },
+    "odds_next_check": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "UTC instant of the next fast-ingest firing that fetches fixture odds, for the 'odds not posted yet' wording (ORC-07, ORC-15). Null when no check is due before the deadline."
+    },
     "teams": { "type": "array", "items": { "$ref": "#/$defs/team_fixtures" } }
   },
   "$defs": {
@@ -108,7 +113,24 @@
           "type": "number",
           "description": "Difficulty for this club's attackers, from expected goals for. Published separately because a high-scoring game between two good sides is a good fixture for forwards and a bad one for defenders, and collapsing that into one number is most of what is wrong with a single FDR figure."
         },
-        "defence_difficulty": { "type": "number", "description": "Difficulty for this club's defenders and goalkeeper, from expected goals against." }
+        "defence_difficulty": { "type": "number", "description": "Difficulty for this club's defenders and goalkeeper, from expected goals against." },
+        "odds": {
+          "anyOf": [{ "$ref": "#/$defs/fixture_odds" }, { "type": "null" }],
+          "description": "The bookmaker market for this fixture, margin removed. Null until odds are posted, and for a finished fixture (ORC-15)."
+        }
+      }
+    },
+    "fixture_odds": {
+      "type": "object",
+      "description": "Match odds as probabilities, always from the perspective of the club whose row it sits in: win is this club winning, loss is the opponent winning. There are no player odds; no free source has them.",
+      "additionalProperties": false,
+      "required": ["win", "draw", "loss", "over_2_5", "as_of"],
+      "properties": {
+        "win": { "type": "number", "minimum": 0, "maximum": 1, "description": "This club wins, from the match-result (1X2) prices with the bookmaker margin removed proportionally, not from the goals fitted to them; win + draw + loss is 1 to rounding." },
+        "draw": { "type": "number", "minimum": 0, "maximum": 1 },
+        "loss": { "type": "number", "minimum": 0, "maximum": 1, "description": "The opponent wins." },
+        "over_2_5": { "type": ["number", "null"], "minimum": 0, "maximum": 1, "description": "More than 2.5 goals in the match, from the over/under 2.5 prices with the margin removed; the same for both clubs. Null when no totals market is posted." },
+        "as_of": { "type": "string", "format": "date-time", "description": "UTC time the odds were captured." }
       }
     }
   }

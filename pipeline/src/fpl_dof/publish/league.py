@@ -24,6 +24,7 @@ from typing import Any
 import pandas as pd
 
 from fpl_dof.frames import as_int
+from fpl_dof.optimise.chips import chip_label
 
 
 def build_league(
@@ -31,6 +32,8 @@ def build_league(
     standings: pd.DataFrame,
     league_picks: pd.DataFrame | None,
     entry_picks: pd.DataFrame | None,
+    league_gameweeks: pd.DataFrame | None = None,
+    league_transfers: pd.DataFrame | None = None,
     owner_entry_id: int | None,
     gameweek: int | None,
     squad_limit: int,
@@ -47,6 +50,7 @@ def build_league(
         if owner_squad is not None:
             squads[owner_entry_id] = owner_squad
 
+    moves = _moves(league_gameweeks, league_transfers, gameweek)
     entries = []
     for row in _ordered(standings):
         entry_id = as_int(row["entry_id"])
@@ -61,6 +65,7 @@ def build_league(
                 "total": as_int(row["total"]),
                 "is_owner": entry_id == owner_entry_id,
                 "squad": squads.get(entry_id),
+                "moves": moves.get(entry_id),
             }
         )
 
@@ -129,6 +134,37 @@ def _squads(picks: pd.DataFrame | None, gameweek: int | None) -> dict[int, dict[
             "vice_captain_id": _flagged(rows, "is_vice_captain"),
         }
     return squads
+
+
+def _moves(
+    gameweeks: pd.DataFrame | None, transfers: pd.DataFrame | None, gameweek: int | None
+) -> dict[int, dict[str, Any]]:
+    """Each rival's hit, chip and transfers for the published gameweek (ORC-14).
+
+    An entry with no ``league_gameweek`` row is absent, so its ``moves`` is null: its fetch failed
+    or was outside the budget, which is not the claim "made no transfers" (NFR-15, DL-18).
+    """
+    if gameweeks is None or gameweeks.empty or gameweek is None:
+        return {}
+    moves: dict[int, dict[str, Any]] = {}
+    for row in gameweeks[gameweeks["gameweek"] == gameweek].to_dict(orient="records"):
+        entry_id = as_int(row["entry_id"])
+        chip = None if pd.isna(row["chip"]) else str(row["chip"])
+        moves[entry_id] = {
+            "gameweek": gameweek,
+            "hit_cost": as_int(row["transfers_cost"]),
+            "chip": chip,
+            "chip_label": None if chip is None else chip_label(chip),
+            "transfers": [],
+        }
+    if transfers is not None and not transfers.empty:
+        for row in transfers[transfers["gameweek"] == gameweek].to_dict(orient="records"):
+            entry = moves.get(as_int(row["entry_id"]))
+            if entry is not None:
+                entry["transfers"].append(
+                    {"out_id": as_int(row["player_out_id"]), "in_id": as_int(row["player_in_id"])}
+                )
+    return moves
 
 
 def _flagged(rows: list[dict[str, Any]], column: str) -> int | None:

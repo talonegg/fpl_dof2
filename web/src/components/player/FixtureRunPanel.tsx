@@ -14,6 +14,7 @@ import { formatLocalDateTime } from "../../format";
 import { BAND_LABELS, buildFixtureRun, difficultyBasisLabel, runStatement } from "./fixtureRun";
 import type { RunFixture } from "./fixtureRun";
 import type { Fixtures } from "../../contract/types";
+import { oddsNotPosted, oddsSentence, oddsShort } from "../fixtures/odds";
 
 function FixtureCell({ fixture }: { fixture: RunFixture }) {
   const venue = fixture.atHome ? "home" : "away";
@@ -21,6 +22,7 @@ function FixtureCell({ fixture }: { fixture: RunFixture }) {
     `GW${fixture.gameweek}: ${fixture.atHome ? "vs" : "away to"} ${fixture.opponent}`,
     `${BAND_LABELS[fixture.band]} (${fixture.difficulty.toFixed(2)})`,
     fixture.kickoffUtc ? formatLocalDateTime(fixture.kickoffUtc) : "kick-off time not confirmed",
+    ...(fixture.odds ? [oddsSentence(fixture.odds)] : []),
   ].join(" — ");
 
   return (
@@ -36,6 +38,12 @@ function FixtureCell({ fixture }: { fixture: RunFixture }) {
         <span className="visually-hidden">{venue}</span>
       </span>
       <span className="fixture-difficulty">{fixture.difficulty.toFixed(1)}</span>
+      {fixture.odds ? (
+        <span className="fixture-odds" data-testid="fixture-odds">
+          <span aria-hidden="true">{oddsShort(fixture.odds)}</span>
+          <span className="visually-hidden">{oddsSentence(fixture.odds)}</span>
+        </span>
+      ) : null}
     </li>
   );
 }
@@ -77,9 +85,15 @@ function Run({ fixtures, player }: { fixtures: Fixtures; player: Player }) {
           ),
         )}
       </ol>
+      {run.gameweeks.some((g) => g.fixtures.some((f) => !f.odds)) && (
+        <p className="panel-note" data-testid="fixture-run-odds-missing">
+          {oddsNotPosted(run.oddsNextCheck)}
+        </p>
+      )}
       <p className="panel-note">{runStatement(run, player.position)}</p>
       <p className="panel-note">
-        Lower is easier. Rated on {difficultyBasisLabel(player.position)}, because that is the half of
+        W, D and L are the bookmakers' chances of this club winning, drawing and losing, margin
+        removed. Lower is easier. Rated on {difficultyBasisLabel(player.position)}, because that is the half of
         the fixture a {player.position} is paid for. {run.scale.description}
       </p>
     </div>

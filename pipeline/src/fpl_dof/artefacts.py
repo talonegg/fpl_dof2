@@ -33,6 +33,9 @@ MODELS_HISTORY_DIRNAME = "models_history"
 #: own step for it, after the experiments record is appended (DP-15); a run that builds one
 #: removes it.
 MODELS_HISTORY_FAILURE_FILENAME = "models-history-failure.txt"
+#: Under ``DataLayout.ledger``: today's models replayed in-sample on the live season, one
+#: ``<run_id>.json`` per run (a list of one document), kept on ``ledger`` (ORC-13, DL-97).
+AS_IF_PLAYED_DIRNAME = "as_if_played"
 
 
 class NoBronzeError(RuntimeError):

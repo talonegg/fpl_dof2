@@ -338,8 +338,10 @@ The single most important seam in the system: the boundary between DL-04's two l
   nothing rebuilds carried forward from `publish/records/`, and the live season's from the
   evaluations, ORC-05; WEB-04),
   `strategies` (the strategy registry, [04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)),
-  and `models_history` (the latest archive season the weekly backtest simulated, from
-  `ledger:models_history/`, ORC-06). Every one goes through `Contract.write`. All JSON: ~700 rows
+  `models_history` (the latest archive season the weekly backtest simulated, from
+  `ledger:models_history/`, ORC-06), and `as_if_played` (today's published models replayed
+  in-sample on the live season, `kind` `in_sample`, in the same schema, from
+  `ledger:as_if_played/`, ORC-13, DL-97). Every one goes through `Contract.write`. All JSON: ~700 rows
   needs no query engine.
 - **Versioned.** `/data/v1/`. A breaking change bumps to `v2` and publishes both during the transition.
 - **Behaviour pinned in both languages** by shared corpora in `contracts/conformance/`, read by pytest
@@ -413,7 +415,7 @@ manually dispatchable.
 | `pipeline.yml` | One tick four times an hour (`7,23,41,53 * * * *`); dispatch with typed inputs `trigger` (`manual`, `change`, `schedule`, `day-before`), `kinds`, `gameweek`, `must_publish` (ORC-02) | `guard` (`fpl-dof-schedule --decide pipeline`: the tick runs only in a pre-deadline window; every trigger is refused inside the freeze or for a gameweek no longer Open, and an unknown input fails the step) → `run` (restores the retired frozen harness's last record from `ledger`, read-only, so `models.json` keeps its history up to the switch; `fpl-dof bronze verify --quarantine`, then `fpl-dof run --only transform…publish`; advice appended to `ledger` — the champion's as soon as its week exists, before its plan and the challengers run — contract uploaded, `data` rebuilt with the new price history) → `deploy` (calls `deploy.yml` only when `run` published, ORC-03) |
 | `day-before.yml` | Every 20 minutes in a nightly UTC window | On the day before a deadline, dispatches `ingest-slow` with `must_publish=true` once (deduplicated by the run's `workflow_dispatch` event since midnight Sydney, never its title); that ingest dispatches the pipeline, whose deploy then requires a fresh contract |
 | `deploy.yml` | Called by Pipeline as its last job when the run published; push to `main`; dispatch | Builds the SPA with the calling run's own contract (a push or dispatch takes the newest pipeline run's, until WEB-01), deploys to Pages (ORC-03, [DL-94](../decisions/DL-94.md)) |
-| `backtest.yml` | Weekly; dispatch | Archive ingest under `config/ci-backtest.yaml` (DL-68), then the walk-forward regression |
+| `backtest.yml` | Weekly; dispatch | Archive ingest under `config/ci-backtest.yaml` (DL-68), then the walk-forward regression; beside it, its own job replays today's models in-sample on the live season (`fpl-dof as-if-played`, ORC-13) |
 | `pre-release.yml` | Push to `pre-release`; pull requests into `main` | Builds the site against the latest published contract and runs `verify:smoke` — the promotion gate ([DL-80](../decisions/DL-80.md)) |
 | `release.yml` | Push of an `R*` tag | Checks the tag is on `main` and publishes the GitHub Release |
 | `alert-on-failure.yml` | Called by the others | Opens an issue on failure |

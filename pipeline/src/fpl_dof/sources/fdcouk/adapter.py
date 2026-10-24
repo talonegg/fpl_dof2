@@ -298,10 +298,12 @@ class FdcoukAdapter(SourceAdapter):
                     "expected_goals_away": fitted.expected_goals_away,
                     "clean_sheet_probability_home": fitted.clean_sheet_probability_home,
                     "clean_sheet_probability_away": fitted.clean_sheet_probability_away,
-                    "home_win_probability": fitted.home_win_probability,
-                    "draw_probability": fitted.draw_probability,
-                    "away_win_probability": fitted.away_win_probability,
+                    # The 1X2 prices with the margin removed, not the refit's outcome (ORC-15).
+                    "home_win_probability": result["home"],
+                    "draw_probability": result["draw"],
+                    "away_win_probability": result["away"],
                     "total_goals": fitted.total_goals,
+                    "over_2_5_probability": over,
                 }
             )
 

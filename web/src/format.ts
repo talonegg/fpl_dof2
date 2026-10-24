@@ -44,3 +44,18 @@ export function formatLocalDateTime(iso: string): string {
 export function formatPoints(value: number): string {
   return value.toFixed(2);
 }
+
+/** A difference, signed: "+1.5", "−1.5", "±0.0" at one place. */
+export function signed(value: number, places = 2): string {
+  return `${value > 0 ? "+" : value < 0 ? "−" : "±"}${Math.abs(value).toFixed(places)}`;
+}
+
+/** A hit as deducted points, "—" for none. */
+export function formatHits(points: number): string {
+  return points === 0 ? "—" : `−${Math.abs(points)}`;
+}
+
+/** "1 transfer", "2 transfers". */
+export function plural(count: number, word: string): string {
+  return `${count} ${word}${count === 1 ? "" : "s"}`;
+}

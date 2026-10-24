@@ -15,6 +15,7 @@ import {
   type SortKey,
   type TeamRun,
 } from "./ticker";
+import { oddsNotPosted, oddsSentence, oddsShort } from "./odds";
 import "./fixtures.css";
 
 /**
@@ -160,6 +161,16 @@ export function FixtureTicker({ fixtures }: { fixtures: Fixtures }) {
           </tbody>
         </table>
       </div>
+
+      {rows.some((r) => r.gameweeks.some((g) => g.fixtures.some((f) => !f.odds))) ? (
+        <p className="ticker-odds-note" data-testid="ticker-odds-missing">
+          {oddsNotPosted(fixtures.odds_next_check)}
+        </p>
+      ) : null}
+      <p className="ticker-odds-note">
+        Beside each fixture, W, D and L are the bookmakers' chances of this club winning, drawing and
+        losing, margin removed; O2.5 is the chance of more than 2.5 goals in the match.
+      </p>
 
       <p className="ticker-provenance" data-testid="ticker-provenance">
         {fixtures.scale.description} Scores come from {fixtures.model.name}, fitted on{" "}
@@ -309,13 +320,19 @@ function Chip({
       // The derivation sits in the tooltip rather than being hidden entirely: the difficulty is a
       // transformation of these two expected-goals figures, and a score you cannot check is a score
       // you have to take on trust (DP-09).
-      title={`${fixture.opponent} (${venue}) — ${band.label}, ${score.toFixed(2)}. Model expects ${fixture.expected_goals_for.toFixed(2)} goals for and ${fixture.expected_goals_against.toFixed(2)} against.`}
+      title={`${fixture.opponent} (${venue}) — ${band.label}, ${score.toFixed(2)}. Model expects ${fixture.expected_goals_for.toFixed(2)} goals for and ${fixture.expected_goals_against.toFixed(2)} against.${fixture.odds ? ` ${oddsSentence(fixture.odds)}.` : ""}`}
     >
       <span className="ticker-opponent">
         {fixture.opponent}
         <span className="ticker-venue">{fixture.at_home ? " (H)" : " (A)"}</span>
       </span>
       <span className="ticker-score">{score.toFixed(1)}</span>
+      {fixture.odds ? (
+        <span className="ticker-odds" data-testid="ticker-odds">
+          <span aria-hidden="true">{oddsShort(fixture.odds)}</span>
+          <span className="visually-hidden">{oddsSentence(fixture.odds)}</span>
+        </span>
+      ) : null}
     </span>
   );
 }

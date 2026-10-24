@@ -62,6 +62,19 @@ describe("the strategy selector is driven by the registry", () => {
     expect(window.localStorage.getItem(MODEL_STORAGE_KEY)).toBe("zeta_3");
   });
 
+  it("names an experiment as one, not as a comparison", async () => {
+    const strategies = {
+      ...novel.registry,
+      strategies: novel.registry.strategies.map((s) => (s.id === "zeta_5" ? { ...s, role: "experiment" as const } : s)),
+    };
+    installFetchStub({ bodies: { ...five, strategies } });
+    renderApp("/gameweek");
+    await waitFor(() => expect(screen.getByTestId("model-toggle")).toBeTruthy());
+    expect(screen.getByTestId("model-toggle-zeta_5").getAttribute("aria-label")).toBe("Zeta 5 (experiment)");
+    const option = [...(screen.getByTestId("model-select") as HTMLSelectElement).options].find((o) => o.value === "zeta_5");
+    expect(option?.textContent).toBe("Zeta 5 — experiment");
+  });
+
   it("honours ?model= for an id only the registry knows", async () => {
     installFetchStub({ bodies: five });
     window.history.replaceState(null, "", "/?model=zeta_5");
@@ -91,6 +104,34 @@ describe("the strategy selector is driven by the registry", () => {
     expect(chart.querySelectorAll("polyline")).toHaveLength(5);
     expect(chart.querySelector("svg")?.getAttribute("aria-label")).toContain("Cumulative points");
     expect(within(screen.getByTestId("models-advice-c1")).getByText(/-4 hit/)).toBeTruthy();
+  });
+
+  it("the models page splits each model's miss into forecast error and luck per gameweek (ORC-12)", async () => {
+    const last = modelsFixture.gameweeks.find((g) => g.actual?.c3);
+    const c3 = last?.actual?.c3;
+    if (!last || !c3) throw new Error("the fixture scores c3 in some gameweek");
+    const models = {
+      ...modelsFixture,
+      gameweeks: modelsFixture.gameweeks.map((g) =>
+        g === last ? { ...g, actual: { ...g.actual, c3: { ...c3, underlying_points: 50.25, forecast_error: 4.2, luck: -3.14 } } } : g,
+      ),
+    };
+    installFetchStub({ bodies: { strategies: strategiesFixture, models } });
+    renderApp("/models/season");
+    const table = await screen.findByTestId("models-split-table");
+    expect(within(table).getAllByRole("row")).toHaveLength(2); // header and the one gameweek with it
+    expect(screen.getByTestId(`models-split-${last.gameweek}-c3`).textContent).toBe("error +4.2, luck −3.1");
+    expect(screen.getByTestId(`models-split-${last.gameweek}-a`).textContent).toBe("—");
+    // The components scored at their actual points read zero luck: the reader is told so.
+    const actuals = screen.getByTestId("models-split-actuals").textContent ?? "";
+    expect(actuals).toContain("Defensive Contribution and bonus");
+    expect(actuals).toContain("counts as forecast error");
+  });
+
+  it("the models page says when no gameweek has underlying xP yet", async () => {
+    installFetchStub({ bodies: { strategies: strategiesFixture, models: modelsFixture } });
+    renderApp("/models/season");
+    expect(await screen.findByTestId("models-split-empty")).toBeTruthy();
   });
 
   it("the models page says so when models.json is absent", async () => {

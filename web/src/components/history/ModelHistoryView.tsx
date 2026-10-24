@@ -1,15 +1,15 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import type { ModelsHistory } from "../../contract/types";
 import { useRegistry } from "../../data/DataProvider";
 import { modelLabel, orderIds, seriesStyle } from "../../data/registry";
 import type { ModelChoice } from "../../data/model";
+import { signed } from "../../format";
 import { ModelBadge } from "../models/ModelBadge";
 import { ModelSelector } from "../models/ModelSelector";
 import "../models/models.css";
 import "./history.css";
 
 const pts = (v: number) => String(Math.round(v));
-const signed = (v: number, dp = 2) => `${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(v).toFixed(dp)}`;
 
 /** Cumulative points over the season, one line per model; the highlighted model is drawn on top. */
 function CumulativeChart({ history, ids, highlight }: { history: ModelsHistory; ids: ModelChoice[]; highlight: ModelChoice }) {
@@ -17,7 +17,15 @@ function CumulativeChart({ history, ids, highlight }: { history: ModelsHistory; 
   const sty = (id: string) => seriesStyle(registry, id);
   const gws = history.gameweeks.map((g) => g.gameweek);
   if (gws.length === 0) return null;
-  const max = Math.max(1, ...ids.map((m) => history.gameweeks[gws.length - 1].models[m]?.cumulative ?? 0));
+  // A gameweek a model could not play (in-sample only) holds its total where it was.
+  const cumulative = new Map(
+    ids.map((m) => {
+      let last = 0;
+      return [m, history.gameweeks.map((g) => (last = g.models[m]?.cumulative ?? last))];
+    }),
+  );
+  const final = (m: ModelChoice) => cumulative.get(m)?.[gws.length - 1] ?? 0;
+  const max = Math.max(1, ...ids.map(final));
   const W = 720;
   const H = 280;
   const L = 44;
@@ -29,7 +37,7 @@ function CumulativeChart({ history, ids, highlight }: { history: ModelsHistory; 
   const ticks = Array.from(new Set([0, 0.25, 0.5, 0.75, 1].map((f) => Math.round((max * f) / 100) * 100)));
   const order = [...ids.filter((m) => m !== highlight), highlight];
   const summary = ids
-    .map((m) => `${modelLabel(registry, m)} ${pts(history.gameweeks[gws.length - 1].models[m]?.cumulative ?? 0)}`)
+    .map((m) => `${modelLabel(registry, m)} ${pts(final(m))}`)
     .join(", ");
   return (
     <figure className="history-chart" data-testid="history-chart">
@@ -53,7 +61,7 @@ function CumulativeChart({ history, ids, highlight }: { history: ModelsHistory; 
           <polyline
             key={m}
             data-model={m}
-            points={history.gameweeks.map((g, i) => `${x(i)},${y(g.models[m]?.cumulative ?? 0)}`).join(" ")}
+            points={(cumulative.get(m) ?? []).map((v, i) => `${x(i)},${y(v)}`).join(" ")}
             fill="none"
             stroke={sty(m).colour}
             strokeWidth={m === highlight ? 3.5 : 1.75}
@@ -77,9 +85,26 @@ function CumulativeChart({ history, ids, highlight }: { history: ModelsHistory; 
   );
 }
 
-/** `/models/2025-26` — how each model would have played 2025/26 (a backtest), every one ranked. */
-export function ModelHistoryView({ history }: { history: ModelsHistory }) {
+/** How the view names what it shows: the backtest's replay by default, or the in-sample season. */
+export interface HistoryHeading {
+  title: ReactNode;
+  badge: string;
+  badgeClass: string;
+  note: ReactNode;
+  testId: string;
+}
+
+/**
+ * `/models/2025-26` — how each model would have played 2025/26 (a backtest), every one ranked. The
+ * same view shows `as_if_played.json` (ORC-13) under its own `heading`; that file is in-sample, so
+ * no delta there is starred as excluding zero.
+ */
+export function ModelHistoryView({ history, heading }: { history: ModelsHistory; heading?: HistoryHeading }) {
   const registry = useRegistry();
+  const inSample = history.kind === "in_sample";
+  const missed = history.gameweeks.flatMap((g) =>
+    Object.entries(g.unavailable ?? {}).map(([model, why]) => ({ gameweek: g.gameweek, model, why })),
+  );
   const ids = orderIds(registry, history.models.filter((m) => m.available).map((m) => m.id));
   const unavailable = history.models.filter((m) => !m.available);
   const [highlight, setHighlight] = useState<ModelChoice>(ids.includes(registry.champion) ? registry.champion : ids[0]);
@@ -88,16 +113,20 @@ export function ModelHistoryView({ history }: { history: ModelsHistory }) {
   const sel = summary.get(highlight);
 
   return (
-    <section className="history" data-testid="model-history">
+    <section className="history" data-testid={heading?.testId ?? "model-history"}>
       <h2>
-        {history.season} playthrough{" "}
-        <span className="season-phase season-phase-replay" data-testid="history-kind">
-          {history.season} replay
+        {heading?.title ?? `${history.season} playthrough`}{" "}
+        <span className={`season-phase ${heading?.badgeClass ?? "season-phase-replay"}`} data-testid="history-kind">
+          {heading?.badge ?? `${history.season} replay`}
         </span>
       </h2>
       <p className="models-note" data-testid="history-kind-note">
-        A replay of {history.season}, each model playing its own team: not your squad and not this season, which
-        is on the This season tab.
+        {heading?.note ?? (
+          <>
+            A replay of {history.season}, each model playing its own team: not your squad and not this season, which
+            is on the This season tab.
+          </>
+        )}
       </p>
       <p className="history-caveat" role="note" data-testid="history-caveat">
         {history.caveat}
@@ -147,7 +176,7 @@ export function ModelHistoryView({ history }: { history: ModelsHistory }) {
                     {d ? (
                       <>
                         {signed(d.mean)} [{signed(d.ci_low)}, {signed(d.ci_high)}]
-                        {d.significant ? <span className="history-sig" title="95% CI excludes zero"> ★</span> : null}
+                        {d.significant && !inSample ? <span className="history-sig" title="95% CI excludes zero"> ★</span> : null}
                         <span className="history-sub"> · {signed(d.total, 0)} total</span>
                       </>
                     ) : (
@@ -175,9 +204,12 @@ export function ModelHistoryView({ history }: { history: ModelsHistory }) {
       </div>
       <p className="models-note">
         Δ is the paired per-GW difference to the champion; CIs are an iid gameweek bootstrap ({history.bootstrap.draws}{" "}
-        draws, seed {history.bootstrap.seed}). ★ = CI excludes zero, with no multiple-comparison correction across the{" "}
-        {ids.length - 1} models compared with it. One season of {history.gameweeks.length} GWs is a weak basis for choosing a model.
-        GWs won = ranked first of the {ids.length} (ties shared).
+        draws, seed {history.bootstrap.seed}).{" "}
+        {inSample
+          ? "In-sample, so no interval here is evidence either way."
+          : `★ = CI excludes zero, with no multiple-comparison correction across the ${ids.length - 1} models compared with it.`}{" "}
+        One season of {history.gameweeks.length} GWs is a weak basis for choosing a model. GWs won = ranked first of the
+        models that played it (ties shared).
       </p>
       <h3>Cumulative points</h3>
       <CumulativeChart history={history} ids={ids} highlight={highlight} />
@@ -213,6 +245,8 @@ export function ModelHistoryView({ history }: { history: ModelsHistory }) {
                         {e ? pts(e.points) : "—"}
                         {e ? <span className="history-sub"> ({e.rank})</span> : null}
                         {e && e.hit_points !== 0 ? <span className="models-hit"> {pts(e.hit_points)}</span> : null}
+                        {e?.chip ? <span className="history-sub"> {e.chip}</span> : null}
+                        {!e && g.unavailable?.[m] ? <span className="history-sub"> unavailable</span> : null}
                       </td>
                     );
                   })}
@@ -244,6 +278,18 @@ export function ModelHistoryView({ history }: { history: ModelsHistory }) {
           </tfoot>
         </table>
       </div>
+      {missed.length > 0 ? (
+        <>
+          <h3 id="history-missed-heading">Unavailable gameweeks</h3>
+          <ul data-testid="history-unavailable-gameweeks" aria-labelledby="history-missed-heading">
+            {missed.map((x) => (
+              <li key={`${x.gameweek}-${x.model}`} data-testid={`history-unavailable-${x.gameweek}-${x.model}`}>
+                GW{x.gameweek}, {modelLabel(registry, x.model)}: {x.why}
+              </li>
+            ))}
+          </ul>
+        </>
+      ) : null}
 
       <details className="history-provenance">
         <summary>Where these numbers come from</summary>

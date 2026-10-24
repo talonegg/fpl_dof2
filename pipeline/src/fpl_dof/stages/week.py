@@ -53,7 +53,7 @@ from fpl_dof.factory.registry import (
     published_strategies,
     stamp,
 )
-from fpl_dof.frames import as_float
+from fpl_dof.frames import as_float, as_int
 from fpl_dof.gameweek import Due, SilverTables, season_states
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.optimise.captain import PricePositionLine
@@ -81,6 +81,7 @@ from fpl_dof.week.evaluation import (
     unready,
 )
 from fpl_dof.week.ledger import read_advice, read_predictions, record_advice, record_predictions
+from fpl_dof.week.oracle import option_set
 from fpl_dof.week.reconcile import Reconciliation, reconcile
 
 log = get_logger(__name__)
@@ -654,6 +655,12 @@ def _payload(snapshot: Snapshot, frame: pd.DataFrame, decision: Decision) -> dic
     state, rules, deadline = snapshot.state, snapshot.rules, snapshot.deadline
     lookup = frame.set_index("player_id")
     form = snapshot.form or {}
+    weighed = option_set(
+        deadline.gameweek,
+        recommendation,
+        {as_int(i): str(name) for i, name in lookup["web_name"].items()},
+        digits=2,
+    )
 
     def side(player_id: int, name: str, price: float) -> dict[str, object]:
         """One side of a move, with both rankings' numbers on it (DL-70)."""
@@ -698,16 +705,25 @@ def _payload(snapshot: Snapshot, frame: pd.DataFrame, decision: Decision) -> dic
                 }
                 for move in chosen.moves
             ],
+            # One home for what was weighed: `option_set`, in the hindsight optimum's shape
+            # (ORC-11), which the ledger keeps so Last gameweek can set the two side by side.
+            # `options` is derived from it, in its rounding, because the recommendation card, the
+            # roll comparison and every week file before R1.4.1 read that older shape.
             "options": [
                 {
-                    "transfers": option.transfers,
-                    "hit_points": option.hit_points,
-                    "net_expected_points": option.net_expected_points,
-                    "gain_over_roll": option.gain_over(recommendation.roll),
+                    "transfers": plan.transfers_count,
+                    "hit_points": plan.hit_points,
+                    "net_expected_points": plan.net_points,
+                    "gain_over_roll": plan.gain_over_roll,
                     "moves": [move.describe() for move in option.moves],
                 }
-                for option in sorted(recommendation.options, key=lambda o: o.transfers)
+                for plan, option in zip(
+                    weighed.all_options,
+                    sorted(recommendation.options, key=lambda o: o.transfers),
+                    strict=True,
+                )
             ],
+            "option_set": weighed.as_dict(),
             "warnings": [*recommendation.warnings, *decision.warnings],
         },
         "advised": {

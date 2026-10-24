@@ -226,6 +226,24 @@ def test_a_valid_payload_is_written(contract: Contract, tmp_path: Path) -> None:
     assert json.loads(path.read_text(encoding="utf-8"))["season"] == "2026/27"
 
 
+def test_rules_publish_the_armband_from_config(contract: Contract, game_rules: Any) -> None:
+    """ORC-14: the League scores a captain with the configured multiplier, never a literal."""
+    from fpl_dof.stages.publish import _rules
+
+    rules = game_rules.model_copy(
+        update={
+            "chips": game_rules.chips.model_copy(
+                update={"captain_multiplier": 5, "captain_multiplier_by_chip": {"3xc": 7}}
+            )
+        }
+    )
+    payload = _rules(rules)
+    contract.validate("rules", payload)
+    assert payload["chips"]["captain_multiplier"] == 5
+    assert payload["chips"]["captain_multiplier_by_chip"] == {"3xc": 7}
+    assert payload["derived"]["chips"] == "config"
+
+
 # --- the published artefacts themselves --------------------------------------------------------
 
 

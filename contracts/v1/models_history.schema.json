@@ -2,14 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/talonegg/fpl_dof2/contracts/v1/models_history.schema.json",
   "title": "ModelsHistory",
-  "description": "How every registered strategy would have played an archive season in the standing backtest (FPL auto-subs, vice-captain fallback, hits, no chips), each on its own fresh squad, scored by the one realised-points scorer. A backtest, not real play. Simulated by the weekly `fpl-dof backtest`, recorded on the `ledger` branch under `models_history/`, and the latest season published by `fpl-dof publish` (ORC-06).",
+  "description": "How every registered strategy would have played an archive season in the standing backtest (FPL auto-subs, vice-captain fallback, hits, no chips), each on its own fresh squad, scored by the one realised-points scorer. A backtest, not real play. Simulated by the weekly `fpl-dof backtest`, recorded on the `ledger` branch under `models_history/`, and the latest season published by `fpl-dof publish` (ORC-06). The same shape, `kind` `in_sample`, is `as_if_played.json`: today's published models replayed in-sample on the live season's finished gameweeks, each on its own squad with its own transfers, hits and chips; not evidence of skill (ORC-13, DL-97).",
   "type": "object",
   "additionalProperties": false,
   "required": ["contract_version", "season", "kind", "caveat", "champion", "provenance", "bootstrap", "models", "gameweeks", "summary"],
   "properties": {
     "contract_version": { "type": "integer", "const": 1 },
     "season": { "type": "string" },
-    "kind": { "type": "string", "const": "backtest" },
+    "kind": { "type": "string", "enum": ["backtest", "in_sample"], "description": "backtest: an archive season, out of sample (models_history.json). in_sample: today's models replayed on the live season (as_if_played.json)." },
     "caveat": { "type": "string" },
     "champion": { "type": "string" },
     "provenance": {
@@ -62,7 +62,8 @@
         "n_autosubs": { "type": "integer", "minimum": 0 },
         "cumulative": { "type": "number" },
         "rank": { "type": "integer", "minimum": 1 },
-        "cumulative_rank": { "type": "integer", "minimum": 1 }
+        "cumulative_rank": { "type": "integer", "minimum": 1 },
+        "chip": { "type": "string", "description": "The chip played this gameweek, by its name in rules.json; absent when none was (in_sample only: the backtest plays none)." }
       }
     },
     "model_history_gameweek": {
@@ -71,7 +72,8 @@
       "required": ["gameweek", "models"],
       "properties": {
         "gameweek": { "type": "integer", "minimum": 1 },
-        "models": { "type": "object", "additionalProperties": { "$ref": "#/$defs/model_history_entry" } }
+        "models": { "type": "object", "additionalProperties": { "$ref": "#/$defs/model_history_entry" } },
+        "unavailable": { "type": "object", "additionalProperties": { "type": "string" }, "description": "in_sample only: strategy id -> why it could not play this gameweek (its inputs absent at the deadline); such a model has no entry under models. Absent when every model played." }
       }
     },
     "model_history_delta": {

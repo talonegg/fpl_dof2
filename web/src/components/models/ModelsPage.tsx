@@ -4,6 +4,7 @@ import { unready, useArtefact } from "../../data/store";
 import { ModelHistoryView } from "../history/ModelHistoryView";
 import "../history/history.css";
 import { AccuracySection } from "./AccuracySection";
+import { AsIfPlayedSection } from "./AsIfPlayedSection";
 import { ComparePanel } from "./ComparePanel";
 import { ModelsSeasonView } from "./ModelsSeasonView";
 import { ModelStatus, ProvisionalNote, unavailableNow } from "./ModelStatus";
@@ -85,9 +86,9 @@ export function ModelsPage() {
 }
 
 /**
- * `/models/season` — the live season: the ladder of each model's advice on your squad and how its
- * xP compared with the points scored. Drop B adds the "as if played" ladder (ORC-13) and underlying
- * xP (ORC-12) here.
+ * `/models/season` — the live season: the ladder of each model's advice on your squad, its miss split
+ * into forecast error and luck by underlying xP (ORC-12), the ladder as if each model had played
+ * (ORC-13), and how its xP compared with the points scored.
  */
 export function ModelsSeasonPage() {
   const { models } = useData();
@@ -95,6 +96,7 @@ export function ModelsSeasonPage() {
     <div className="models-page" data-testid="models-season-page">
       <ProvisionalNote models={models} />
       <ModelsSeasonView models={models} />
+      <AsIfPlayedSection />
       <AccuracySection kinds={["replay", "prospective"]} />
     </div>
   );

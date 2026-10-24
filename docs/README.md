@@ -78,7 +78,7 @@ review in §12) and [conceptual design](planning/04-conceptual-design.md) (each 
 - **R1.1.0 — delivered 2026-10-21: data pipeline uplift.** Remediated before release
   ([DL-81](decisions/DL-81.md)); its backlog is archived in [`planning/archive/R1.1.0/`](planning/archive/README.md).
   **R1.1.1 — tagged 2026-10-22:** the permanent archive verified on `main` ([DL-85](decisions/DL-85.md)). Its effect on the architecture: [architecture §13](planning/03-solution-architecture.md#13-r110--data-architecture-as-delivered).
-- **R1.2.0 and R1.2.2 — tagged 2026-10-23 (R1.2.1 a hotfix, [DL-88](decisions/DL-88.md)); R1.3.0, R1.3.1 and R1.3.2 (gameweek orchestration) tagged; R1.4.0, the UI redesign, open ([DL-95](decisions/DL-95.md)): the modular platform.** Orchestrator, model factory and web as
+- **R1.2.0 and R1.2.2 — tagged 2026-10-23 (R1.2.1 a hotfix, [DL-88](decisions/DL-88.md)); R1.3.0, R1.3.1 and R1.3.2 (gameweek orchestration) tagged; R1.4.0, the UI redesign's Drop A, tagged, and Drop B open on `dev/R1.4.1` ([DL-95](decisions/DL-95.md)): the modular platform.** Orchestrator, model factory and web as
   independent modules around a strategy registry ([DL-86](decisions/DL-86.md)); design in
   [`planning/05-target-architecture.md`](planning/05-target-architecture.md).
 - **The season — live.** [E8 — ongoing in-season monitoring](planning/epics/E8-ongoing-in-season-monitoring.md)
