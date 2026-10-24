@@ -142,4 +142,5 @@ by hand.
 | [DL-92](DL-92.md) | 2026-10-23 | Accepted | Hotfix R1.2.3: a purchase price is what was paid; an unknown one never overstates the budget |
 | [DL-93](DL-93.md) | 2026-10-23 | Accepted | Hotfix R1.2.4: training rows refresh when a gameweek is checked; dependencies are pinned |
 | [DL-94](DL-94.md) | 2026-10-23 | Accepted | Build R1.3.0 as planned, with the owner's answers; a malformed capture never reaches history |
+| [DL-95](DL-95.md) | 2026-10-24 | Accepted | R1.4.0 is the UI redesign, in two drops; WEB-01, WEB-05 and WEB-06 wait |
 <!-- index:end -->
