@@ -100,6 +100,47 @@
   display: none;
 }
 
+/* The gear for Settings borrows the toggle's 44px button shape; it is a link, so no underline. */
+a.theme-toggle {
+  text-decoration: none;
+  font-size: var(--font-size-lg);
+}
+
+/* The bottom bar is the narrow-screen nav (WEB-07, §5 Q3); hidden until the media query below. */
+.app-bottombar {
+  display: none;
+}
+
+/* A section's sub-views: links, because each is a route. */
+.section-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0 0 var(--space-3);
+  border-bottom: 1px solid var(--border);
+}
+
+.section-tab {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  color: var(--text-muted);
+  text-decoration: none;
+  font-size: var(--font-size-sm);
+  border-bottom: 2px solid transparent;
+}
+
+.section-tab:hover {
+  color: var(--text);
+}
+
+.section-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
 .theme-toggle {
   flex: 0 0 auto;
   /* 44px touch target at every width, in the top bar and on the password gate. */
@@ -509,15 +550,103 @@ td {
   }
 }
 
-/* Below this width the full nav labels no longer fit beside the brand and the theme toggle, so the
-   short forms take over and the toggle drops its text. Tested at 390px (E6 verifies 390/820/1440). */
-@media (max-width: 560px) {
+/* Eight full labels do not fit beside the brand and controls until a wide desktop; below that the
+   short forms take over. */
+@media (max-width: 1100px) {
   .app-nav-link-full {
     display: none;
   }
 
   .app-nav-link-short {
     display: inline;
+  }
+}
+
+/* Below this width the top nav gives way to the bottom bar (WEB-07, §5 Q3) and the toggle drops its
+   text. Verified at 375px (verify/browser-check.mjs). */
+@media (max-width: 560px) {
+  .app-nav {
+    display: none;
+  }
+
+  /* The brand takes the room the top nav left, pushing the controls to the right. */
+  .app-nav-brand {
+    flex: 1 1 auto;
+  }
+
+  .app-shell {
+    padding-bottom: calc(56px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .app-bottombar {
+    display: block;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10;
+    background: var(--nav-bg);
+    border-top: 1px solid var(--border);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  .app-bottombar-links {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+  }
+
+  .app-bottombar .app-nav-link {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 56px;
+    width: 100%;
+    padding: 0 2px;
+    border: 0;
+    border-radius: 0;
+    background: none;
+    text-align: center;
+    white-space: normal;
+    font: inherit;
+    font-size: var(--font-size-xs);
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+
+  .app-bottombar .app-nav-link.active {
+    color: var(--accent);
+    background: var(--nav-active-bg);
+  }
+
+  .app-more {
+    position: relative;
+  }
+
+  .app-more-menu {
+    position: absolute;
+    right: var(--space-1);
+    bottom: calc(100% + var(--space-1));
+    list-style: none;
+    margin: 0;
+    padding: var(--space-1);
+    min-width: 10rem;
+    background: var(--bg-panel);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-md);
+  }
+
+  .app-more-menu[hidden] {
+    display: none;
+  }
+
+  .app-more-menu .app-nav-link {
+    justify-content: flex-start;
+    min-height: 44px;
+    padding: 0 var(--space-3);
+    font-size: var(--font-size-sm);
   }
 
   .app-topbar-inner {
@@ -527,13 +656,6 @@ td {
 
   .app-nav-brand {
     font-size: var(--font-size-sm);
-  }
-
-  /* Tighter links so all five views fit at 390px without the last one falling off the end of the
-     scroller, where it would be reachable but undiscoverable. */
-  .app-nav-link {
-    padding: var(--space-1) var(--space-2);
-    font-size: var(--font-size-xs);
   }
 
   .theme-toggle {

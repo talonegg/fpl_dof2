@@ -56,8 +56,8 @@ const ROUTES = [
   // regardless of all three.
   ["#/", "squad-pitch", "the dashboard's squad"],
   ["#/scout", "player-table", "the scout table"],
-  ["#/squad", "squad-builder", "the squad builder"],
-  ["#/fixtures", "fixture-ticker", "the fixture ticker"],
+  ["#/analysis", "squad-builder", "the squad builder"],
+  ["#/scout/fixtures", "fixture-ticker", "the fixture ticker"],
   ["#/health", "health-panel", "the data health page"],
 ];
 

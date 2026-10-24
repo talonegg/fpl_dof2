@@ -21,14 +21,14 @@ describe("LogRoute", () => {
 
   it("explains what populates the log when the artefact is absent", async () => {
     installFetchStub({ missing: ["log"] });
-    renderApp("/log");
+    renderApp("/review/all");
     await waitFor(() => expect(screen.getByTestId("log-absent")).toBeTruthy());
     expect(screen.getByTestId("log-absent").textContent).toContain("No season log yet");
   });
 
   it("renders one row per gameweek, newest first, with the summary", async () => {
     installFetchStub();
-    renderApp("/log");
+    renderApp("/review/all");
     await waitFor(() => expect(screen.getByTestId("log-table")).toBeTruthy());
     expect(screen.getByTestId("log-summary").textContent).toContain("3 gameweeks played");
     expect(screen.getByTestId("log-summary").textContent).toContain("171 points");
@@ -42,7 +42,7 @@ describe("LogRoute", () => {
 
   it("says plainly when a gameweek was decided without the tool", async () => {
     installFetchStub();
-    renderApp("/log");
+    renderApp("/review/all");
     await waitFor(() => expect(screen.getByTestId("log-table")).toBeTruthy());
     expect(screen.getByTestId("log-advised-1").textContent).toContain("no advice recorded");
     expect(screen.getByTestId("log-followed-1").textContent).toBe("—");
@@ -50,7 +50,7 @@ describe("LogRoute", () => {
 
   it("distinguishes followed advice from an unexplained divergence", async () => {
     installFetchStub();
-    renderApp("/log");
+    renderApp("/review/all");
     await waitFor(() => expect(screen.getByTestId("log-table")).toBeTruthy());
     expect(screen.getByTestId("log-followed-2").textContent).toContain("followed");
     expect(screen.getByTestId("log-followed-3").textContent).toContain("1 unexplained difference");
@@ -60,7 +60,7 @@ describe("LogRoute", () => {
 
   it("reports a failed load rather than an empty page", async () => {
     installFetchStub({ failing: ["log"] });
-    renderApp("/log");
+    renderApp("/review/all");
     await waitFor(() => expect(screen.getByTestId("log-error")).toBeTruthy());
   });
 });

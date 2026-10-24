@@ -1,7 +1,7 @@
 /**
- * The comparison selection: which two-to-four players the scout view has handed to `/compare`.
+ * The comparison selection: which two-to-four players the scout view has handed to the compare view.
  *
- * The **contract between the two routes is the URL**: `#/compare?compare=1,2,3`, a comma-separated
+ * The **contract between the two routes is the URL**: `#/analysis/compare?compare=1,2,3`, a comma-separated
  * list of player ids in the order they were chosen (DL-36). It is readable, editable, bookmarkable
  * and pasteable, and it needs no shared mutable state between two routes that otherwise know
  * nothing about each other. Both sides go through this module rather than hand-writing the format.
@@ -44,10 +44,10 @@ export function parseCompareIds(search: string): number[] {
   return normaliseIds(raw.split(","));
 }
 
-/** The `/compare` link for a selection. Relative, so it works under the hash and any base path. */
+/** The compare link for a selection. Relative, so it works under the hash and any base path. */
 export function compareHref(ids: readonly number[]): string {
   const clean = normaliseIds(ids);
-  return clean.length === 0 ? "/compare" : `/compare?${COMPARE_PARAM}=${clean.join(",")}`;
+  return clean.length === 0 ? "/analysis/compare" : `/analysis/compare?${COMPARE_PARAM}=${clean.join(",")}`;
 }
 
 /** A selection is comparable once it holds at least two players. */
@@ -99,7 +99,7 @@ export interface ComparisonSelection {
   canAdd: boolean;
   /** True once there are at least `COMPARE_MIN` — the point at which the compare link is live. */
   comparable: boolean;
-  /** The `/compare` link for the current selection. */
+  /** The compare link for the current selection. */
   href: string;
 }
 

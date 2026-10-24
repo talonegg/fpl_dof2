@@ -3,7 +3,7 @@ import { screen } from "@testing-library/react";
 import { installFetchStub, renderApp, resetAppState } from "../test/render";
 import { challengerWeek, modelsFixture, strategiesFixture, week } from "../test/fixtures";
 import type { Models, Week } from "../contract/types";
-import { NAV_ITEMS } from "../routes/nav";
+import { SECTIONS } from "../routes/nav";
 
 const GW = modelsFixture.gameweeks[modelsFixture.gameweeks.length - 1].gameweek;
 const ahead = { ...week.deadline, gameweek: GW, deadline_utc: "2099-01-02T11:00:00Z" };
@@ -42,7 +42,7 @@ describe("source availability alerts (ORC-07)", () => {
   beforeEach(() => resetAppState());
   afterEach(() => vi.unstubAllGlobals());
 
-  it.each(NAV_ITEMS.map((n) => n.path))("shows the offline banner on %s, naming the source and the next check", async (path) => {
+  it.each(SECTIONS.map((n): string => n.path))("shows the offline banner on %s, naming the source and the next check", async (path) => {
     serve(ahead, waiting());
     renderApp(path);
     const banner = await screen.findByTestId("source-offline-a_odds");

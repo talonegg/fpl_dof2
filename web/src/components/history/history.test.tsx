@@ -3,7 +3,7 @@ import { fireEvent, screen, within } from "@testing-library/react";
 import { installFetchStub, renderApp, resetAppState } from "../../test/render";
 import type { ModelHistoryEntry, ModelsHistory } from "../../contract/types";
 import { DATA_BASE, dataStore } from "../../data/store";
-import { NAV_ITEMS } from "../../routes/nav";
+import { SECTIONS } from "../../routes/nav";
 import { strategiesFixture } from "../../test/fixtures";
 
 const entry = (points: number, cumulative: number, rank: number, extra: Partial<ModelHistoryEntry> = {}): ModelHistoryEntry => ({
@@ -85,9 +85,9 @@ describe("model history page", () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it("is folded into the Models page: no separate nav tab", () => {
-    expect(NAV_ITEMS.find((n) => n.path === "/history")).toBeUndefined();
-    expect(NAV_ITEMS.find((n) => n.path === "/models")?.label).toBe("Models");
+  it("is the Models section's 2025/26 tab, not a section of its own", () => {
+    const models = SECTIONS.find((n) => n.path === "/models");
+    expect(models?.tabs.map((t) => t.path)).toContain("/models/2025-26");
   });
 
   it("shows the backtest caveat, the ranked summary with deltas and CIs", async () => {

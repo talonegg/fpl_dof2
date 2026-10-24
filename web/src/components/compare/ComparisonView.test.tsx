@@ -41,12 +41,12 @@ afterEach(() => {
 function renderCompare(search = "") {
   return render(
     <MemoryRouter
-      initialEntries={[`/compare${search}`]}
+      initialEntries={[`/analysis/compare${search}`]}
       future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
     >
       <Routes>
         <Route
-          path="/compare"
+          path="/analysis/compare"
           element={
             <ComparisonView allPlayers={fixturePlayers.players} horizonGameweeks={6} />
           }

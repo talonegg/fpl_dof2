@@ -81,7 +81,7 @@ describe("the strategy selector is driven by the registry", () => {
 
   it("the models page shows season-to-date totals, the per-GW table and the chart", async () => {
     installFetchStub({ bodies: { strategies: strategiesFixture, models: modelsFixture } });
-    renderApp("/models");
+    renderApp("/models/season");
     const season = await screen.findByTestId("models-season");
     const table = within(season).getByTestId("models-table");
     expect(within(table).getAllByRole("columnheader")).toHaveLength(6);
@@ -96,7 +96,7 @@ describe("the strategy selector is driven by the registry", () => {
 
   it("the models page says so when models.json is absent", async () => {
     installFetchStub();
-    renderApp("/models");
+    renderApp("/models/season");
     expect(await screen.findByTestId("models-season-empty")).toBeTruthy();
   });
 });
