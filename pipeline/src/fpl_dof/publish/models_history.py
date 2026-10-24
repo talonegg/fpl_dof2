@@ -5,12 +5,15 @@ auto-subs, vice-captain fallback, hits, no chips): the weekly backtest simulates
 season (:mod:`fpl_dof.factory.history`), records the history on ``ledger`` and the pipeline
 publishes the latest. This module is the pure assembly step: ranks, cumulative totals, and paired
 deltas against the champion with a seeded GW bootstrap. It scores nothing itself (DP-03).
+
+The live season as if each strategy had played it (``as_if_played.json``, ORC-13) is the same
+document over the live season, each gameweek labelled at publish from the live record.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 
@@ -33,6 +36,7 @@ def build_models_history(
     unavailable: Mapping[str, str],
     provenance: Mapping[str, Any],
     contract_version: int,
+    kind: Literal["backtest", "as_if_played"] = "backtest",
 ) -> dict[str, Any]:
     """Assemble the artefact from per-model decision rows keyed by strategy id or legacy alias.
 
@@ -124,11 +128,15 @@ def build_models_history(
     return {
         "contract_version": contract_version,
         "season": season,
-        "kind": "backtest",
+        "kind": kind,
         "caveat": (
             f"Backtest, not real play: a walk-forward replay of each strategy over {season}. Each "
             "starts at its first graded gameweek with its own fresh squad, uses no chips, and "
             "sees only data from before each deadline. Real results will differ."
+            if kind == "backtest"
+            else f"Each strategy's {season} as if it had played it from its first graded "
+            "gameweek: its own fresh squad, transfers and hits, no chips, on data from before "
+            "each deadline. Not your squad: that ladder is each model's advice on it."
         ),
         "champion": champ_id,
         "provenance": dict(provenance),
@@ -141,4 +149,37 @@ def build_models_history(
         "models": models,
         "gameweeks": gameweeks,
         "summary": summary,
+    }
+
+
+def label_as_played(
+    document: Mapping[str, Any], models: Mapping[str, Any] | None
+) -> dict[str, Any]:
+    """The live season's replay with each entry labelled ``replayed`` or ``live`` (ORC-13).
+
+    A strategy is live from the first gameweek ``models.json`` records its advice live (from the
+    ledger); every earlier gameweek, and every one of a strategy never live, is ``replayed``.
+    """
+    live_from: dict[str, int] = {}
+    for g in (models or {}).get("gameweeks") or ():
+        if g.get("record") == "live":
+            for sid in g.get("advice") or {}:
+                live_from[sid] = min(live_from.get(sid, g["gameweek"]), g["gameweek"])
+
+    def record(sid: str, gw: int) -> str:
+        return "live" if sid in live_from and gw >= live_from[sid] else "replayed"
+
+    return {
+        **document,
+        "models": [{**m, "live_from": live_from.get(m["id"])} for m in document["models"]],
+        "gameweeks": [
+            {
+                **g,
+                "models": {
+                    sid: {**e, "record": record(sid, g["gameweek"])}
+                    for sid, e in g["models"].items()
+                },
+            }
+            for g in document["gameweeks"]
+        ],
     }

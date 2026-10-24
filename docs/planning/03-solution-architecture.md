@@ -338,8 +338,10 @@ The single most important seam in the system: the boundary between DL-04's two l
   nothing rebuilds carried forward from `publish/records/`, and the live season's from the
   evaluations, ORC-05; WEB-04),
   `strategies` (the strategy registry, [04 §13](04-conceptual-design.md#13-configuration-and-feature-flags)),
-  and `models_history` (the latest archive season the weekly backtest simulated, from
-  `ledger:models_history/`, ORC-06). Every one goes through `Contract.write`. All JSON: ~700 rows
+  `models_history` (the latest archive season the weekly backtest simulated, from
+  `ledger:models_history/`, ORC-06), and `as_if_played` (the live season as if each strategy had
+  played it, in the same schema, from `ledger:as_if_played/`, each gameweek labelled replayed or
+  live from the live record in `models`, ORC-13). Every one goes through `Contract.write`. All JSON: ~700 rows
   needs no query engine.
 - **Versioned.** `/data/v1/`. A breaking change bumps to `v2` and publishes both during the transition.
 - **Behaviour pinned in both languages** by shared corpora in `contracts/conformance/`, read by pytest

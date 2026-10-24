@@ -19,7 +19,7 @@ worker is simulated again in this process.
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Mapping, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from functools import partial
 from typing import Any
 
@@ -27,11 +27,13 @@ import pandas as pd
 
 from fpl_dof.config.models import Config, UncertaintyConfig
 from fpl_dof.decision import decide
+from fpl_dof.factory.experiments import grade
 from fpl_dof.factory.registry import Strategy
 from fpl_dof.forecast.backtest import deadlines_for, prediction_column, run_isolated
 from fpl_dof.forecast.baselines import fit_b0
 from fpl_dof.forecast.entry import price_position_line
 from fpl_dof.forecast.features import TARGET
+from fpl_dof.forecast.inputs import ForecastInputs
 from fpl_dof.frames import as_float, as_int
 from fpl_dof.optimise.squad import optimise_squad
 from fpl_dof.optimise.transfer import TransferOption
@@ -100,6 +102,45 @@ def season_histories(
         for season, rows in seasons_rows.items():
             by_season.setdefault(season, {})[sid] = rows
     return by_season, failures
+
+
+def as_if_played(
+    history: pd.DataFrame,
+    strategies: Sequence[Strategy],
+    rules: GameRules,
+    config: Config,
+    *,
+    finished: Collection[int],
+    metrics: pd.DataFrame | None = None,
+    inputs: ForecastInputs | None = None,
+) -> tuple[dict[str, list[dict[str, Any]]], dict[str, str]]:
+    """The live season as if each strategy had played it (ORC-13): strategy id -> one row per
+    replayed gameweek, and strategy id -> why it has none.
+
+    The same simulation as the archive seasons', over ``rules.season``: the walk covers the
+    training seasons and the live one, so an ``all_seasons`` strategy is fitted on both, but grades
+    only the live season's folds. Only ``finished`` gameweeks enter, so a gameweek still being
+    played is neither scored nor trained on. Its first gameweek is the first every strategy can be
+    fitted for (``backtest.minimum_training_matches`` into each window): before it a live
+    ``current_season`` model publishes its cold-start fallback, which the walk does not replay.
+    """
+    live = rules.season
+    seasons = config.backtest.training_seasons
+    if seasons and live not in seasons:
+        seasons = (*seasons, live)
+    config = config.model_copy(
+        update={"backtest": config.backtest.model_copy(update={"training_seasons": seasons})}
+    )
+    if len(finished) <= config.backtest.minimum_training_matches:
+        return {}, {}  # no live gameweek can be fitted for yet: nothing to replay, not a failure
+    played = history[(history["season"] != live) | history["gameweek"].isin(list(finished))]
+    graded = grade(
+        played, strategies, rules, config, metrics=metrics, inputs=inputs, graded_seasons=(live,)
+    )
+    by_season, failures = season_histories(
+        graded.result.predictions, played, strategies, rules, config
+    )
+    return by_season.get(live, {}), {**graded.skipped, **failures}
 
 
 def simulate(
@@ -327,4 +368,4 @@ def _name(names: pd.Series, code: int) -> str:
     return str(found) if found is not None else f"#{code}"
 
 
-__all__ = ["SETTINGS", "season_histories", "simulate"]
+__all__ = ["SETTINGS", "as_if_played", "season_histories", "simulate"]

@@ -36,7 +36,10 @@ jobs:
     # runner is slower than the workstation, so the walk may reach ~150 min. If it outgrows
     # this, raise `backtest.refit_every_gameweeks` in config/ci-backtest.yaml (a decision, DP-06).
     # EXP-02's chip-timing replay runs after it: 8 deadlines x 9 plans took 36 min locally
-    # (2026-10-24), so allow ~60 more on a runner.
+    # (2026-10-24), so allow ~60 more on a runner. ORC-13's live-season replay runs before it:
+    # measured locally 2026-10-24 with four workers and every graded strategy (no odds, so no
+    # A + odds), 43 s for one live gameweek and 112 s for three, ~35 s a gameweek; by GW38 (34
+    # replayed) ~20 min locally, so allow ~40 on a runner. ~250 min in all at the season's end.
     timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
@@ -84,6 +87,7 @@ jobs:
             data/gold/**/backtest.json
             data/ledger/experiments/*.json
             data/ledger/models_history/*.json
+            data/ledger/as_if_played/*.json
           retention-days: 90
           if-no-files-found: warn
 
@@ -95,7 +99,7 @@ jobs:
           set -eu
           remote="https://x-access-token:${GH_TOKEN}@github.com/${{ github.repository }}.git"
           shopt -s nullglob
-          for source in experiments models_history; do
+          for source in experiments models_history as_if_played; do
             for file in data/ledger/$source/*.json; do
               python pipeline/scripts/retention.py permanent "$file" \
                 --remote "$remote" --branch ledger --source "$source" \
@@ -108,7 +112,7 @@ jobs:
       - name: Check the models history was built
         run: |
           shopt -s nullglob
-          for failure in data/gold/*/models-history-failure.txt; do
+          for failure in data/gold/*/models-history-failure.txt data/gold/*/as-if-played-failure.txt; do
             echo "::error title=Models history not built::$(cat "$failure")"
             exit 1
           done

@@ -85,6 +85,7 @@ const GUARDS: Partial<Record<ArtefactKey, (body: unknown) => boolean>> = {
   strategies: hasArrays("strategies"),
   models: hasArrays("gameweeks"),
   models_history: hasArrays("summary", "gameweeks"),
+  as_if_played: hasArrays("summary", "gameweeks"),
   xp_accuracy: hasArrays("seasons"),
   health: looksLikeHealth,
 };
@@ -93,6 +94,7 @@ const GUARDS: Partial<Record<ArtefactKey, (body: unknown) => boolean>> = {
 const NORMALISE: Partial<Record<ArtefactKey, (registry: Registry, body: never) => unknown>> = {
   models: normaliseModels,
   models_history: normaliseHistory,
+  as_if_played: normaliseHistory,
   xp_accuracy: normaliseAccuracy,
 };
 

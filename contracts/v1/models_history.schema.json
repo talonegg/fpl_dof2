@@ -2,14 +2,14 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/talonegg/fpl_dof2/contracts/v1/models_history.schema.json",
   "title": "ModelsHistory",
-  "description": "How every registered strategy would have played an archive season in the standing backtest (FPL auto-subs, vice-captain fallback, hits, no chips), each on its own fresh squad, scored by the one realised-points scorer. A backtest, not real play. Simulated by the weekly `fpl-dof backtest`, recorded on the `ledger` branch under `models_history/`, and the latest season published by `fpl-dof publish` (ORC-06).",
+  "description": "How every registered strategy would have played an archive season in the standing backtest (FPL auto-subs, vice-captain fallback, hits, no chips), each on its own fresh squad, scored by the one realised-points scorer. A backtest, not real play. Simulated by the weekly `fpl-dof backtest`, recorded on the `ledger` branch under `models_history/`, and the latest season published by `fpl-dof publish` (ORC-06). The same shape, `kind` `as_if_played`, is the live season as if each strategy had played it, published as `as_if_played.json` with each gameweek labelled replayed or live (ORC-13).",
   "type": "object",
   "additionalProperties": false,
   "required": ["contract_version", "season", "kind", "caveat", "champion", "provenance", "bootstrap", "models", "gameweeks", "summary"],
   "properties": {
     "contract_version": { "type": "integer", "const": 1 },
     "season": { "type": "string" },
-    "kind": { "type": "string", "const": "backtest" },
+    "kind": { "type": "string", "enum": ["backtest", "as_if_played"], "description": "backtest: an archive season (models_history.json). as_if_played: the live season (as_if_played.json)." },
     "caveat": { "type": "string" },
     "champion": { "type": "string" },
     "provenance": {
@@ -42,7 +42,8 @@
         "label": { "type": "string" },
         "role": { "type": "string", "description": "The strategy's registry role; a file built before the registry says comparison for a challenger." },
         "available": { "type": "boolean" },
-        "unavailable_reason": { "type": ["string", "null"] }
+        "unavailable_reason": { "type": ["string", "null"] },
+        "live_from": { "type": ["integer", "null"], "description": "as_if_played only: the first gameweek the live record holds this strategy's advice; null when it has never advised live. Absent in models_history.json." }
       }
     },
     "model_history_entry": {
@@ -62,7 +63,8 @@
         "n_autosubs": { "type": "integer", "minimum": 0 },
         "cumulative": { "type": "number" },
         "rank": { "type": "integer", "minimum": 1 },
-        "cumulative_rank": { "type": "integer", "minimum": 1 }
+        "cumulative_rank": { "type": "integer", "minimum": 1 },
+        "record": { "type": "string", "enum": ["replayed", "live"], "description": "as_if_played only: replayed before the strategy went live (live_from), live from it. Absent in models_history.json." }
       }
     },
     "model_history_gameweek": {

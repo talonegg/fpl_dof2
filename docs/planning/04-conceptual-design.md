@@ -449,7 +449,9 @@ folds in 27 min, mostly `c1`; `backtest.yml` allows 150 min.
   deltas against the champion; the champion's also carries DL-21's verdict and the baselines. CI
   appends it to the `ledger` branch, keyed by run and never overwritten. Beside it,
   `ledger/models_history/<run_id>.json`: each graded strategy's simulated season per archive
-  season (below), which publish turns into `models_history.json`. On every forecast run
+  season (below), which publish turns into `models_history.json`, and
+  `ledger/as_if_played/<run_id>.json`, the live season the same way (below), which publish labels
+  and turns into `as_if_played.json`. On every forecast run
   `model-card.md` — published model, fallback, guardrail, the latest verdict for the champion's
   current digest from `ledger/experiments/` (or a plain statement that none exists), weaknesses.
   **Read it before acting on a ranking** (DL-21): no −8 hit, chip or Wildcard on the chain alone
@@ -461,6 +463,13 @@ folds in 27 min, mostly `c1`; `backtest.yml` allows 150 min.
   the walks; a season that cannot be simulated is recorded with the reason. A backtest, not real
   play. The frozen-era tables it replaced are records in
   [`archive/R1.3.0/models-history-frozen-era/`](archive/R1.3.0/models-history-frozen-era/README.md).
+- **The live season as if played** (`factory/history.py` `as_if_played`, ORC-13): the same
+  simulation over the live season's Finished gameweeks, walked over the training seasons and the
+  live one but graded on the live one only, so it starts at the first gameweek every strategy can
+  be fitted for (GW5 with `backtest.minimum_training_matches` at 4; before it a `current_season`
+  model publishes its cold-start `xp_v0`, which the walk does not replay). Publish labels each
+  gameweek **replayed** before the strategy's first live advice in `models.json` and **live** from
+  it. No chips, as the history.
 - **Not in the package:** a simulated season of the full multi-gameweek optimiser with chips. The
   chip replay (`factory/replay.py`, DL-28) covers chip timing only; the pre-registered comparison is
   [`prospective/`](../../prospective/README.md).

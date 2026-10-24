@@ -6,7 +6,7 @@
 
 export const CONTRACT_VERSION = 1;
 
-export const CONTRACT_MINOR = 5;
+export const CONTRACT_MINOR = 6;
 
 /** What this publication is, when it was made, and what produced it. The browser reads this first and can render an honest 'as at' line without trusting anything else. */
 export interface Meta {
@@ -1087,6 +1087,8 @@ export interface ModelHistoryModel {
   role: string;
   available: boolean;
   unavailable_reason: string | null;
+  /** as_if_played only: the first gameweek the live record holds this strategy's advice; null when it has never advised live. Absent in models_history.json. */
+  live_from?: number | null;
 }
 
 export interface ModelHistoryEntry {
@@ -1104,6 +1106,8 @@ export interface ModelHistoryEntry {
   cumulative: number;
   rank: number;
   cumulative_rank: number;
+  /** as_if_played only: replayed before the strategy went live (live_from), live from it. Absent in models_history.json. */
+  record?: "replayed" | "live";
 }
 
 export interface ModelHistoryGameweek {
@@ -1133,11 +1137,12 @@ export interface ModelHistorySummary {
   delta_vs_champion: null | ModelHistoryDelta;
 }
 
-/** How every registered strategy would have played an archive season in the standing backtest (FPL auto-subs, vice-captain fallback, hits, no chips), each on its own fresh squad, scored by the one realised-points scorer. A backtest, not real play. Simulated by the weekly `fpl-dof backtest`, recorded on the `ledger` branch under `models_history/`, and the latest season published by `fpl-dof publish` (ORC-06). */
+/** How every registered strategy would have played an archive season in the standing backtest (FPL auto-subs, vice-captain fallback, hits, no chips), each on its own fresh squad, scored by the one realised-points scorer. A backtest, not real play. Simulated by the weekly `fpl-dof backtest`, recorded on the `ledger` branch under `models_history/`, and the latest season published by `fpl-dof publish` (ORC-06). The same shape, `kind` `as_if_played`, is the live season as if each strategy had played it, published as `as_if_played.json` with each gameweek labelled replayed or live (ORC-13). */
 export interface ModelsHistory {
   contract_version: 1;
   season: string;
-  kind: "backtest";
+  /** backtest: an archive season (models_history.json). as_if_played: the live season (as_if_played.json). */
+  kind: "backtest" | "as_if_played";
   caveat: string;
   champion: string;
   /** Where the numbers came from: the backtest run, its config digest, the simulator, the scorer and the settings. */
@@ -1152,6 +1157,8 @@ export interface ModelsHistory {
   gameweeks: ModelHistoryGameweek[];
   summary: ModelHistorySummary[];
 }
+
+export type AsIfPlayed = ModelsHistory;
 
 export interface XpAccuracyGameweek {
   gameweek: number;
@@ -1271,6 +1278,11 @@ export const ARTEFACTS = {
     "required": false,
     "warm": false
   },
+  "as_if_played": {
+    "path": "as_if_played.json",
+    "required": false,
+    "warm": false
+  },
   "xp_accuracy": {
     "path": "xp_accuracy.json",
     "required": false,
@@ -1298,6 +1310,7 @@ export interface ArtefactMap {
   log: Log;
   models: Models;
   models_history: ModelsHistory;
+  as_if_played: AsIfPlayed;
   xp_accuracy: XpAccuracy;
   strategies: Strategies;
 }

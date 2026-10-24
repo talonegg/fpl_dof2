@@ -13,7 +13,9 @@ one stamped record per strategy to ``ledger/experiments/<run_id>.json``; CI appe
 ``ledger`` branch, and the pipeline's model card reads the champion's verdict from there.
 
 It also simulates every graded strategy's season over the same folds and writes the models history
-to ``ledger/models_history/<run_id>.json`` (ORC-06), which the pipeline publishes.
+to ``ledger/models_history/<run_id>.json`` (ORC-06), which the pipeline publishes, and the live
+season's finished gameweeks as if each strategy had played them to
+``ledger/as_if_played/<run_id>.json`` (ORC-13).
 """
 
 from __future__ import annotations
@@ -26,6 +28,8 @@ from typing import Any
 import pandas as pd
 
 from fpl_dof.artefacts import (
+    AS_IF_PLAYED_DIRNAME,
+    AS_IF_PLAYED_FAILURE_FILENAME,
     BACKTEST_PREDICTIONS_FILENAME,
     BACKTEST_REPORT_FILENAME,
     EXPERIMENTS_DIRNAME,
@@ -43,9 +47,10 @@ from fpl_dof.factory import (
     not_graded_records,
 )
 from fpl_dof.factory.experiments import run_config_digest
-from fpl_dof.factory.history import SETTINGS, season_histories
+from fpl_dof.factory.history import SETTINGS, as_if_played, season_histories
 from fpl_dof.factory.registry import Strategy, strategies
 from fpl_dof.factory.replay import CHIP_TIMING_EXPERIMENT, replay_chip_timing
+from fpl_dof.gameweek import Phase, SilverTables, season_states
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.pipeline import Output, StageContext, StageResult
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
@@ -161,6 +166,20 @@ def run(ctx: StageContext) -> StageResult:
             json.dumps(histories, indent=1, ensure_ascii=False), encoding="utf-8"
         )
         outputs.append(Output(path=history_path, rows=len(histories)))
+
+    # The live season as if each strategy had played it (ORC-13): after the record and the
+    # history, never costing either (DP-15); a failure is written beside the report, as theirs is.
+    played_failure = directory / AS_IF_PLAYED_FAILURE_FILENAME
+    try:
+        played = _as_if_played(ctx, history, registered, rules, gameweeks, metrics, inputs)
+    except Exception as exc:
+        reason = f"the live season's replay could not be built: {type(exc).__name__}: {exc}"
+        log.error("backtest.as_if_played_failed", extra={"reason": reason})
+        played_failure.write_text(reason + "\n", encoding="utf-8")
+        outputs.append(Output(path=played_failure))
+    else:
+        played_failure.unlink(missing_ok=True)
+        outputs += played
 
     if ctx.config.backtest.chip_replay.timing_experiment:
         outputs.append(_chip_timing(ctx, history, rules))
@@ -297,6 +316,48 @@ def _models_history(
         contract.validate("models_history", document)
         documents.append(document)
     return documents
+
+
+def _as_if_played(
+    ctx: StageContext,
+    history: pd.DataFrame,
+    registered: Sequence[Strategy],
+    rules: GameRules,
+    gameweeks: pd.DataFrame | None,
+    metrics: pd.DataFrame | None,
+    inputs: ForecastInputs | None,
+) -> list[Output]:
+    """``ledger/as_if_played/<run_id>.json``: the live season's finished gameweeks replayed, or
+    nothing while none can be (ORC-13). Validated here, as the history is."""
+    if gameweeks is None or gameweeks.empty:
+        return []
+    states = season_states(SilverTables(gameweeks), (), ctx.as_of)
+    # Finished is when its points are final; Evaluated adds only the owner's squad, not read here.
+    finished = [s.gameweek for s in states if s.phase in (Phase.FINISHED, Phase.EVALUATED)]
+    rows, unavailable = as_if_played(
+        history, registered, rules, ctx.config, finished=finished, metrics=metrics, inputs=inputs
+    )
+    if not rows:
+        log.info("backtest.as_if_played_skipped", extra={"finished": len(finished)})
+        return []
+    document = build_models_history(
+        season=rules.season,
+        rows=rows,
+        unavailable=unavailable,
+        provenance={
+            "run_id": ctx.run_id,
+            "config_digest": run_config_digest(ctx.config),
+            "refit_every_gameweeks": str(ctx.config.backtest.refit_every_gameweeks),
+            **SETTINGS,
+        },
+        contract_version=CONTRACT_VERSION,
+        kind="as_if_played",
+    )
+    Contract(root=find_contracts_root()).validate("as_if_played", document)
+    path = ctx.layout.ledger / AS_IF_PLAYED_DIRNAME / f"{ctx.run_id}.json"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps([document], indent=1, ensure_ascii=False), encoding="utf-8")
+    return [Output(path=path, rows=len(document["gameweeks"]))]
 
 
 def _round(value: float) -> float:
