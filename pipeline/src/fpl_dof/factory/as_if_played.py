@@ -32,7 +32,8 @@ from fpl_dof.decision import decide
 from fpl_dof.factory.history import next_state, repriced
 from fpl_dof.factory.registry import Strategy
 from fpl_dof.forecast.backtest import run_isolated
-from fpl_dof.forecast.inputs import ForecastInputs
+from fpl_dof.forecast.fit import ColdStartError
+from fpl_dof.forecast.inputs import ForecastInputs, MissingInputError
 from fpl_dof.frames import as_int
 from fpl_dof.optimise.horizon import PlannedWeek
 from fpl_dof.optimise.squad import InfeasibleError, optimise_squad
@@ -56,6 +57,12 @@ SETTINGS: dict[str, str] = {
 }
 
 Row = dict[str, Any]
+
+#: What a forecaster raises when its inputs are absent at a deadline: a required silver table, or
+#: A_odds' odds, missing (``MissingInputError``, ``MissingOddsError``), or no played row to build a
+#: feature from (``ColdStartError``). Only these make a model unavailable; any other error is a bug
+#: and fails the replay, so its job's alert fires rather than the app showing it as a reason.
+INPUTS_ABSENT: tuple[type[Exception], ...] = (MissingInputError, ColdStartError)
 
 
 def inputs_at(
@@ -145,7 +152,7 @@ def replay(
     """One strategy's season: one row per gameweek played, and gameweek -> why it could not be."""
     today = strategy.forecast(inputs, rules, config)
     if today.fitted is None:
-        raise ValueError(
+        raise ColdStartError(
             f"today's forecast is {today.model}, a cold-start fallback with no fitted weights"
         )
     last = as_int(inputs.gameweeks["gameweek"].max())
@@ -164,7 +171,7 @@ def replay(
                 strategy, forecast.frame, forecast.captain_line, state, at, rules, config,
                 gw=gw, chips=chips, last=last, season_rows=season_rows,
             )  # fmt: skip
-        except Exception as exc:
+        except INPUTS_ABSENT as exc:  # anything else is a bug and fails the job
             skipped[gw] = f"{type(exc).__name__}: {exc}"
             continue
         rows.append(row)
@@ -327,6 +334,8 @@ def as_if_played(
         strategies, run_isolated(calls, config.backtest.strategy_workers), strict=True
     ):
         if isinstance(outcome, Exception):
+            if not isinstance(outcome, INPUTS_ABSENT):
+                raise outcome  # a bug, not absent inputs: fail the job, not the model's row
             unavailable[strategy.id] = (
                 f"today's fit could not be replayed: {type(outcome).__name__}: {outcome}"
             )

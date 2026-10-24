@@ -471,6 +471,43 @@ def test_the_stage_records_it_and_the_pipeline_publishes_the_newest(
 ) -> None:
     """``fpl-dof as-if-played`` writes ``ledger/as_if_played/<run_id>.json``; publish serves the
     newest as ``as_if_played.json``, labelled in-sample."""
+    ctx = _stage(game_rules, layout, monkeypatch, _echo("engine"))
+    result = stage.run(ctx)
+    assert result.metrics["finished"] == len(FINISHED)  # GW5, still open, is not replayed
+    recorded = layout.ledger / "as_if_played" / f"{ctx.run_id}.json"
+    (document,) = json.loads(recorded.read_text("utf-8"))
+    assert document["provenance"]["run_id"] == ctx.run_id
+    assert [g["gameweek"] for g in document["gameweeks"]] == list(FINISHED)
+
+    (recorded.parent / "20261020T161700Z-a.json").write_text(json.dumps([{"season": "older"}]))
+    published = publish._models_history(ctx, AS_IF_PLAYED_DIRNAME)
+    assert published is not None and published["kind"] == "in_sample"
+    Contract(root=find_contracts_root()).validate("as_if_played", published)
+
+
+class Buggy(Echo):
+    """A forecaster with a bug at GW3: not absent inputs, so not a reason to show."""
+
+    def forecast(self, inputs: ForecastInputs, *a: Any, fitted: Any = None) -> Forecast:
+        if fitted is not None and current_gameweek(inputs.gameweeks, inputs.as_of) == 3:
+            raise KeyError("player_id")
+        return super().forecast(inputs, *a, fitted=fitted)
+
+
+def test_an_unexpected_error_fails_the_stage_rather_than_reading_as_unavailable(
+    game_rules: GameRules, layout: DataLayout, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Only absent inputs make a model unavailable; a bug fails the job, so its alert fires."""
+    ctx = _stage(game_rules, layout, monkeypatch, _echo("engine", Buggy))
+    with pytest.raises(KeyError, match="player_id"):
+        stage.run(ctx)
+    assert not (layout.ledger / "as_if_played").exists()  # nothing recorded for publish to serve
+
+
+def _stage(
+    game_rules: GameRules, layout: DataLayout, monkeypatch: pytest.MonkeyPatch, strategy: Echo
+) -> StageContext:
+    """The stage on the fixture season, with ``strategy`` the only published one."""
     inputs, prices, chips = _season(game_rules)
     tables = {
         Table.PLAYER: inputs.players,
@@ -485,22 +522,11 @@ def test_the_stage_records_it_and_the_pipeline_publishes_the_newest(
     monkeypatch.setattr(stage, "read_rules", lambda *_a: game_rules)
     monkeypatch.setattr(stage, "read_table", lambda _s, _y, t: tables[t])
     monkeypatch.setattr(stage, "read_table_optional", lambda _s, _y, t: tables.get(t))
-    monkeypatch.setattr(stage, "published_strategies", lambda: [_echo("engine")])
-    ctx = StageContext(
+    monkeypatch.setattr(stage, "published_strategies", lambda: [strategy])
+    return StageContext(
         config=_config(game_rules), layout=layout, run_id="20261027T161700Z-b",
         as_of=inputs.as_of,
     )  # fmt: skip
-    result = stage.run(ctx)
-    assert result.metrics["finished"] == len(FINISHED)  # GW5, still open, is not replayed
-    recorded = layout.ledger / "as_if_played" / f"{ctx.run_id}.json"
-    (document,) = json.loads(recorded.read_text("utf-8"))
-    assert document["provenance"]["run_id"] == ctx.run_id
-    assert [g["gameweek"] for g in document["gameweeks"]] == list(FINISHED)
-
-    (recorded.parent / "20261020T161700Z-a.json").write_text(json.dumps([{"season": "older"}]))
-    published = publish._models_history(ctx, AS_IF_PLAYED_DIRNAME)
-    assert published is not None and published["kind"] == "in_sample"
-    Contract(root=find_contracts_root()).validate("as_if_played", published)
 
 
 def test_its_own_weekly_job_records_it_and_the_pipeline_restores_it() -> None:
