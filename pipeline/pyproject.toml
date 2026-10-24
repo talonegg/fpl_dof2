@@ -174,7 +174,7 @@ ignore_imports = []
 name = "Stages do not import each other"
 type = "independence"
 modules = [
-    "fpl_dof.stages.backtest", "fpl_dof.stages.forecast",
+    "fpl_dof.stages.as_if_played", "fpl_dof.stages.backtest", "fpl_dof.stages.forecast",
     "fpl_dof.stages.ingest", "fpl_dof.stages.optimise", "fpl_dof.stages.publish",
     "fpl_dof.stages.quality", "fpl_dof.stages.transform", "fpl_dof.stages.week",
 ]

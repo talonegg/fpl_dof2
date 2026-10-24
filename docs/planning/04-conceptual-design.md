@@ -453,9 +453,7 @@ folds in 27 min, mostly `c1`; `backtest.yml` allows 150 min.
   deltas against the champion; the champion's also carries DL-21's verdict and the baselines. CI
   appends it to the `ledger` branch, keyed by run and never overwritten. Beside it,
   `ledger/models_history/<run_id>.json`: each graded strategy's simulated season per archive
-  season (below), which publish turns into `models_history.json`, and
-  `ledger/as_if_played/<run_id>.json`, the live season the same way (below), which publish labels
-  and turns into `as_if_played.json`. On every forecast run
+  season (below), which publish turns into `models_history.json`. On every forecast run
   `model-card.md` — published model, fallback, guardrail, the latest verdict for the champion's
   current digest from `ledger/experiments/` (or a plain statement that none exists), weaknesses.
   **Read it before acting on a ranking** (DL-21): no −8 hit, chip or Wildcard on the chain alone
@@ -467,16 +465,22 @@ folds in 27 min, mostly `c1`; `backtest.yml` allows 150 min.
   the walks; a season that cannot be simulated is recorded with the reason. A backtest, not real
   play. The frozen-era tables it replaced are records in
   [`archive/R1.3.0/models-history-frozen-era/`](archive/R1.3.0/models-history-frozen-era/README.md).
-- **The live season as if played** (`factory/history.py` `as_if_played`, ORC-13): the same
-  simulation over the live season's Finished gameweeks, walked over the training seasons and the
-  live one but graded on the live one only, so it starts at the first gameweek every strategy can
-  be fitted for (GW5 with `backtest.minimum_training_matches` at 4; before it a `current_season`
-  model publishes its cold-start `xp_v0`, which the walk does not replay). Publish labels each
-  gameweek **replayed** before the strategy's first live advice in `models.json` and **live** from
-  it. No chips, as the history.
-- **Not in the package:** a simulated season of the full multi-gameweek optimiser with chips. The
-  chip replay (`factory/replay.py`, DL-28) covers chip timing only; the pre-registered comparison is
-  [`prospective/`](../../prospective/README.md).
+- **The live season as if played** (`factory/as_if_played.py`, `fpl-dof as-if-played`, ORC-13,
+  [DL-97](../decisions/DL-97.md)): **in-sample**. Each published strategy is fitted once, today, by
+  its live forecast; those weights replay every Finished gameweek from GW1 on its own squad — a
+  from-scratch squad under the budget (the preseason squad MILP; the start-probability floor relaxed
+  if a first deadline cannot meet it), then the full decision engine at each deadline, the plan's
+  week when it plays a chip — scored by `rules/realised.py`. Everything else is cut to the
+  deadline (`inputs_at`, Invariant 5): played rows kicked off before it, prices from
+  `price_history` at it, fixtures unfinished from it, odds captured before it; no availability
+  news, which is not recorded per deadline. A strategy that cannot forecast at a deadline is
+  unavailable that gameweek with the reason (a `current_season` model has nothing at GW1).
+  Written to `ledger/as_if_played/<run_id>.json` by its own job in `backtest.yml`, published as
+  `as_if_played.json` (`kind` `in_sample`); nothing in grading, the champion or a promotion reads
+  it.
+- **Not in the package:** an out-of-sample simulated season of the full multi-gameweek optimiser
+  with chips. The chip replay (`factory/replay.py`, DL-28) covers chip timing only; the
+  pre-registered comparison is [`prospective/`](../../prospective/README.md).
 
 The question is **"does this beat doing something simple?"** So far it beats price on rank
 correlation and loses to trailing form at the head (DL-21, DL-53), which is why trailing form is

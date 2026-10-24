@@ -174,8 +174,8 @@ jobs:
       # judgement, made once (ORC-05): restored, a gameweek is Evaluated and is not judged again.
       # `experiments/` holds the standing backtest's records, which the model card reads for the
       # champion's current digest (MOD-08), `models_history/` the seasons it simulated, which
-      # publish turns into models_history.json (ORC-06), and `as_if_played/` the live season as if
-      # each strategy had played it, published as as_if_played.json (ORC-13).
+      # publish turns into models_history.json (ORC-06), and `as_if_played/` today's models replayed
+      # in-sample on the live season, published as as_if_played.json (ORC-13, DL-97).
       - name: Restore the advice ledger and experiments from the `ledger` branch
         run: |
           set -eu
