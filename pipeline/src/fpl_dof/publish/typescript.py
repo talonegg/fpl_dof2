@@ -13,10 +13,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from fpl_dof.publish.contract import ARTEFACTS, CONTRACT_MINOR, Contract
+from fpl_dof.publish.contract import ARTEFACTS, CONTRACT_MINOR, Contract, ContractViolationError
 
 HEADER = """// Generated from contracts/v{version}/*.schema.json — do not edit by hand.
-// Regenerate with: fpl-dof publish
+// Regenerate with: fpl-dof contract types
 //
 // These types are generated from the same schemas the publisher validates against, so the app
 // cannot compile against a shape the pipeline does not produce.
@@ -88,15 +88,21 @@ def generate(contract: Contract) -> str:
     parts.append(f"export const CONTRACT_VERSION = {contract.version};\n")
     parts.append(f"export const CONTRACT_MINOR = {CONTRACT_MINOR};\n")
 
-    emitted: set[str] = set()
+    emitted: dict[str, tuple[str, Any]] = {}
     for artefact in ARTEFACTS:
         schema = contract.schema(artefact)
         defs = schema.get("$defs", {})
         for name, subschema in defs.items():
             type_name = _type_name(name)
             if type_name in emitted:
+                first, seen = emitted[type_name]
+                if seen != subschema:
+                    raise ContractViolationError(
+                        f"$defs name {name!r} is defined with different shapes in "
+                        f"{ARTEFACTS[first]} and {ARTEFACTS[artefact]}; rename one"
+                    )
                 continue
-            emitted.add(type_name)
+            emitted[type_name] = (artefact, subschema)
             description = subschema.get("description")
             if description:
                 parts.append(f"/** {description} */")

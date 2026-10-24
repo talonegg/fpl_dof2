@@ -67,7 +67,7 @@ module review is [03 §12](03-solution-architecture.md#12-module-design--review-
 | Model lists, labels, colours and which models have a full week are compiled into TypeScript and locked by schema enums; the labels `models.json` already publishes go unread | `web/src/data/model.ts:13-49`, `ModelsPage.tsx:23-53`, `modelStyle.ts:4-17` |
 | Adding an artefact touches about a dozen files across Python, TypeScript and the verification scripts | `publish/contract.py:26-59`, `web/src/data/store.ts:35,59,221,244`, `offline.ts:44`, `smoke-check.mjs:44` |
 | Every pipeline run rebuilds and redeploys the whole site; data cannot refresh without a web build, and nothing checks that the data's contract version matches the bundle's | `deploy.yml:15-21,124-130`; `contract_version` unread in `web/src` |
-| The publish stage writes `web/src/contract/types.ts`; no CI step checks it | `stages/publish.py:166-169` |
+| The publish stage writes `web/src/contract/types.ts`; no CI step checked it | `stages/publish.py:166-169`. **Closed by WEB-03** |
 | No feature-flag or variant mechanism exists in the UI | — |
 
 ---

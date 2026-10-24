@@ -1,7 +1,7 @@
 """Publish stage — gold to the versioned web contract.
 
 Writes ``data/web/v1/{meta,rules,players,squad}.json``, each validated against its schema before it
-lands, and regenerates the TypeScript types the app compiles against.
+lands. The TypeScript types are `fpl-dof contract types`, checked in CI (WEB-03).
 
 The browser reads these files and nothing else. There is no request path from the client to any
 code this project operates (Invariant 8, DL-03).
@@ -49,7 +49,6 @@ from fpl_dof.publish.league import build_league
 from fpl_dof.publish.models_compare import build_models
 from fpl_dof.publish.season_log import build_log
 from fpl_dof.publish.strategies import artefact_paths, build_strategies
-from fpl_dof.publish.typescript import write_types
 from fpl_dof.rules.models import GameRules
 from fpl_dof.silver.store import read_table, read_table_optional
 from fpl_dof.silver.tables import Table
@@ -61,7 +60,6 @@ from fpl_dof.week.schedule import next_fast_ingest
 
 log = get_logger(__name__)
 
-TYPES_PATH = ("web", "src", "contract", "types.ts")
 WEB_PUBLIC_PATH = ("web", "public", "data", f"v{CONTRACT_VERSION}")
 
 
@@ -211,9 +209,6 @@ def run(ctx: StageContext) -> StageResult:
 
     root = find_repo_root()
     if root is not None:
-        types = write_types(contract, root.joinpath(*TYPES_PATH))
-        outputs.append(Output(path=types))
-
         # The app is a static site: it reads these files from its own origin and never calls an
         # API (Invariant 8). Copying them into the app's public directory is what makes
         # `vite dev` and a built bundle serve identical data.

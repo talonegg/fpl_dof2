@@ -58,6 +58,7 @@ Python lives in `.venv` at the repo root, created with `uv`. `uv` is installed a
 | Browser verification (layout, accessibility, PWA/offline, performance) | Serve a build, then `cd web && npm run verify:browser -- http://127.0.0.1:4173` — see `web/verify/README.md`. Needs a **built** site: the service worker is not generated in dev |
 | Deployed smoke test (E7-S7) — app shell, key routes, contract files | `cd web && npm run verify:smoke -- <deployed-url>` — see `web/verify/README.md` §"Phase 5". Pass the deployed **path**, not the bare origin; exits non-zero on failure so a workflow can gate on it |
 | Regenerate the PWA icons after a palette change | `cd web && node scripts/make-icons.mjs` — reads the colours from `src/tokens.css` |
+| Regenerate or check the web contract types (WEB-03) | `.venv\Scripts\fpl-dof contract types`; `--check` exits non-zero when `web/src/contract/types.ts` differs from `contracts/` (CI's lint job runs it). The publish stage does not write it |
 | Docs check — decision index, links, `DL-nn` citations (CI runs it) | `python scripts/docs.py check`; after adding a decision, `python scripts/docs.py index` first |
 
 Reading the current squad without the web app: `data/gold/season=2026-27/squad.json` (preseason
@@ -84,7 +85,7 @@ ranking (DL-21).
   - `publish/` — the web contract writer and the TypeScript generator.
   - `stages/` — the five pipeline stages; the effectful edge (DP-03).
 - `web/` — TypeScript/React. Everything after it. `src/contract/types.ts` is **generated** — never
-  edit it by hand; `fpl-dof publish` rewrites it from the JSON Schemas.
+  edit it by hand; `fpl-dof contract types` rewrites it from the JSON Schemas (CI runs it with `--check`).
 - `contracts/` — the single definition of the boundary between the two. `v1/` is the published
   artefacts' JSON Schema; `conformance/` holds the fixture corpora for behaviour implemented in both
   languages, written once and read by both pytest and vitest — never copied (DL-39).
