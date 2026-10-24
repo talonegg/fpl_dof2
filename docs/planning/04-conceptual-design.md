@@ -297,7 +297,11 @@ scorer (`rules/realised.py`, ORC-04), its xP accuracy, and E14's hindsight work 
 that re-solves the single-gameweek transfer MILP on actual points from the squad, selling prices,
 clubs and bank the owner had at the deadline, with oracle-gap diagnostics. `log.json`, the live
 gameweeks' points in `models.json` and the live `xp_accuracy.json` are assembled from those
-evaluations, never recomputed on publish.
+evaluations, never recomputed on publish. The oracle's option set (roll, best single transfer, best
+overall) is shaped by the one function, `week/oracle.py` `option_set`, that also shapes each
+model's own transfer solve on its predicted xP into `recommendation.option_set` of its week file;
+the ledger keeps it with the advice, and `models.json` publishes it per live gameweek, so Last
+gameweek sets the two side by side (ORC-11). It adds no solve.
 
 ### 4.4 Explanation service
 
@@ -691,9 +695,9 @@ Each section's views as they stand; WEB-08 to WEB-14 rebuild them to the R1.4.0 
 | `/models` Models | A multi-select comparison of the registry's published strategies against the champion (advice differences, xP on the players they disagree on, historical performance), then summary, details and xP accuracy |
 | `/models/season` | Every model's live season to date: points per gameweek, the cumulative chart, the latest advice |
 | `/models/2025-26` | The 2025/26 playthrough of every frozen model (`/history` redirects) |
-| `/review` Last gameweek | The hindsight optimum against each model's advice (E14) |
+| `/review` Last gameweek | The hindsight optimum against each model's advice (E14), and the options each model weighed at the deadline beside the hindsight's (ORC-11) |
 | `/review/all` | Per evaluated gameweek: played, scored, advised, followed, and the hindsight optimum (DL-69, ORC-05; `/log` redirects) |
-| `/gameweek` This gameweek | Both deadlines, the move with every option weighed, including the roll, and the alerts |
+| `/gameweek` This gameweek | Both deadlines, the move with every option weighed, including the roll, the selected model's roll, best single and best overall in the hindsight's table (ORC-11), and the alerts |
 | `/gameweek/plan` | Plan ahead: the multi-gameweek plan as a timeline and the chip calendar with its expiry clock |
 | `/scout` Scouting | Every player, virtualised (DL-36): filter, sort, presets, xP with range, trailing form beside it (DL-70), decomposition, "owned" filter, select into Compare |
 | `/scout/fixtures` | Clubs × gameweeks shaded by model difficulty (DL-37; `/fixtures` redirects) |

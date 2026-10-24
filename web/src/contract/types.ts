@@ -6,7 +6,7 @@
 
 export const CONTRACT_VERSION = 1;
 
-export const CONTRACT_MINOR = 5;
+export const CONTRACT_MINOR = 6;
 
 /** What this publication is, when it was made, and what produced it. The browser reads this first and can render an honest 'as at' line without trusting anything else. */
 export interface Meta {
@@ -178,6 +178,34 @@ export interface MoveSide {
   form_points_per_match?: number | null;
 }
 
+/** Every option a transfer solve weighed: the roll, the best single transfer and the best overall. The hindsight solves it on realised points (whole); each model's decision on its predicted xP (ORC-11). The same definition is in week.schema.json and models.schema.json, and the type generator fails if they differ. */
+export interface LogHindsightOptimal {
+  gameweek: number;
+  baseline_roll: LogHindsightPlan;
+  optimal_single: LogHindsightPlan | null;
+  optimal_overall: LogHindsightPlan;
+  all_options: LogHindsightPlan[];
+}
+
+export interface LogHindsightPlan {
+  transfers_count: number;
+  moves: {
+    player_out_id: number;
+    player_out_name: string;
+    player_in_id: number;
+    player_in_name: string;
+    selling_price: number;
+    buying_price: number;
+  }[];
+  starting: number[];
+  captain_id: number;
+  captain_name: string;
+  points_before_hits: number;
+  hit_points: number;
+  net_points: number;
+  gain_over_roll: number;
+}
+
 /** This week's decision: the deadline, the squad as it stands, what to do, and why. Times are UTC on the wire; the browser renders local zones itself (DL-11). */
 export interface Week {
   contract_version: 1;
@@ -257,6 +285,8 @@ export interface Week {
       gain_over_roll: number;
       moves?: string[];
     }[];
+    /** What this model weighed on its own predicted xP, in the hindsight optimum's shape: the roll, the best single transfer and the best overall, each with its moves, captain, points before hits, hits, net and gain over roll (ORC-11). Recorded with the advice in the ledger. Absent before R1.4.0. */
+    option_set?: LogHindsightOptimal;
     warnings?: string[];
   };
   advised?: {
@@ -912,33 +942,6 @@ export interface LogModelRank {
   };
 }
 
-export interface LogHindsightOptimal {
-  gameweek: number;
-  baseline_roll: LogHindsightPlan;
-  optimal_single: LogHindsightPlan | null;
-  optimal_overall: LogHindsightPlan;
-  all_options: LogHindsightPlan[];
-}
-
-export interface LogHindsightPlan {
-  transfers_count: number;
-  moves: {
-    player_out_id: number;
-    player_out_name: string;
-    player_in_id: number;
-    player_in_name: string;
-    selling_price: number;
-    buying_price: number;
-  }[];
-  starting: number[];
-  captain_id: number;
-  captain_name: string;
-  points_before_hits: number;
-  hit_points: number;
-  net_points: number;
-  gain_over_roll: number;
-}
-
 export interface LogOracleDiagnostic {
   player_id: number;
   player_name: string;
@@ -1019,6 +1022,8 @@ export interface ModelAdvice {
   vice_name: string;
   /** xPts of the XI with the armband, net of hits. */
   expected_points: number;
+  /** The options the model weighed at the deadline on its predicted xP, from the ledger's advice of record (ORC-11), for setting beside the hindsight optimum. Absent for frozen gameweeks and advice recorded before R1.4.0. */
+  option_set?: LogHindsightOptimal;
 }
 
 export interface ModelActual {

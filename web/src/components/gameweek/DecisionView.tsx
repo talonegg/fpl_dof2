@@ -6,6 +6,7 @@ import { Bench } from "../Bench";
 import { Decomposition } from "../Decomposition";
 import { OwnershipBet } from "../PlanPanel";
 import { ModelBadge } from "../models/ModelBadge";
+import { OptionsTable } from "../OptionsTable";
 import { AlertsPanel } from "../dashboard/AlertsPanel";
 import { DeadlineCountdown } from "../dashboard/DeadlineCountdown";
 import { RecommendationCard } from "../dashboard/RecommendationCard";
@@ -19,7 +20,8 @@ import "../dashboard/dashboard.css";
  *
  * Order is by what changes the decision: deadline, alerts, the move beside its roll comparison
  * (FR-24, always rendered by `RecommendationCard`), the XI/captain/bench with expected points,
- * then the reasoning. Drop B's per-model options (ORC-11) go between the recommendation and the XI.
+ * then the reasoning. The options the model weighed (ORC-11: roll, best single, best overall) sit
+ * between the recommendation and the XI, in the hindsight optimum's table.
  */
 export function DecisionView({
   week,
@@ -43,7 +45,24 @@ export function DecisionView({
       <AlertsPanel alerts={week.alerts} tone="actionable" />
 
       {recommendation ? (
-        <RecommendationCard recommendation={recommendation} squadState={week.squad_state} />
+        <>
+          <RecommendationCard recommendation={recommendation} squadState={week.squad_state} />
+          <section aria-labelledby="decision-options-heading" data-testid="decision-weighed">
+            <h3 id="decision-options-heading">The options it weighed</h3>
+            {recommendation.option_set ? (
+              <OptionsTable
+                optimal={recommendation.option_set}
+                caption={`GW${week.deadline.gameweek}: the roll, the best single transfer and the best overall, on this model's xP`}
+                realised={false}
+                testId="decision-options"
+              />
+            ) : (
+              <p className="models-note" data-testid="decision-no-options">
+                This advice was published without its options; they are published from R1.4.0 on.
+              </p>
+            )}
+          </section>
+        </>
       ) : (
         <section className="dash-recommendation dash-recommendation-empty" data-testid="week-skipped">
           <h2>
