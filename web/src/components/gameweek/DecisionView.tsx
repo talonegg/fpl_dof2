@@ -9,7 +9,7 @@ import { ModelBadge } from "../models/ModelBadge";
 import { AlertsPanel } from "../dashboard/AlertsPanel";
 import { DeadlineCountdown } from "../dashboard/DeadlineCountdown";
 import { RecommendationCard } from "../dashboard/RecommendationCard";
-import { SquadSummary } from "../dashboard/SquadSummary";
+import { SquadSummary } from "./SquadSummary";
 import "../dashboard/dashboard.css";
 
 /**
