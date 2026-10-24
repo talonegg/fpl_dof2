@@ -1,14 +1,14 @@
-# Experiment E1 (EXP-01, D-34, experiments/e1_bonus_spread.yaml): c3 with M8 integrating over each
-# player's own BPS spread. Graded against c3 by the standing backtest; never advised.
+# Experiment E1 (EXP-01, D-34, experiments/e1_bonus_spread.yaml): rejected and retired. The bonus_v2
+# switch it ran is gone; kept (as c3_f3 is) so the declared experiment's variant stays registered.
 id: c3_e1
 label: C3 with bonus spread (E1)
-description: The champion with M8's bonus integrated over the player's own BPS spread (bonus_v2).
-role: experiment
+description: The champion with M8's bonus integrated over the player's own BPS spread; rejected.
+role: retired
 published: false
 forecaster:
   type: recipe
   model: xp_v1
-  config: {discrimination: {bonus_v2: true}}
+  config: {}
   training_window: current_season
 policy:
   captain_rule: price_position

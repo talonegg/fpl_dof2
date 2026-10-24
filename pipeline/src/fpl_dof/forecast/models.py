@@ -924,11 +924,6 @@ class BonusModel:
     bonus_points: tuple[int, ...] = (3, 2, 1)
     typical_bps_mean: float = 14.0
     typical_bps_sd: float = 9.0
-    own_bps_sd: float = 9.0
-    """How far one player's BPS moves from match to match around his own mean (EXP-01)."""
-    integrate_own_spread: bool = False
-    """``discrimination.bonus_v2``: integrate over :attr:`own_bps_sd` rather than hold the
-    player's BPS at its expectation. Off reproduces the shipped formula exactly (DP-08)."""
 
     def fit(self, history: pd.DataFrame) -> BonusModel:
         """Learn only the *shape* of the BPS distribution, never the bonus mapping itself.
@@ -943,9 +938,6 @@ class BonusModel:
             return self
         self.typical_bps_mean = float(played["bps"].mean())
         self.typical_bps_sd = max(1.0, float(played["bps"].std()))
-        if "player_code" in played.columns:
-            own = played["bps"] - played.groupby("player_code")["bps"].transform("mean")
-            self.own_bps_sd = max(1.0, float(own.std()))
         return self
 
     def expected_bonus(self, expected_bps: float, *, players_in_match: int = 22) -> float:
@@ -957,19 +949,7 @@ class BonusModel:
         """
         if self.typical_bps_sd <= 0:
             return 0.0
-        if not self.integrate_own_spread:
-            return self._bonus_at(expected_bps, players_in_match)
-        # EXP-01: the player's own BPS is uncertain too, and the top-three tail lives in it. Holding
-        # it at its mean hands an average player 0.5**21 of first place, so a match's 22 players
-        # share almost none of its points; given his score the others are independent, so the
-        # expectation over his own normal spread is exact under the model (Gauss-Hermite).
-        nodes, weights = _HERMITE
-        return float(
-            sum(
-                weight * self._bonus_at(expected_bps + self.own_bps_sd * node, players_in_match)
-                for node, weight in zip(nodes, weights, strict=True)
-            )
-        )
+        return self._bonus_at(expected_bps, players_in_match)
 
     def _bonus_at(self, bps: float, players_in_match: int) -> float:
         z = (bps - self.typical_bps_mean) / self.typical_bps_sd
@@ -998,20 +978,7 @@ class BonusModel:
                 "BPS matrix"
             ),
         }
-        if self.integrate_own_spread:
-            described["own_bps_sd"] = round(self.own_bps_sd, 3)
         return described
-
-
-def _hermite_rule(points: int) -> tuple[tuple[float, ...], tuple[float, ...]]:
-    """Nodes and weights for E[f(Z)], Z standard normal, on ``points`` nodes."""
-    nodes, weights = np.polynomial.hermite_e.hermegauss(points)
-    return tuple(float(n) for n in nodes), tuple(float(w) for w in weights / weights.sum())
-
-
-# Forty nodes integrate the 21st-power tail to well under a thousandth of a point; a numerical
-# setting, not a model tunable, so it is not configuration (DP-06 covers what a reader would tune).
-_HERMITE = _hermite_rule(40)
 
 
 @dataclass
@@ -1106,7 +1073,6 @@ def fit_components(
         rates=rates,
         bonus=BonusModel(
             bonus_points=tuple(rules.scoring.bonus_points),
-            integrate_own_spread=discrimination.bonus_v2,
         ).fit(history),
         # Not fitted — read. The duty table is curated knowledge and there is nothing in `history`
         # to learn it from; what the flag decides is whether the scorer sees it at all (DL-50).

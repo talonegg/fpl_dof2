@@ -289,6 +289,7 @@ def test_declared_experiments_load_against_the_shipped_registry() -> None:
     assert {e.id for e in declared} == {
         "d21_chip_timing",
         "e1_bonus_spread",
+        "e2_rating_prior",
         "f1_card_rates",
         "f3_training_window",
     }

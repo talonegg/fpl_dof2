@@ -1105,18 +1105,6 @@ class DiscriminationConfig(_Section):
     )
     market: MarketBlendConfig = MarketBlendConfig()
 
-    bonus_v2: bool = Field(
-        default=False,
-        description=(
-            "Whether M8 integrates over the player's own match-to-match BPS spread (EXP-01, D-34). "
-            "The shipped formula holds his BPS at its expectation and asks how many of 21 others "
-            "beat it, so an average player gets 0.5**21 of first place and the deployed forecast "
-            "summed 5.7 bonus points over a gameweek in which FPL awarded about 65. The spread is "
-            "fitted (BPS less each player's own mean), not tuned. Off until the declared "
-            "experiment `e1_bonus_spread` is graded and the owner decides (DP-08, E8 section 5)."
-        ),
-    )
-
 
 class FeatureConfig(_Section):
     """The feature store. Windows are configuration because the right length is an empirical
