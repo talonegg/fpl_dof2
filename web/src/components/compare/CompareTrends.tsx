@@ -22,13 +22,12 @@
  */
 
 import type { History, Player } from "../../contract/types";
-import { fetchHistory } from "../../data/api";
+import { unready, useArtefact } from "../../data/store";
 import { formatXpRange } from "../../format";
 import { IntervalChart } from "../charts/IntervalChart";
 import type { IntervalDatum } from "../charts/IntervalChart";
 import { LineChart } from "../charts/LineChart";
 import type { ChartSeries, SeriesVariant } from "../charts/LineChart";
-import { useLazyArtefact } from "../player/useLazyArtefact";
 import { buildCompareTrends } from "./overlays";
 import type { PlayerTrendLines } from "./overlays";
 
@@ -203,10 +202,8 @@ export function CompareTrends({
   players: readonly Player[];
   horizonGameweeks?: number;
 }) {
-  const state = useLazyArtefact<History>(
-    fetchHistory,
-    "Season history is not part of this published data set.",
-  );
+  const { state } = useArtefact("history");
+  const why = unready(state, "Season history is not part of this published data set.");
 
   return (
     <section className="compare-trends" data-testid="compare-trends">
@@ -221,9 +218,9 @@ export function CompareTrends({
           Loading this season's history…
         </p>
       )}
-      {state.status === "unavailable" && (
+      {why && (
         <p className="compare-subnote" data-testid="compare-trends-unavailable">
-          Trends are unavailable: {state.reason}
+          Trends are unavailable: {why}
         </p>
       )}
       {state.status === "ready" && <HistoryCharts history={state.data} players={players} />}

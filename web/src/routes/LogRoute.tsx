@@ -1,5 +1,5 @@
 import { LogTable } from "../components/log/LogTable";
-import { useLog } from "../components/log/useLog";
+import { useArtefact } from "../data/store";
 import "../components/log/log.css";
 
 /**
@@ -10,7 +10,7 @@ import "../components/log/log.css";
  * and the game has recorded picks for it, so "absent" means "nothing to log yet" (DP-15).
  */
 export function LogRoute() {
-  const { state, retry } = useLog();
+  const { state, retry } = useArtefact("log");
 
   if (state.status === "loading") {
     return (
@@ -40,11 +40,11 @@ export function LogRoute() {
     );
   }
 
-  if (state.status === "error") {
+  if (state.status !== "ready") {
     return (
       <section className="log-status" data-testid="log-error">
         <h2>The season log could not be loaded</h2>
-        <p>{state.message}</p>
+        <p>{state.status === "error" ? state.message : "The file is malformed."}</p>
         <button type="button" onClick={retry}>
           Try again
         </button>
@@ -52,5 +52,5 @@ export function LogRoute() {
     );
   }
 
-  return <LogTable log={state.log} />;
+  return <LogTable log={state.data} />;
 }

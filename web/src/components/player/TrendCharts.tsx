@@ -12,13 +12,12 @@
  */
 
 import type { History, Player } from "../../contract/types";
-import { fetchHistory } from "../../data/api";
+import { unready, useArtefact } from "../../data/store";
 import { BarChart } from "../charts/BarChart";
 import { LineChart } from "../charts/LineChart";
 import type { ChartSeries, SeriesVariant } from "../charts/LineChart";
 import { buildTrends, coverageStatement, findPlayerHistory } from "./trends";
 import type { TrendSeries } from "./trends";
-import { useLazyArtefact } from "./useLazyArtefact";
 
 function toChartSeries(series: TrendSeries, variant: SeriesVariant): ChartSeries {
   return { key: series.key, label: series.label, points: series.points, variant };
@@ -144,18 +143,16 @@ function Charts({ history, player }: { history: History; player: Player }) {
 }
 
 export function TrendCharts({ player }: { player: Player }) {
-  const state = useLazyArtefact<History>(
-    fetchHistory,
-    "Season history is not part of this published data set.",
-  );
+  const { state } = useArtefact("history");
+  const why = unready(state, "Season history is not part of this published data set.");
 
   return (
     <section className="player-panel" data-testid="trend-panel">
       <h3>This season</h3>
       {state.status === "loading" && <p className="panel-note">Loading this season's history…</p>}
-      {state.status === "unavailable" && (
+      {why && (
         <p className="panel-note" data-testid="trends-unavailable">
-          Trends are unavailable: {state.reason}
+          Trends are unavailable: {why}
         </p>
       )}
       {state.status === "ready" && <Charts history={state.data} player={player} />}

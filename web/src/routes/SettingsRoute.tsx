@@ -1,4 +1,4 @@
-import { useLeague } from "../components/league/useLeague";
+import { useArtefact } from "../data/store";
 import { useOwnerIdentity } from "../components/settings/identity";
 import { pipelineWorkflowUrl } from "../components/settings/dispatch";
 import "../components/settings/settings.css";
@@ -13,7 +13,7 @@ import "../components/settings/settings.css";
  */
 export function SettingsRoute() {
   const identity = useOwnerIdentity();
-  const { state: league } = useLeague();
+  const { state: league } = useArtefact("league");
 
   function onTeamIdChange(value: string) {
     identity.setTeamId(value.trim() === "" ? null : Number(value));
@@ -26,7 +26,7 @@ export function SettingsRoute() {
   const leagueMismatch =
     league.status === "ready" &&
     identity.leagueId !== null &&
-    identity.leagueId !== league.league.league.id;
+    identity.leagueId !== league.data.league.id;
 
   return (
     <section className="settings" data-testid="settings-view">
@@ -106,8 +106,8 @@ export function SettingsRoute() {
 
         {leagueMismatch && (
           <p className="settings-note settings-note-warn" data-testid="settings-league-mismatch">
-            The published mini-league is <strong>{league.league.league.name}</strong> (ID{" "}
-            {league.league.league.id}), not league {identity.leagueId}. This browser's league ID does
+            The published mini-league is <strong>{league.data.league.name}</strong> (ID{" "}
+            {league.data.league.id}), not league {identity.leagueId}. This browser's league ID does
             not match what the pipeline last built — the highlighted rows and comparisons on{" "}
             <code>/league</code> belong to the published league, not the one entered here.
           </p>

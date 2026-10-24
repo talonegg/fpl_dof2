@@ -5,7 +5,6 @@ import { AppRoutes } from "../App";
 import { ThemeProvider } from "../theme/ThemeProvider";
 import { DataProvider } from "../data/DataProvider";
 import { resetPublishedDataCache } from "../data/published";
-import { resetTrendCaches } from "../data/api";
 import {
   fixtureGrid,
   leagueTable,
@@ -97,7 +96,6 @@ export function installFetchStub(options: FetchStubOptions = {}) {
 /** Reset everything that outlives a single test: the data cache and the stored theme. */
 export function resetAppState(): void {
   resetPublishedDataCache();
-  resetTrendCaches();
   window.localStorage.clear();
   document.documentElement.removeAttribute("data-theme");
 }

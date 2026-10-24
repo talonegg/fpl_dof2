@@ -1,0 +1,401 @@
+{
+ "contract_version": 1,
+ "metric": "all-player MAE of next-GW xP vs actual FPL points (lower is better)",
+ "seasons": [
+  {
+   "gameweeks": [
+    {
+     "gameweek": 1,
+     "mae": {
+      "a": 1.5113,
+      "challenger": 1.3177,
+      "champion": 1.2053,
+      "engine": 1.2043
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 2,
+     "mae": {
+      "a": 1.1624,
+      "challenger": 1.1141,
+      "champion": 1.2111,
+      "engine": 1.2222
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 3,
+     "mae": {
+      "a": 1.0769,
+      "challenger": 1.0182,
+      "champion": 1.1094,
+      "engine": 1.1312
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 4,
+     "mae": {
+      "a": 1.0935,
+      "challenger": 1.0284,
+      "champion": 1.0648,
+      "engine": 1.0782
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 5,
+     "mae": {
+      "a": 0.9264,
+      "challenger": 0.9143,
+      "champion": 1.0057,
+      "engine": 1.0318
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 6,
+     "mae": {
+      "a": 0.9412,
+      "challenger": 0.915,
+      "champion": 0.902,
+      "engine": 0.9192
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 7,
+     "mae": {
+      "a": 0.9478,
+      "challenger": 0.9081,
+      "champion": 0.9491,
+      "engine": 0.968
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 8,
+     "mae": {
+      "a": 1.0217,
+      "challenger": 0.9734,
+      "champion": 1.003,
+      "engine": 1.0275
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 9,
+     "mae": {
+      "a": 1.0027,
+      "challenger": 0.9285,
+      "champion": 0.9955,
+      "engine": 1.0318
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 10,
+     "mae": {
+      "a": 0.9555,
+      "challenger": 0.9054,
+      "champion": 0.9775,
+      "engine": 1.0073
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 11,
+     "mae": {
+      "a": 1.014,
+      "challenger": 0.9644,
+      "champion": 1.0614,
+      "engine": 1.0865
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 12,
+     "mae": {
+      "a": 0.9852,
+      "challenger": 0.9366,
+      "champion": 0.9954,
+      "engine": 1.0198
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 13,
+     "mae": {
+      "a": 0.9742,
+      "challenger": 0.9271,
+      "champion": 0.983,
+      "engine": 1.0095
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 14,
+     "mae": {
+      "a": 1.0517,
+      "challenger": 1.0018,
+      "champion": 1.0288,
+      "engine": 1.0413
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 15,
+     "mae": {
+      "a": 1.0285,
+      "challenger": 0.9626,
+      "champion": 0.9895,
+      "engine": 1.0253
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 16,
+     "mae": {
+      "a": 1.0407,
+      "challenger": 0.9635,
+      "champion": 0.9907,
+      "engine": 1.0199
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 17,
+     "mae": {
+      "a": 1.0579,
+      "challenger": 0.8793,
+      "champion": 0.9126,
+      "engine": 0.9189
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 18,
+     "mae": {
+      "a": 0.9593,
+      "challenger": 0.854,
+      "champion": 0.889,
+      "engine": 0.9031
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 19,
+     "mae": {
+      "a": 1.0165,
+      "challenger": 0.9386,
+      "champion": 0.9699,
+      "engine": 0.9833
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 20,
+     "mae": {
+      "a": 0.9328,
+      "challenger": 0.8614,
+      "champion": 0.8872,
+      "engine": 0.9056
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 21,
+     "mae": {
+      "a": 0.905,
+      "challenger": 0.8512,
+      "champion": 0.8976,
+      "engine": 0.9176
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 22,
+     "mae": {
+      "a": 0.9544,
+      "challenger": 0.8906,
+      "champion": 0.9237,
+      "engine": 0.934
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 23,
+     "mae": {
+      "a": 0.9917,
+      "challenger": 0.9171,
+      "champion": 0.9309,
+      "engine": 0.9549
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 24,
+     "mae": {
+      "a": 0.9626,
+      "challenger": 0.865,
+      "champion": 0.8592,
+      "engine": 0.8781
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 25,
+     "mae": {
+      "a": 0.9177,
+      "challenger": 0.8282,
+      "champion": 0.8585,
+      "engine": 0.8763
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 26,
+     "mae": {
+      "a": 1.0031,
+      "challenger": 0.8936,
+      "champion": 0.9408,
+      "engine": 0.9615
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 27,
+     "mae": {
+      "a": 0.8963,
+      "challenger": 0.8477,
+      "champion": 0.8908,
+      "engine": 0.9111
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 28,
+     "mae": {
+      "a": 0.9178,
+      "challenger": 0.8569,
+      "champion": 0.8856,
+      "engine": 0.9053
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 29,
+     "mae": {
+      "a": 0.9136,
+      "challenger": 0.8843,
+      "champion": 0.9016,
+      "engine": 0.923
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 30,
+     "mae": {
+      "a": 0.947,
+      "challenger": 0.9096,
+      "champion": 0.9395,
+      "engine": 0.9536
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 31,
+     "mae": {
+      "a": 0.9119,
+      "challenger": 0.8533,
+      "champion": 0.8961,
+      "engine": 0.9223
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 32,
+     "mae": {
+      "a": 0.9287,
+      "challenger": 0.8688,
+      "champion": 0.9041,
+      "engine": 0.9276
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 33,
+     "mae": {
+      "a": 1.0594,
+      "challenger": 0.9662,
+      "champion": 1.1049,
+      "engine": 1.1228
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 34,
+     "mae": {
+      "a": 0.896,
+      "challenger": 0.8365,
+      "champion": 0.8935,
+      "engine": 0.912
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 35,
+     "mae": {
+      "a": 0.92,
+      "challenger": 0.849,
+      "champion": 0.88,
+      "engine": 0.905
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 36,
+     "mae": {
+      "a": 0.9695,
+      "challenger": 0.8801,
+      "champion": 0.9276,
+      "engine": 0.9456
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 37,
+     "mae": {
+      "a": 0.8566,
+      "challenger": 0.8316,
+      "champion": 0.8548,
+      "engine": 0.8819
+     },
+     "phase": "backtest"
+    },
+    {
+     "gameweek": 38,
+     "mae": {
+      "a": 0.921,
+      "challenger": 0.8991,
+      "champion": 0.8856,
+      "engine": 0.9044
+     },
+     "phase": "backtest"
+    }
+   ],
+   "kind": "backtest",
+   "missing_models": {
+    "a_odds": "no saved predictions"
+   },
+   "pooled_mae": {
+    "a": 0.9835,
+    "challenger": 0.9177,
+    "champion": 0.9568,
+    "engine": 0.9771
+   },
+   "season": "2025/26"
+  }
+ ]
+}

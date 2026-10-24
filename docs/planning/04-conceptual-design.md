@@ -275,7 +275,8 @@ gameweek he was held. Where neither is known the run warns and assumes the lowes
 season, which can understate the sell value but never overstate it. Free transfers are recomputed from history;
 Wildcard and Free Hit do not consume them. An illegal reconstruction raises, and the week and decision
 stages skip with a reason. `squad/selection.py` picks the XI across legal formations under the start
-floor (§6.1) and orders the bench by P(plays) × μ (DL-66).
+floor (§6.1) and orders the bench by P(plays) × μ, ties by id (DL-66); the app's squad builder
+uses the same rule, held by `contracts/conformance/lineup-corpus.json` (WEB-04).
 
 ### 4.3 Fixture and schedule service
 
@@ -781,7 +782,8 @@ one clock every stage reads (PIPE-12); `schema_version` 2 added it.
 
 **Not built as a table.** `publish/health.py` derives the `/health` trends from recent manifests
 (`publish.health.history_runs`). Backtest metrics live in each backtest's outputs; live xP accuracy
-per model is the published `xp_accuracy` artefact, built from the evaluations (ORC-05).
+per model is the published `xp_accuracy` artefact, built from the evaluations (ORC-05), beside the
+2025/26 backtest season, a record publish carries forward from `publish/records/` (WEB-04).
 
 ### 12.4 Lineage
 

@@ -1,5 +1,5 @@
 import { FixtureTicker } from "../components/fixtures/FixtureTicker";
-import { useFixtures } from "../components/fixtures/useFixtures";
+import { useArtefact } from "../data/store";
 import "../components/fixtures/fixtures.css";
 
 /**
@@ -7,10 +7,10 @@ import "../components/fixtures/fixtures.css";
  *
  * The grid is fetched here rather than by the shell because it is not on the first-paint path
  * (DL-37); everything about that, including why an absent artefact is a normal answer, is on
- * `useFixtures`.
+ * `useArtefact`.
  */
 export function FixturesRoute() {
-  const { state, retry } = useFixtures();
+  const { state, retry } = useArtefact("fixtures");
 
   if (state.status === "loading") {
     return (
@@ -32,11 +32,11 @@ export function FixturesRoute() {
     );
   }
 
-  if (state.status === "error") {
+  if (state.status !== "ready") {
     return (
       <section className="ticker-status" data-testid="fixtures-error">
         <h2>Fixture ticker</h2>
-        <p>The fixture grid could not be loaded: {state.message}</p>
+        <p>The fixture grid could not be loaded: {state.status === "error" ? state.message : "the file is malformed"}</p>
         <button type="button" onClick={retry}>
           Try again
         </button>
@@ -44,5 +44,5 @@ export function FixturesRoute() {
     );
   }
 
-  return <FixtureTicker fixtures={state.fixtures} />;
+  return <FixtureTicker fixtures={state.data} />;
 }

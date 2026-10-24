@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { dataStore, mergeAccuracy } from "./store";
+import { dataStore } from "./store";
 import { challengerWeek, meta, players, rules, squad, strategiesFixture, week } from "../test/fixtures";
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
@@ -44,29 +44,47 @@ describe("loadPublished", () => {
   });
 });
 
-describe("mergeAccuracy", () => {
-  const season = (name: string, kind: "backtest" | "replay" | "prospective", mae: number) => ({
-    season: name,
-    kind,
-    gameweeks: [{ gameweek: 1, phase: kind, mae: { c3: mae } }],
-    pooled_mae: { c3: mae },
-    missing_models: {},
-  });
-  const doc = (...seasons: ReturnType<typeof season>[]) => ({ contract_version: 1 as const, metric: "m", seasons });
+/**
+ * One spelling of each state, for every artefact (WEB-04). The case a 404 does not cover: a
+ * single-page host answers a missing path with `index.html` and a **200** (`vite dev`, `vite
+ * preview`, any SPA fallback), and `league.json` is absent by default — so without the content-type
+ * check local development would see a parse error on a page that is working perfectly (DP-15).
+ */
+describe("dataStore.get", () => {
+  beforeEach(() => dataStore.reset());
+  afterEach(() => vi.unstubAllGlobals());
 
-  it("adds the live season to the checked-in ones, replacing a checked-in copy of it", () => {
-    const checkedIn = doc(season("2025/26", "backtest", 1), season("2026/27", "prospective", 9));
-    const live = doc(season("2026/27", "prospective", 2));
-    expect(mergeAccuracy(checkedIn, live)?.seasons.map((s) => [s.season, s.kind, s.pooled_mae.c3])).toEqual([
-      ["2025/26", "backtest", 1],
-      ["2026/27", "prospective", 2],
-    ]);
+  const stub = (response: Response) => vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(response)));
+
+  it("treats a 404 as absent", async () => {
+    stub(new Response(null, { status: 404 }));
+    await expect(dataStore.get("league")).resolves.toEqual({ status: "absent" });
   });
 
-  it("keeps whichever half exists", () => {
-    const live = doc(season("2026/27", "prospective", 2));
-    expect(mergeAccuracy(null, live)).toBe(live);
-    expect(mergeAccuracy(live, null)).toBe(live);
-    expect(mergeAccuracy(null, null)).toBeNull();
+  it("treats an SPA fallback served as HTML with a 200 as absent, not as a parse failure", async () => {
+    stub(new Response("<!doctype html><html></html>", { status: 200, headers: { "Content-Type": "text/html" } }));
+    await expect(dataStore.get("league")).resolves.toEqual({ status: "absent" });
+  });
+
+  it("parses a real published artefact", async () => {
+    stub(json({ contract_version: 1, league: {}, gameweek: null, entries: [] }));
+    await expect(dataStore.get("league")).resolves.toMatchObject({ status: "ready", data: { contract_version: 1 } });
+  });
+
+  it("calls JSON that is not the artefact malformed", async () => {
+    stub(json({ contract_version: 1, unrelated: true }));
+    await expect(dataStore.get("health")).resolves.toEqual({ status: "malformed" });
+  });
+
+  it("reports a genuine server failure as an error rather than calling it absent", async () => {
+    stub(new Response("upstream exploded", { status: 500, headers: { "Content-Type": "text/html" } }));
+    await expect(dataStore.get("fixtures")).resolves.toMatchObject({ status: "error", message: expect.stringMatching(/500/) });
+  });
+
+  it("asks again after anything but ready", async () => {
+    stub(new Response(null, { status: 404 }));
+    await dataStore.get("log");
+    stub(json({ contract_version: 1 }));
+    await expect(dataStore.get("log")).resolves.toMatchObject({ status: "ready" });
   });
 });

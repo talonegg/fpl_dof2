@@ -40,7 +40,7 @@ from fpl_dof.obs.logging import get_logger
 from fpl_dof.obs.manifest import RunManifest, git_sha, read_manifest
 from fpl_dof.paths import find_repo_root
 from fpl_dof.pipeline import Output, StageContext, StageResult
-from fpl_dof.publish.benchmark import build_live_xp_accuracy
+from fpl_dof.publish.benchmark import build_live_xp_accuracy, with_record
 from fpl_dof.publish.contract import CONTRACT_MINOR, CONTRACT_VERSION, Contract, find_contracts_root
 from fpl_dof.publish.fixtures import build_fixtures
 from fpl_dof.publish.health import build_health
@@ -139,13 +139,11 @@ def run(ctx: StageContext) -> StageResult:
     else:
         removed.append("log.json")
 
-    # The live season's xP accuracy (ORC-05): absent until a gameweek with recorded predictions
-    # has been evaluated. The app shows it beside the checked-in seasons.
-    accuracy = build_live_xp_accuracy(season, evaluations, contract_version=CONTRACT_VERSION)
-    if accuracy is not None:
-        outputs.append(Output(path=contract.write("xp_accuracy", accuracy, destination)))
-    else:
-        removed.append("xp_accuracy.json")
+    # xP accuracy: the 2025/26 record, carried forward (WEB-04), and the live season's once a
+    # gameweek with recorded predictions has been evaluated (ORC-05).
+    live_accuracy = build_live_xp_accuracy(season, evaluations, contract_version=CONTRACT_VERSION)
+    accuracy = with_record(live_accuracy, contract_version=CONTRACT_VERSION)
+    outputs.append(Output(path=contract.write("xp_accuracy", accuracy, destination)))
 
     # The models history (ORC-06): the latest season the weekly backtest simulated, from `ledger`.
     # Absent until a backtest has recorded one; like models.json it never fails the publish.

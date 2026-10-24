@@ -1,5 +1,5 @@
 import { LeagueTable } from "../components/league/LeagueTable";
-import { useLeague } from "../components/league/useLeague";
+import { useArtefact } from "../data/store";
 import { useOwnerIdentity } from "../components/settings/identity";
 import "../components/league/league.css";
 
@@ -18,12 +18,12 @@ import "../components/league/league.css";
  * than silently ignored (DP-09, DP-15, consistent with DL-40's treatment of the absent league).
  */
 export function LeagueRoute() {
-  const { state, retry } = useLeague();
+  const { state, retry } = useArtefact("league");
   const identity = useOwnerIdentity();
   const leagueMismatch =
     state.status === "ready" &&
     identity.leagueId !== null &&
-    identity.leagueId !== state.league.league.id;
+    identity.leagueId !== state.data.league.id;
 
   if (state.status === "loading") {
     return (
@@ -72,11 +72,11 @@ export function LeagueRoute() {
     );
   }
 
-  if (state.status === "error") {
+  if (state.status !== "ready") {
     return (
       <section className="league-status" data-testid="league-error">
         <h2>Mini-league</h2>
-        <p>The mini-league could not be loaded: {state.message}</p>
+        <p>The mini-league could not be loaded: {state.status === "error" ? state.message : "the file is malformed"}</p>
         <button type="button" onClick={retry}>
           Try again
         </button>
@@ -89,11 +89,11 @@ export function LeagueRoute() {
       {leagueMismatch && (
         <p className="league-note league-note-warn" data-testid="league-id-mismatch">
           The league ID entered in Settings ({identity.leagueId}) does not match this published
-          league, <strong>{state.league.league.name}</strong> (ID {state.league.league.id}). This
+          league, <strong>{state.data.league.name}</strong> (ID {state.data.league.id}). This
           page shows the published league regardless.
         </p>
       )}
-      <LeagueTable league={state.league} enteredTeamId={identity.teamId} />
+      <LeagueTable league={state.data} enteredTeamId={identity.teamId} />
     </>
   );
 }

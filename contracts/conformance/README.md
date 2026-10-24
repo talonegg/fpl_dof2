@@ -52,6 +52,26 @@ to make a red test green. If the two disagree, `legality.py` is the authority (I
 reads the same rules configuration the contract publishes) and the TypeScript mirror is what changes.
 One such disagreement has already been found and fixed that way; see DL-39.
 
+## `lineup-corpus.json`
+
+Choosing the XI, the armbands and the bench order from a fixed fifteen is implemented twice:
+`pipeline/src/fpl_dof/squad/selection.py` for the published advice, and
+`web/src/components/squad/lineup.ts` for the squad builder. The bench is ranked by
+**P(plays) × xP**, ties by the lower player id, in both (WEB-04, the owner's answer in the R1.4.0
+plan §5 Q2); the two had drifted, the app sorting by xP alone. Read by:
+
+- `pipeline/tests/test_lineup_conformance.py` (pytest, against `select_team`)
+- `web/src/components/squad/lineup.conformance.test.ts` (vitest, against `chooseLineup`)
+
+| Key | What it is |
+| --- | --- |
+| `player_pool` | `id → {position, xp_next, start_probability}`: the fifteen every case starts from. |
+| `cases[]` | `name`, `why`, `rules` (a ruleset key **in `legality-corpus.json`**, not copied here), `player_overrides` (`id → fields`), and `expected`. |
+| `cases[].expected` | `starting` (ids, sorted), `bench_order` (the outfield substitutes, in order), `captain`, `vice_captain`, and `formation` as `GKP-DEF-MID-FWD`. |
+
+The XI is ranked on xP alone with no start-probability floor; only the bench is discounted. As with
+the legality corpus, `selection.py` is the authority when the two disagree.
+
 ## `realised/realised-corpus.json`
 
 What a team actually scored is FPL's to say, so this corpus is FPL's own answer, not ours. Each case

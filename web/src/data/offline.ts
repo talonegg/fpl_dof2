@@ -25,7 +25,7 @@
  * swallowed and reported in the return value rather than thrown (DP-15).
  */
 
-import { CONTRACT_VERSION } from "../contract/types";
+import { ARTEFACTS, CONTRACT_VERSION } from "../contract/types";
 
 /** The published directory, relative to the app base. The one place the major version becomes a path. */
 export const DATA_DIR = `data/v${CONTRACT_VERSION}`;
@@ -41,15 +41,18 @@ const CACHE_PREFIX = "fpl-dof-published-";
 export const PUBLISHED_CACHE = `${CACHE_PREFIX}v${CONTRACT_VERSION}`;
 
 /**
- * The fixed artefacts worth having offline. Each strategy's week and plan are added from the registry,
- * which names their paths (MOD-07).
+ * The fixed artefacts worth having offline: those the generated registry marks `warm` (WEB-04, set in
+ * `ARTEFACTS` in publish/contract.py). Each strategy's week and plan are added from the strategy
+ * registry, which names their paths (MOD-07).
  *
- * `history.json` and `fixtures.json` are deliberately absent. They are lazy by route (DL-37) and
- * `history.json` fully populated is larger than the other six together; warming them would spend the
+ * `history.json` and `fixtures.json` are deliberately not warmed. They are lazy by route (DL-37) and
+ * `history.json` fully populated is larger than the warmed set together; warming them would spend the
  * first visit's bandwidth on views the reader may never open. They still cache through the worker
  * once fetched, so a reader who has visited the player page has them offline too.
  */
-export const WARMED_ARTEFACTS = ["meta", "rules", "players", "squad", "strategies", "models"] as const;
+export const WARMED_ARTEFACTS: readonly string[] = Object.entries(ARTEFACTS)
+  .filter(([, artefact]) => artefact.warm)
+  .map(([key]) => key);
 
 export interface WarmResult {
   /** Artefacts newly written to the cache. */

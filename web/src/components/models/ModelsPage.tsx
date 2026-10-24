@@ -3,9 +3,9 @@ import { useSearchParams } from "react-router-dom";
 import type { Models, ModelsHistory } from "../../contract/types";
 import { useDataState, useRegistry } from "../../data/DataProvider";
 import { useArtefact } from "../../data/store";
+import type { ArtefactState } from "../../data/store";
 import { ModelHistoryView } from "../history/ModelHistoryView";
 import "../history/history.css";
-import { useLog } from "../log/useLog";
 import { AccuracySection } from "./AccuracySection";
 import type { XpAccuracy } from "./accuracy";
 import { HindsightSection } from "./HindsightSection";
@@ -107,15 +107,22 @@ function SummaryTable({ history, accuracy, models }: { history: ModelsHistory | 
  * (d) history (the backtest's models history; the live season is under Details). `/history` redirects to the History
  * section. Every part degrades on its own: a missing file hides or explains its section only.
  */
+/** The sections below only ask "still loading?" and "what data, if any?": a missing or unreadable
+ * history or accuracy file explains its own section (DP-15). */
+function settled<T>(state: ArtefactState<T>): { status: "loading" | "settled"; data: T | null } {
+  if (state.status === "loading") return { status: "loading", data: null };
+  return { status: "settled", data: state.status === "ready" ? state.data : null };
+}
+
 export function ModelsPage() {
   const { state } = useDataState();
   const data = state.status === "ready" ? state.data : null;
-  const history = useArtefact("models_history");
-  const accuracy = useArtefact("xp_accuracy");
-  const { state: logState } = useLog();
+  const history = settled(useArtefact("models_history").state);
+  const accuracy = settled(useArtefact("xp_accuracy").state);
+  const { state: logState } = useArtefact("log");
   const [params] = useSearchParams();
   const section = params.get("section");
-  const allLoaded = history.status === "ready" && accuracy.status === "ready";
+  const allLoaded = history.status !== "loading" && accuracy.status !== "loading";
   useEffect(() => {
     if (section && allLoaded) document.getElementById(`models-${section}`)?.scrollIntoView?.({ block: "start" });
   }, [section, allLoaded]);
@@ -189,9 +196,9 @@ export function ModelsPage() {
       <AccuracySection accuracy={accuracy.data} status={accuracy.status === "loading" ? "loading" : "ready"} />
 
       <HindsightSection
-        log={logState.status === "ready" ? logState.log : null}
+        log={logState.status === "ready" ? logState.data : null}
         players={data?.players ?? null}
-        status={logState.status}
+        status={logState.status === "malformed" ? "error" : logState.status}
       />
 
       <section className="models-page-section" id="models-history" aria-labelledby="models-history-heading">

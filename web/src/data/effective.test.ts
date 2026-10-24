@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { Squad } from "../../contract/types";
-import { players, skippedWeek, squad, week } from "../../test/fixtures";
+import type { Squad } from "../contract/types";
+import { players, skippedWeek, squad, week } from "../test/fixtures";
 import { effectiveSquad } from "./effective";
 
 /**

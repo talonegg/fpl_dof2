@@ -91,6 +91,7 @@ export type ReoptimiseResult = ReoptimiseSuccess | ReoptimiseFailure;
 interface Candidate extends SquadMember {
   xp_horizon: number;
   xp_next: number;
+  start_probability: number;
 }
 
 function toCandidate(player: Player): Candidate {
@@ -101,6 +102,7 @@ function toCandidate(player: Player): Candidate {
     price: player.price,
     xp_horizon: player.xp_horizon,
     xp_next: player.xp_next,
+    start_probability: player.start_probability,
   };
 }
 

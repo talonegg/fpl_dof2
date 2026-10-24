@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { availableModels, effectiveModel, withModel } from "./DataProvider";
 import type { PublishedData } from "./published";
 import { buildRegistry } from "./registry";
+import { effectiveSquad } from "./effective";
+import type { Squad } from "../contract/types";
 import { challengerWeek, modelsFixture, players, squad, strategiesFixture, week } from "../test/fixtures";
 
 function data(over: Partial<PublishedData> = {}): PublishedData {
@@ -54,6 +56,13 @@ describe("effectiveModel and withModel", () => {
     const d = data({ plan: { skipped: false } as never });
     expect(withModel(d, "c1").week).toBe(challengerWeek);
     expect(withModel(d, "c1").plan).toBeNull();
-    expect(withModel(d, "c3")).toBe(d);
+    expect(withModel(d, "c3")).toEqual({ ...d, squad });
+  });
+
+  it("applies the effective squad for the champion as well as a challenger (W6)", () => {
+    const skipped = { ...squad, skipped: true, status: "skipped", players: [] } as Squad;
+    const d = data({ publishedSquad: skipped, squad: skipped });
+    expect(withModel(d, "c3").squad).toEqual(effectiveSquad(skipped, week, players));
+    expect(withModel(d, "c3").squad.players.length).toBeGreaterThan(0);
   });
 });
