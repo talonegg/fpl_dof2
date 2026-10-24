@@ -37,6 +37,7 @@ _RENAMED = {
     "home_win_probability": "home_win_prob",
     "draw_probability": "draw_prob",
     "away_win_probability": "away_win_prob",
+    "over_2_5_probability": "over_2_5_prob",
     "expected_goals_home": "expected_home_goals",
     "expected_goals_away": "expected_away_goals",
     "clean_sheet_probability_home": "clean_sheet_home",
@@ -58,6 +59,7 @@ MATCH_ODDS_COLUMNS: tuple[str, ...] = (
     "expected_away_goals",
     "clean_sheet_home",
     "clean_sheet_away",
+    "over_2_5_prob",
 )
 
 _FIXTURE = ["season", "home_team_code", "away_team_code"]
@@ -146,7 +148,7 @@ def build_team_match_odds(
         teams = _teams(partition)
         codes = {int(t): int(c) for t, c in zip(teams["team_id"], teams["code"], strict=True)}
         latest = knowable(club_coded(odds, season, teams), _fixtures(partition, season, codes))
-        frames.append(latest.rename(columns=_RENAMED)[list(MATCH_ODDS_COLUMNS)])
+        frames.append(latest.rename(columns=_RENAMED).reindex(columns=list(MATCH_ODDS_COLUMNS)))
 
     odds_df = (
         pd.concat(frames, ignore_index=True)
@@ -176,7 +178,7 @@ def read_team_match_odds(
     if not path.exists():
         return pd.DataFrame(columns=list(MATCH_ODDS_COLUMNS))
 
-    df = pd.read_parquet(path)
+    df = pd.read_parquet(path).reindex(columns=list(MATCH_ODDS_COLUMNS))
     if season is not None:
         df = df[df["season"] == season]
     if gameweek is not None:
