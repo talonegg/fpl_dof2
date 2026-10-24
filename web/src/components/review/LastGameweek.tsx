@@ -122,25 +122,30 @@ function Diagnostics({ diagnostics }: { diagnostics: LogOracleDiagnostic[] }) {
   if (diagnostics.length === 0) return <p className="models-note">Nothing stood out: no blind spot, haul or captaincy trap.</p>;
   const label = (key: string) => modelLabel(registry, resolveModel(registry, key) ?? key);
   return (
-    <>
-      {/* The published models_xp is each model's team xP over the armband, keyed by its own captain,
-          not the player's xP, so it is not shown until the pipeline publishes it (debt register). */}
-      <p className="models-note" data-testid="review-diagnostics-xp-note">
-        Each model&rsquo;s xP for these players is not yet published reliably, so it is not shown here.
-      </p>
-      <ul className="review-diagnostics" data-testid="review-diagnostics">
-        {diagnostics.map((d) => (
+    <ul className="review-diagnostics" data-testid="review-diagnostics">
+      {diagnostics.map((d) => {
+        // Evaluations before ORC-12 published a team's xP keyed by its captain as models_xp (D-37);
+        // the per-player xP comes with underlying_points, so its presence marks a reliable one.
+        const reliable = d.underlying_points !== undefined;
+        const xps = Object.entries(d.models_xp);
+        return (
           <li key={`${d.role}-${d.player_id}`} className="review-diagnostic" data-testid={`review-diagnostic-${d.player_id}`}>
             <p>
               <span className="review-tag">{CATEGORY[d.category]}</span> <strong>{d.player_name}</strong>,{" "}
               {d.role === "captain" ? "the optimum's captain" : "brought in by the optimum"}: {d.actual_points} pts
+              {d.underlying_points != null && <> ({formatPoints(d.underlying_points)} underlying xP)</>}
             </p>
             <p>{d.explanation}</p>
+            {reliable && xps.length > 0 && (
+              <p data-testid={`review-diagnostic-xp-${d.player_id}`}>
+                Each model&rsquo;s xP for him: {xps.map(([m, xp]) => `${label(m)} ${formatPoints(xp)}`).join(", ")}.
+              </p>
+            )}
             {d.models_trapped.length > 0 && <p>Caught out: {d.models_trapped.map(label).join(", ")}.</p>}
           </li>
-        ))}
-      </ul>
-    </>
+        );
+      })}
+    </ul>
   );
 }
 

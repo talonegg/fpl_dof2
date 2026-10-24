@@ -93,6 +93,30 @@ describe("the strategy selector is driven by the registry", () => {
     expect(within(screen.getByTestId("models-advice-c1")).getByText(/-4 hit/)).toBeTruthy();
   });
 
+  it("the models page splits each model's miss into forecast error and luck per gameweek (ORC-12)", async () => {
+    const last = modelsFixture.gameweeks.find((g) => g.actual?.c3);
+    const c3 = last?.actual?.c3;
+    if (!last || !c3) throw new Error("the fixture scores c3 in some gameweek");
+    const models = {
+      ...modelsFixture,
+      gameweeks: modelsFixture.gameweeks.map((g) =>
+        g === last ? { ...g, actual: { ...g.actual, c3: { ...c3, underlying_points: 50.25, forecast_error: 4.2, luck: -3.14 } } } : g,
+      ),
+    };
+    installFetchStub({ bodies: { strategies: strategiesFixture, models } });
+    renderApp("/models/season");
+    const table = await screen.findByTestId("models-split-table");
+    expect(within(table).getAllByRole("row")).toHaveLength(2); // header and the one gameweek with it
+    expect(screen.getByTestId(`models-split-${last.gameweek}-c3`).textContent).toBe("error +4.2, luck −3.1");
+    expect(screen.getByTestId(`models-split-${last.gameweek}-a`).textContent).toBe("—");
+  });
+
+  it("the models page says when no gameweek has underlying xP yet", async () => {
+    installFetchStub({ bodies: { strategies: strategiesFixture, models: modelsFixture } });
+    renderApp("/models/season");
+    expect(await screen.findByTestId("models-split-empty")).toBeTruthy();
+  });
+
   it("the models page says so when models.json is absent", async () => {
     installFetchStub();
     renderApp("/models/season");

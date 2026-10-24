@@ -2,9 +2,11 @@
 
 For a Finished gameweek this judges every strategy that has a record: how far its forecast was from
 what happened (xP accuracy, from ORC-08's predictions), and what its advice scored by the one scorer
-(ORC-04), the XI, captain and moves net of hits. Beside them it keeps the season log's row for the
-owner: what was played and scored, the advice of record and its reconciliation, and the hindsight
-optimum, solved on the owner's real squad, selling prices, clubs and bank as of the deadline (D-31).
+(ORC-04), the XI, captain and moves net of hits, with the same XI on underlying expected points
+(ORC-12, ``rules/underlying.py``) so its miss splits into forecast error and luck. Beside them it
+keeps the season log's row for the owner: what was played and scored, the advice of record and its
+reconciliation, and the hindsight optimum, solved on the owner's real squad, selling prices, clubs
+and bank as of the deadline (D-31).
 
 The result is ``ledger:evaluation/entry-<id>/gwNN.json``, stamped with :data:`EVALUATION_VERSION`. A
 gameweek is Evaluated for an entry once that entry's file carries the current version (ORC-01), so
@@ -37,6 +39,7 @@ from fpl_dof.paths import DataLayout
 from fpl_dof.quality.rules import lagging_players
 from fpl_dof.rules.models import GameRules, Position
 from fpl_dof.rules.realised import Lineup, PlayerPerformance, performances
+from fpl_dof.rules.underlying import underlying_points, underlying_team_points
 from fpl_dof.squad.state import SquadStateError, gameweek_price_index, load_squad_state
 from fpl_dof.week.diagnose import diagnose_oracle_gap
 from fpl_dof.week.oracle import solve_hindsight_optimal
@@ -54,8 +57,9 @@ EVALUATION_DIRECTORY = "evaluation"
 PLAYED = "played"
 #: Stamped on every stored evaluation (ORC-05). Bump it with any change to how a gameweek is
 #: judged, the realised-points scorer (``rules/realised.py``) included: every Finished gameweek is
-#: then evaluated again.
-EVALUATION_VERSION = "3"  # 3: per entry, deadline prices, the rules' armband; 2: D-36
+#: then evaluated again. 4: underlying xP and each strategy's per-player xP (ORC-12, D-37); 3: per
+#: entry, deadline prices, the rules' armband; 2: D-36.
+EVALUATION_VERSION = "4"
 __all__ = ["EVALUATION_VERSION", "Evidence", "build_evaluation", "evaluated", "unready"]
 
 
@@ -177,7 +181,9 @@ def build_evaluation(
     """The evaluation of one Finished gameweek: each strategy's xP accuracy and realised points, and
     the season log's row for the owner (``None`` without picks for this gameweek)."""
     rows = evidence.season_rows()
-    perfs = performances(rows[rows["gameweek"] == gameweek], positions=evidence.positions())
+    this_week = rows[rows["gameweek"] == gameweek]
+    perfs = performances(this_week, positions=evidence.positions())
+    underlying = underlying_points(this_week, rules)
     lineups = _strategy_lineups(advice)
     picks = _owner_rows(evidence.picks, entry_id, gameweek)
     played = _played(picks.sort_values("slot")) if not picks.empty else None
@@ -186,7 +192,13 @@ def build_evaluation(
     rankings = score_model_recommendations(lineups, perfs, rules) if perfs and lineups else []
 
     accuracy = _xp_accuracy(predictions, perfs)
-    actual = {r.model_name: _actual(r) for r in rankings if r.model_name != PLAYED}
+    actual = {
+        r.model_name: _actual(
+            r, underlying_team_points(lineups[r.model_name], r.score, underlying, rules)
+        )
+        for r in rankings
+        if r.model_name != PLAYED
+    }
     strategies = {
         sid: {"actual": actual.get(sid), "xp_accuracy": accuracy.get(sid)}
         for sid in sorted(set(actual) | set(accuracy))
@@ -200,7 +212,17 @@ def build_evaluation(
             "chip": _chips_by_gameweek(evidence.chips).get(gameweek),
             "advised": _advised(advice),
             "reconciliation": _reconciliation(gameweek, entry_id, advice, evidence.picks),
-            "hindsight": _hindsight(gameweek, lineups, perfs, rankings, evidence, rules, entry_id)
+            "hindsight": _hindsight(
+                gameweek,
+                lineups,
+                perfs,
+                rankings,
+                evidence,
+                rules,
+                entry_id,
+                predictions,
+                underlying,
+            )
             if perfs
             else None,
         }
@@ -222,8 +244,10 @@ def _owner_rows(frame: pd.DataFrame | None, entry_id: int | None, gameweek: int)
     return frame[(frame["entry_id"] == entry_id) & (frame["gameweek"] == gameweek)]
 
 
-def _actual(ranked: ModelRankScore) -> dict[str, Any]:
-    """A strategy's realised points, in ``models.json``'s ``actual`` shape."""
+def _actual(ranked: ModelRankScore, underlying: float) -> dict[str, Any]:
+    """A strategy's realised points, in ``models.json``'s ``actual`` shape, with its XI's underlying
+    points before hits (ORC-12): its forecast error is its xP less them, its luck its points less
+    them, so xP less points is the forecast error less the luck."""
     score = ranked.score
     return {
         "points": float(score.net_points),
@@ -232,6 +256,9 @@ def _actual(ranked: ModelRankScore) -> dict[str, Any]:
         "n_autosubs": len(score.autosubs_in),
         "vice_used": score.vice_used,
         "armband_points": float(score.armband_points),
+        "underlying_points": round(underlying, 2),
+        "forecast_error": round(score.expected_points - underlying, 2),
+        "luck": round(score.points_before_hits - underlying, 2),
     }
 
 
@@ -489,6 +516,8 @@ def _hindsight(
     evidence: Evidence,
     rules: GameRules,
     entry_id: int | None,
+    predictions: Mapping[str, pd.DataFrame],
+    underlying: Mapping[int, float],
 ) -> dict[str, Any]:
     """The rankings, and the best the owner could have done from the squad he held at the deadline,
     on that gameweek's real points, prices, clubs and bank (D-31)."""
@@ -529,13 +558,14 @@ def _hindsight(
     pool["xp_horizon"] = pool["xp_next"]
     pool["start_probability"] = 1.0
 
-    models_xp: dict[str, dict[int, float]] = {}
-    models_captains: dict[str, int] = {}
-    for name, lineup in lineups.items():
-        models_captains[name] = lineup.captain
-        if name != PLAYED:
-            armband = rules.chips.armband(lineup.chip)
-            models_xp[name] = {lineup.captain: lineup.expected_points / armband}
+    # Each strategy's own pre-deadline xP for every player it priced (D-37).
+    models_xp = {
+        resolve_alias(key) or key: dict(
+            zip(frame["player_id"].astype(int), frame["xp_next"].astype(float), strict=True)
+        )
+        for key, frame in predictions.items()
+    }
+    models_captains = {name: lineup.captain for name, lineup in lineups.items()}
     try:
         optimal = solve_hindsight_optimal(gameweek=gameweek, state=state, pool=pool, rules=rules)
         diagnostics = diagnose_oracle_gap(
@@ -543,6 +573,7 @@ def _hindsight(
             player_actuals=actuals,
             models_xp=models_xp,
             models_captains=models_captains,
+            player_underlying=underlying,
         )
     except Exception as exc:
         reason = f"the hindsight optimum could not be solved: {type(exc).__name__}: {exc}"

@@ -31,6 +31,7 @@ class PlayerDiagnostic:
     explanation: str
     models_xp: dict[str, float]
     models_trapped: list[str]
+    underlying_points: float | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -42,6 +43,7 @@ class PlayerDiagnostic:
             "explanation": self.explanation,
             "models_xp": self.models_xp,
             "models_trapped": self.models_trapped,
+            "underlying_points": self.underlying_points,
         }
 
 
@@ -50,14 +52,27 @@ def diagnose_oracle_gap(
     player_actuals: Mapping[int, int],
     models_xp: Mapping[str, Mapping[int, float]],
     models_captains: Mapping[str, int],
+    player_underlying: Mapping[int, float] | None = None,
 ) -> list[PlayerDiagnostic]:
-    """Analyze the divergence between hindsight optimal moves and model predictions."""
+    """Analyze the divergence between hindsight optimal moves and model predictions.
+
+    ``models_xp`` is each model's pre-deadline xP per player; a model that did not price a player
+    is left out for him, never read as 0.0 (D-37). ``player_underlying`` is each player's
+    underlying points (ORC-12).
+    """
     diagnostics: list[PlayerDiagnostic] = []
+
+    def xps(pid: int) -> dict[str, float]:
+        return {m: round(xp[pid], 2) for m, xp in models_xp.items() if pid in xp}
+
+    def underlying(pid: int) -> float | None:
+        value = (player_underlying or {}).get(pid)
+        return None if value is None else round(value, 2)
 
     # 1. Captaincy diagnosis
     cap_id = optimal.captain_id
     cap_actual = player_actuals.get(cap_id, 0)
-    cap_xps = {m: round(models_xp[m].get(cap_id, 0.0), 2) for m in models_xp}
+    cap_xps = xps(cap_id)
 
     trapped: list[str] = []
     for model_name, chosen_cap in models_captains.items():
@@ -80,6 +95,7 @@ def diagnose_oracle_gap(
                 ),
                 models_xp=cap_xps,
                 models_trapped=trapped,
+                underlying_points=underlying(cap_id),
             )
         )
 
@@ -87,7 +103,7 @@ def diagnose_oracle_gap(
     for move in optimal.moves:
         in_id = move.player_in_id
         in_actual = player_actuals.get(in_id, 0)
-        in_xps = {m: round(models_xp[m].get(in_id, 0.0), 2) for m in models_xp}
+        in_xps = xps(in_id)
         max_xp = max(in_xps.values()) if in_xps else 0.0
         min_xp = min(in_xps.values()) if in_xps else 0.0
 
@@ -114,6 +130,7 @@ def diagnose_oracle_gap(
                 explanation=exp,
                 models_xp=in_xps,
                 models_trapped=[],
+                underlying_points=underlying(in_id),
             )
         )
 
