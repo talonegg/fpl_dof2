@@ -29,7 +29,7 @@ decision_rule: >
   owner decides, in a DL entry.
 length: walk-forward over backtest.training_seasons, then at least six live shadow gameweeks
 graded_by: both
-decision: open
+decision: rejected # by the owner, 2026-10-24: falsifier (a) fired, MAE +0.00963 [+0.00634, +0.01317]; bonus repayment is D-38
 results: >
   Local walk-forward, 2024/25 to 2025/26, 68 folds, 20,573 scored rows, c3 reproducing DL-90's
   MAE 1.9061 exactly (2026-10-24). c3_e1 minus c3, mean per gameweek with 95% bootstrap interval -

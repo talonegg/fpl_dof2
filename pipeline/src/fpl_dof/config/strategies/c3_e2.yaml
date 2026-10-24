@@ -1,0 +1,16 @@
+# Experiment E2 (experiments/e2_rating_prior.yaml, D-34): c3 with M2's club ratings shrunk towards
+# the league-neutral 1.0. Graded against c3 by the standing backtest; never advised.
+id: c3_e2
+label: C3 with rating shrinkage (E2)
+description: The champion with M2's attack/defence ratings shrunk (rating_prior_matches 8).
+role: experiment
+published: false
+forecaster:
+  type: recipe
+  model: xp_v1
+  config: {team_strength: {rating_prior_matches: 8}}
+  training_window: current_season
+policy:
+  captain_rule: price_position
+  plan: true
+requires: [fixture]
