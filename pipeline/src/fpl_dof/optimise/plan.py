@@ -429,8 +429,9 @@ def _draws(
     decision: DecisionConfig,
     weeks: tuple[int, ...],
 ) -> list[PlayerDraw]:
-    """One gameweek of a plan, as sampling entries. Discounted exactly as the objective is, unless
-    the D-21 experiment's ``undiscounted_percentile`` arm asks otherwise."""
+    """One gameweek of a plan, as sampling entries: undiscounted by default (DL-96), so the dial's
+    percentile is not shrunk toward the first horizon gameweek; discounted as the objective is when
+    ``undiscounted_percentile`` is off."""
     discount = (
         1.0
         if decision.simulation.undiscounted_percentile

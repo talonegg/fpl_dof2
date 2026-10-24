@@ -2044,14 +2044,14 @@ class SimulationConfig(_Section):
         ),
     )
     undiscounted_percentile: bool = Field(
-        default=False,
+        default=True,
         description=(
             "Whether the re-rank's percentile is taken over the plan's points *without* the "
-            "per-gameweek horizon discount (EXP-02, D-21). Off reproduces the shipped re-rank, "
-            "which discounts each week's draws exactly as the MILP's objective does. On is the "
-            "arm of the chip-timing experiment that asks whether ranking a percentile of a "
-            "discounted sum is what pulls chips to the first horizon gameweek: the discount "
-            "shrinks a later week's tail as well as its mean. Not a live setting (DP-08)."
+            "per-gameweek horizon discount (D-21, DL-96). On: the discount stays in the MILP's "
+            "objective, where it is a time preference over means, and is kept out of the "
+            "percentile, where it shrinks a later week's upside tail and pulled chips to the "
+            "first horizon gameweek (EXP-02: 4 of 8 replayed deadlines as discounted, 0-1 of 8 "
+            "undiscounted, at every dial). Off reproduces the re-rank shipped before DL-96."
         ),
     )
 

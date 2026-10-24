@@ -27,7 +27,7 @@ decision_rule: >
   own DL entry; the owner decides.
 length: the bounded chip-replay sample (backtest.chip_replay, eight deadlines) at all three dials
 graded_by: backtest
-decision: open
+decision: shipped
 results: >
   Local run of replay_chip_timing, the eight shipped chip-replay deadlines (2023/24 GW6-30,
   2024/25 GW9-21), 2,184 s (2026-10-24). First chip on the first horizon gameweek, out of 8 - re-rank
