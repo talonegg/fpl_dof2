@@ -27,10 +27,17 @@ describe("provisional (pre-window) advice", () => {
     const banner = await screen.findByTestId("models-provisional-note");
     expect(banner.textContent).toContain("GW10");
     for (const m of ["c1", "engine", "a", "a_odds"]) {
-      const badge = screen.getByTestId(`summary-provisional-${m}`);
+      const badge = screen.getByTestId(`outline-${m}-provisional`);
       expect(badge.textContent).toBe("Provisional");
       expect(badge.getAttribute("title")).toContain("freezes at the decision window");
     }
+  });
+
+  it("badges every model on this season's ladder", async () => {
+    installFetchStub({ bodies: { strategies: strategiesFixture, week_c1: challengerWeek, models: provisional } });
+    renderApp("/models/season");
+    expect((await screen.findByTestId("models-provisional-note")).textContent).toContain("GW10");
+    for (const m of ["c3", "c1", "engine", "a", "a_odds"]) expect(screen.getByTestId(`ladder-${m}-provisional`)).toBeTruthy();
   });
 
   it("marks a provisional strategy in the selector", async () => {
@@ -47,8 +54,8 @@ describe("provisional (pre-window) advice", () => {
   it("shows no badge once the frozen decision is published", async () => {
     installFetchStub({ bodies: { strategies: strategiesFixture, week_c1: challengerWeek, models: modelsFixture } });
     renderApp("/models");
-    await screen.findByTestId("models-summary");
+    await screen.findByTestId("models-outline");
     expect(screen.queryByTestId("models-provisional-note")).toBeNull();
-    expect(screen.queryByTestId("summary-provisional-engine")).toBeNull();
+    expect(screen.queryByTestId("outline-engine-provisional")).toBeNull();
   });
 });

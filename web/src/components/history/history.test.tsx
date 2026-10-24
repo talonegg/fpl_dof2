@@ -101,14 +101,17 @@ describe("model history page", () => {
       "history-row-a",
       "history-row-c1",
       "history-row-engine",
+      "history-row-a_odds",
     ]);
+    expect(screen.getByTestId("history-kind").textContent).toBe("2025/26 replay");
+    expect(screen.getByTestId("history-kind-note").textContent).toContain("not your squad");
     expect(screen.getByTestId("history-total-c3").textContent).toBe("120");
     expect(screen.getByTestId("history-delta-c3").textContent).toBe("reference");
     const d = screen.getByTestId("history-delta-engine").textContent ?? "";
     expect(d).toContain("−15.00 [−20.00, −10.00]");
     expect(d).toContain("★");
     expect(screen.getByTestId("history-delta-c1").textContent).not.toContain("★");
-    expect(screen.getByTestId("history-unavailable").textContent).toContain("A + odds: unavailable — no realistic run");
+    expect(screen.getByTestId("history-unavailable-a_odds").textContent).toBe("Unavailable: no realistic run");
   });
 
   it("draws one chart line per available model and a per-GW table with ranks", async () => {
