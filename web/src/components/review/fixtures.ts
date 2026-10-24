@@ -150,7 +150,7 @@ export const mockLog: Log = {
             },
           },
           {
-            model_name: "xp_v1",
+            model_name: "c3",
             rank: 2,
             score: {
               final_starting: [1, 13],
@@ -229,9 +229,9 @@ export const mockLog: Log = {
             role: "transfer_in",
             actual_points: 14,
             category: "model_blindspot",
-            explanation: "High xG and favorable fixture; missed by primary model xp_v1.",
-            models_xp: { xp_v1: 2.1, c1: 5.8 },
-            models_trapped: ["xp_v1"],
+            explanation: "High xG and favorable fixture; missed by the champion.",
+            models_xp: { c3: 2.1, c1: 5.8 },
+            models_trapped: ["c3"],
           },
         ],
       },

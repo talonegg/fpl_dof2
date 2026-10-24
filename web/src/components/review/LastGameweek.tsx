@@ -2,11 +2,11 @@ import { useId, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import type { LogGameweek, LogHindsightOptimal, LogHindsightPlan, LogOracleDiagnostic, ModelGameweek } from "../../contract/types";
 import { useData, useRegistry } from "../../data/DataProvider";
-import { orderIds, resolveModel } from "../../data/registry";
+import { modelLabel, orderIds, resolveModel } from "../../data/registry";
+import { transfersText } from "../../data/season";
 import { useArtefact } from "../../data/store";
 import { formatPoints } from "../../format";
 import { ModelBadge } from "../models/ModelBadge";
-import { transfersText } from "../models/ModelsSeasonView";
 import { rankBy } from "../models/rank";
 import "../models/models.css";
 import "../models/modelsPage.css";
@@ -120,10 +120,7 @@ function OptionsTable({ gameweek, optimal }: { gameweek: number; optimal: LogHin
 function Diagnostics({ diagnostics }: { diagnostics: LogOracleDiagnostic[] }) {
   const registry = useRegistry();
   if (diagnostics.length === 0) return <p className="models-note">Nothing stood out: no blind spot, haul or captaincy trap.</p>;
-  const label = (key: string) => {
-    const id = resolveModel(registry, key) ?? key;
-    return registry.entries.find((e) => e.id === id)?.label ?? id;
-  };
+  const label = (key: string) => modelLabel(registry, resolveModel(registry, key) ?? key);
   return (
     <>
       {/* The published models_xp is each model's team xP over the armband, keyed by its own captain,

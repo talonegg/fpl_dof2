@@ -1,15 +1,9 @@
 import { Link, useParams } from "react-router-dom";
-import type { History, LeagueEntry, Player } from "../../contract/types";
+import type { LeagueEntry, Player } from "../../contract/types";
 import { useData } from "../../data/DataProvider";
+import { pointsIn } from "../../data/season";
 import { unready, useArtefact } from "../../data/store";
 import "./league.css";
-
-/** Raw points a player scored in one gameweek (a double gameweek sums), or null when no fixture is recorded. */
-function pointsIn(history: History | null, playerId: number, gameweek: number | null): number | null {
-  if (!history || gameweek === null) return null;
-  const rows = history.players.find((p) => p.id === playerId)?.gameweeks.filter((g) => g.gw === gameweek) ?? [];
-  return rows.length === 0 ? null : rows.reduce((sum, g) => sum + g.pts, 0);
-}
 
 function PlayerLine({
   id,
@@ -105,8 +99,9 @@ export function LeagueTeam() {
         <>
           {hist === null && (
             <p className="league-note" data-testid="league-team-no-points">
-              Per-player points are not available (the season history is not published), so only the
-              team&apos;s gameweek total{entry.event_total != null ? ` of ${entry.event_total}` : ""} is shown.
+              {history.status === "loading"
+                ? "Loading each player's points…"
+                : `Per-player points are not available: ${unready(history, "the season history is not published.")} Only the team's gameweek total${entry.event_total != null ? ` of ${entry.event_total}` : ""} is shown.`}
             </p>
           )}
           {groups.map(([title, ids]) => (

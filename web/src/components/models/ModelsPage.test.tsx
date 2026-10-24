@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { installFetchStub, renderApp, resetAppState } from "../../test/render";
 import { historyFixture } from "../history/history.test";
 import { challengerWeek, modelsFixture, strategiesFixture } from "../../test/fixtures";
@@ -109,7 +109,7 @@ describe("Models", () => {
     expect(screen.getByTestId("ladder-total-c1").textContent).toBe("179");
     expect(screen.getByTestId("ladder-engine-unavailable").textContent).toContain("odds not posted");
     expect(screen.getByTestId("season-kind").textContent).toBe("Live season 2026/27");
-    expect(screen.getByTestId("season-kind-note").textContent).toContain("Not the 2025/26 replay");
+    expect(screen.getByTestId("season-kind-note").textContent).toContain("Not the replay of a past season");
   });
 
   it("shows this season's xP accuracy on the season tab and the backtest's on the 2025/26 tab", async () => {
@@ -132,6 +132,27 @@ describe("Models", () => {
     unmount();
     renderApp("/models/2025-26");
     expect(await screen.findByTestId("history-absent")).toBeTruthy();
+  });
+
+  it("says a malformed or failed file is that, not unpublished, and loads it on a retry (DP-15)", async () => {
+    installFetchStub({ bodies: { ...bodies, models_history: {} }, failing: ["xp_accuracy"] as never });
+    renderApp("/models/2025-26");
+    const history = await screen.findByTestId("history-absent");
+    expect(history.textContent).toContain("malformed");
+    expect(history.textContent).not.toContain("not been published");
+    expect((await screen.findByTestId("accuracy-unavailable")).textContent).toContain("500");
+
+    installFetchStub({ bodies });
+    fireEvent.click(within(history).getByRole("button", { name: "Try again" }));
+    expect(await screen.findByTestId("model-history")).toBeTruthy();
+    fireEvent.click(within(screen.getByTestId("accuracy-unavailable")).getByRole("button", { name: "Try again" }));
+    expect(await screen.findByTestId("accuracy-2025/26")).toBeTruthy();
+  });
+
+  it("names the playthrough's tab by the season its history covers", async () => {
+    installFetchStub({ bodies: { ...bodies, models_history: { ...historyFixture, season: "2024/25" } } });
+    renderApp("/models/2025-26");
+    await waitFor(() => expect(screen.getByTestId("tab-models-2025-26").textContent).toBe("2024/25"));
   });
 
   it("sends an old ?section= link for a part that moved to its new tab", async () => {

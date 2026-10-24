@@ -1,7 +1,8 @@
-import type { ModelAdvice, Models } from "../../contract/types";
+import type { Models } from "../../contract/types";
 import { formatPoints } from "../../format";
 import { useRegistry } from "../../data/DataProvider";
 import { modelLabel, orderIds, seriesStyle } from "../../data/registry";
+import { transfersText } from "../../data/season";
 import { ModelBadge } from "./ModelBadge";
 import { ModelStatus } from "./ModelStatus";
 import { rankBy } from "./rank";
@@ -11,14 +12,6 @@ import "./models.css";
 
 /** Actual FPL points are whole numbers; xPts keep their decimals. */
 const pts = (v: number) => String(Math.round(v));
-
-export function transfersText(advice: ModelAdvice): string {
-  const moves =
-    advice.transfers.length > 0
-      ? advice.transfers.map((t) => `${t.out_name} → ${t.in_name}`).join(", ")
-      : "Roll (no transfer)";
-  return advice.hit_points !== 0 ? `${moves} (${advice.hit_points} hit)` : moves;
-}
 
 /** Cumulative points per model as a line chart. Dash patterns as well as colour, for colour-blind readers. */
 function CumulativeChart({ models }: { models: Models }) {
@@ -171,7 +164,7 @@ export function ModelsSeasonView({ models }: { models: Models | null }) {
       <section className="models-season" data-testid="models-season-empty">
         <h2>This season, on your squad</h2>
         <p>
-          The five-model comparison has not been published yet. It appears once the frozen models
+          The model comparison has not been published yet. It appears once the frozen models
           record their first pre-deadline decision.
         </p>
       </section>
@@ -190,8 +183,8 @@ export function ModelsSeasonView({ models }: { models: Models | null }) {
         </span>
       </h2>
       <p className="models-note" data-testid="season-kind-note">
-        Each model&rsquo;s advice for this season, scored on what happened. Not the 2025/26 replay, which
-        is on its own tab.
+        Each model&rsquo;s advice for this season, scored on what happened. Not the replay of a past season,
+        which is on its own tab.
       </p>
       <SeasonLadder models={models} order={order} />
       <p className="models-note">

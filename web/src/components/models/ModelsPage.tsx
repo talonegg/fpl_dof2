@@ -1,24 +1,14 @@
-import { Navigate, useSearchParams } from "react-router-dom";
 import type { Models, Strategy } from "../../contract/types";
 import { useData, useDataState, useRegistry } from "../../data/DataProvider";
-import { useArtefact } from "../../data/store";
-import type { ArtefactState } from "../../data/store";
+import { unready, useArtefact } from "../../data/store";
 import { ModelHistoryView } from "../history/ModelHistoryView";
 import "../history/history.css";
-import { LastGameweek } from "../review/LastGameweek";
 import { AccuracySection } from "./AccuracySection";
 import { ComparePanel } from "./ComparePanel";
 import { ModelsSeasonView } from "./ModelsSeasonView";
 import { ModelStatus, ProvisionalNote, unavailableNow } from "./ModelStatus";
 import "./models.css";
 import "./modelsPage.css";
-
-/** Old `?section=` links to the parts that moved to their own tab (WEB-07, WEB-10). */
-const MOVED: Record<string, string> = {
-  history: "/models/2025-26",
-  hindsight: "/review",
-  accuracy: "/models/season",
-};
 
 function roleText({ role, published }: Strategy): string {
   if (role === "champion") return "Champion: its advice is the live advice";
@@ -34,12 +24,7 @@ function nowText(models: Models | null, s: Strategy): string {
   return s.published ? "No advice in the season record yet" : "Not run live";
 }
 
-/** The sections below only ask "still loading?" and "what data, if any?": a missing or unreadable
- * history or accuracy file explains its own section (DP-15). */
-function settled<T>(state: ArtefactState<T>): { status: "loading" | "settled"; data: T | null } {
-  if (state.status === "loading") return { status: "loading", data: null };
-  return { status: "settled", data: state.status === "ready" ? state.data : null };
-}
+const HISTORY_ABSENT = "The models history has not been published yet.";
 
 /**
  * `/models` — what each model is, from `strategies.json`: its role, what it plans, whether it is
@@ -49,11 +34,8 @@ function settled<T>(state: ArtefactState<T>): { status: "loading" | "settled"; d
 export function ModelsPage() {
   const { state } = useDataState();
   const data = state.status === "ready" ? state.data : null;
-  const history = settled(useArtefact("models_history").state);
-  const [params] = useSearchParams();
+  const history = useArtefact("models_history").state;
   const registry = useRegistry();
-  const moved = MOVED[params.get("section") ?? ""];
-  if (moved) return <Navigate to={moved} replace />;
   const models = data?.models ?? null;
 
   return (
@@ -91,7 +73,13 @@ export function ModelsPage() {
         </div>
       </section>
 
-      {data && <ComparePanel data={data} history={history.data} />}
+      {data && (
+        <ComparePanel
+          data={data}
+          history={history.status === "ready" ? history.data : null}
+          historyWhy={unready(history, HISTORY_ABSENT)}
+        />
+      )}
     </div>
   );
 }
@@ -103,46 +91,38 @@ export function ModelsPage() {
  */
 export function ModelsSeasonPage() {
   const { models } = useData();
-  const accuracy = settled(useArtefact("xp_accuracy").state);
   return (
     <div className="models-page" data-testid="models-season-page">
       <ProvisionalNote models={models} />
       <ModelsSeasonView models={models} />
-      <AccuracySection
-        accuracy={accuracy.data}
-        status={accuracy.status === "loading" ? "loading" : "ready"}
-        kinds={["replay", "prospective"]}
-      />
+      <AccuracySection kinds={["replay", "prospective"]} />
     </div>
   );
 }
 
 /** `/models/2025-26` — how each model would have played 2025/26 (the backtest's models history). */
 export function ModelsBacktestPage() {
-  const history = settled(useArtefact("models_history").state);
-  const accuracy = settled(useArtefact("xp_accuracy").state);
+  const { state: history, retry } = useArtefact("models_history");
   return (
     <div className="models-page" data-testid="models-backtest">
       {history.status === "loading" ? (
         <p data-testid="history-loading">Loading the model history…</p>
-      ) : history.data ? (
+      ) : history.status === "ready" ? (
         <ModelHistoryView history={history.data} />
       ) : (
         <section className="models-page-section">
-          <h2>2025/26 playthrough</h2>
-          <p data-testid="history-absent">The models history has not been published yet.</p>
+          <h2>Past-season playthrough</h2>
+          <p data-testid="history-absent">
+            {history.status === "absent" ? HISTORY_ABSENT : `The models history is unavailable: ${unready(history, HISTORY_ABSENT)}`}{" "}
+            {history.status !== "absent" && (
+              <button type="button" onClick={retry}>
+                Try again
+              </button>
+            )}
+          </p>
         </section>
       )}
-      <AccuracySection
-        accuracy={accuracy.data}
-        status={accuracy.status === "loading" ? "loading" : "ready"}
-        kinds={["backtest"]}
-      />
+      <AccuracySection kinds={["backtest"]} />
     </div>
   );
-}
-
-/** `/review` — last gameweek: each model, you and the hindsight optimum (WEB-11). */
-export function HindsightPage() {
-  return <LastGameweek />;
 }

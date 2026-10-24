@@ -92,11 +92,11 @@ describe("App shell", () => {
     expect(screen.getAllByTestId("ticker-row").length).toBeGreaterThan(0);
   });
 
-  it("renders Analysis with the pitch and the builder, and Plan ahead with the plan timeline", async () => {
+  it("renders Analysis with the pitch, the builder and the plan week by week, and Plan ahead with the plan timeline", async () => {
     const { unmount } = renderApp("/analysis");
     await waitFor(() => expect(screen.getByTestId("squad-pitch")).toBeTruthy());
     expect(screen.getByTestId("squad-builder")).toBeTruthy();
-    expect(screen.queryByTestId("plan-timeline")).toBeNull();
+    expect(screen.getByTestId("plan-timeline")).toBeTruthy();
     unmount();
     renderApp("/gameweek/plan");
     await waitFor(() => expect(screen.getByTestId("plan-timeline")).toBeTruthy());

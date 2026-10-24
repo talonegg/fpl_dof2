@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { act, fireEvent, screen, within } from "@testing-library/react";
 import { installFetchStub, renderApp, resetAppState } from "../test/render";
 
-describe("the More menu closes on an outside tap", () => {
+describe("the More menu closes when the reader leaves it", () => {
   beforeEach(() => {
     resetAppState();
     installFetchStub();
@@ -16,10 +16,25 @@ describe("the More menu closes on an outside tap", () => {
     fireEvent.click(more);
     expect(more.getAttribute("aria-expanded")).toBe("true");
 
-    fireEvent.mouseDown(screen.getByTestId("bottom-more-menu"));
+    fireEvent.pointerDown(screen.getByTestId("bottom-more-menu"));
     expect(more.getAttribute("aria-expanded")).toBe("true");
 
-    fireEvent.mouseDown(document.body);
+    fireEvent.pointerDown(document.body);
+    expect(more.getAttribute("aria-expanded")).toBe("false");
+  });
+
+  it("closes when focus tabs out of the menu, stays open while it moves between entries", async () => {
+    renderApp("/");
+    await screen.findByTestId("bottom-bar");
+    const more = screen.getByTestId("bottom-more");
+    fireEvent.click(more);
+    const [first, second] = within(screen.getByTestId("bottom-more-menu")).getAllByRole("link");
+    expect(document.activeElement).toBe(first);
+
+    act(() => second.focus());
+    expect(more.getAttribute("aria-expanded")).toBe("true");
+
+    act(() => screen.getByTestId("bottom-home").focus());
     expect(more.getAttribute("aria-expanded")).toBe("false");
   });
 });

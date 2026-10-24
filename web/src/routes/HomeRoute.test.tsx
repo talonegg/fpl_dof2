@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { installFetchStub, renderApp, resetAppState } from "../test/render";
-import { challengerWeek, modelsFixture, seasonLog, strategiesFixture } from "../test/fixtures";
+import { challengerWeek, modelsFixture, players, seasonLog, squad, strategiesFixture, week } from "../test/fixtures";
 import { history } from "../components/player/testFixtures";
 import { blockedHealth } from "../components/health/testFixtures";
 import { mockLog } from "../components/review/fixtures";
-import type { Models } from "../contract/types";
+import type { Models, Squad, Week } from "../contract/types";
 
 /** Home (WEB-08): the acceptance criteria, through the rendered route. */
 const hindsightLog = { ...mockLog, gameweeks: [mockLog.gameweeks[1]] };
@@ -24,7 +24,39 @@ describe("Home", () => {
     expect(c1.textContent).toContain("Captain Salah");
     expect(c1.textContent).toContain("63.40 xP");
     expect(c1.textContent).toContain("roll");
-    expect(within(c1).getByRole("link").getAttribute("href")).toBe("/gameweek");
+    expect(within(c1).getByRole("link").getAttribute("href")).toBe("/gameweek?model=c1");
+    // A model with no published decision has nothing to open.
+    expect(within(within(card).getByTestId("home-model-engine")).queryByRole("link")).toBeNull();
+  });
+
+  it("opens each model's own decision in This gameweek", async () => {
+    installFetchStub({ bodies: served });
+    renderApp("/");
+    fireEvent.click(within(await screen.findByTestId("home-model-c1")).getByRole("link"));
+    await waitFor(() => expect(screen.getByTestId("week-rationale").textContent).toBe("Roll the free transfer"));
+    expect(screen.getByTestId("model-toggle-c1").getAttribute("aria-checked")).toBe("true");
+  });
+
+  it("shows your current team in-season, not the fifteen a model advises", async () => {
+    // In-season the solve is skipped; the champion advises selling 4 for 2.
+    const skipped: Squad = { ...squad, status: "skipped", skipped: true, captain_id: null, vice_captain_id: null, players: [] };
+    const isak = { ...players.players[1], id: 4, name: "Isak", team: "NEW" };
+    const inSeason: Week = {
+      ...week,
+      recommendation: {
+        ...week.recommendation!,
+        moves: [{ out: { player_id: 4, web_name: "Isak", price: 8 }, in: { player_id: 2, web_name: "Watkins", price: 8 } }],
+      },
+      reconciliation: { gameweek: 1, entry_id: 1, followed: true, played: { squad: [1, 4, 3], starting: [1, 4], captain: 4 } },
+    };
+    installFetchStub({
+      bodies: { ...served, squad: skipped, week: inSeason, players: { ...players, players: [...players.players, isak] } },
+    });
+    renderApp("/");
+    const yours = await screen.findByTestId("home-squad-4");
+    expect(yours.textContent).toContain("captain");
+    expect(screen.queryByTestId("home-squad-2")).toBeNull();
+    expect(screen.getByTestId("home-squad-3").textContent).toContain("bench");
   });
 
   it("names an unavailable model with its reason", async () => {
