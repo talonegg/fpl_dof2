@@ -1,0 +1,7623 @@
+[
+ {
+  "contract_version": 1,
+  "season": "2024/25",
+  "kind": "backtest",
+  "caveat": "Backtest, not real play: a walk-forward replay of each strategy over 2024/25. Each starts at its first graded gameweek with its own fresh squad, uses no chips, and sees only data from before each deadline. Real results will differ.",
+  "champion": "c3",
+  "provenance": {
+   "run_id": "20261024T025104Z-8b55b898",
+   "config_digest": "4b80f073f939b3d8834ba3d57359c0e26077b4f8a9781c288abed44b68a0f3cb",
+   "refit_every_gameweeks": "1",
+   "simulator": "fpl_dof.factory.history: the decision engine's week on each strategy's walk-forward forecast (ORC-06)",
+   "scorer": "rules/realised.py, the one realised-points scorer (ORC-04)",
+   "captain": "each strategy's own captain rule (registry policy.captain_rule); B0 fitted on its training window before each deadline",
+   "settings": "fresh squad at the first graded gameweek; the game's auto-subs and vice fallback; free transfers earned and rolled as the rules set, extra transfers charged; no chips; a one-gameweek horizon; no availability news (the archive carries none)"
+  },
+  "bootstrap": {
+   "draws": 2000,
+   "seed": 0,
+   "unit": "gameweek",
+   "level": 0.95
+  },
+  "models": [
+   {
+    "id": "c3",
+    "label": "Champion (C3)",
+    "role": "champion",
+    "available": true,
+    "unavailable_reason": null
+   },
+   {
+    "id": "a",
+    "label": "Model A",
+    "role": "challenger",
+    "available": true,
+    "unavailable_reason": null
+   },
+   {
+    "id": "a_odds",
+    "label": "A + odds",
+    "role": "challenger",
+    "available": true,
+    "unavailable_reason": null
+   },
+   {
+    "id": "c1",
+    "label": "Challenger (C1)",
+    "role": "challenger",
+    "available": true,
+    "unavailable_reason": null
+   },
+   {
+    "id": "engine",
+    "label": "Engine",
+    "role": "challenger",
+    "available": true,
+    "unavailable_reason": null
+   },
+   {
+    "id": "c3_e2",
+    "label": "C3 with rating shrinkage (E2)",
+    "role": "experiment",
+    "available": true,
+    "unavailable_reason": null
+   }
+  ],
+  "gameweeks": [
+   {
+    "gameweek": 5,
+    "models": {
+     "c3": {
+      "points": 55.0,
+      "points_before_hits": 55.0,
+      "hit_points": 0.0,
+      "n_transfers": 0,
+      "transfers": [],
+      "captain": "Erling Haaland",
+      "vice_captain": "Trent Alexander-Arnold",
+      "captain_points": 9.0,
+      "vice_used": false,
+      "n_autosubs": 3,
+      "cumulative": 55.0,
+      "rank": 4,
+      "cumulative_rank": 4
+     },
+     "a": {
+      "points": 45.0,
+      "points_before_hits": 45.0,
+      "hit_points": 0.0,
+      "n_transfers": 0,
+      "transfers": [],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Ederson Santana de Moraes",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 45.0,
+      "rank": 6,
+      "cumulative_rank": 6
+     },
+     "a_odds": {
+      "points": 58.0,
+      "points_before_hits": 58.0,
+      "hit_points": 0.0,
+      "n_transfers": 0,
+      "transfers": [],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Son Heung-min",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 58.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     },
+     "c1": {
+      "points": 61.0,
+      "points_before_hits": 61.0,
+      "hit_points": 0.0,
+      "n_transfers": 0,
+      "transfers": [],
+      "captain": "Cole Palmer",
+      "vice_captain": "Son Heung-min",
+      "captain_points": 8.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 61.0,
+      "rank": 1,
+      "cumulative_rank": 1
+     },
+     "engine": {
+      "points": 57.0,
+      "points_before_hits": 57.0,
+      "hit_points": 0.0,
+      "n_transfers": 0,
+      "transfers": [],
+      "captain": "Alisson Becker",
+      "vice_captain": "Trent Alexander-Arnold",
+      "captain_points": 0.0,
+      "vice_used": true,
+      "n_autosubs": 3,
+      "cumulative": 57.0,
+      "rank": 3,
+      "cumulative_rank": 3
+     },
+     "c3_e2": {
+      "points": 52.0,
+      "points_before_hits": 52.0,
+      "hit_points": 0.0,
+      "n_transfers": 0,
+      "transfers": [],
+      "captain": "Erling Haaland",
+      "vice_captain": "Trent Alexander-Arnold",
+      "captain_points": 9.0,
+      "vice_used": false,
+      "n_autosubs": 3,
+      "cumulative": 52.0,
+      "rank": 5,
+      "cumulative_rank": 5
+     }
+    }
+   },
+   {
+    "gameweek": 6,
+    "models": {
+     "c3": {
+      "points": 19.0,
+      "points_before_hits": 19.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Conor Bradley → Andrew Robertson"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 74.0,
+      "rank": 4,
+      "cumulative_rank": 5
+     },
+     "a": {
+      "points": 79.0,
+      "points_before_hits": 79.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Rodrigo Muniz Carvalho → Ollie Watkins"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Ollie Watkins",
+      "captain_points": 10.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 124.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     },
+     "a_odds": {
+      "points": 53.0,
+      "points_before_hits": 53.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Son Heung-min → Bukayo Saka"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 10.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 111.0,
+      "rank": 3,
+      "cumulative_rank": 3
+     },
+     "c1": {
+      "points": 87.0,
+      "points_before_hits": 87.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Bruno Borges Fernandes → Bukayo Saka"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 25.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 148.0,
+      "rank": 1,
+      "cumulative_rank": 1
+     },
+     "engine": {
+      "points": 18.0,
+      "points_before_hits": 18.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Conor Bradley → Andrew Robertson"
+      ],
+      "captain": "David Raya Martín",
+      "vice_captain": "Trent Alexander-Arnold",
+      "captain_points": 1.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 75.0,
+      "rank": 5,
+      "cumulative_rank": 4
+     },
+     "c3_e2": {
+      "points": 17.0,
+      "points_before_hits": 17.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Yoane Wissa → Cameron Archer"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Trent Alexander-Arnold",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 69.0,
+      "rank": 6,
+      "cumulative_rank": 6
+     }
+    }
+   },
+   {
+    "gameweek": 7,
+    "models": {
+     "c3": {
+      "points": 43.0,
+      "points_before_hits": 43.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Yoane Wissa → Raúl Jiménez Rodríguez"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 117.0,
+      "rank": 4,
+      "cumulative_rank": 5
+     },
+     "a": {
+      "points": 50.0,
+      "points_before_hits": 50.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Luis Díaz Marulanda → Bryan Mbeumo"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Ollie Watkins",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 174.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     },
+     "a_odds": {
+      "points": 41.0,
+      "points_before_hits": 41.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Pedro Porro Sauceda → Riccardo Calafiori"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 152.0,
+      "rank": 6,
+      "cumulative_rank": 3
+     },
+     "c1": {
+      "points": 63.0,
+      "points_before_hits": 63.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Son Heung-min → Bryan Mbeumo"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 211.0,
+      "rank": 1,
+      "cumulative_rank": 1
+     },
+     "engine": {
+      "points": 43.0,
+      "points_before_hits": 43.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Yoane Wissa → Raúl Jiménez Rodríguez"
+      ],
+      "captain": "David Raya Martín",
+      "vice_captain": "Trent Alexander-Arnold",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 118.0,
+      "rank": 4,
+      "cumulative_rank": 4
+     },
+     "c3_e2": {
+      "points": 45.0,
+      "points_before_hits": 45.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Conor Bradley → Ibrahima Konaté"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Trent Alexander-Arnold",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 114.0,
+      "rank": 3,
+      "cumulative_rank": 6
+     }
+    }
+   },
+   {
+    "gameweek": 8,
+    "models": {
+     "c3": {
+      "points": 36.0,
+      "points_before_hits": 36.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Lewis Dunk → Nikola Milenković"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 153.0,
+      "rank": 4,
+      "cumulative_rank": 6
+     },
+     "a": {
+      "points": 55.0,
+      "points_before_hits": 55.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Dwight McNeil → Marcus Rashford"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Ollie Watkins",
+      "captain_points": 12.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 229.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     },
+     "a_odds": {
+      "points": 56.0,
+      "points_before_hits": 56.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Levi Samuels Colwill → Leif Davis"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 12.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 208.0,
+      "rank": 1,
+      "cumulative_rank": 3
+     },
+     "c1": {
+      "points": 30.0,
+      "points_before_hits": 30.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Yoane Wissa → Chris Wood"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 241.0,
+      "rank": 6,
+      "cumulative_rank": 1
+     },
+     "engine": {
+      "points": 36.0,
+      "points_before_hits": 36.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Lewis Dunk → Nikola Milenković"
+      ],
+      "captain": "Alisson Becker",
+      "vice_captain": "Erling Haaland",
+      "captain_points": 0.0,
+      "vice_used": true,
+      "n_autosubs": 2,
+      "cumulative": 154.0,
+      "rank": 4,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 41.0,
+      "points_before_hits": 41.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Joël Veltman → Nikola Milenković"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Trent Alexander-Arnold",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 155.0,
+      "rank": 3,
+      "cumulative_rank": 4
+     }
+    }
+   },
+   {
+    "gameweek": 9,
+    "models": {
+     "c3": {
+      "points": 36.0,
+      "points_before_hits": 36.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Alisson Becker → Guglielmo Vicario"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 189.0,
+      "rank": 4,
+      "cumulative_rank": 4
+     },
+     "a": {
+      "points": 68.0,
+      "points_before_hits": 68.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Darwin Núñez Ribeiro → Jørgen Strand Larsen"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Ollie Watkins",
+      "captain_points": 10.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 297.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     },
+     "a_odds": {
+      "points": 53.0,
+      "points_before_hits": 57.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Diogo Teixeira da Silva → Christopher Nkunku",
+       "Bukayo Saka → Cole Palmer"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 10.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 261.0,
+      "rank": 3,
+      "cumulative_rank": 3
+     },
+     "c1": {
+      "points": 72.0,
+      "points_before_hits": 72.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Jean-Philippe Mateta → Ollie Watkins"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 10.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 313.0,
+      "rank": 1,
+      "cumulative_rank": 1
+     },
+     "engine": {
+      "points": 33.0,
+      "points_before_hits": 33.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "David Raya Martín → Guglielmo Vicario"
+      ],
+      "captain": "Guglielmo Vicario",
+      "vice_captain": "Erling Haaland",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 187.0,
+      "rank": 5,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 28.0,
+      "points_before_hits": 28.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Kevin De Bruyne → Brennan Johnson"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Trent Alexander-Arnold",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 183.0,
+      "rank": 6,
+      "cumulative_rank": 6
+     }
+    }
+   },
+   {
+    "gameweek": 10,
+    "models": {
+     "c3": {
+      "points": 31.0,
+      "points_before_hits": 31.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Jacob Greaves → Murillo Costa dos Santos"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 220.0,
+      "rank": 5,
+      "cumulative_rank": 5
+     },
+     "a": {
+      "points": 41.0,
+      "points_before_hits": 41.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Liam Delap → George Hirst"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Ollie Watkins",
+      "captain_points": 9.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 338.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     },
+     "a_odds": {
+      "points": 40.0,
+      "points_before_hits": 40.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Danny Ings → George Hirst"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 9.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 301.0,
+      "rank": 3,
+      "cumulative_rank": 3
+     },
+     "c1": {
+      "points": 31.0,
+      "points_before_hits": 31.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Rodrigo Muniz Carvalho → Raúl Jiménez Rodríguez"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 344.0,
+      "rank": 5,
+      "cumulative_rank": 1
+     },
+     "engine": {
+      "points": 42.0,
+      "points_before_hits": 42.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Alisson Becker → Matz Sels"
+      ],
+      "captain": "Matz Sels",
+      "vice_captain": "Raúl Jiménez Rodríguez",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 229.0,
+      "rank": 1,
+      "cumulative_rank": 4
+     },
+     "c3_e2": {
+      "points": 36.0,
+      "points_before_hits": 36.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Bruno Borges Fernandes → Cole Palmer"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 219.0,
+      "rank": 4,
+      "cumulative_rank": 6
+     }
+    }
+   },
+   {
+    "gameweek": 11,
+    "models": {
+     "c3": {
+      "points": 50.0,
+      "points_before_hits": 50.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "David Raya Martín → Matz Sels"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 270.0,
+      "rank": 2,
+      "cumulative_rank": 5
+     },
+     "a": {
+      "points": 56.0,
+      "points_before_hits": 56.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "George Hirst → Chris Wood"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Ollie Watkins",
+      "captain_points": 14.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 394.0,
+      "rank": 1,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 49.0,
+      "points_before_hits": 49.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Christopher Nkunku → Brennan Johnson"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 14.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 350.0,
+      "rank": 3,
+      "cumulative_rank": 3
+     },
+     "c1": {
+      "points": 34.0,
+      "points_before_hits": 34.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Andrew Robertson → Gabriel dos Santos Magalhães"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 378.0,
+      "rank": 6,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 47.0,
+      "points_before_hits": 47.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Jacob Greaves → Murillo Costa dos Santos"
+      ],
+      "captain": "Matz Sels",
+      "vice_captain": "Nikola Milenković",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 276.0,
+      "rank": 4,
+      "cumulative_rank": 4
+     },
+     "c3_e2": {
+      "points": 35.0,
+      "points_before_hits": 35.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Alisson Becker → Matz Sels"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 254.0,
+      "rank": 5,
+      "cumulative_rank": 6
+     }
+    }
+   },
+   {
+    "gameweek": 12,
+    "models": {
+     "c3": {
+      "points": 28.0,
+      "points_before_hits": 28.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Leif Davis → Ibrahima Konaté"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 298.0,
+      "rank": 5,
+      "cumulative_rank": 5
+     },
+     "a": {
+      "points": 57.0,
+      "points_before_hits": 57.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Ollie Watkins → Raúl Jiménez Rodríguez"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Bryan Mbeumo",
+      "captain_points": 13.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 451.0,
+      "rank": 1,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 51.0,
+      "points_before_hits": 51.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Jhon Durán → Raúl Jiménez Rodríguez"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 13.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 401.0,
+      "rank": 2,
+      "cumulative_rank": 3
+     },
+     "c1": {
+      "points": 40.0,
+      "points_before_hits": 40.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "André Onana → Emiliano Martínez Romero"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 418.0,
+      "rank": 3,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 27.0,
+      "points_before_hits": 27.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Leif Davis → Ibrahima Konaté"
+      ],
+      "captain": "Andrew Robertson",
+      "vice_captain": "Trent Alexander-Arnold",
+      "captain_points": 1.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 303.0,
+      "rank": 6,
+      "cumulative_rank": 4
+     },
+     "c3_e2": {
+      "points": 31.0,
+      "points_before_hits": 31.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Cameron Archer → Liam Delap"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 285.0,
+      "rank": 4,
+      "cumulative_rank": 6
+     }
+    }
+   },
+   {
+    "gameweek": 13,
+    "models": {
+     "c3": {
+      "points": 65.0,
+      "points_before_hits": 65.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Guglielmo Vicario → André Onana"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 363.0,
+      "rank": 6,
+      "cumulative_rank": 5
+     },
+     "a": {
+      "points": 84.0,
+      "points_before_hits": 84.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Eberechi Eze → Bruno Borges Fernandes"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Bruno Borges Fernandes",
+      "captain_points": 13.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 535.0,
+      "rank": 1,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 66.0,
+      "points_before_hits": 66.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Ollie Watkins → João Pedro Junqueira de Jesus"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 13.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 467.0,
+      "rank": 5,
+      "cumulative_rank": 3
+     },
+     "c1": {
+      "points": 73.0,
+      "points_before_hits": 73.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Bukayo Saka → Bruno Borges Fernandes"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Bruno Borges Fernandes",
+      "captain_points": 14.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 491.0,
+      "rank": 3,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 74.0,
+      "points_before_hits": 74.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Guglielmo Vicario → André Onana"
+      ],
+      "captain": "André Onana",
+      "vice_captain": "Erling Haaland",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 377.0,
+      "rank": 2,
+      "cumulative_rank": 4
+     },
+     "c3_e2": {
+      "points": 72.0,
+      "points_before_hits": 72.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Erling Haaland → Matheus Santos Carneiro da Cunha"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Trent Alexander-Arnold",
+      "captain_points": 14.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 357.0,
+      "rank": 4,
+      "cumulative_rank": 6
+     }
+    }
+   },
+   {
+    "gameweek": 14,
+    "models": {
+     "c3": {
+      "points": 29.0,
+      "points_before_hits": 29.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Simon Adingra → Justin Kluivert"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 392.0,
+      "rank": 5,
+      "cumulative_rank": 6
+     },
+     "a": {
+      "points": 59.0,
+      "points_before_hits": 59.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Marcus Rashford → Bukayo Saka"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 18.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 594.0,
+      "rank": 3,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 60.0,
+      "points_before_hits": 60.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Luis Díaz Marulanda → Bukayo Saka"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 18.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 527.0,
+      "rank": 2,
+      "cumulative_rank": 3
+     },
+     "c1": {
+      "points": 53.0,
+      "points_before_hits": 53.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Bruno Borges Fernandes → Bukayo Saka"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 7.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 544.0,
+      "rank": 4,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 27.0,
+      "points_before_hits": 27.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Simon Adingra → Justin Kluivert"
+      ],
+      "captain": "Justin Kluivert",
+      "vice_captain": "Trent Alexander-Arnold",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 404.0,
+      "rank": 6,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 61.0,
+      "points_before_hits": 61.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Marcus Tavernier → Mohamed Salah"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 18.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 418.0,
+      "rank": 1,
+      "cumulative_rank": 4
+     }
+    }
+   },
+   {
+    "gameweek": 15,
+    "models": {
+     "c3": {
+      "points": 50.0,
+      "points_before_hits": 50.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Trent Alexander-Arnold → Diogo Dalot Teixeira"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 7.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 442.0,
+      "rank": 5,
+      "cumulative_rank": 6
+     },
+     "a": {
+      "points": 93.0,
+      "points_before_hits": 93.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Mohamed Salah → Cole Palmer"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 18.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 687.0,
+      "rank": 1,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 69.0,
+      "points_before_hits": 69.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Mohamed Salah → Bruno Borges Fernandes"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 18.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 596.0,
+      "rank": 4,
+      "cumulative_rank": 3
+     },
+     "c1": {
+      "points": 74.0,
+      "points_before_hits": 74.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Ibrahima Konaté → Lucas Digne"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 18.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 618.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 44.0,
+      "points_before_hits": 44.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Trent Alexander-Arnold → Joško Gvardiol"
+      ],
+      "captain": "André Onana",
+      "vice_captain": "Erling Haaland",
+      "captain_points": 1.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 448.0,
+      "rank": 6,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 73.0,
+      "points_before_hits": 73.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Ibrahima Konaté → Daniel Muñoz Mejía"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Brennan Johnson",
+      "captain_points": 18.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 491.0,
+      "rank": 3,
+      "cumulative_rank": 4
+     }
+    }
+   },
+   {
+    "gameweek": 16,
+    "models": {
+     "c3": {
+      "points": 34.0,
+      "points_before_hits": 34.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Diogo Dalot Teixeira → William Saliba"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 476.0,
+      "rank": 5,
+      "cumulative_rank": 6
+     },
+     "a": {
+      "points": 49.0,
+      "points_before_hits": 49.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Chris Wood → Kai Havertz"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 736.0,
+      "rank": 1,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 35.0,
+      "points_before_hits": 39.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Bruno Borges Fernandes → Jacob Murphy",
+       "Alejandro Garnacho Ferreyra → Mohamed Salah"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 631.0,
+      "rank": 4,
+      "cumulative_rank": 3
+     },
+     "c1": {
+      "points": 26.0,
+      "points_before_hits": 26.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Gabriel dos Santos Magalhães → Rayan Aït-Nouri"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 644.0,
+      "rank": 6,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 38.0,
+      "points_before_hits": 38.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Alejandro Garnacho Ferreyra → Kevin Schade"
+      ],
+      "captain": "Kevin Schade",
+      "vice_captain": "Justin Kluivert",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 486.0,
+      "rank": 3,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 45.0,
+      "points_before_hits": 45.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Alejandro Garnacho Ferreyra → Kevin Schade"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 536.0,
+      "rank": 2,
+      "cumulative_rank": 4
+     }
+    }
+   },
+   {
+    "gameweek": 17,
+    "models": {
+     "c3": {
+      "points": 33.0,
+      "points_before_hits": 33.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Alejandro Garnacho Ferreyra → Kevin Schade"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 509.0,
+      "rank": 4,
+      "cumulative_rank": 6
+     },
+     "a": {
+      "points": 42.0,
+      "points_before_hits": 42.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Kai Havertz → Matheus Santos Carneiro da Cunha"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 778.0,
+      "rank": 3,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 72.0,
+      "points_before_hits": 72.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Riccardo Calafiori → William Saliba"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 21.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 703.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     },
+     "c1": {
+      "points": 29.0,
+      "points_before_hits": 29.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Eberechi Eze → Jarrod Bowen"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 673.0,
+      "rank": 5,
+      "cumulative_rank": 3
+     },
+     "engine": {
+      "points": 27.0,
+      "points_before_hits": 27.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Ibrahima Konaté → William Saliba"
+      ],
+      "captain": "Kevin Schade",
+      "vice_captain": "William Saliba",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 513.0,
+      "rank": 6,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 84.0,
+      "points_before_hits": 84.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Lewis Dunk → William Saliba"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 21.0,
+      "vice_used": false,
+      "n_autosubs": 3,
+      "cumulative": 620.0,
+      "rank": 1,
+      "cumulative_rank": 4
+     }
+    }
+   },
+   {
+    "gameweek": 18,
+    "models": {
+     "c3": {
+      "points": 40.0,
+      "points_before_hits": 40.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Erling Haaland → Alexander Isak"
+      ],
+      "captain": "Bukayo Saka",
+      "vice_captain": "Alexander Isak",
+      "captain_points": 0.0,
+      "vice_used": true,
+      "n_autosubs": 1,
+      "cumulative": 549.0,
+      "rank": 5,
+      "cumulative_rank": 5
+     },
+     "a": {
+      "points": 55.0,
+      "points_before_hits": 59.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Ederson Santana de Moraes → Lukasz Fabianski",
+       "Bukayo Saka → Mohamed Salah"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 9.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 833.0,
+      "rank": 3,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 59.0,
+      "points_before_hits": 59.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Brennan Johnson → Diogo Teixeira da Silva"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 9.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 762.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     },
+     "c1": {
+      "points": 55.0,
+      "points_before_hits": 55.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Dwight McNeil → Dominik Szoboszlai"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 10.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 728.0,
+      "rank": 3,
+      "cumulative_rank": 3
+     },
+     "engine": {
+      "points": 36.0,
+      "points_before_hits": 36.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Erling Haaland → Alexander Isak"
+      ],
+      "captain": "Alexander Isak",
+      "vice_captain": "William Saliba",
+      "captain_points": 8.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 549.0,
+      "rank": 6,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 66.0,
+      "points_before_hits": 66.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Mitoma Kaoru → Dominik Szoboszlai"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 9.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 686.0,
+      "rank": 1,
+      "cumulative_rank": 4
+     }
+    }
+   },
+   {
+    "gameweek": 19,
+    "models": {
+     "c3": {
+      "points": 70.0,
+      "points_before_hits": 70.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Mitoma Kaoru → Mohamed Salah"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 16.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 619.0,
+      "rank": 3,
+      "cumulative_rank": 5
+     },
+     "a": {
+      "points": 68.0,
+      "points_before_hits": 68.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Bryan Mbeumo → Morgan Gibbs-White"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 16.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 901.0,
+      "rank": 4,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 73.0,
+      "points_before_hits": 73.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Cristian Romero → Daniel Muñoz Mejía"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 16.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 835.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     },
+     "c1": {
+      "points": 65.0,
+      "points_before_hits": 65.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Bukayo Saka → Son Heung-min"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Son Heung-min",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 793.0,
+      "rank": 6,
+      "cumulative_rank": 3
+     },
+     "engine": {
+      "points": 68.0,
+      "points_before_hits": 68.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Bukayo Saka → Mohamed Salah"
+      ],
+      "captain": "Alexander Isak",
+      "vice_captain": "Mohamed Salah",
+      "captain_points": 7.0,
+      "vice_used": false,
+      "n_autosubs": 3,
+      "cumulative": 617.0,
+      "rank": 4,
+      "cumulative_rank": 6
+     },
+     "c3_e2": {
+      "points": 78.0,
+      "points_before_hits": 78.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Leif Davis → Maxence Lacroix"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 16.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 764.0,
+      "rank": 1,
+      "cumulative_rank": 4
+     }
+    }
+   },
+   {
+    "gameweek": 20,
+    "models": {
+     "c3": {
+      "points": 71.0,
+      "points_before_hits": 71.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Ibrahima Konaté → Illia Zabarnyi"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Alexander Isak",
+      "captain_points": 7.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 690.0,
+      "rank": 2,
+      "cumulative_rank": 5
+     },
+     "a": {
+      "points": 59.0,
+      "points_before_hits": 59.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Matheus Santos Carneiro da Cunha → Nicolas Jackson"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 7.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 960.0,
+      "rank": 3,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 55.0,
+      "points_before_hits": 59.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "George Hirst → Ollie Watkins",
+       "Bukayo Saka → Harry Wilson"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 7.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 890.0,
+      "rank": 4,
+      "cumulative_rank": 2
+     },
+     "c1": {
+      "points": 77.0,
+      "points_before_hits": 77.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Dominik Szoboszlai → Morgan Gibbs-White"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Son Heung-min",
+      "captain_points": 10.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 870.0,
+      "rank": 1,
+      "cumulative_rank": 3
+     },
+     "engine": {
+      "points": 55.0,
+      "points_before_hits": 55.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Raúl Jiménez Rodríguez → Ollie Watkins"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Alexander Isak",
+      "captain_points": 7.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 672.0,
+      "rank": 4,
+      "cumulative_rank": 6
+     },
+     "c3_e2": {
+      "points": 55.0,
+      "points_before_hits": 55.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Nick Pope → Bernd Leno"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 7.0,
+      "vice_used": false,
+      "n_autosubs": 3,
+      "cumulative": 819.0,
+      "rank": 4,
+      "cumulative_rank": 4
+     }
+    }
+   },
+   {
+    "gameweek": 21,
+    "models": {
+     "c3": {
+      "points": 50.0,
+      "points_before_hits": 50.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Bukayo Saka → Cole Palmer"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 740.0,
+      "rank": 5,
+      "cumulative_rank": 6
+     },
+     "a": {
+      "points": 58.0,
+      "points_before_hits": 62.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Jarrod Bowen → Justin Kluivert",
+       "Nicolas Jackson → Alexander Isak"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1018.0,
+      "rank": 4,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 64.0,
+      "points_before_hits": 64.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Ollie Watkins → Alexander Isak"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 954.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     },
+     "c1": {
+      "points": 62.0,
+      "points_before_hits": 62.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Rayan Aït-Nouri → Harry Maguire"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Ollie Watkins",
+      "captain_points": 10.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 932.0,
+      "rank": 3,
+      "cumulative_rank": 3
+     },
+     "engine": {
+      "points": 71.0,
+      "points_before_hits": 71.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Murillo Costa dos Santos → Lisandro Martínez"
+      ],
+      "captain": "Alexander Isak",
+      "vice_captain": "Mohamed Salah",
+      "captain_points": 16.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 743.0,
+      "rank": 1,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 33.0,
+      "points_before_hits": 33.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Jhon Durán → Rodrigo Muniz Carvalho"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 852.0,
+      "rank": 6,
+      "cumulative_rank": 4
+     }
+    }
+   },
+   {
+    "gameweek": 22,
+    "models": {
+     "c3": {
+      "points": 41.0,
+      "points_before_hits": 41.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Jhon Durán → Rodrigo Muniz Carvalho"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 781.0,
+      "rank": 4,
+      "cumulative_rank": 6
+     },
+     "a": {
+      "points": 43.0,
+      "points_before_hits": 43.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Justin Kluivert → Ismaïla Sarr"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1061.0,
+      "rank": 3,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 33.0,
+      "points_before_hits": 33.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "João Pedro Junqueira de Jesus → Taiwo Awoniyi"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 987.0,
+      "rank": 5,
+      "cumulative_rank": 2
+     },
+     "c1": {
+      "points": 55.0,
+      "points_before_hits": 55.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Harry Maguire → Neco Williams"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Son Heung-min",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 987.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 60.0,
+      "points_before_hits": 60.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Andrew Robertson → Neco Williams"
+      ],
+      "captain": "Alexander Isak",
+      "vice_captain": "Mohamed Salah",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 803.0,
+      "rank": 1,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 27.0,
+      "points_before_hits": 31.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Trent Alexander-Arnold → Neco Williams",
+       "Liam Delap → Alexander Isak"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 879.0,
+      "rank": 6,
+      "cumulative_rank": 4
+     }
+    }
+   },
+   {
+    "gameweek": 23,
+    "models": {
+     "c3": {
+      "points": 57.0,
+      "points_before_hits": 57.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "William Saliba → Lewis Hall"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 8.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 838.0,
+      "rank": 3,
+      "cumulative_rank": 6
+     },
+     "a": {
+      "points": 51.0,
+      "points_before_hits": 51.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Bruno Borges Fernandes → Eberechi Eze"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 8.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1112.0,
+      "rank": 5,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 53.0,
+      "points_before_hits": 53.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "William Saliba → Trent Alexander-Arnold"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 8.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1040.0,
+      "rank": 4,
+      "cumulative_rank": 2
+     },
+     "c1": {
+      "points": 36.0,
+      "points_before_hits": 36.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Jarrod Bowen → Anthony Gordon"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Son Heung-min",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1023.0,
+      "rank": 6,
+      "cumulative_rank": 3
+     },
+     "engine": {
+      "points": 71.0,
+      "points_before_hits": 71.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Joško Gvardiol → Trent Alexander-Arnold"
+      ],
+      "captain": "Alexander Isak",
+      "vice_captain": "Mohamed Salah",
+      "captain_points": 13.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 874.0,
+      "rank": 1,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 67.0,
+      "points_before_hits": 67.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "William Saliba → Lewis Hall"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 8.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 946.0,
+      "rank": 2,
+      "cumulative_rank": 4
+     }
+    }
+   },
+   {
+    "gameweek": 24,
+    "models": {
+     "c3": {
+      "points": 104.0,
+      "points_before_hits": 108.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Raúl Jiménez Rodríguez → Cody Gakpo",
+       "Harvey Barnes → Orel Mangala"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 29.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 942.0,
+      "rank": 4,
+      "cumulative_rank": 6
+     },
+     "a": {
+      "points": 111.0,
+      "points_before_hits": 115.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Emiliano Martínez Romero → Alisson Becker",
+       "Cristian Romero → Virgil van Dijk"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 29.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1223.0,
+      "rank": 2,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 110.0,
+      "points_before_hits": 114.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Ederson Santana de Moraes → Alisson Becker",
+       "Diogo Teixeira da Silva → Noni Madueke"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 29.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1150.0,
+      "rank": 3,
+      "cumulative_rank": 2
+     },
+     "c1": {
+      "points": 75.0,
+      "points_before_hits": 75.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Anthony Gordon → Eberechi Eze"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Son Heung-min",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1098.0,
+      "rank": 6,
+      "cumulative_rank": 3
+     },
+     "engine": {
+      "points": 85.0,
+      "points_before_hits": 85.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Ollie Watkins → Cody Gakpo"
+      ],
+      "captain": "Cody Gakpo",
+      "vice_captain": "Mohamed Salah",
+      "captain_points": 7.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 959.0,
+      "rank": 5,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 124.0,
+      "points_before_hits": 124.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Matheus Santos Carneiro da Cunha → Cody Gakpo"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 29.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1070.0,
+      "rank": 1,
+      "cumulative_rank": 4
+     }
+    }
+   },
+   {
+    "gameweek": 25,
+    "models": {
+     "c3": {
+      "points": 70.0,
+      "points_before_hits": 70.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "André Onana → Emiliano Martínez Romero"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 20.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1012.0,
+      "rank": 3,
+      "cumulative_rank": 6
+     },
+     "a": {
+      "points": 70.0,
+      "points_before_hits": 70.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Levi Samuels Colwill → Ezri Konsa Ngoyo"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 20.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1293.0,
+      "rank": 3,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 75.0,
+      "points_before_hits": 75.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Sugawara Yukinari → Ezri Konsa Ngoyo"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 20.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1225.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     },
+     "c1": {
+      "points": 60.0,
+      "points_before_hits": 60.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Neco Williams → Dean Huijsen"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Son Heung-min",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1158.0,
+      "rank": 6,
+      "cumulative_rank": 3
+     },
+     "engine": {
+      "points": 91.0,
+      "points_before_hits": 91.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "André Onana → Emiliano Martínez Romero"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cody Gakpo",
+      "captain_points": 20.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1050.0,
+      "rank": 1,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 66.0,
+      "points_before_hits": 66.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Bernd Leno → Emiliano Martínez Romero"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 20.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1136.0,
+      "rank": 5,
+      "cumulative_rank": 4
+     }
+    }
+   },
+   {
+    "gameweek": 26,
+    "models": {
+     "c3": {
+      "points": 66.0,
+      "points_before_hits": 66.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Cody Gakpo → Jean-Philippe Mateta"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 14.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1078.0,
+      "rank": 4,
+      "cumulative_rank": 6
+     },
+     "a": {
+      "points": 69.0,
+      "points_before_hits": 69.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Morgan Gibbs-White → Mathys Tel"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 14.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1362.0,
+      "rank": 3,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 85.0,
+      "points_before_hits": 85.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Harry Wilson → Yankuba Minteh"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 14.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 1310.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     },
+     "c1": {
+      "points": 60.0,
+      "points_before_hits": 60.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Lucas Digne → Nathan Collins"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Son Heung-min",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1218.0,
+      "rank": 5,
+      "cumulative_rank": 4
+     },
+     "engine": {
+      "points": 59.0,
+      "points_before_hits": 59.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Jhon Durán → Jean-Philippe Mateta"
+      ],
+      "captain": "Jean-Philippe Mateta",
+      "vice_captain": "Mohamed Salah",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1109.0,
+      "rank": 6,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 87.0,
+      "points_before_hits": 87.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Cody Gakpo → Jean-Philippe Mateta"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 14.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1223.0,
+      "rank": 1,
+      "cumulative_rank": 3
+     }
+    }
+   },
+   {
+    "gameweek": 27,
+    "models": {
+     "c3": {
+      "points": 77.0,
+      "points_before_hits": 77.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Lewis Hall → Marc Cucurella Saseta"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1155.0,
+      "rank": 1,
+      "cumulative_rank": 6
+     },
+     "a": {
+      "points": 59.0,
+      "points_before_hits": 63.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Alexander Isak → Matheus Santos Carneiro da Cunha",
+       "Mathys Tel → Bruno Borges Fernandes"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1421.0,
+      "rank": 4,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 51.0,
+      "points_before_hits": 51.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Leif Davis → Marc Cucurella Saseta"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 1361.0,
+      "rank": 6,
+      "cumulative_rank": 2
+     },
+     "c1": {
+      "points": 54.0,
+      "points_before_hits": 54.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Bryan Mbeumo → Bruno Borges Fernandes"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Son Heung-min",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1272.0,
+      "rank": 5,
+      "cumulative_rank": 4
+     },
+     "engine": {
+      "points": 74.0,
+      "points_before_hits": 74.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "William Saliba → Marc Cucurella Saseta"
+      ],
+      "captain": "Jean-Philippe Mateta",
+      "vice_captain": "Mohamed Salah",
+      "captain_points": 8.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1183.0,
+      "rank": 3,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 75.0,
+      "points_before_hits": 75.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Lewis Hall → Marc Cucurella Saseta"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1298.0,
+      "rank": 2,
+      "cumulative_rank": 3
+     }
+    }
+   },
+   {
+    "gameweek": 28,
+    "models": {
+     "c3": {
+      "points": 77.0,
+      "points_before_hits": 77.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Illia Zabarnyi → Tyrick Mitchell"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 15.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1232.0,
+      "rank": 2,
+      "cumulative_rank": 6
+     },
+     "a": {
+      "points": 74.0,
+      "points_before_hits": 78.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Virgil van Dijk → Levi Samuels Colwill",
+       "Jørgen Strand Larsen → Cody Gakpo"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 15.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 1495.0,
+      "rank": 3,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 74.0,
+      "points_before_hits": 74.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Taiwo Awoniyi → Eddie Nketiah"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 15.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1435.0,
+      "rank": 3,
+      "cumulative_rank": 2
+     },
+     "c1": {
+      "points": 45.0,
+      "points_before_hits": 45.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Bruno Borges Fernandes → Bryan Mbeumo"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Son Heung-min",
+      "captain_points": 1.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1317.0,
+      "rank": 6,
+      "cumulative_rank": 4
+     },
+     "engine": {
+      "points": 79.0,
+      "points_before_hits": 79.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Cody Gakpo → Rodrigo Muniz Carvalho"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Jean-Philippe Mateta",
+      "captain_points": 15.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1262.0,
+      "rank": 1,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 68.0,
+      "points_before_hits": 68.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Emiliano Martínez Romero → David Raya Martín"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 15.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1366.0,
+      "rank": 5,
+      "cumulative_rank": 3
+     }
+    }
+   },
+   {
+    "gameweek": 29,
+    "models": {
+     "c3": {
+      "points": 32.0,
+      "points_before_hits": 32.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Tyrick Mitchell → Matthijs de Ligt"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Alexander Isak",
+      "captain_points": 0.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1264.0,
+      "rank": 4,
+      "cumulative_rank": 6
+     },
+     "a": {
+      "points": 42.0,
+      "points_before_hits": 46.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Mohamed Salah → Georginio Rutter",
+       "Cody Gakpo → Erling Haaland"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 7.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1537.0,
+      "rank": 1,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 21.0,
+      "points_before_hits": 25.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Mohamed Salah → Bruno Borges Fernandes",
+       "Alexander Isak → Francisco Evanilson de Lima Barbosa"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Trent Alexander-Arnold",
+      "captain_points": 0.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1456.0,
+      "rank": 6,
+      "cumulative_rank": 2
+     },
+     "c1": {
+      "points": 37.0,
+      "points_before_hits": 37.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Eberechi Eze → Anthony Elanga"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Son Heung-min",
+      "captain_points": 0.0,
+      "vice_used": true,
+      "n_autosubs": 0,
+      "cumulative": 1354.0,
+      "rank": 2,
+      "cumulative_rank": 4
+     },
+     "engine": {
+      "points": 36.0,
+      "points_before_hits": 36.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Harvey Barnes → Abdoulaye Doucouré"
+      ],
+      "captain": "Rodrigo Muniz Carvalho",
+      "vice_captain": "Matz Sels",
+      "captain_points": 7.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1298.0,
+      "rank": 3,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 26.0,
+      "points_before_hits": 26.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Dominik Szoboszlai → Dango Ouattara"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Alexander Isak",
+      "captain_points": 0.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1392.0,
+      "rank": 5,
+      "cumulative_rank": 3
+     }
+    }
+   },
+   {
+    "gameweek": 30,
+    "models": {
+     "c3": {
+      "points": 59.0,
+      "points_before_hits": 59.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Matthijs de Ligt → Tyrick Mitchell"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1323.0,
+      "rank": 1,
+      "cumulative_rank": 6
+     },
+     "a": {
+      "points": 31.0,
+      "points_before_hits": 31.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Cole Palmer → Antoine Semenyo"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Bruno Borges Fernandes",
+      "captain_points": 0.0,
+      "vice_used": true,
+      "n_autosubs": 2,
+      "cumulative": 1568.0,
+      "rank": 5,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 33.0,
+      "points_before_hits": 37.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Raúl Jiménez Rodríguez → Erling Haaland",
+       "Cole Palmer → Justin Kluivert"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Trent Alexander-Arnold",
+      "captain_points": 0.0,
+      "vice_used": false,
+      "n_autosubs": 4,
+      "cumulative": 1489.0,
+      "rank": 4,
+      "cumulative_rank": 2
+     },
+     "c1": {
+      "points": 31.0,
+      "points_before_hits": 35.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Son Heung-min → Mohamed Salah",
+       "Cole Palmer → Bruno Borges Fernandes"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Trent Alexander-Arnold",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1385.0,
+      "rank": 5,
+      "cumulative_rank": 4
+     },
+     "engine": {
+      "points": 46.0,
+      "points_before_hits": 46.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Lisandro Martínez → Tyrick Mitchell"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Rodrigo Muniz Carvalho",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 1344.0,
+      "rank": 2,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 45.0,
+      "points_before_hits": 45.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Marc Cucurella Saseta → Joško Gvardiol"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1437.0,
+      "rank": 3,
+      "cumulative_rank": 3
+     }
+    }
+   },
+   {
+    "gameweek": 31,
+    "models": {
+     "c3": {
+      "points": 34.0,
+      "points_before_hits": 34.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Justin Kluivert → Ismaïla Sarr"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1357.0,
+      "rank": 4,
+      "cumulative_rank": 6
+     },
+     "a": {
+      "points": 27.0,
+      "points_before_hits": 31.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Erling Haaland → Ollie Watkins",
+       "Matheus Santos Carneiro da Cunha → Alexander Isak"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Alexander Isak",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 1595.0,
+      "rank": 6,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 48.0,
+      "points_before_hits": 48.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Noni Madueke → Son Heung-min"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Son Heung-min",
+      "captain_points": 0.0,
+      "vice_used": true,
+      "n_autosubs": 2,
+      "cumulative": 1537.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     },
+     "c1": {
+      "points": 33.0,
+      "points_before_hits": 33.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Trent Alexander-Arnold → Fabian Schär"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Bruno Borges Fernandes",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1418.0,
+      "rank": 5,
+      "cumulative_rank": 4
+     },
+     "engine": {
+      "points": 40.0,
+      "points_before_hits": 40.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Nikola Milenković → Jurriën Timber"
+      ],
+      "captain": "Rodrigo Muniz Carvalho",
+      "vice_captain": "Mohamed Salah",
+      "captain_points": 7.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 1384.0,
+      "rank": 3,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 63.0,
+      "points_before_hits": 63.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Alexander Isak → Omar Marmoush"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1500.0,
+      "rank": 1,
+      "cumulative_rank": 3
+     }
+    }
+   },
+   {
+    "gameweek": 32,
+    "models": {
+     "c3": {
+      "points": 59.0,
+      "points_before_hits": 59.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Orel Mangala → Jacob Murphy"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1416.0,
+      "rank": 1,
+      "cumulative_rank": 6
+     },
+     "a": {
+      "points": 54.0,
+      "points_before_hits": 58.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Lukasz Fabianski → Dean Henderson",
+       "Lucas Digne → Tino Livramento"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Alexander Isak",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1649.0,
+      "rank": 3,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 33.0,
+      "points_before_hits": 37.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Son Heung-min → Bukayo Saka",
+       "Alisson Becker → Dean Henderson"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Bukayo Saka",
+      "captain_points": 0.0,
+      "vice_used": true,
+      "n_autosubs": 2,
+      "cumulative": 1570.0,
+      "rank": 6,
+      "cumulative_rank": 2
+     },
+     "c1": {
+      "points": 56.0,
+      "points_before_hits": 56.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Tyrick Mitchell → Jan Paul van Hecke"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Bruno Borges Fernandes",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1474.0,
+      "rank": 2,
+      "cumulative_rank": 4
+     },
+     "engine": {
+      "points": 51.0,
+      "points_before_hits": 51.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Kevin Schade → Ismaïla Sarr"
+      ],
+      "captain": "Ismaïla Sarr",
+      "vice_captain": "Jean-Philippe Mateta",
+      "captain_points": 7.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1435.0,
+      "rank": 5,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 53.0,
+      "points_before_hits": 53.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Kevin Schade → Jacob Murphy"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1553.0,
+      "rank": 4,
+      "cumulative_rank": 3
+     }
+    }
+   },
+   {
+    "gameweek": 33,
+    "models": {
+     "c3": {
+      "points": 42.0,
+      "points_before_hits": 46.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Matz Sels → David Raya Martín",
+       "Alexander Isak → Omar Marmoush"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 1458.0,
+      "rank": 6,
+      "cumulative_rank": 6
+     },
+     "a": {
+      "points": 56.0,
+      "points_before_hits": 60.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Antonee Robinson → William Saliba",
+       "Pedro Porro Sauceda → Joško Gvardiol"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Alexander Isak",
+      "captain_points": 1.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1705.0,
+      "rank": 4,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 43.0,
+      "points_before_hits": 47.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Trent Alexander-Arnold → William Saliba",
+       "Marc Cucurella Saseta → Joško Gvardiol"
+      ],
+      "captain": "Bukayo Saka",
+      "vice_captain": "Bruno Borges Fernandes",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1613.0,
+      "rank": 5,
+      "cumulative_rank": 2
+     },
+     "c1": {
+      "points": 70.0,
+      "points_before_hits": 70.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Jan Paul van Hecke → Rayan Aït-Nouri"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Bruno Borges Fernandes",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1544.0,
+      "rank": 1,
+      "cumulative_rank": 4
+     },
+     "engine": {
+      "points": 58.0,
+      "points_before_hits": 58.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Matz Sels → David Raya Martín"
+      ],
+      "captain": "David Raya Martín",
+      "vice_captain": "Ismaïla Sarr",
+      "captain_points": 7.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1493.0,
+      "rank": 2,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 57.0,
+      "points_before_hits": 57.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Nikola Milenković → Jurriën Timber"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1610.0,
+      "rank": 3,
+      "cumulative_rank": 3
+     }
+    }
+   },
+   {
+    "gameweek": 34,
+    "models": {
+     "c3": {
+      "points": 45.0,
+      "points_before_hits": 45.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "David Raya Martín → Bernd Leno"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 8.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1503.0,
+      "rank": 3,
+      "cumulative_rank": 6
+     },
+     "a": {
+      "points": 51.0,
+      "points_before_hits": 55.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Ollie Watkins → Matheus Santos Carneiro da Cunha",
+       "Eberechi Eze → Bryan Mbeumo"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Alexander Isak",
+      "captain_points": 4.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1756.0,
+      "rank": 2,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 43.0,
+      "points_before_hits": 47.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Erling Haaland → Matheus Santos Carneiro da Cunha",
+       "Bukayo Saka → Mohamed Salah"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Bruno Borges Fernandes",
+      "captain_points": 8.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1656.0,
+      "rank": 5,
+      "cumulative_rank": 2
+     },
+     "c1": {
+      "points": 70.0,
+      "points_before_hits": 70.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Ollie Watkins → Matheus Santos Carneiro da Cunha"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Bruno Borges Fernandes",
+      "captain_points": 8.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1614.0,
+      "rank": 1,
+      "cumulative_rank": 4
+     },
+     "engine": {
+      "points": 45.0,
+      "points_before_hits": 49.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "David Raya Martín → Bernd Leno",
+       "Ismaïla Sarr → Jacob Murphy"
+      ],
+      "captain": "Rodrigo Muniz Carvalho",
+      "vice_captain": "Jacob Murphy",
+      "captain_points": 0.0,
+      "vice_used": true,
+      "n_autosubs": 0,
+      "cumulative": 1538.0,
+      "rank": 3,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 41.0,
+      "points_before_hits": 41.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Joško Gvardiol → Rayan Aït-Nouri"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 8.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1651.0,
+      "rank": 6,
+      "cumulative_rank": 3
+     }
+    }
+   },
+   {
+    "gameweek": 35,
+    "models": {
+     "c3": {
+      "points": 53.0,
+      "points_before_hits": 53.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Cole Palmer → Luis Díaz Marulanda"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Luis Díaz Marulanda",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 3,
+      "cumulative": 1556.0,
+      "rank": 2,
+      "cumulative_rank": 6
+     },
+     "a": {
+      "points": 57.0,
+      "points_before_hits": 57.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Raúl Jiménez Rodríguez → Yoane Wissa"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Alexander Isak",
+      "captain_points": 0.0,
+      "vice_used": true,
+      "n_autosubs": 1,
+      "cumulative": 1813.0,
+      "rank": 1,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 38.0,
+      "points_before_hits": 38.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Justin Kluivert → Bryan Mbeumo"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Bruno Borges Fernandes",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1694.0,
+      "rank": 4,
+      "cumulative_rank": 2
+     },
+     "c1": {
+      "points": 38.0,
+      "points_before_hits": 38.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Anthony Elanga → Jarrod Bowen"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Bruno Borges Fernandes",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1652.0,
+      "rank": 4,
+      "cumulative_rank": 4
+     },
+     "engine": {
+      "points": 39.0,
+      "points_before_hits": 39.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Jean-Philippe Mateta → Matheus Santos Carneiro da Cunha"
+      ],
+      "captain": "Matheus Santos Carneiro da Cunha",
+      "vice_captain": "Jacob Murphy",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 3,
+      "cumulative": 1577.0,
+      "rank": 3,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 21.0,
+      "points_before_hits": 21.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Cole Palmer → Luis Díaz Marulanda"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 3,
+      "cumulative": 1672.0,
+      "rank": 6,
+      "cumulative_rank": 3
+     }
+    }
+   },
+   {
+    "gameweek": 36,
+    "models": {
+     "c3": {
+      "points": 43.0,
+      "points_before_hits": 43.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Jean-Philippe Mateta → Matheus Santos Carneiro da Cunha"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Luis Díaz Marulanda",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1599.0,
+      "rank": 4,
+      "cumulative_rank": 6
+     },
+     "a": {
+      "points": 45.0,
+      "points_before_hits": 45.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Georginio Rutter → Alex Iwobi"
+      ],
+      "captain": "Alexander Isak",
+      "vice_captain": "Bryan Mbeumo",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1858.0,
+      "rank": 3,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 51.0,
+      "points_before_hits": 51.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Bruno Borges Fernandes → Kevin De Bruyne"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Kevin De Bruyne",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1745.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     },
+     "c1": {
+      "points": 62.0,
+      "points_before_hits": 62.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Raúl Jiménez Rodríguez → Yoane Wissa"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Bryan Mbeumo",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1714.0,
+      "rank": 1,
+      "cumulative_rank": 3
+     },
+     "engine": {
+      "points": 33.0,
+      "points_before_hits": 33.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Justin Kluivert → Luis Díaz Marulanda"
+      ],
+      "captain": "Jacob Murphy",
+      "vice_captain": "Matheus Santos Carneiro da Cunha",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 1610.0,
+      "rank": 6,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 39.0,
+      "points_before_hits": 39.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Jean-Philippe Mateta → Matheus Santos Carneiro da Cunha"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Luis Díaz Marulanda",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1711.0,
+      "rank": 5,
+      "cumulative_rank": 4
+     }
+    }
+   },
+   {
+    "gameweek": 37,
+    "models": {
+     "c3": {
+      "points": 53.0,
+      "points_before_hits": 53.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Bernd Leno → Jordan Pickford"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Luis Díaz Marulanda",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1652.0,
+      "rank": 1,
+      "cumulative_rank": 6
+     },
+     "a": {
+      "points": 45.0,
+      "points_before_hits": 45.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Antoine Semenyo → Eberechi Eze"
+      ],
+      "captain": "Bryan Mbeumo",
+      "vice_captain": "Alexander Isak",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1903.0,
+      "rank": 5,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 48.0,
+      "points_before_hits": 52.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Jacob Murphy → Eberechi Eze",
+       "Eddie Nketiah → Iliman Ndiaye"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Kevin De Bruyne",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1793.0,
+      "rank": 3,
+      "cumulative_rank": 2
+     },
+     "c1": {
+      "points": 51.0,
+      "points_before_hits": 51.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Bruno Borges Fernandes → Eberechi Eze"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Bryan Mbeumo",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1765.0,
+      "rank": 2,
+      "cumulative_rank": 3
+     },
+     "engine": {
+      "points": 46.0,
+      "points_before_hits": 46.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Bernd Leno → Jordan Pickford"
+      ],
+      "captain": "Jordan Pickford",
+      "vice_captain": "Luis Díaz Marulanda",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1656.0,
+      "rank": 4,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 31.0,
+      "points_before_hits": 31.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Dango Ouattara → Eberechi Eze"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Luis Díaz Marulanda",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1742.0,
+      "rank": 6,
+      "cumulative_rank": 4
+     }
+    }
+   },
+   {
+    "gameweek": 38,
+    "models": {
+     "c3": {
+      "points": 51.0,
+      "points_before_hits": 51.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Jacob Murphy → Mitoma Kaoru"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Luis Díaz Marulanda",
+      "captain_points": 10.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1703.0,
+      "rank": 4,
+      "cumulative_rank": 5
+     },
+     "a": {
+      "points": 62.0,
+      "points_before_hits": 62.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Bruno Borges Fernandes → Dominik Szoboszlai"
+      ],
+      "captain": "Bryan Mbeumo",
+      "vice_captain": "Alisson Becker",
+      "captain_points": 8.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1965.0,
+      "rank": 2,
+      "cumulative_rank": 1
+     },
+     "a_odds": {
+      "points": 52.0,
+      "points_before_hits": 52.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Eberechi Eze → Mitoma Kaoru"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Kevin De Bruyne",
+      "captain_points": 10.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1845.0,
+      "rank": 3,
+      "cumulative_rank": 2
+     },
+     "c1": {
+      "points": 71.0,
+      "points_before_hits": 71.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Eberechi Eze → Martin Ødegaard"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Bryan Mbeumo",
+      "captain_points": 10.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1836.0,
+      "rank": 1,
+      "cumulative_rank": 3
+     },
+     "engine": {
+      "points": 29.0,
+      "points_before_hits": 29.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Mohamed Salah → Eberechi Eze"
+      ],
+      "captain": "Mitoma Kaoru",
+      "vice_captain": "Eberechi Eze",
+      "captain_points": 4.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1685.0,
+      "rank": 6,
+      "cumulative_rank": 6
+     },
+     "c3_e2": {
+      "points": 43.0,
+      "points_before_hits": 43.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Brennan Johnson → Mitoma Kaoru"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 10.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1785.0,
+      "rank": 5,
+      "cumulative_rank": 4
+     }
+    }
+   }
+  ],
+  "summary": [
+   {
+    "model": "c3",
+    "total": 1703.0,
+    "mean_per_gameweek": 50.09,
+    "gameweeks_won": 4,
+    "hit_points": -8.0,
+    "final_rank": 5,
+    "delta_vs_champion": null
+   },
+   {
+    "model": "a",
+    "total": 1965.0,
+    "mean_per_gameweek": 57.79,
+    "gameweeks_won": 7,
+    "hit_points": -40.0,
+    "final_rank": 1,
+    "delta_vs_champion": {
+     "mean": 7.71,
+     "ci_low": 2.18,
+     "ci_high": 13.47,
+     "total": 262.0,
+     "significant": true,
+     "gameweeks_better": 23,
+     "gameweeks_worse": 10
+    }
+   },
+   {
+    "model": "a_odds",
+    "total": 1845.0,
+    "mean_per_gameweek": 54.26,
+    "gameweeks_won": 1,
+    "hit_points": -40.0,
+    "final_rank": 2,
+    "delta_vs_champion": {
+     "mean": 4.18,
+     "ci_low": -1.06,
+     "ci_high": 9.53,
+     "total": 142.0,
+     "significant": false,
+     "gameweeks_better": 21,
+     "gameweeks_worse": 13
+    }
+   },
+   {
+    "model": "c1",
+    "total": 1836.0,
+    "mean_per_gameweek": 54.0,
+    "gameweeks_won": 9,
+    "hit_points": -4.0,
+    "final_rank": 3,
+    "delta_vs_champion": {
+     "mean": 3.91,
+     "ci_low": -2.97,
+     "ci_high": 11.15,
+     "total": 133.0,
+     "significant": false,
+     "gameweeks_better": 17,
+     "gameweeks_worse": 16
+    }
+   },
+   {
+    "model": "engine",
+    "total": 1685.0,
+    "mean_per_gameweek": 49.56,
+    "gameweeks_won": 6,
+    "hit_points": -4.0,
+    "final_rank": 6,
+    "delta_vs_champion": {
+     "mean": -0.53,
+     "ci_low": -4.0,
+     "ci_high": 3.03,
+     "total": -18.0,
+     "significant": false,
+     "gameweeks_better": 12,
+     "gameweeks_worse": 19
+    }
+   },
+   {
+    "model": "c3_e2",
+    "total": 1785.0,
+    "mean_per_gameweek": 52.5,
+    "gameweeks_won": 7,
+    "hit_points": -4.0,
+    "final_rank": 4,
+    "delta_vs_champion": {
+     "mean": 2.41,
+     "ci_low": -2.94,
+     "ci_high": 8.24,
+     "total": 82.0,
+     "significant": false,
+     "gameweeks_better": 16,
+     "gameweeks_worse": 18
+    }
+   }
+  ]
+ },
+ {
+  "contract_version": 1,
+  "season": "2025/26",
+  "kind": "backtest",
+  "caveat": "Backtest, not real play: a walk-forward replay of each strategy over 2025/26. Each starts at its first graded gameweek with its own fresh squad, uses no chips, and sees only data from before each deadline. Real results will differ.",
+  "champion": "c3",
+  "provenance": {
+   "run_id": "20261024T025104Z-8b55b898",
+   "config_digest": "4b80f073f939b3d8834ba3d57359c0e26077b4f8a9781c288abed44b68a0f3cb",
+   "refit_every_gameweeks": "1",
+   "simulator": "fpl_dof.factory.history: the decision engine's week on each strategy's walk-forward forecast (ORC-06)",
+   "scorer": "rules/realised.py, the one realised-points scorer (ORC-04)",
+   "captain": "each strategy's own captain rule (registry policy.captain_rule); B0 fitted on its training window before each deadline",
+   "settings": "fresh squad at the first graded gameweek; the game's auto-subs and vice fallback; free transfers earned and rolled as the rules set, extra transfers charged; no chips; a one-gameweek horizon; no availability news (the archive carries none)"
+  },
+  "bootstrap": {
+   "draws": 2000,
+   "seed": 0,
+   "unit": "gameweek",
+   "level": 0.95
+  },
+  "models": [
+   {
+    "id": "c3",
+    "label": "Champion (C3)",
+    "role": "champion",
+    "available": true,
+    "unavailable_reason": null
+   },
+   {
+    "id": "a",
+    "label": "Model A",
+    "role": "challenger",
+    "available": true,
+    "unavailable_reason": null
+   },
+   {
+    "id": "a_odds",
+    "label": "A + odds",
+    "role": "challenger",
+    "available": true,
+    "unavailable_reason": null
+   },
+   {
+    "id": "c1",
+    "label": "Challenger (C1)",
+    "role": "challenger",
+    "available": true,
+    "unavailable_reason": null
+   },
+   {
+    "id": "engine",
+    "label": "Engine",
+    "role": "challenger",
+    "available": true,
+    "unavailable_reason": null
+   },
+   {
+    "id": "c3_e2",
+    "label": "C3 with rating shrinkage (E2)",
+    "role": "experiment",
+    "available": true,
+    "unavailable_reason": null
+   }
+  ],
+  "gameweeks": [
+   {
+    "gameweek": 5,
+    "models": {
+     "c3": {
+      "points": 40.0,
+      "points_before_hits": 40.0,
+      "hit_points": 0.0,
+      "n_transfers": 0,
+      "transfers": [],
+      "captain": "Erling Haaland",
+      "vice_captain": "Antoine Semenyo",
+      "captain_points": 9.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 40.0,
+      "rank": 4,
+      "cumulative_rank": 4
+     },
+     "a": {
+      "points": 43.0,
+      "points_before_hits": 43.0,
+      "hit_points": 0.0,
+      "n_transfers": 0,
+      "transfers": [],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Viktor Gyökeres",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 43.0,
+      "rank": 3,
+      "cumulative_rank": 3
+     },
+     "a_odds": {
+      "points": 35.0,
+      "points_before_hits": 35.0,
+      "hit_points": 0.0,
+      "n_transfers": 0,
+      "transfers": [],
+      "captain": "Mohamed Salah",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 35.0,
+      "rank": 5,
+      "cumulative_rank": 5
+     },
+     "c1": {
+      "points": 53.0,
+      "points_before_hits": 53.0,
+      "hit_points": 0.0,
+      "n_transfers": 0,
+      "transfers": [],
+      "captain": "Mohamed Salah",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 53.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 33.0,
+      "points_before_hits": 33.0,
+      "hit_points": 0.0,
+      "n_transfers": 0,
+      "transfers": [],
+      "captain": "Robin Roefs",
+      "vice_captain": "Omar Alderete",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 33.0,
+      "rank": 6,
+      "cumulative_rank": 6
+     },
+     "c3_e2": {
+      "points": 54.0,
+      "points_before_hits": 54.0,
+      "hit_points": 0.0,
+      "n_transfers": 0,
+      "transfers": [],
+      "captain": "Erling Haaland",
+      "vice_captain": "Bruno Borges Fernandes",
+      "captain_points": 9.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 54.0,
+      "rank": 1,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 6,
+    "models": {
+     "c3": {
+      "points": 84.0,
+      "points_before_hits": 84.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Lutsharel Geertruida → Joachim Andersen"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Antoine Semenyo",
+      "captain_points": 16.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 124.0,
+      "rank": 1,
+      "cumulative_rank": 2
+     },
+     "a": {
+      "points": 45.0,
+      "points_before_hits": 45.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Cody Gakpo → Idrissa Gana Gueye"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Viktor Gyökeres",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 88.0,
+      "rank": 6,
+      "cumulative_rank": 6
+     },
+     "a_odds": {
+      "points": 60.0,
+      "points_before_hits": 64.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Mohamed Salah → Enzo Fernández",
+       "Francisco Evanilson de Lima Barbosa → Erling Haaland"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 16.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 95.0,
+      "rank": 4,
+      "cumulative_rank": 5
+     },
+     "c1": {
+      "points": 54.0,
+      "points_before_hits": 54.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Sepp van den Berg → Joachim Andersen"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 107.0,
+      "rank": 5,
+      "cumulative_rank": 3
+     },
+     "engine": {
+      "points": 70.0,
+      "points_before_hits": 70.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Lutsharel Geertruida → Joachim Andersen"
+      ],
+      "captain": "Guglielmo Vicario",
+      "vice_captain": "Joachim Andersen",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 103.0,
+      "rank": 3,
+      "cumulative_rank": 4
+     },
+     "c3_e2": {
+      "points": 73.0,
+      "points_before_hits": 73.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Lutsharel Geertruida → Joachim Andersen"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Bruno Borges Fernandes",
+      "captain_points": 16.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 127.0,
+      "rank": 2,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 7,
+    "models": {
+     "c3": {
+      "points": 59.0,
+      "points_before_hits": 59.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Joachim Andersen → Jurriën Timber"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Jurriën Timber",
+      "captain_points": 8.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 183.0,
+      "rank": 3,
+      "cumulative_rank": 2
+     },
+     "a": {
+      "points": 42.0,
+      "points_before_hits": 42.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Hugo Ekitiké → Ollie Watkins"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Viktor Gyökeres",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 130.0,
+      "rank": 6,
+      "cumulative_rank": 6
+     },
+     "a_odds": {
+      "points": 70.0,
+      "points_before_hits": 70.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Cody Gakpo → Anthony Gordon"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 8.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 165.0,
+      "rank": 2,
+      "cumulative_rank": 3
+     },
+     "c1": {
+      "points": 51.0,
+      "points_before_hits": 51.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Morgan Gibbs-White → Antoine Semenyo"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 158.0,
+      "rank": 5,
+      "cumulative_rank": 4
+     },
+     "engine": {
+      "points": 53.0,
+      "points_before_hits": 53.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Joachim Andersen → Jurriën Timber"
+      ],
+      "captain": "Robin Roefs",
+      "vice_captain": "Jurriën Timber",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 156.0,
+      "rank": 4,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 71.0,
+      "points_before_hits": 71.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Trevoh Chalobah → Gabriel dos Santos Magalhães"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 8.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 198.0,
+      "rank": 1,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 8,
+    "models": {
+     "c3": {
+      "points": 80.0,
+      "points_before_hits": 80.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Maxence Lacroix → Gabriel dos Santos Magalhães"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Viktor Gyökeres",
+      "captain_points": 13.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 263.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     },
+     "a": {
+      "points": 31.0,
+      "points_before_hits": 31.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Ollie Watkins → Jarrod Bowen"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Viktor Gyökeres",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 161.0,
+      "rank": 6,
+      "cumulative_rank": 6
+     },
+     "a_odds": {
+      "points": 55.0,
+      "points_before_hits": 55.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Emile Smith Rowe → Omari Hutchinson"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 13.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 220.0,
+      "rank": 4,
+      "cumulative_rank": 4
+     },
+     "c1": {
+      "points": 53.0,
+      "points_before_hits": 53.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Chris Wood → Dominic Calvert-Lewin"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Antoine Semenyo",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 211.0,
+      "rank": 5,
+      "cumulative_rank": 5
+     },
+     "engine": {
+      "points": 74.0,
+      "points_before_hits": 74.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Maxence Lacroix → Gabriel dos Santos Magalhães"
+      ],
+      "captain": "Robin Roefs",
+      "vice_captain": "Jurriën Timber",
+      "captain_points": 7.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 230.0,
+      "rank": 3,
+      "cumulative_rank": 3
+     },
+     "c3_e2": {
+      "points": 98.0,
+      "points_before_hits": 98.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Joachim Andersen → Lutsharel Geertruida"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 13.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 296.0,
+      "rank": 1,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 9,
+    "models": {
+     "c3": {
+      "points": 73.0,
+      "points_before_hits": 73.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Chris Richards → Marcos Senesi Barón"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 336.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     },
+     "a": {
+      "points": 47.0,
+      "points_before_hits": 47.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Francisco Evanilson de Lima Barbosa → João Pedro Junqueira de Jesus"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Antoine Semenyo",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 208.0,
+      "rank": 5,
+      "cumulative_rank": 6
+     },
+     "a_odds": {
+      "points": 39.0,
+      "points_before_hits": 39.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Chris Wood → Junior Kroupi"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 259.0,
+      "rank": 6,
+      "cumulative_rank": 5
+     },
+     "c1": {
+      "points": 50.0,
+      "points_before_hits": 50.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Joachim Andersen → Matheus Nunes"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 261.0,
+      "rank": 4,
+      "cumulative_rank": 4
+     },
+     "engine": {
+      "points": 80.0,
+      "points_before_hits": 80.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Chris Richards → Marcos Senesi Barón"
+      ],
+      "captain": "Gabriel dos Santos Magalhães",
+      "vice_captain": "Jurriën Timber",
+      "captain_points": 9.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 310.0,
+      "rank": 1,
+      "cumulative_rank": 3
+     },
+     "c3_e2": {
+      "points": 66.0,
+      "points_before_hits": 66.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Lutsharel Geertruida → Marcos Senesi Barón"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 362.0,
+      "rank": 3,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 10,
+    "models": {
+     "c3": {
+      "points": 69.0,
+      "points_before_hits": 69.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Marcos Senesi Barón → Nordi Mukiele"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 13.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 405.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     },
+     "a": {
+      "points": 63.0,
+      "points_before_hits": 63.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Pascal Struijk → Gabriel dos Santos Magalhães"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 10.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 271.0,
+      "rank": 3,
+      "cumulative_rank": 6
+     },
+     "a_odds": {
+      "points": 62.0,
+      "points_before_hits": 62.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Brajan Gruda → Cody Gakpo"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 13.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 321.0,
+      "rank": 4,
+      "cumulative_rank": 4
+     },
+     "c1": {
+      "points": 60.0,
+      "points_before_hits": 60.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Daniel Muñoz Mejía → Jurriën Timber"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 10.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 321.0,
+      "rank": 5,
+      "cumulative_rank": 4
+     },
+     "engine": {
+      "points": 58.0,
+      "points_before_hits": 58.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Marcos Senesi Barón → Nordi Mukiele"
+      ],
+      "captain": "Robin Roefs",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 368.0,
+      "rank": 6,
+      "cumulative_rank": 3
+     },
+     "c3_e2": {
+      "points": 70.0,
+      "points_before_hits": 70.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Marcos Senesi Barón → Nordi Mukiele"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 13.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 432.0,
+      "rank": 1,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 11,
+    "models": {
+     "c3": {
+      "points": 24.0,
+      "points_before_hits": 24.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Omar Alderete → Reece James"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 4.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 429.0,
+      "rank": 5,
+      "cumulative_rank": 2
+     },
+     "a": {
+      "points": 39.0,
+      "points_before_hits": 43.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Mohamed Salah → Bryan Mbeumo",
+       "Viktor Gyökeres → Erling Haaland"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 4.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 310.0,
+      "rank": 1,
+      "cumulative_rank": 6
+     },
+     "a_odds": {
+      "points": 32.0,
+      "points_before_hits": 32.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Omari Hutchinson → Tomáš Souček"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 4.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 353.0,
+      "rank": 4,
+      "cumulative_rank": 5
+     },
+     "c1": {
+      "points": 34.0,
+      "points_before_hits": 34.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Cody Gakpo → Morgan Gibbs-White"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 355.0,
+      "rank": 3,
+      "cumulative_rank": 4
+     },
+     "engine": {
+      "points": 21.0,
+      "points_before_hits": 21.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Omar Alderete → Reece James"
+      ],
+      "captain": "Gabriel dos Santos Magalhães",
+      "vice_captain": "Jurriën Timber",
+      "captain_points": 1.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 389.0,
+      "rank": 6,
+      "cumulative_rank": 3
+     },
+     "c3_e2": {
+      "points": 35.0,
+      "points_before_hits": 35.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Omar Alderete → Reece James"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 4.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 467.0,
+      "rank": 2,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 12,
+    "models": {
+     "c3": {
+      "points": 53.0,
+      "points_before_hits": 53.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Micky van de Ven → Chris Richards"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 482.0,
+      "rank": 4,
+      "cumulative_rank": 2
+     },
+     "a": {
+      "points": 32.0,
+      "points_before_hits": 32.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Morgan Gibbs-White → Granit Xhaka"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Bryan Mbeumo",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 342.0,
+      "rank": 6,
+      "cumulative_rank": 6
+     },
+     "a_odds": {
+      "points": 44.0,
+      "points_before_hits": 44.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Anthony Gordon → Samuel Chukwueze"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 397.0,
+      "rank": 5,
+      "cumulative_rank": 5
+     },
+     "c1": {
+      "points": 64.0,
+      "points_before_hits": 64.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Matheus Nunes → Daniel Muñoz Mejía"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 419.0,
+      "rank": 1,
+      "cumulative_rank": 4
+     },
+     "engine": {
+      "points": 57.0,
+      "points_before_hits": 57.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Micky van de Ven → Chris Richards"
+      ],
+      "captain": "Chris Richards",
+      "vice_captain": "Robin Roefs",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 446.0,
+      "rank": 3,
+      "cumulative_rank": 3
+     },
+     "c3_e2": {
+      "points": 58.0,
+      "points_before_hits": 58.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Reece James → Chris Richards"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 525.0,
+      "rank": 2,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 13,
+    "models": {
+     "c3": {
+      "points": 25.0,
+      "points_before_hits": 25.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Reece James → Lucas Digne"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 507.0,
+      "rank": 5,
+      "cumulative_rank": 2
+     },
+     "a": {
+      "points": 24.0,
+      "points_before_hits": 24.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Antoine Semenyo → Kevin Schade"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Bryan Mbeumo",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 366.0,
+      "rank": 6,
+      "cumulative_rank": 6
+     },
+     "a_odds": {
+      "points": 39.0,
+      "points_before_hits": 39.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Antoine Semenyo → Donyell Malen"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 436.0,
+      "rank": 1,
+      "cumulative_rank": 5
+     },
+     "c1": {
+      "points": 28.0,
+      "points_before_hits": 28.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Antoine Semenyo → Kevin Schade"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Jurriën Timber",
+      "captain_points": 0.0,
+      "vice_used": true,
+      "n_autosubs": 1,
+      "cumulative": 447.0,
+      "rank": 4,
+      "cumulative_rank": 4
+     },
+     "engine": {
+      "points": 30.0,
+      "points_before_hits": 30.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Reece James → Lucas Digne"
+      ],
+      "captain": "Lucas Digne",
+      "vice_captain": "Guglielmo Vicario",
+      "captain_points": 7.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 476.0,
+      "rank": 3,
+      "cumulative_rank": 3
+     },
+     "c3_e2": {
+      "points": 31.0,
+      "points_before_hits": 31.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Gabriel dos Santos Magalhães → Lucas Digne"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Jurriën Timber",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 556.0,
+      "rank": 2,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 14,
+    "models": {
+     "c3": {
+      "points": 49.0,
+      "points_before_hits": 49.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Gabriel dos Santos Magalhães → Nico O'Reilly"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Jurriën Timber",
+      "captain_points": 14.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 556.0,
+      "rank": 5,
+      "cumulative_rank": 2
+     },
+     "a": {
+      "points": 59.0,
+      "points_before_hits": 59.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Idrissa Gana Gueye → Elliot Anderson"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Bryan Mbeumo",
+      "captain_points": 14.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 425.0,
+      "rank": 2,
+      "cumulative_rank": 6
+     },
+     "a_odds": {
+      "points": 68.0,
+      "points_before_hits": 68.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Tomáš Souček → Bruno Borges Fernandes"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 14.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 504.0,
+      "rank": 1,
+      "cumulative_rank": 4
+     },
+     "c1": {
+      "points": 52.0,
+      "points_before_hits": 52.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Gabriel dos Santos Magalhães → Virgil van Dijk"
+      ],
+      "captain": "Mohamed Salah",
+      "vice_captain": "Virgil van Dijk",
+      "captain_points": 1.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 499.0,
+      "rank": 4,
+      "cumulative_rank": 5
+     },
+     "engine": {
+      "points": 38.0,
+      "points_before_hits": 38.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Gabriel dos Santos Magalhães → Nico O'Reilly"
+      ],
+      "captain": "Nico O'Reilly",
+      "vice_captain": "Jurriën Timber",
+      "captain_points": 0.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 514.0,
+      "rank": 6,
+      "cumulative_rank": 3
+     },
+     "c3_e2": {
+      "points": 57.0,
+      "points_before_hits": 57.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Lucas Digne → Nico O'Reilly"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Jurriën Timber",
+      "captain_points": 14.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 613.0,
+      "rank": 3,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 15,
+    "models": {
+     "c3": {
+      "points": 38.0,
+      "points_before_hits": 38.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Nordi Mukiele → Patrick Dorgu"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Jurriën Timber",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 594.0,
+      "rank": 5,
+      "cumulative_rank": 2
+     },
+     "a": {
+      "points": 35.0,
+      "points_before_hits": 35.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "João Pedro Junqueira de Jesus → Igor Thiago Nascimento Rodrigues"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Bryan Mbeumo",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 460.0,
+      "rank": 6,
+      "cumulative_rank": 6
+     },
+     "a_odds": {
+      "points": 43.0,
+      "points_before_hits": 43.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Rodrigo Martins Gomes → Nico O'Reilly"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 547.0,
+      "rank": 3,
+      "cumulative_rank": 5
+     },
+     "c1": {
+      "points": 58.0,
+      "points_before_hits": 58.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Mohamed Salah → Phil Foden"
+      ],
+      "captain": "Phil Foden",
+      "vice_captain": "Jurriën Timber",
+      "captain_points": 12.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 557.0,
+      "rank": 1,
+      "cumulative_rank": 3
+     },
+     "engine": {
+      "points": 39.0,
+      "points_before_hits": 39.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Nordi Mukiele → Matthijs de Ligt"
+      ],
+      "captain": "Matthijs de Ligt",
+      "vice_captain": "Jurriën Timber",
+      "captain_points": 0.0,
+      "vice_used": true,
+      "n_autosubs": 1,
+      "cumulative": 553.0,
+      "rank": 4,
+      "cumulative_rank": 4
+     },
+     "c3_e2": {
+      "points": 56.0,
+      "points_before_hits": 56.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Brajan Gruda → Donyell Malen"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Jurriën Timber",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 669.0,
+      "rank": 2,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 16,
+    "models": {
+     "c3": {
+      "points": 47.0,
+      "points_before_hits": 47.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Robin Roefs → David Raya Martín"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 13.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 641.0,
+      "rank": 5,
+      "cumulative_rank": 2
+     },
+     "a": {
+      "points": 61.0,
+      "points_before_hits": 61.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Granit Xhaka → Phil Foden"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Phil Foden",
+      "captain_points": 13.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 521.0,
+      "rank": 3,
+      "cumulative_rank": 6
+     },
+     "a_odds": {
+      "points": 76.0,
+      "points_before_hits": 76.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Enzo Fernández → Anthony Gordon"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 13.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 623.0,
+      "rank": 1,
+      "cumulative_rank": 3
+     },
+     "c1": {
+      "points": 55.0,
+      "points_before_hits": 55.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Daniel Muñoz Mejía → Neco Williams"
+      ],
+      "captain": "David Raya Martín",
+      "vice_captain": "Phil Foden",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 612.0,
+      "rank": 4,
+      "cumulative_rank": 4
+     },
+     "engine": {
+      "points": 41.0,
+      "points_before_hits": 41.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Robin Roefs → David Raya Martín"
+      ],
+      "captain": "David Raya Martín",
+      "vice_captain": "Jurriën Timber",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 594.0,
+      "rank": 6,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 65.0,
+      "points_before_hits": 65.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Robin Roefs → David Raya Martín"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 13.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 734.0,
+      "rank": 2,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 17,
+    "models": {
+     "c3": {
+      "points": 78.0,
+      "points_before_hits": 78.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Patrick Dorgu → Nathan Collins"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 16.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 719.0,
+      "rank": 3,
+      "cumulative_rank": 2
+     },
+     "a": {
+      "points": 58.0,
+      "points_before_hits": 58.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Gabriel dos Santos Magalhães → Nathan Collins"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Phil Foden",
+      "captain_points": 16.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 579.0,
+      "rank": 5,
+      "cumulative_rank": 6
+     },
+     "a_odds": {
+      "points": 88.0,
+      "points_before_hits": 88.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Tyrone Mings → Nathan Collins"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 16.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 711.0,
+      "rank": 1,
+      "cumulative_rank": 3
+     },
+     "c1": {
+      "points": 49.0,
+      "points_before_hits": 49.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Jaidon Anthony → Bruno Borges Fernandes"
+      ],
+      "captain": "David Raya Martín",
+      "vice_captain": "Bruno Borges Fernandes",
+      "captain_points": 7.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 661.0,
+      "rank": 6,
+      "cumulative_rank": 5
+     },
+     "engine": {
+      "points": 70.0,
+      "points_before_hits": 70.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Matthijs de Ligt → Nathan Collins"
+      ],
+      "captain": "Nathan Collins",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 8.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 664.0,
+      "rank": 4,
+      "cumulative_rank": 4
+     },
+     "c3_e2": {
+      "points": 80.0,
+      "points_before_hits": 80.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Nordi Mukiele → Nathan Collins"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 16.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 814.0,
+      "rank": 2,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 18,
+    "models": {
+     "c3": {
+      "points": 56.0,
+      "points_before_hits": 56.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Danny Welbeck → Dominic Calvert-Lewin"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 775.0,
+      "rank": 1,
+      "cumulative_rank": 2
+     },
+     "a": {
+      "points": 51.0,
+      "points_before_hits": 51.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Bryan Mbeumo → Declan Rice"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Phil Foden",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 630.0,
+      "rank": 3,
+      "cumulative_rank": 6
+     },
+     "a_odds": {
+      "points": 28.0,
+      "points_before_hits": 28.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Riccardo Calafiori → Virgil van Dijk"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 739.0,
+      "rank": 6,
+      "cumulative_rank": 3
+     },
+     "c1": {
+      "points": 48.0,
+      "points_before_hits": 48.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Jurriën Timber → Nathan Collins"
+      ],
+      "captain": "David Raya Martín",
+      "vice_captain": "Bruno Borges Fernandes",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 709.0,
+      "rank": 4,
+      "cumulative_rank": 5
+     },
+     "engine": {
+      "points": 55.0,
+      "points_before_hits": 55.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Viktor Gyökeres → Dominic Calvert-Lewin"
+      ],
+      "captain": "David Raya Martín",
+      "vice_captain": "Jurriën Timber",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 719.0,
+      "rank": 2,
+      "cumulative_rank": 4
+     },
+     "c3_e2": {
+      "points": 31.0,
+      "points_before_hits": 31.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Callum Wilson → Dominic Calvert-Lewin"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 845.0,
+      "rank": 5,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 19,
+    "models": {
+     "c3": {
+      "points": 47.0,
+      "points_before_hits": 47.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Lucas Digne → Patrick Dorgu"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 822.0,
+      "rank": 4,
+      "cumulative_rank": 2
+     },
+     "a": {
+      "points": 58.0,
+      "points_before_hits": 58.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Reinildo Mandava → Rúben dos Santos Gato Alves Dias"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Phil Foden",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 688.0,
+      "rank": 1,
+      "cumulative_rank": 6
+     },
+     "a_odds": {
+      "points": 38.0,
+      "points_before_hits": 38.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Jurriën Timber → Joško Gvardiol"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 777.0,
+      "rank": 6,
+      "cumulative_rank": 3
+     },
+     "c1": {
+      "points": 53.0,
+      "points_before_hits": 53.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Chris Richards → Rúben dos Santos Gato Alves Dias"
+      ],
+      "captain": "David Raya Martín",
+      "vice_captain": "Phil Foden",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 762.0,
+      "rank": 2,
+      "cumulative_rank": 5
+     },
+     "engine": {
+      "points": 44.0,
+      "points_before_hits": 44.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Brennan Johnson → Bruno Borges Fernandes"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Dominic Calvert-Lewin",
+      "captain_points": 0.0,
+      "vice_used": true,
+      "n_autosubs": 2,
+      "cumulative": 763.0,
+      "rank": 5,
+      "cumulative_rank": 4
+     },
+     "c3_e2": {
+      "points": 49.0,
+      "points_before_hits": 49.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Riccardo Calafiori → Patrick Dorgu"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 894.0,
+      "rank": 3,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 20,
+    "models": {
+     "c3": {
+      "points": 50.0,
+      "points_before_hits": 50.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Viktor Gyökeres → Ollie Watkins"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Jurriën Timber",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 872.0,
+      "rank": 3,
+      "cumulative_rank": 2
+     },
+     "a": {
+      "points": 61.0,
+      "points_before_hits": 61.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Declan Rice → Morgan Rogers"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Phil Foden",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 749.0,
+      "rank": 1,
+      "cumulative_rank": 6
+     },
+     "a_odds": {
+      "points": 32.0,
+      "points_before_hits": 32.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Bruno Borges Fernandes → Leandro Trossard"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 809.0,
+      "rank": 6,
+      "cumulative_rank": 4
+     },
+     "c1": {
+      "points": 52.0,
+      "points_before_hits": 52.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Marcos Senesi Barón → Pedro Porro Sauceda"
+      ],
+      "captain": "Phil Foden",
+      "vice_captain": "Virgil van Dijk",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 814.0,
+      "rank": 2,
+      "cumulative_rank": 3
+     },
+     "engine": {
+      "points": 44.0,
+      "points_before_hits": 44.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Antoine Semenyo → David Brooks"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Guglielmo Vicario",
+      "captain_points": 0.0,
+      "vice_used": true,
+      "n_autosubs": 1,
+      "cumulative": 807.0,
+      "rank": 4,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 39.0,
+      "points_before_hits": 39.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Bryan Mbeumo → David Brooks"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Jurriën Timber",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 933.0,
+      "rank": 5,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 21,
+    "models": {
+     "c3": {
+      "points": 66.0,
+      "points_before_hits": 66.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Nico O'Reilly → James Tarkowski"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 938.0,
+      "rank": 3,
+      "cumulative_rank": 2
+     },
+     "a": {
+      "points": 68.0,
+      "points_before_hits": 68.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Phil Foden → Antoine Semenyo"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Morgan Rogers",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 817.0,
+      "rank": 2,
+      "cumulative_rank": 6
+     },
+     "a_odds": {
+      "points": 53.0,
+      "points_before_hits": 53.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Samuel Chukwueze → Kevin Schade"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 862.0,
+      "rank": 6,
+      "cumulative_rank": 5
+     },
+     "c1": {
+      "points": 66.0,
+      "points_before_hits": 66.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Bruno Borges Fernandes → Antoine Semenyo"
+      ],
+      "captain": "Phil Foden",
+      "vice_captain": "Antoine Semenyo",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 880.0,
+      "rank": 3,
+      "cumulative_rank": 3
+     },
+     "engine": {
+      "points": 69.0,
+      "points_before_hits": 69.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Chris Richards → James Tarkowski"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "James Tarkowski",
+      "captain_points": 7.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 876.0,
+      "rank": 1,
+      "cumulative_rank": 4
+     },
+     "c3_e2": {
+      "points": 63.0,
+      "points_before_hits": 63.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Chris Richards → James Tarkowski"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 996.0,
+      "rank": 5,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 22,
+    "models": {
+     "c3": {
+      "points": 50.0,
+      "points_before_hits": 50.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Chris Richards → Nordi Mukiele"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 988.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     },
+     "a": {
+      "points": 33.0,
+      "points_before_hits": 33.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Enzo Fernández → Bruno Guimarães Rodriguez Moura"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Morgan Rogers",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 850.0,
+      "rank": 5,
+      "cumulative_rank": 6
+     },
+     "a_odds": {
+      "points": 29.0,
+      "points_before_hits": 33.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Donyell Malen → Florian Wirtz",
+       "Hugo Ekitiké → Danny Welbeck"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 891.0,
+      "rank": 6,
+      "cumulative_rank": 5
+     },
+     "c1": {
+      "points": 41.0,
+      "points_before_hits": 41.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Morgan Gibbs-White → Cody Gakpo"
+      ],
+      "captain": "David Raya Martín",
+      "vice_captain": "Phil Foden",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 921.0,
+      "rank": 4,
+      "cumulative_rank": 4
+     },
+     "engine": {
+      "points": 50.0,
+      "points_before_hits": 50.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Nico O'Reilly → Malick Thiaw"
+      ],
+      "captain": "David Raya Martín",
+      "vice_captain": "Kevin Schade",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 926.0,
+      "rank": 2,
+      "cumulative_rank": 3
+     },
+     "c3_e2": {
+      "points": 51.0,
+      "points_before_hits": 51.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Bruno Borges Fernandes → Kevin Schade"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 1047.0,
+      "rank": 1,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 23,
+    "models": {
+     "c3": {
+      "points": 48.0,
+      "points_before_hits": 48.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "David Raya Martín → Gianluigi Donnarumma"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Jurriën Timber",
+      "captain_points": 1.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1036.0,
+      "rank": 3,
+      "cumulative_rank": 2
+     },
+     "a": {
+      "points": 54.0,
+      "points_before_hits": 54.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Rúben dos Santos Gato Alves Dias → Cristian Romero"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Antoine Semenyo",
+      "captain_points": 1.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 904.0,
+      "rank": 2,
+      "cumulative_rank": 6
+     },
+     "a_odds": {
+      "points": 36.0,
+      "points_before_hits": 36.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Joško Gvardiol → Cristian Romero"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 1.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 927.0,
+      "rank": 5,
+      "cumulative_rank": 5
+     },
+     "c1": {
+      "points": 62.0,
+      "points_before_hits": 62.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Phil Foden → Bruno Guimarães Rodriguez Moura"
+      ],
+      "captain": "Antoine Semenyo",
+      "vice_captain": "Virgil van Dijk",
+      "captain_points": 8.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 983.0,
+      "rank": 1,
+      "cumulative_rank": 3
+     },
+     "engine": {
+      "points": 43.0,
+      "points_before_hits": 43.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Guglielmo Vicario → Gianluigi Donnarumma"
+      ],
+      "captain": "Gianluigi Donnarumma",
+      "vice_captain": "Kevin Schade",
+      "captain_points": 8.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 969.0,
+      "rank": 4,
+      "cumulative_rank": 4
+     },
+     "c3_e2": {
+      "points": 31.0,
+      "points_before_hits": 31.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Donyell Malen → Florian Wirtz"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 1.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1078.0,
+      "rank": 6,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 24,
+    "models": {
+     "c3": {
+      "points": 42.0,
+      "points_before_hits": 42.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Erling Haaland → Igor Thiago Nascimento Rodrigues"
+      ],
+      "captain": "Jurriën Timber",
+      "vice_captain": "Gianluigi Donnarumma",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 1078.0,
+      "rank": 3,
+      "cumulative_rank": 2
+     },
+     "a": {
+      "points": 39.0,
+      "points_before_hits": 39.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Igor Thiago Nascimento Rodrigues → Brian Brobbey"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Antoine Semenyo",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 943.0,
+      "rank": 5,
+      "cumulative_rank": 6
+     },
+     "a_odds": {
+      "points": 41.0,
+      "points_before_hits": 41.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Junior Kroupi → Taiwo Awoniyi"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 968.0,
+      "rank": 4,
+      "cumulative_rank": 5
+     },
+     "c1": {
+      "points": 47.0,
+      "points_before_hits": 47.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Rúben dos Santos Gato Alves Dias → Diogo Dalot Teixeira"
+      ],
+      "captain": "Antoine Semenyo",
+      "vice_captain": "Cody Gakpo",
+      "captain_points": 7.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1030.0,
+      "rank": 2,
+      "cumulative_rank": 3
+     },
+     "engine": {
+      "points": 37.0,
+      "points_before_hits": 37.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "David Raya Martín → Robert Lynch Sánchez"
+      ],
+      "captain": "Robert Lynch Sánchez",
+      "vice_captain": "Kevin Schade",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1006.0,
+      "rank": 6,
+      "cumulative_rank": 4
+     },
+     "c3_e2": {
+      "points": 53.0,
+      "points_before_hits": 53.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Dominic Calvert-Lewin → Igor Thiago Nascimento Rodrigues"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1131.0,
+      "rank": 1,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 25,
+    "models": {
+     "c3": {
+      "points": 37.0,
+      "points_before_hits": 37.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Guglielmo Vicario → Robert Lynch Sánchez"
+      ],
+      "captain": "Jurriën Timber",
+      "vice_captain": "Ollie Watkins",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 1115.0,
+      "rank": 6,
+      "cumulative_rank": 2
+     },
+     "a": {
+      "points": 61.0,
+      "points_before_hits": 61.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Bruno Guimarães Rodriguez Moura → Declan Rice"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Antoine Semenyo",
+      "captain_points": 11.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1004.0,
+      "rank": 1,
+      "cumulative_rank": 6
+     },
+     "a_odds": {
+      "points": 46.0,
+      "points_before_hits": 46.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Florian Wirtz → Bryan Mbeumo"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 11.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1014.0,
+      "rank": 4,
+      "cumulative_rank": 5
+     },
+     "c1": {
+      "points": 59.0,
+      "points_before_hits": 59.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Pedro Porro Sauceda → Gabriel dos Santos Magalhães"
+      ],
+      "captain": "Gabriel dos Santos Magalhães",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1089.0,
+      "rank": 2,
+      "cumulative_rank": 3
+     },
+     "engine": {
+      "points": 49.0,
+      "points_before_hits": 49.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Lucas Digne → Marc Cucurella Saseta"
+      ],
+      "captain": "Robert Lynch Sánchez",
+      "vice_captain": "Marc Cucurella Saseta",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 1055.0,
+      "rank": 3,
+      "cumulative_rank": 4
+     },
+     "c3_e2": {
+      "points": 38.0,
+      "points_before_hits": 38.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Erling Haaland → Norberto Bercique Gomes Betuncal"
+      ],
+      "captain": "David Raya Martín",
+      "vice_captain": "Jurriën Timber",
+      "captain_points": 7.0,
+      "vice_used": false,
+      "n_autosubs": 3,
+      "cumulative": 1169.0,
+      "rank": 5,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 26,
+    "models": {
+     "c3": {
+      "points": 34.0,
+      "points_before_hits": 34.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Robert Lynch Sánchez → David Raya Martín"
+      ],
+      "captain": "David Raya Martín",
+      "vice_captain": "Jurriën Timber",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1149.0,
+      "rank": 5,
+      "cumulative_rank": 3
+     },
+     "a": {
+      "points": 67.0,
+      "points_before_hits": 71.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Cristian Romero → Gabriel dos Santos Magalhães",
+       "Nathan Collins → Hugo Bueno López"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1071.0,
+      "rank": 3,
+      "cumulative_rank": 6
+     },
+     "a_odds": {
+      "points": 77.0,
+      "points_before_hits": 81.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Nathan Collins → Hugo Bueno López",
+       "Kevin Schade → Declan Rice"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1091.0,
+      "rank": 1,
+      "cumulative_rank": 4
+     },
+     "c1": {
+      "points": 77.0,
+      "points_before_hits": 77.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Kevin Schade → Declan Rice"
+      ],
+      "captain": "Gabriel dos Santos Magalhães",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 7.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1166.0,
+      "rank": 1,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 34.0,
+      "points_before_hits": 34.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Gianluigi Donnarumma → David Raya Martín"
+      ],
+      "captain": "David Raya Martín",
+      "vice_captain": "Jurriën Timber",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 1089.0,
+      "rank": 5,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 60.0,
+      "points_before_hits": 60.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "David Brooks → Declan Rice"
+      ],
+      "captain": "David Raya Martín",
+      "vice_captain": "Jurriën Timber",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1229.0,
+      "rank": 4,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 27,
+    "models": {
+     "c3": {
+      "points": 28.0,
+      "points_before_hits": 28.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Patrick Dorgu → Maxence Lacroix"
+      ],
+      "captain": "Jurriën Timber",
+      "vice_captain": "Gianluigi Donnarumma",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1177.0,
+      "rank": 6,
+      "cumulative_rank": 3
+     },
+     "a": {
+      "points": 51.0,
+      "points_before_hits": 55.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Erling Haaland → João Pedro Junqueira de Jesus",
+       "Kevin Schade → Cole Palmer"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1122.0,
+      "rank": 2,
+      "cumulative_rank": 6
+     },
+     "a_odds": {
+      "points": 78.0,
+      "points_before_hits": 82.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Anthony Gordon → Daichi Kamada",
+       "Bryan Mbeumo → Cole Palmer"
+      ],
+      "captain": "Erling Haaland",
+      "vice_captain": "Cole Palmer",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1169.0,
+      "rank": 1,
+      "cumulative_rank": 4
+     },
+     "c1": {
+      "points": 47.0,
+      "points_before_hits": 47.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Dominic Calvert-Lewin → João Pedro Junqueira de Jesus"
+      ],
+      "captain": "Gabriel dos Santos Magalhães",
+      "vice_captain": "Antoine Semenyo",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1213.0,
+      "rank": 4,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 34.0,
+      "points_before_hits": 34.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Malick Thiaw → Maxence Lacroix"
+      ],
+      "captain": "Robert Lynch Sánchez",
+      "vice_captain": "Maxence Lacroix",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 1123.0,
+      "rank": 5,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 48.0,
+      "points_before_hits": 48.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Danny Welbeck → João Pedro Junqueira de Jesus"
+      ],
+      "captain": "David Raya Martín",
+      "vice_captain": "Jurriën Timber",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1277.0,
+      "rank": 3,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 28,
+    "models": {
+     "c3": {
+      "points": 51.0,
+      "points_before_hits": 51.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Ollie Watkins → João Pedro Junqueira de Jesus"
+      ],
+      "captain": "Jurriën Timber",
+      "vice_captain": "Gianluigi Donnarumma",
+      "captain_points": 8.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1228.0,
+      "rank": 5,
+      "cumulative_rank": 3
+     },
+     "a": {
+      "points": 62.0,
+      "points_before_hits": 62.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Cole Palmer → Bruno Borges Fernandes"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Antoine Semenyo",
+      "captain_points": 13.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1184.0,
+      "rank": 2,
+      "cumulative_rank": 5
+     },
+     "a_odds": {
+      "points": 54.0,
+      "points_before_hits": 54.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Erling Haaland → Benjamin Sesko"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 1.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1223.0,
+      "rank": 4,
+      "cumulative_rank": 4
+     },
+     "c1": {
+      "points": 65.0,
+      "points_before_hits": 65.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Bruno Guimarães Rodriguez Moura → Morgan Rogers"
+      ],
+      "captain": "Gabriel dos Santos Magalhães",
+      "vice_captain": "Antoine Semenyo",
+      "captain_points": 9.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1278.0,
+      "rank": 1,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 50.0,
+      "points_before_hits": 50.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Robert Lynch Sánchez → Emiliano Martínez Romero"
+      ],
+      "captain": "Emiliano Martínez Romero",
+      "vice_captain": "Nathan Collins",
+      "captain_points": 1.0,
+      "vice_used": false,
+      "n_autosubs": 3,
+      "cumulative": 1173.0,
+      "rank": 6,
+      "cumulative_rank": 6
+     },
+     "c3_e2": {
+      "points": 55.0,
+      "points_before_hits": 55.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Igor Thiago Nascimento Rodrigues → Callum Wilson"
+      ],
+      "captain": "David Raya Martín",
+      "vice_captain": "Jurriën Timber",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1332.0,
+      "rank": 3,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 29,
+    "models": {
+     "c3": {
+      "points": 81.0,
+      "points_before_hits": 81.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Nathan Collins → Virgil van Dijk"
+      ],
+      "captain": "Jurriën Timber",
+      "vice_captain": "Virgil van Dijk",
+      "captain_points": 13.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 1309.0,
+      "rank": 3,
+      "cumulative_rank": 3
+     },
+     "a": {
+      "points": 93.0,
+      "points_before_hits": 93.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Hugo Bueno López → James Tarkowski"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 8.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1277.0,
+      "rank": 1,
+      "cumulative_rank": 4
+     },
+     "a_odds": {
+      "points": 40.0,
+      "points_before_hits": 40.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Taiwo Awoniyi → Norberto Bercique Gomes Betuncal"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 9.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1263.0,
+      "rank": 6,
+      "cumulative_rank": 5
+     },
+     "c1": {
+      "points": 69.0,
+      "points_before_hits": 69.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Nathan Collins → Ibrahima Konaté"
+      ],
+      "captain": "David Raya Martín",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 7.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1347.0,
+      "rank": 4,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 64.0,
+      "points_before_hits": 64.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Dominic Calvert-Lewin → Norberto Bercique Gomes Betuncal"
+      ],
+      "captain": "Norberto Bercique Gomes Betuncal",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1237.0,
+      "rank": 5,
+      "cumulative_rank": 6
+     },
+     "c3_e2": {
+      "points": 82.0,
+      "points_before_hits": 82.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Patrick Dorgu → Virgil van Dijk"
+      ],
+      "captain": "Jurriën Timber",
+      "vice_captain": "Virgil van Dijk",
+      "captain_points": 13.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1414.0,
+      "rank": 2,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 30,
+    "models": {
+     "c3": {
+      "points": 46.0,
+      "points_before_hits": 46.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Nordi Mukiele → Keane Lewis-Potter"
+      ],
+      "captain": "David Raya Martín",
+      "vice_captain": "Jurriën Timber",
+      "captain_points": 7.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1355.0,
+      "rank": 2,
+      "cumulative_rank": 3
+     },
+     "a": {
+      "points": 59.0,
+      "points_before_hits": 59.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Brian Brobbey → Benjamin Sesko"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 10.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1336.0,
+      "rank": 1,
+      "cumulative_rank": 4
+     },
+     "a_odds": {
+      "points": 40.0,
+      "points_before_hits": 40.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Cristian Romero → Marcos Senesi Barón"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1303.0,
+      "rank": 6,
+      "cumulative_rank": 5
+     },
+     "c1": {
+      "points": 43.0,
+      "points_before_hits": 43.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Neco Williams → Matheus Nunes"
+      ],
+      "captain": "Gabriel dos Santos Magalhães",
+      "vice_captain": "Antoine Semenyo",
+      "captain_points": 9.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1390.0,
+      "rank": 3,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 41.0,
+      "points_before_hits": 41.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Erling Haaland → João Pedro Junqueira de Jesus"
+      ],
+      "captain": "João Pedro Junqueira de Jesus",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1278.0,
+      "rank": 5,
+      "cumulative_rank": 6
+     },
+     "c3_e2": {
+      "points": 43.0,
+      "points_before_hits": 43.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Florian Wirtz → Bruno Borges Fernandes"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 10.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1457.0,
+      "rank": 3,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 31,
+    "models": {
+     "c3": {
+      "points": 31.0,
+      "points_before_hits": 31.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Jurriën Timber → Malick Thiaw"
+      ],
+      "captain": "David Raya Martín",
+      "vice_captain": "Virgil van Dijk",
+      "captain_points": 0.0,
+      "vice_used": true,
+      "n_autosubs": 0,
+      "cumulative": 1386.0,
+      "rank": 6,
+      "cumulative_rank": 4
+     },
+     "a": {
+      "points": 64.0,
+      "points_before_hits": 64.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Antoine Semenyo → Anthony Gordon"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Morgan Rogers",
+      "captain_points": 13.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1400.0,
+      "rank": 3,
+      "cumulative_rank": 3
+     },
+     "a_odds": {
+      "points": 51.0,
+      "points_before_hits": 55.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Daichi Kamada → Bruno Borges Fernandes",
+       "Hugo Bueno López → Malick Thiaw"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Bruno Borges Fernandes",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1354.0,
+      "rank": 4,
+      "cumulative_rank": 5
+     },
+     "c1": {
+      "points": 45.0,
+      "points_before_hits": 45.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Antoine Semenyo → Anthony Gordon"
+      ],
+      "captain": "Virgil van Dijk",
+      "vice_captain": "Morgan Rogers",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1435.0,
+      "rank": 5,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 69.0,
+      "points_before_hits": 69.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Jurriën Timber → Malick Thiaw"
+      ],
+      "captain": "João Pedro Junqueira de Jesus",
+      "vice_captain": "Malick Thiaw",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1347.0,
+      "rank": 1,
+      "cumulative_rank": 6
+     },
+     "c3_e2": {
+      "points": 67.0,
+      "points_before_hits": 67.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Nico O'Reilly → Malick Thiaw"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Virgil van Dijk",
+      "captain_points": 13.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1524.0,
+      "rank": 2,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 32,
+    "models": {
+     "c3": {
+      "points": 49.0,
+      "points_before_hits": 49.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Brennan Johnson → Bruno Borges Fernandes"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 4.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1435.0,
+      "rank": 3,
+      "cumulative_rank": 4
+     },
+     "a": {
+      "points": 49.0,
+      "points_before_hits": 49.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Nick Pope → Emiliano Martínez Romero"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 4.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 1449.0,
+      "rank": 3,
+      "cumulative_rank": 3
+     },
+     "a_odds": {
+      "points": 53.0,
+      "points_before_hits": 53.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Norberto Bercique Gomes Betuncal → Callum Wilson"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Bruno Borges Fernandes",
+      "captain_points": 4.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1407.0,
+      "rank": 2,
+      "cumulative_rank": 5
+     },
+     "c1": {
+      "points": 64.0,
+      "points_before_hits": 64.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Francisco Evanilson de Lima Barbosa → Igor Thiago Nascimento Rodrigues"
+      ],
+      "captain": "Gabriel dos Santos Magalhães",
+      "vice_captain": "Anthony Gordon",
+      "captain_points": 4.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1499.0,
+      "rank": 1,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 44.0,
+      "points_before_hits": 44.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Marc Cucurella Saseta → Virgil van Dijk"
+      ],
+      "captain": "João Pedro Junqueira de Jesus",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1391.0,
+      "rank": 5,
+      "cumulative_rank": 6
+     },
+     "c3_e2": {
+      "points": 44.0,
+      "points_before_hits": 44.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Callum Wilson → Raúl Jiménez Rodríguez"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 4.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1568.0,
+      "rank": 5,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 33,
+    "models": {
+     "c3": {
+      "points": 75.0,
+      "points_before_hits": 75.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "James Tarkowski → Nico O'Reilly"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Virgil van Dijk",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1510.0,
+      "rank": 2,
+      "cumulative_rank": 3
+     },
+     "a": {
+      "points": 60.0,
+      "points_before_hits": 64.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "James Tarkowski → Pascal Struijk",
+       "Trai Hume → Jan Paul van Hecke"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Morgan Rogers",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1509.0,
+      "rank": 5,
+      "cumulative_rank": 4
+     },
+     "a_odds": {
+      "points": 66.0,
+      "points_before_hits": 70.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "David Raya Martín → Bart Verbruggen",
+       "Joachim Andersen → Pascal Struijk"
+      ],
+      "captain": "Cole Palmer",
+      "vice_captain": "Bruno Borges Fernandes",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1473.0,
+      "rank": 3,
+      "cumulative_rank": 6
+     },
+     "c1": {
+      "points": 53.0,
+      "points_before_hits": 53.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Cody Gakpo → Antoine Semenyo"
+      ],
+      "captain": "Gabriel dos Santos Magalhães",
+      "vice_captain": "Virgil van Dijk",
+      "captain_points": 0.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 1552.0,
+      "rank": 6,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 84.0,
+      "points_before_hits": 88.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "James Tarkowski → Nico O'Reilly",
+       "Emiliano Martínez Romero → Gianluigi Donnarumma"
+      ],
+      "captain": "Nico O'Reilly",
+      "vice_captain": "Gianluigi Donnarumma",
+      "captain_points": 13.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1475.0,
+      "rank": 1,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 61.0,
+      "points_before_hits": 65.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "James Tarkowski → Marc Guéhi",
+       "Jurriën Timber → Nico O'Reilly"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1629.0,
+      "rank": 4,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 34,
+    "models": {
+     "c3": {
+      "points": 34.0,
+      "points_before_hits": 34.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "João Pedro Junqueira de Jesus → Norberto Bercique Gomes Betuncal"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1544.0,
+      "rank": 6,
+      "cumulative_rank": 4
+     },
+     "a": {
+      "points": 52.0,
+      "points_before_hits": 56.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Anthony Gordon → Cody Gakpo",
+       "Jan Paul van Hecke → Nathan Collins"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1561.0,
+      "rank": 2,
+      "cumulative_rank": 3
+     },
+     "a_odds": {
+      "points": 39.0,
+      "points_before_hits": 43.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Marcos Senesi Barón → Gabriel dos Santos Magalhães",
+       "Cole Palmer → Xavi Simons"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1512.0,
+      "rank": 5,
+      "cumulative_rank": 6
+     },
+     "c1": {
+      "points": 54.0,
+      "points_before_hits": 54.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Matheus Nunes → Keane Lewis-Potter"
+      ],
+      "captain": "Gabriel dos Santos Magalhães",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 8.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1606.0,
+      "rank": 1,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 47.0,
+      "points_before_hits": 47.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Enzo Fernández → Morgan Gibbs-White"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Norberto Bercique Gomes Betuncal",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1522.0,
+      "rank": 3,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 47.0,
+      "points_before_hits": 47.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Enzo Fernández → Morgan Gibbs-White"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1676.0,
+      "rank": 3,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 35,
+    "models": {
+     "c3": {
+      "points": 50.0,
+      "points_before_hits": 50.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Enzo Fernández → Morgan Gibbs-White"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1594.0,
+      "rank": 2,
+      "cumulative_rank": 4
+     },
+     "a": {
+      "points": 44.0,
+      "points_before_hits": 44.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Joe Rodon → Virgil van Dijk"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1605.0,
+      "rank": 3,
+      "cumulative_rank": 3
+     },
+     "a_odds": {
+      "points": 40.0,
+      "points_before_hits": 40.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Callum Wilson → Tammy Abraham"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1552.0,
+      "rank": 5,
+      "cumulative_rank": 6
+     },
+     "c1": {
+      "points": 54.0,
+      "points_before_hits": 54.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Virgil van Dijk → Marc Cucurella Saseta"
+      ],
+      "captain": "Gabriel dos Santos Magalhães",
+      "vice_captain": "Antoine Semenyo",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1660.0,
+      "rank": 1,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 42.0,
+      "points_before_hits": 42.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Virgil van Dijk → Jurriën Timber"
+      ],
+      "captain": "Nico O'Reilly",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 1.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1564.0,
+      "rank": 4,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 40.0,
+      "points_before_hits": 40.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Raúl Jiménez Rodríguez → Wilson Isidor"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1716.0,
+      "rank": 5,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 36,
+    "models": {
+     "c3": {
+      "points": 56.0,
+      "points_before_hits": 56.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Antoine Semenyo → Rayan Cherki"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Virgil van Dijk",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1650.0,
+      "rank": 3,
+      "cumulative_rank": 4
+     },
+     "a": {
+      "points": 55.0,
+      "points_before_hits": 59.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Virgil van Dijk → Abdukodir Khusanov",
+       "Declan Rice → Antoine Semenyo"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1660.0,
+      "rank": 4,
+      "cumulative_rank": 3
+     },
+     "a_odds": {
+      "points": 54.0,
+      "points_before_hits": 58.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Virgil van Dijk → Abdukodir Khusanov",
+       "Xavi Simons → Antoine Semenyo"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 1606.0,
+      "rank": 5,
+      "cumulative_rank": 6
+     },
+     "c1": {
+      "points": 64.0,
+      "points_before_hits": 64.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Anthony Gordon → Bernardo Mota Veiga de Carvalho e Silva"
+      ],
+      "captain": "Gabriel dos Santos Magalhães",
+      "vice_captain": "Antoine Semenyo",
+      "captain_points": 11.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1724.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 53.0,
+      "points_before_hits": 53.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "David Brooks → Rayan Cherki"
+      ],
+      "captain": "Nico O'Reilly",
+      "vice_captain": "Rayan Cherki",
+      "captain_points": 5.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 1617.0,
+      "rank": 6,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 68.0,
+      "points_before_hits": 68.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Nathan Collins → Maxence Lacroix"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 1784.0,
+      "rank": 1,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 37,
+    "models": {
+     "c3": {
+      "points": 61.0,
+      "points_before_hits": 61.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Igor Thiago Nascimento Rodrigues → Viktor Gyökeres"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 9.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1711.0,
+      "rank": 1,
+      "cumulative_rank": 4
+     },
+     "a": {
+      "points": 55.0,
+      "points_before_hits": 55.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Morgan Rogers → Dominik Szoboszlai"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 9.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1715.0,
+      "rank": 4,
+      "cumulative_rank": 3
+     },
+     "a_odds": {
+      "points": 44.0,
+      "points_before_hits": 44.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Tammy Abraham → Yoane Wissa"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 9.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1650.0,
+      "rank": 5,
+      "cumulative_rank": 6
+     },
+     "c1": {
+      "points": 59.0,
+      "points_before_hits": 59.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Diogo Dalot Teixeira → Marcos Senesi Barón"
+      ],
+      "captain": "Gabriel dos Santos Magalhães",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1783.0,
+      "rank": 3,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 42.0,
+      "points_before_hits": 42.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "João Pedro Junqueira de Jesus → Viktor Gyökeres"
+      ],
+      "captain": "David Raya Martín",
+      "vice_captain": "Morgan Gibbs-White",
+      "captain_points": 6.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1659.0,
+      "rank": 6,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 60.0,
+      "points_before_hits": 60.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "João Pedro Junqueira de Jesus → Viktor Gyökeres"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 9.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 1844.0,
+      "rank": 2,
+      "cumulative_rank": 1
+     }
+    }
+   },
+   {
+    "gameweek": 38,
+    "models": {
+     "c3": {
+      "points": 69.0,
+      "points_before_hits": 69.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Norberto Bercique Gomes Betuncal → Ollie Watkins"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 14.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1780.0,
+      "rank": 1,
+      "cumulative_rank": 3
+     },
+     "a": {
+      "points": 61.0,
+      "points_before_hits": 61.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Pascal Struijk → Marcos Senesi Barón"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 14.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 1776.0,
+      "rank": 3,
+      "cumulative_rank": 4
+     },
+     "a_odds": {
+      "points": 49.0,
+      "points_before_hits": 49.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Pascal Struijk → Konstantinos Mavropanos"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 14.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 1699.0,
+      "rank": 4,
+      "cumulative_rank": 6
+     },
+     "c1": {
+      "points": 48.0,
+      "points_before_hits": 48.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Bernardo Mota Veiga de Carvalho e Silva → Marcus Tavernier"
+      ],
+      "captain": "David Raya Martín",
+      "vice_captain": "Gabriel dos Santos Magalhães",
+      "captain_points": 0.0,
+      "vice_used": true,
+      "n_autosubs": 2,
+      "cumulative": 1831.0,
+      "rank": 6,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 49.0,
+      "points_before_hits": 49.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Yéremy Pino Santos → Bryan Mbeumo"
+      ],
+      "captain": "Morgan Gibbs-White",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 9.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 1708.0,
+      "rank": 4,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 64.0,
+      "points_before_hits": 64.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Declan Rice → Bryan Mbeumo"
+      ],
+      "captain": "Bruno Borges Fernandes",
+      "vice_captain": "David Raya Martín",
+      "captain_points": 14.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 1908.0,
+      "rank": 2,
+      "cumulative_rank": 1
+     }
+    }
+   }
+  ],
+  "summary": [
+   {
+    "model": "c3",
+    "total": 1780.0,
+    "mean_per_gameweek": 52.35,
+    "gameweeks_won": 4,
+    "hit_points": 0.0,
+    "final_rank": 3,
+    "delta_vs_champion": null
+   },
+   {
+    "model": "a",
+    "total": 1776.0,
+    "mean_per_gameweek": 52.24,
+    "gameweeks_won": 6,
+    "hit_points": -24.0,
+    "final_rank": 4,
+    "delta_vs_champion": {
+     "mean": -0.12,
+     "ci_low": -6.35,
+     "ci_high": 5.91,
+     "total": -4.0,
+     "significant": false,
+     "gameweeks_better": 16,
+     "gameweeks_worse": 17
+    }
+   },
+   {
+    "model": "a_odds",
+    "total": 1699.0,
+    "mean_per_gameweek": 49.97,
+    "gameweeks_won": 6,
+    "hit_points": -32.0,
+    "final_rank": 6,
+    "delta_vs_champion": {
+     "mean": -2.38,
+     "ci_low": -8.82,
+     "ci_high": 4.26,
+     "total": -81.0,
+     "significant": false,
+     "gameweeks_better": 14,
+     "gameweeks_worse": 20
+    }
+   },
+   {
+    "model": "c1",
+    "total": 1831.0,
+    "mean_per_gameweek": 53.85,
+    "gameweeks_won": 8,
+    "hit_points": 0.0,
+    "final_rank": 2,
+    "delta_vs_champion": {
+     "mean": 1.5,
+     "ci_low": -4.15,
+     "ci_high": 6.97,
+     "total": 51.0,
+     "significant": false,
+     "gameweeks_better": 20,
+     "gameweeks_worse": 13
+    }
+   },
+   {
+    "model": "engine",
+    "total": 1708.0,
+    "mean_per_gameweek": 50.24,
+    "gameweeks_won": 4,
+    "hit_points": -4.0,
+    "final_rank": 5,
+    "delta_vs_champion": {
+     "mean": -2.12,
+     "ci_low": -5.41,
+     "ci_high": 1.71,
+     "total": -72.0,
+     "significant": false,
+     "gameweeks_better": 10,
+     "gameweeks_worse": 22
+    }
+   },
+   {
+    "model": "c3_e2",
+    "total": 1908.0,
+    "mean_per_gameweek": 56.12,
+    "gameweeks_won": 7,
+    "hit_points": -4.0,
+    "final_rank": 1,
+    "delta_vs_champion": {
+     "mean": 3.76,
+     "ci_low": -0.53,
+     "ci_high": 7.97,
+     "total": 128.0,
+     "significant": false,
+     "gameweeks_better": 22,
+     "gameweeks_worse": 12
+    }
+   }
+  ]
+ }
+]
