@@ -1,0 +1,43 @@
+# A declared experiment (MOD-09, 05 section 5.3). The loader is fpl_dof.factory.experiments.load_declared.
+# EXP-01 (D-34). Hypothesis and falsifier written 2026-10-24, before the variant was graded.
+id: e1_bonus_spread
+hypothesis: >
+  Goalkeepers lead the champion's horizon xP because M8 understates bonus for everyone, and bonus
+  is mostly an outfield, attacking return. The deployed players.json (2026-10-24) sums 5.7 bonus
+  points over a whole gameweek in which FPL has awarded about 65 a gameweek this season (452 over
+  seven); Haaland's bonus term is 0.76 against 1.74 per 90 realised, a regular midfielder's 0.03
+  against 0.38, while goalkeepers' saves (0.76 against 2.8 saves per 90, i.e. about 0.9 points)
+  and clean sheets (1.14 points at a realised 0.30 a match) are in line with what they score. The
+  cause is arithmetic: M8 holds a player's own BPS at its expectation, so an average player gets
+  0.5**21 of first place. Integrating over the player's own match-to-match BPS spread (bonus_v2)
+  restores the bonus total, lifts attackers relative to goalkeepers and improves the held-out
+  forecast.
+falsifier: >
+  Either direction refutes it. (a) c3_e1 degrades the held-out season against c3: the paired mean
+  delta in MAE or Spearman is worse with a 95% bootstrap interval that excludes zero. (b) c3_e1
+  does not improve on c3: neither MAE nor Spearman is better with a 95% interval that excludes
+  zero, in which case the bonus arithmetic is wrong but is not what costs the ranking, and D-34's
+  cause lies elsewhere (minutes or goal shrinkage).
+baseline: c3
+variant: c3_e1
+metrics: [mae, spearman]
+decision_rule: >
+  A correction in fact (the bonus total is an order of magnitude below what the game awards), but
+  it moves every outfield forecast, so it is argued about and therefore a model change (E8 section
+  5): promoted only if condition 1 (held-out regression improves), condition 2 (six shadow
+  gameweeks live without degrading) and condition 3 (explicable in advance, above) all hold. The
+  owner decides, in a DL entry.
+length: walk-forward over backtest.training_seasons, then at least six live shadow gameweeks
+graded_by: both
+decision: open
+results: >
+  Local walk-forward, 2024/25 to 2025/26, 68 folds, 20,573 scored rows, c3 reproducing DL-90's
+  MAE 1.9061 exactly (2026-10-24). c3_e1 minus c3, mean per gameweek with 95% bootstrap interval -
+  MAE +0.00963 [+0.00634, +0.01317] (worse, significant), Spearman +0.00112 [-0.00011, +0.00241],
+  top-N precision -0.00074 [-0.00662, +0.00515]; pooled RMSE 3.0085 against 3.0566 (better),
+  calibration slope 0.702 against 0.755 (worse). The bonus total is restored (mean prediction by
+  position moves toward realised: MID 0.999 to 1.110 against 1.206, FWD 1.084 to 1.182 against
+  1.312), but goalkeepers' share of each fold's predicted top 10 rises from 33.1% to 34.0% (5.4% of
+  the realised top 10 are goalkeepers): goalkeepers gain bonus too, from saves. Falsifier (a)
+  fires, and (b) for Spearman: the bonus arithmetic is wrong, but it is not D-34's cause.
+  Recommended: reject; the owner decides.

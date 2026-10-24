@@ -89,6 +89,20 @@
     "plan": null,
     "week": null
    },
+   "description": "The champion with M8's bonus integrated over the player's own BPS spread (bonus_v2).",
+   "digest": "<masked>",
+   "id": "c3_e1",
+   "label": "C3 with bonus spread (E1)",
+   "plan": true,
+   "published": false,
+   "role": "experiment"
+  },
+  {
+   "aliases": [],
+   "artefacts": {
+    "plan": null,
+    "week": null
+   },
    "description": "The champion without each player's own card rate, as before DL-90; graded against c3.",
    "digest": "<masked>",
    "id": "c3_f1",

@@ -1105,6 +1105,18 @@ class DiscriminationConfig(_Section):
     )
     market: MarketBlendConfig = MarketBlendConfig()
 
+    bonus_v2: bool = Field(
+        default=False,
+        description=(
+            "Whether M8 integrates over the player's own match-to-match BPS spread (EXP-01, D-34). "
+            "The shipped formula holds his BPS at its expectation and asks how many of 21 others "
+            "beat it, so an average player gets 0.5**21 of first place and the deployed forecast "
+            "summed 5.7 bonus points over a gameweek in which FPL awarded about 65. The spread is "
+            "fitted (BPS less each player's own mean), not tuned. Off until the declared "
+            "experiment `e1_bonus_spread` is graded and the owner decides (DP-08, E8 section 5)."
+        ),
+    )
+
 
 class FeatureConfig(_Section):
     """The feature store. Windows are configuration because the right length is an empirical
@@ -1549,6 +1561,17 @@ class ChipReplayConfig(_Section):
         default=1,
         ge=0,
         description="Free transfers the replayed squad starts each sampled deadline with.",
+    )
+    timing_experiment: bool = Field(
+        default=False,
+        description=(
+            "Whether `fpl-dof backtest` also replays chip timing as the declared experiment "
+            "`d21_chip_timing` (EXP-02): every sampled deadline at every dial in "
+            "`decision.simulation.percentile_by_dial`, re-rank off and on, the latter with and "
+            "without the discount inside the percentile. Off by default because it costs about "
+            "a model refit plus nine plans a deadline; the weekly CI backtest turns it on "
+            "(config/ci-backtest.yaml). It changes no live advice."
+        ),
     )
 
 
@@ -2018,6 +2041,17 @@ class SimulationConfig(_Section):
             "MILP already "
             "maximised, so re-ranking on it could only ever reproduce the MILP's own ordering, and "
             "Bench Boost and Triple Captain are exactly the decisions the mean cannot see."
+        ),
+    )
+    undiscounted_percentile: bool = Field(
+        default=False,
+        description=(
+            "Whether the re-rank's percentile is taken over the plan's points *without* the "
+            "per-gameweek horizon discount (EXP-02, D-21). Off reproduces the shipped re-rank, "
+            "which discounts each week's draws exactly as the MILP's objective does. On is the "
+            "arm of the chip-timing experiment that asks whether ranking a percentile of a "
+            "discounted sum is what pulls chips to the first horizon gameweek: the discount "
+            "shrinks a later week's tail as well as its mean. Not a live setting (DP-08)."
         ),
     )
 
