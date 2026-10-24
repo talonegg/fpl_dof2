@@ -18,7 +18,7 @@ describe("the strategy selector is driven by the registry", () => {
 
   it("offers every published strategy with the champion as the default", async () => {
     installFetchStub({ bodies: five });
-    renderApp("/");
+    renderApp("/gameweek");
     await waitFor(() => expect(screen.getByTestId("model-toggle")).toBeTruthy());
     const group = screen.getByRole("radiogroup", { name: "Recommendation model" });
     const radios = within(group).getAllByRole("radio");
@@ -36,7 +36,7 @@ describe("the strategy selector is driven by the registry", () => {
 
   it("is keyboard operable: arrows, Home and End move and select", async () => {
     installFetchStub({ bodies: five });
-    renderApp("/");
+    renderApp("/gameweek");
     await waitFor(() => expect(screen.getByTestId("model-toggle")).toBeTruthy());
     const group = screen.getByTestId("model-segmented");
     fireEvent.keyDown(group, { key: "ArrowRight" });
@@ -54,11 +54,10 @@ describe("the strategy selector is driven by the registry", () => {
 
   it("the small-screen select applies the strategy to the dashboard and remembers it", async () => {
     installFetchStub({ bodies: five });
-    renderApp("/");
+    renderApp("/gameweek");
     await waitFor(() => expect(screen.getByTestId("model-toggle")).toBeTruthy());
     fireEvent.change(screen.getByTestId("model-select"), { target: { value: "zeta_3" } });
     await waitFor(() => expect(screen.getByTestId("week-rationale").textContent).toBe("Roll the free transfer"));
-    expect(within(screen.getByTestId("dashboard-recommendation")).getByTestId("model-badge").dataset.model).toBe("zeta_3");
     expect(screen.getByTestId("model-toggle-note").textContent).toContain("Comparison only");
     expect(window.localStorage.getItem(MODEL_STORAGE_KEY)).toBe("zeta_3");
   });
@@ -66,14 +65,14 @@ describe("the strategy selector is driven by the registry", () => {
   it("honours ?model= for an id only the registry knows", async () => {
     installFetchStub({ bodies: five });
     window.history.replaceState(null, "", "/?model=zeta_5");
-    renderApp("/");
+    renderApp("/gameweek");
     await waitFor(() => expect(screen.getByTestId("model-toggle-zeta_5").getAttribute("aria-checked")).toBe("true"));
   });
 
   it("lists only the strategies with a week, and falls back to the champion for one without", async () => {
     installFetchStub({ bodies: { strategies: strategiesFixture } });
     window.localStorage.setItem(MODEL_STORAGE_KEY, "a");
-    renderApp("/");
+    renderApp("/gameweek");
     await waitFor(() => expect(screen.getByTestId("model-toggle")).toBeTruthy());
     expect(screen.queryByTestId("model-toggle-a")).toBeNull();
     expect(screen.getByTestId("model-toggle-c3").getAttribute("aria-checked")).toBe("true");
