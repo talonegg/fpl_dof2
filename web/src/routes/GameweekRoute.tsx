@@ -4,6 +4,7 @@ import { DecisionView } from "../components/gameweek/DecisionView";
 import { PlanPanel } from "../components/PlanPanel";
 import { PlanTimeline } from "../components/squad/PlanTimeline";
 import { indexPlayers } from "../components/squad/draft";
+import { currentSquad } from "../data/effective";
 import "../components/squad/squad.css";
 
 /**
@@ -11,7 +12,7 @@ import "../components/squad/squad.css";
  * is the normal preseason answer (DL-20), said rather than left blank (DP-15).
  */
 export function GameweekRoute() {
-  const { week, plan, squad, rules, players, meta } = useData();
+  const { week, plan, squad, publishedSquad, rules, players, meta } = useData();
   if (!week) {
     return (
       <section className="placeholder" data-testid="gameweek-absent">
@@ -30,6 +31,7 @@ export function GameweekRoute() {
       rules={rules}
       players={players}
       horizonGameweeks={meta.horizon_gameweeks}
+      currentValue={currentSquad(publishedSquad, week, players).total_price}
     />
   );
 }

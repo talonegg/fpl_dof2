@@ -116,11 +116,11 @@ jobs:
 
   # ORC-13, DL-97: today's published models replayed in-sample on the live season's finished
   # gameweeks, appended under `as_if_played/`, which the Pipeline run publishes as
-  # as_if_played.json. A job of its own, beside the backtest rather than inside it: measured locally
-  # 2026-10-24 with four workers, every published model (no odds, so no A + odds) over GW1-5 took
-  # 158 s, ~35 s a gameweek for c3's plan and chips, the rest in parallel with it; by GW38 that is
-  # ~25 min locally, perhaps ~60 on a runner, which the backtest's 300 min (already ~210) could
-  # not take. Its silver is built as the backtest's is: the all-seasons models train on the archive.
+  # as_if_played.json. A job of its own, beside the backtest rather than inside it, so its growth
+  # through the season never eats the backtest's budget: on the runner 2026-10-24 it replayed GW1-8
+  # in 72 s (the backtest job took 28 and 55 min on two runs that day), and c3's plan and chips cost
+  # it most, so by GW38 it may need several times that. Its silver is built as the backtest's is:
+  # the all-seasons models train on the archive.
   as-if-played:
     runs-on: ubuntu-latest
     timeout-minutes: 120

@@ -145,4 +145,5 @@ by hand.
 | [DL-95](DL-95.md) | 2026-10-24 | Accepted | R1.4.0 is the UI redesign, in two drops; WEB-01, WEB-05 and WEB-06 wait |
 | [DL-96](DL-96.md) | 2026-10-24 | Accepted | The re-rank's percentile is taken without the horizon discount |
 | [DL-97](DL-97.md) | 2026-10-24 | Accepted | "As if played" is today's models replayed in-sample on the season's past gameweeks |
+| [DL-98](DL-98.md) | 2026-10-24 | Accepted | E2 runs live in shadow, one gameweek at a time, to earn its six shadow gameweeks |
 <!-- index:end -->

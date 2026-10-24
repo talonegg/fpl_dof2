@@ -87,14 +87,14 @@
    "aliases": [],
    "artefacts": {
     "plan": null,
-    "week": null
+    "week": "week_c3_e2.json"
    },
    "description": "The champion with M2's attack/defence ratings shrunk (rating_prior_matches 8).",
    "digest": "<masked>",
    "id": "c3_e2",
    "label": "C3 with rating shrinkage (E2)",
-   "plan": true,
-   "published": false,
+   "plan": false,
+   "published": true,
    "role": "experiment"
   },
   {
