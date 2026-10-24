@@ -6,11 +6,11 @@ below
 
 This is the one epic that never closes mid-season. It is not a build plan: it is the weekly
 monitoring loop, the record of where the season stands, and the bar any model change must clear. It
-runs alongside whichever release is open (R1.1.0 now). It is archived to `../archive/R1.0/` with a
+runs alongside whichever release is open (R1.4.0 now). It is archived to `../archive/R1.0/` with a
 filled Status line only after GW38, when §7 is ticked.
 
 **Keeping it current.** At step 5 of each weekly loop, rewrite the season state in place — do not
-append a diary. The per-gameweek history already has a home: the `ledger` branch and `/log`
+append a diary. The per-gameweek history already has a home: the `ledger` branch and `/review/all`
 ([DL-69](../../decisions/DL-69.md)). Sections 2–6 are the standing method; change them only by
 decision.
 
@@ -20,12 +20,12 @@ decision.
 
 | Field | Now | Where the evidence lives |
 | --- | --- | --- |
-| Last gameweek reviewed | *(set at each loop)* | `/log`, `log.json` |
+| Last gameweek reviewed | *(set at each loop)* | `/review/all`, `log.json` |
 | Next deadline | *(set at each loop)* | `/` (week panel), `week.json` |
 | Data health | *(fresh / degraded — which sources)* | `/health`, `health.json`. Understat and FBref are blocked upstream (D-23); stopping their ingress is R1.1.0 PIPE-09 |
 | Model verdict | *(model card headline)* | `model-card.md` beside the published artefacts ([DL-21](../../decisions/DL-21.md)) |
 | Overrides this season, and why | *(count; reasons pattern)* | Reasons are a manual note until a reasons file feeds `reconcile(overrides=...)` (§3) |
-| Chips | *(used / remaining; set 1 expires GW19)* | `/log`, squad state in `week.json` |
+| Chips | *(used / remaining; set 1 expires GW19)* | `/review/all`, squad state in `week.json` |
 | Candidates in shadow | `minutes_v2` on in the shipped config; `adaptive_shrinkage`, `duty_term`, `gkp_v2` off, each measured and not clearing the bar (DL-49, DL-50, DL-51) | `forecast.discrimination` in `config/defaults/forecast.yaml`; the model card |
 | Next decision point | *(from §4)* | §4 |
 
@@ -34,7 +34,7 @@ decision.
 | Gameweek | Question | Outcome |
 | --- | --- | --- |
 | GW4 | Is the model beating your intuition? If not, the forecast takes priority over everything else | **Intuition is ahead** (owner, 17 Oct). R1.1.0 keeps its order: the pipeline is what a better forecast is built from ([DL-79](../../decisions/DL-79.md)) |
-| GW8 | Is weekly operation sustainable? If not, automation and alerting jump to the top | *(record)* |
+| GW8 | Is weekly operation sustainable? If not, automation and alerting jump to the top | **Yes** (owner, 24 Oct): sustainable after R1.3.x's automation; the owner's loop is review and decide only. Automation does not jump the queue |
 | GW10–12 | First honest read on live out-of-sample accuracy | *(record)* |
 | Before GW15 | A chip calendar for set 1 exists | *(record)* |
 | GW19 deadline | **Chip set 1 expires — 18:30 GMT, Fri 1 Jan 2027** (per the API, 17 Oct 2026; re-check, FPL moves deadlines). Unused chips are lost | *(record)* |
@@ -57,7 +57,7 @@ Target: **under 30 minutes**, excluding any build work.
 
 | Step | Question | Output |
 | --- | --- | --- |
-| 1. Review | What did the model recommend, and what actually happened? | `/log` row reconciled |
+| 1. Review | What did the model recommend, and what actually happened? | `/review/all` row reconciled |
 | 2. Drift check | Are rolling accuracy metrics holding? | Investigate significant drops |
 | 3. Data health | Fresh? Gates passing? Adapters alive? | Fix or accept, explicitly |
 | 4. Improve | What is the biggest regret I would have at the next deadline? | **One** improvement. One, not three |
@@ -81,7 +81,7 @@ recommendation, it must be possible to reconstruct exactly what the system knew 
 **Where it lives ([DL-69](../../decisions/DL-69.md)).** The pipeline writes each week's advice to the
 `ledger` branch before the deadline, judges each finished gameweek once into `evaluation/entry-<id>/gwNN.json`
 (ORC-05), and publishes `log.json` from those judgements — played, scored, advised, reconciled, per
-evaluated gameweek — rendered at `/log`. GW1 to GW4 were decided without the tool and appear there with
+evaluated gameweek — rendered at `/review/all`. GW1 to GW4 were decided without the tool and appear there with
 picks and points and *no advice recorded*; nothing is reconstructed after the event. The owner's
 *reason* for an override is not yet held there; it stays a manual note until a reasons file is wired
 into `reconcile(overrides=...)`.

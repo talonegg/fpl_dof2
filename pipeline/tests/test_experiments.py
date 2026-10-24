@@ -286,8 +286,16 @@ def test_an_entrants_feature_override_reaches_its_own_rows() -> None:
 
 def test_declared_experiments_load_against_the_shipped_registry() -> None:
     declared = load_declared(load_registry())
-    assert {e.id for e in declared} == {"f1_card_rates", "f3_training_window"}
-    assert all(e.baseline == "c3" for e in declared)
+    assert {e.id for e in declared} == {
+        "d21_chip_timing",
+        "e1_bonus_spread",
+        "e2_rating_prior",
+        "f1_card_rates",
+        "f3_training_window",
+    }
+    assert all(e.baseline == "c3" for e in declared if e.kind == "forecast")
+    # A decision experiment names replay arms, not strategies (EXP-02).
+    assert {e.id for e in declared if e.kind == "decision"} == {"d21_chip_timing"}
 
 
 def test_a_declared_experiment_refuses_unknown_fields_and_unregistered_strategies(

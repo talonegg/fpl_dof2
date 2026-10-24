@@ -201,7 +201,7 @@ describe("ScoutTable comparison selection", () => {
     fireEvent.click(screen.getByTestId("compare-3"));
     fireEvent.click(screen.getByTestId("compare-1"));
     const link = screen.getByTestId("scout-compare-go") as HTMLAnchorElement;
-    expect(link.getAttribute("href")).toBe("/compare?compare=3,1");
+    expect(link.getAttribute("href")).toBe("/analysis/compare?compare=3,1");
   });
 
   it("stops at four rather than silently dropping a choice", () => {
@@ -228,7 +228,7 @@ describe("ScoutTable comparison selection", () => {
 
     renderScout();
     expect((screen.getByTestId("scout-compare-go") as HTMLAnchorElement).getAttribute("href")).toBe(
-      "/compare?compare=1,2",
+      "/analysis/compare?compare=1,2",
     );
   });
 
@@ -291,7 +291,7 @@ describe("ScoutTable on a phone", () => {
     fireEvent.click(screen.getByTestId("compare-1"));
     fireEvent.click(screen.getByTestId("compare-2"));
     expect((screen.getByTestId("scout-compare-go") as HTMLAnchorElement).getAttribute("href")).toBe(
-      "/compare?compare=1,2",
+      "/analysis/compare?compare=1,2",
     );
   });
 

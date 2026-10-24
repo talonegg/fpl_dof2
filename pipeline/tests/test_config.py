@@ -84,3 +84,23 @@ def test_config_is_immutable(tmp_path: Path) -> None:
     config, _ = load_config(environ={"FPL_DOF_DATA_DIR": str(tmp_path)}, local_override=None)
     with pytest.raises(Exception):  # noqa: B017 - pydantic raises ValidationError on frozen set
         config.runtime.log_level = "DEBUG"  # type: ignore[misc]
+
+
+def test_forecast_horizon_is_the_decision_horizon(tmp_path: Path) -> None:
+    """D-29 / DL-78: one planning horizon; the forecast reads it, and no second one is settable."""
+    env = {"FPL_DOF_DATA_DIR": str(tmp_path)}
+    config, _ = load_config(environ=env)
+    assert config.forecast.horizon_gameweeks == config.decision.horizon.gameweeks
+    assert config.forecast.horizon_discount == config.decision.horizon.discount
+    override = tmp_path / "local.yaml"
+    override.write_text(
+        "decision:\n  horizon:\n    gameweeks: 3\n    discount: 0.7\n", encoding="utf-8"
+    )
+    moved, _ = load_config(environ=env, local_override=override)
+    assert (moved.forecast.horizon_gameweeks, moved.forecast.horizon_discount) == (3, 0.7)
+    override.write_text("forecast:\n  horizon_gameweeks: 6\n", encoding="utf-8")
+    with pytest.raises(ConfigError):
+        load_config(environ=env, local_override=override)
+    override.write_text("transfers:\n  horizon_gameweeks: 2\n", encoding="utf-8")
+    with pytest.raises(ConfigError):
+        load_config(environ=env, local_override=override)

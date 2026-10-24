@@ -434,7 +434,7 @@ def test_an_over_budget_run_stays_findable_and_the_budget_spans_its_deploy() -> 
         assert "/actions/artifacts" in text and "?name=web-data-contract" in text
         assert "map(select(.expired | not))" in text
         assert "--status" not in text and "gh run list" not in text
-    budget = yaml.safe_load((wf / "pipeline.yml").read_text())["jobs"]["budget"]
+    budget = yaml.safe_load((wf / "pipeline.yml").read_text())["jobs"]["pipeline-budget"]
     assert budget["needs"] == ["run", "deploy"]
     assert budget["if"] == "${{ !cancelled() && needs.run.result == 'success' }}"
 

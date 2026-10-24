@@ -20,13 +20,13 @@ describe("FixturesRoute", () => {
 
   it("renders the grid when the artefact is published", async () => {
     installFetchStub();
-    renderApp("/fixtures");
+    renderApp("/scout/fixtures");
     await waitFor(() => expect(screen.getByTestId("fixture-ticker")).toBeTruthy());
   });
 
   it("says the grid is not published yet rather than showing an empty one", async () => {
     installFetchStub({ missing: ["fixtures"] });
-    renderApp("/fixtures");
+    renderApp("/scout/fixtures");
     await waitFor(() => expect(screen.getByTestId("fixtures-absent")).toBeTruthy());
     expect(screen.queryByTestId("fixture-ticker")).toBeNull();
     expect(screen.getByTestId("fixtures-absent").textContent).toContain("next successful run");
@@ -34,7 +34,7 @@ describe("FixturesRoute", () => {
 
   it("reports a failed load and offers a retry that reaches the network again", async () => {
     installFetchStub({ failing: ["fixtures"] });
-    renderApp("/fixtures");
+    renderApp("/scout/fixtures");
     await waitFor(() => expect(screen.getByTestId("fixtures-error")).toBeTruthy());
 
     // The retry must drop the cached rejection, or it replays the same failure without a request.

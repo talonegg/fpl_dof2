@@ -11,7 +11,7 @@
  */
 
 import type { Player, Rules, Squad } from "../../contract/types";
-import { chooseLineup, formationOf, type LineupCandidate } from "./lineup";
+import { byBenchValue, chooseLineup, formationOf, type LineupCandidate } from "./lineup";
 import {
   totalPrice,
   validateSquad,
@@ -26,6 +26,7 @@ export interface BuilderPlayer extends SquadMember {
   team: string;
   xp_next: number;
   xp_next_sd?: number;
+  start_probability: number;
   xp_horizon: number;
   xp_horizon_sd?: number;
   /** FPL availability flag, where the pool carries one. */
@@ -62,6 +63,7 @@ export function indexPlayers(pool: readonly Player[], squad: Squad): PlayerIndex
       team: player.team,
       xp_next: player.xp_next,
       xp_next_sd: player.xp_next_sd,
+      start_probability: player.start_probability,
       xp_horizon: player.xp_horizon,
       xp_horizon_sd: player.xp_horizon_sd,
       status: player.status,
@@ -81,6 +83,9 @@ export function indexPlayers(pool: readonly Player[], squad: Squad): PlayerIndex
       team: member.team,
       xp_next: member.xp_next,
       xp_next_sd: member.xp_next_sd,
+      // Outside the published pool there is no forecast that they play: a substitute who may not
+      // exist is worth nothing on the bench.
+      start_probability: member.start_probability ?? 0,
       xp_horizon: member.xp_horizon,
       xp_horizon_sd: member.xp_horizon_sd,
       in_pool: false,
@@ -236,11 +241,11 @@ export function resolveDraft(
   };
 }
 
-/** The reserve keeper first, then the outfield substitutes best-forecast first. */
-function benchOrder(a: LineupCandidate & { position: Position }, b: LineupCandidate & { position: Position }): number {
+/** The reserve keeper first, then the outfield substitutes by P(plays) × xP. */
+function benchOrder(a: LineupCandidate, b: LineupCandidate): number {
   if (a.position === "GKP" && b.position !== "GKP") return -1;
   if (b.position === "GKP" && a.position !== "GKP") return 1;
-  return b.xp_next - a.xp_next || a.player_id - b.player_id;
+  return byBenchValue(a, b);
 }
 
 /** How many more of each position the draft still needs, for the replacement picker. */

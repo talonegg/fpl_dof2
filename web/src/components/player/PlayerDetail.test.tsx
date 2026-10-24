@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import { renderApp, resetAppState } from "../../test/render";
 import { meta, plan, players, rules, squad, week } from "../../test/fixtures";
-import { resetTrendCaches } from "../../data/api";
+import { resetPublishedDataCache } from "../../data/store";
 import { fixtures, history, preseasonHistory, unratedFixtures } from "./testFixtures";
 
 interface StubOptions {
@@ -61,7 +61,7 @@ const WATKINS = "/player/2";
 describe("Player detail (E6-S3)", () => {
   beforeEach(() => {
     resetAppState();
-    resetTrendCaches();
+    resetPublishedDataCache();
   });
 
   afterEach(() => {

@@ -1,0 +1,101 @@
+{
+  "$comment": "Choosing the XI, the armbands and the bench order from a fixed fifteen, implemented in squad/selection.py and web/src/components/squad/lineup.ts. Both read this file (DL-39); see README.md. The ruleset is named from legality-corpus.json, not copied.",
+  "corpus_version": 1,
+  "player_pool": {
+    "1": { "position": "GKP", "xp_next": 4.0, "start_probability": 1.0 },
+    "2": { "position": "GKP", "xp_next": 2.0, "start_probability": 1.0 },
+    "3": { "position": "DEF", "xp_next": 5.0, "start_probability": 1.0 },
+    "4": { "position": "DEF", "xp_next": 4.5, "start_probability": 1.0 },
+    "5": { "position": "DEF", "xp_next": 4.0, "start_probability": 1.0 },
+    "6": { "position": "DEF", "xp_next": 3.0, "start_probability": 1.0 },
+    "7": { "position": "DEF", "xp_next": 2.5, "start_probability": 1.0 },
+    "8": { "position": "MID", "xp_next": 7.0, "start_probability": 1.0 },
+    "9": { "position": "MID", "xp_next": 6.0, "start_probability": 1.0 },
+    "10": { "position": "MID", "xp_next": 5.5, "start_probability": 1.0 },
+    "11": { "position": "MID", "xp_next": 3.5, "start_probability": 1.0 },
+    "12": { "position": "MID", "xp_next": 1.0, "start_probability": 1.0 },
+    "13": { "position": "FWD", "xp_next": 8.0, "start_probability": 1.0 },
+    "14": { "position": "FWD", "xp_next": 6.5, "start_probability": 1.0 },
+    "15": { "position": "FWD", "xp_next": 2.0, "start_probability": 1.0 }
+  },
+  "cases": [
+    {
+      "name": "everyone-certain-to-play",
+      "why": "With every chance of playing equal, the bench orders by xP alone.",
+      "rules": "fpl_2026_27",
+      "player_overrides": {},
+      "expected": {
+        "starting": [1, 3, 4, 5, 6, 8, 9, 10, 11, 13, 14],
+        "bench_order": [7, 15, 12],
+        "captain": 13,
+        "vice_captain": 8,
+        "formation": "1-4-4-2"
+      }
+    },
+    {
+      "name": "bench-ranks-by-chance-times-xp",
+      "why": "A doubtful substitute only scores if he plays: 2.5 xP at a quarter's chance (0.625) comes on after 2.0 and 1.0 certain to play (owner answer Q2).",
+      "rules": "fpl_2026_27",
+      "player_overrides": { "7": { "start_probability": 0.25 } },
+      "expected": {
+        "starting": [1, 3, 4, 5, 6, 8, 9, 10, 11, 13, 14],
+        "bench_order": [15, 12, 7],
+        "captain": 13,
+        "vice_captain": 8,
+        "formation": "1-4-4-2"
+      }
+    },
+    {
+      "name": "equal-bench-values-break-by-id",
+      "why": "2.0 xP at even chance and 1.0 xP certain are both worth 1.0 on the bench; the lower id comes on first in both languages.",
+      "rules": "fpl_2026_27",
+      "player_overrides": { "15": { "start_probability": 0.5 } },
+      "expected": {
+        "starting": [1, 3, 4, 5, 6, 8, 9, 10, 11, 13, 14],
+        "bench_order": [7, 12, 15],
+        "captain": 13,
+        "vice_captain": 8,
+        "formation": "1-4-4-2"
+      }
+    },
+    {
+      "name": "equal-xp-captaincy-breaks-by-id",
+      "why": "Two starters on the same xP: the lower id takes the armband, the other the vice.",
+      "rules": "fpl_2026_27",
+      "player_overrides": { "8": { "xp_next": 8.0 } },
+      "expected": {
+        "starting": [1, 3, 4, 5, 6, 8, 9, 10, 11, 13, 14],
+        "bench_order": [7, 15, 12],
+        "captain": 8,
+        "vice_captain": 13,
+        "formation": "1-4-4-2"
+      }
+    },
+    {
+      "name": "the-xi-ranks-on-xp-alone",
+      "why": "Only the bench is discounted by the chance of playing; with no floor set, a doubtful forward on the best xP still starts and captains.",
+      "rules": "fpl_2026_27",
+      "player_overrides": { "13": { "start_probability": 0.25 } },
+      "expected": {
+        "starting": [1, 3, 4, 5, 6, 8, 9, 10, 11, 13, 14],
+        "bench_order": [7, 15, 12],
+        "captain": 13,
+        "vice_captain": 8,
+        "formation": "1-4-4-2"
+      }
+    },
+    {
+      "name": "a-stronger-bench-changes-the-shape",
+      "why": "A third forward on 6.0 beats the fourth defender's 3.0, so the XI is 3-4-3 and the defender leads the bench.",
+      "rules": "fpl_2026_27",
+      "player_overrides": { "15": { "xp_next": 6.0 } },
+      "expected": {
+        "starting": [1, 3, 4, 5, 8, 9, 10, 11, 13, 14, 15],
+        "bench_order": [6, 7, 12],
+        "captain": 13,
+        "vice_captain": 8,
+        "formation": "1-3-4-3"
+      }
+    }
+  ]
+}

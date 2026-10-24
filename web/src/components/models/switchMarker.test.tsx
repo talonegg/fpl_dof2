@@ -28,7 +28,7 @@ describe("the switch from the frozen record to the live ledger", () => {
 
   it("marks the switch gameweek on the history chart with a text label", async () => {
     installFetchStub({ bodies: bodies(withSwitch(9)) });
-    renderApp("/models");
+    renderApp("/models/season");
     const marker = await screen.findByTestId("models-switch-marker");
     expect(marker.textContent).toBe("Live from GW9");
     expect(screen.getByTestId("models-chart").querySelector("svg")?.getAttribute("aria-label")).toContain(
@@ -39,7 +39,7 @@ describe("the switch from the frozen record to the live ledger", () => {
 
   it("still shows the frozen history, with no marker when nothing has switched", async () => {
     installFetchStub({ bodies: bodies(withSwitch(null)) });
-    renderApp("/models");
+    renderApp("/models/season");
     await screen.findByTestId("models-chart");
     expect(screen.queryByTestId("models-switch-marker")).toBeNull();
     expect(screen.getByTestId("models-total-c3").textContent).toBe("181");

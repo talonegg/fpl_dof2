@@ -365,3 +365,70 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* --- Home (WEB-08) ---------------------------------------------------------------------------- */
+
+.home-card {
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  overflow-wrap: anywhere;
+}
+
+.home-card h2,
+.home-card h3 {
+  margin-top: 0;
+}
+
+.home-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.home-table {
+  width: 100%;
+  /* Three short columns fit a 375 px screen: no scroller, unlike the global table's 42rem floor. */
+  min-width: 0;
+  border-collapse: collapse;
+}
+
+.home-table th,
+.home-table td {
+  white-space: normal;
+  text-align: left;
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--border);
+}
+
+.home-table td {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.home-sub {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+  font-weight: normal;
+}
+
+.home-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.home-facts dt {
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.home-facts dd {
+  margin: 0;
+  font-weight: 600;
+}

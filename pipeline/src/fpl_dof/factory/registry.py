@@ -216,7 +216,9 @@ def effective_forecast_config(base: ForecastConfig, overrides: dict[str, Any]) -
     """``base`` with ``overrides`` deep-merged and re-validated: an unknown key is an error."""
     if not overrides:
         return base
-    return ForecastConfig.model_validate(_deep_merge(base.model_dump(), overrides))
+    merged = ForecastConfig.model_validate(_deep_merge(base.model_dump(), overrides))
+    merged._horizon = base._horizon
+    return merged
 
 
 #: The silver tables the forecast inputs carry; a ``requires`` entry outside it cannot be checked

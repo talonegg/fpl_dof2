@@ -11,6 +11,7 @@
  */
 
 import type { ReactNode } from "react";
+import { Link } from "react-router-dom";
 import type { Components, Player } from "../../contract/types";
 import { formatPercent, formatPrice, formatXpRange } from "../../format";
 
@@ -120,6 +121,15 @@ function XpCell({ mean, sd }: { mean: number; sd: number }) {
   );
 }
 
+/** The name as a link to the player page; the click must not also toggle the row's detail panel. */
+export function PlayerLink({ player }: { player: Player }) {
+  return (
+    <Link to={`/player/${player.id}`} onClick={(event) => event.stopPropagation()}>
+      {player.name}
+    </Link>
+  );
+}
+
 export const SCOUT_COLUMNS: ScoutColumn[] = [
   {
     key: "name",
@@ -129,7 +139,7 @@ export const SCOUT_COLUMNS: ScoutColumn[] = [
     width: "minmax(7rem, 1.6fr)",
     numeric: false,
     sortValue: (p) => p.name.toLowerCase(),
-    render: (p) => p.name,
+    render: (p) => <PlayerLink player={p} />,
     cellTitle: (p) => p.full_name ?? p.name,
     defaultVisible: true,
   },

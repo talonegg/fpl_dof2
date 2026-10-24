@@ -177,7 +177,7 @@ function WeekByWeek({ option }: { option: PlanOption }) {
  * is in use, because a risk dial driven by an estimated quantity presented as a measured one is
  * worse than no risk dial at all.
  */
-function OwnershipBet({ plan }: { plan: Plan }) {
+export function OwnershipBet({ plan }: { plan: Plan }) {
   const ownership = plan.ownership;
   if (!ownership) return null;
 

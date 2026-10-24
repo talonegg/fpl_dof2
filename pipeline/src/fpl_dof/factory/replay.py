@@ -8,7 +8,7 @@ model fitting.
 from __future__ import annotations
 
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -30,6 +30,9 @@ from fpl_dof.optimise.squad import InfeasibleError, optimise_squad
 from fpl_dof.rules.models import GameRules
 from fpl_dof.rules.realised import Lineup, PlayerPerformance, performances, score_lineup
 from fpl_dof.squad.state import HeldPlayer, Provenance, SquadState
+
+# The declared experiment this replay answers (config/experiments/d21_chip_timing.yaml).
+CHIP_TIMING_EXPERIMENT = "d21_chip_timing"
 
 log = get_logger(__name__)
 
@@ -194,28 +197,12 @@ def replay_chip_decisions(
 
     started = time.monotonic()
     frame = attach_team_ids(history)
-    schedule = deadlines_for(frame)
-    sample = sample_deadlines(frame, backtest_config)
-    if not sample:
-        raise ValueError(
-            "no deadline in the history falls inside the configured replay window; widen "
-            "backtest.chip_replay.first_gameweek/last_gameweek or supply more seasons"
-        )
-
     warnings: list[str] = []
     folds: list[ReplayFold] = []
-    wanted = {entry[2] for entry in sample}
-    cache: dict[pd.Timestamp, pd.DataFrame] = {}
 
-    for season, gameweek, deadline in schedule:
-        cache[deadline] = fold_rows(frame, season, gameweek, deadline, forecast_config)
-        if deadline not in wanted:
-            continue
-
-        training = training_rows(cache, before=deadline)
-        if training.empty:
-            warnings.append(f"{season} GW{gameweek}: no training rows before the deadline")
-            continue
+    for season, gameweek, deadline, training in _sampled(
+        frame, backtest_config, forecast_config, warnings
+    ):
         try:
             fold = _replay_one(
                 frame,
@@ -252,6 +239,222 @@ def replay_chip_decisions(
     )
 
 
+def replay_chip_timing(
+    history: pd.DataFrame,
+    *,
+    rules: GameRules,
+    chips: pd.DataFrame,
+    forecast_config: ForecastConfig,
+    backtest_config: BacktestConfig,
+    decision: DecisionConfig,
+    optimiser: OptimiserConfig,
+) -> dict[str, Any]:
+    """D-21 as a declared experiment (EXP-02, ``config/experiments/d21_chip_timing.yaml``).
+
+    Every sampled deadline is fitted once and planned at every dial three ways: re-rank off, on
+    with the shipped discounted percentile, and on with the discount taken out of the percentile.
+    The finding is how often each arm puts its first chip on the first horizon gameweek, and what
+    that chip week actually scored.
+    """
+    if history.empty:
+        raise ValueError("cannot replay an empty history")
+    started = time.monotonic()
+    frame = attach_team_ids(history)
+    dials = tuple(decision.simulation.percentile_by_dial)
+    arms = {
+        f"{dial}/{name}": _arm(decision, simulate=simulate, dial=dial, undiscounted=undiscounted)
+        for dial in dials
+        for name, simulate, undiscounted in (
+            ("off", False, False),
+            ("discounted", True, False),
+            ("undiscounted", True, True),
+        )
+    }
+    warnings: list[str] = []
+    folds: list[dict[str, Any]] = []
+    for season, gameweek, deadline, training in _sampled(
+        frame, backtest_config, forecast_config, warnings
+    ):
+        try:
+            plan = _planner(
+                frame,
+                season=season,
+                gameweek=gameweek,
+                deadline=deadline,
+                training=training,
+                rules=rules,
+                chips=chips,
+                forecast_config=forecast_config,
+                replay=backtest_config.chip_replay,
+                decision=decision,
+                optimiser=optimiser,
+            )
+            plans = {key: plan(config) for key, config in arms.items()}
+        except (InfeasibleError, ColdStartError) as exc:
+            warnings.append(f"{season} GW{gameweek}: no plan could be built ({exc})")
+            continue
+        actuals = _actual_points(frame, season)
+        folds.append(
+            {
+                "season": season,
+                "gameweek": gameweek,
+                "arms": {
+                    key: {
+                        "chips": [list(item) for item in made.chips_recommended],
+                        "offset": (
+                            made.chips_recommended[0][0] - gameweek
+                            if made.chips_recommended
+                            else None
+                        ),
+                        "actual_points": _scored_chip_week(made, actuals, rules),
+                    }
+                    for key, made in plans.items()
+                },
+            }
+        )
+        log.info("replay.timing_fold", extra={"season": season, "gameweek": gameweek})
+    return timing_summary(folds, dials, time.monotonic() - started, warnings)
+
+
+def timing_summary(
+    folds: Sequence[Mapping[str, Any]],
+    dials: Sequence[str],
+    seconds: float,
+    warnings: Sequence[str] = (),
+) -> dict[str, Any]:
+    """Per arm, how often the first chip lands on the first horizon gameweek, and the verdict.
+
+    The share of the re-rank's excess front-loading that removing the discount takes away, pooled
+    over the dials, is the measure of whether the discount is D-21's mechanism: near one, it is;
+    near zero, it is not.
+    """
+    summary: dict[str, dict[str, Any]] = {}
+    for key in (f"{d}/{n}" for d in dials for n in ("off", "discounted", "undiscounted")):
+        rows = [fold["arms"][key] for fold in folds if key in fold["arms"]]
+        scored = [row["actual_points"] for row in rows if row["actual_points"] is not None]
+        summary[key] = {
+            "front_loaded": sum(1 for row in rows if row["offset"] == 0),
+            "offsets": [row["offset"] for row in rows],
+            "mean_actual_points": round(sum(scored) / len(scored), 2) if scored else None,
+        }
+    excess = sum(
+        summary[f"{d}/discounted"]["front_loaded"] - summary[f"{d}/off"]["front_loaded"]
+        for d in dials
+    )
+    removed = sum(
+        summary[f"{d}/discounted"]["front_loaded"] - summary[f"{d}/undiscounted"]["front_loaded"]
+        for d in dials
+    )
+    share = removed / excess if excess > 0 else None
+    lines = [
+        f"{d}: first chip on the first horizon gameweek at "
+        f"{summary[f'{d}/off']['front_loaded']}/{len(folds)} with the re-rank off, "
+        f"{summary[f'{d}/discounted']['front_loaded']}/{len(folds)} on as shipped, "
+        f"{summary[f'{d}/undiscounted']['front_loaded']}/{len(folds)} on without the discount"
+        for d in dials
+    ]
+    if not folds:
+        verdict = "No deadline could be replayed, so nothing was measured."
+    elif share is None:
+        verdict = (
+            "The re-rank did not front-load chips in this sample; there is nothing to explain."
+        )
+    else:
+        verdict = (
+            f"Removing the discount from the percentile takes away {share:.0%} of the re-rank's "
+            "excess front-loading, pooled over the dials."
+        )
+    return {
+        "experiment": CHIP_TIMING_EXPERIMENT,
+        "deadlines": len(folds),
+        "seconds": round(seconds, 1),
+        "arms": summary,
+        "discount_share_of_front_loading": None if share is None else round(share, 3),
+        "verdict": "; ".join(lines) + ". " + verdict,
+        "folds": list(folds),
+        "warnings": list(warnings),
+    }
+
+
+def _sampled(
+    frame: pd.DataFrame,
+    backtest_config: BacktestConfig,
+    forecast_config: ForecastConfig,
+    warnings: list[str],
+) -> Iterator[tuple[str, int, pd.Timestamp, pd.DataFrame]]:
+    """Each sampled deadline with its training rows, the walk-forward harness's own (Inv. 5)."""
+    sample = sample_deadlines(frame, backtest_config)
+    if not sample:
+        raise ValueError(
+            "no deadline in the history falls inside the configured replay window; widen "
+            "backtest.chip_replay.first_gameweek/last_gameweek or supply more seasons"
+        )
+    wanted = {entry[2] for entry in sample}
+    cache: dict[pd.Timestamp, pd.DataFrame] = {}
+    for season, gameweek, deadline in deadlines_for(frame):
+        cache[deadline] = fold_rows(frame, season, gameweek, deadline, forecast_config)
+        if deadline not in wanted:
+            continue
+        training = training_rows(cache, before=deadline)
+        if training.empty:
+            warnings.append(f"{season} GW{gameweek}: no training rows before the deadline")
+            continue
+        yield season, gameweek, deadline, training
+
+
+Planner = Callable[[DecisionConfig], DecisionPlan]
+
+
+def _planner(
+    history: pd.DataFrame,
+    *,
+    season: str,
+    gameweek: int,
+    deadline: pd.Timestamp,
+    training: pd.DataFrame,
+    rules: GameRules,
+    chips: pd.DataFrame,
+    forecast_config: ForecastConfig,
+    replay: ChipReplayConfig,
+    decision: DecisionConfig,
+    optimiser: OptimiserConfig,
+) -> Planner:
+    """Fit once at this deadline; the returned function plans it under any decision config."""
+    horizon = tuple(range(gameweek, gameweek + decision.horizon.gameweeks))
+    fitted = fit_as_of(history, deadline, forecast_config, rules, training=training, season=season)
+    players = fitted.predict(horizon, history=history, season=season)
+    state = _squad_at(players, rules, optimiser, replay, gameweek=gameweek)
+    calendar = _widened_chip_windows(chips, history, season)
+    fixtures = _fixture_frame(history, season, horizon)
+    last_gameweek = int(history[history["season"] == season]["gameweek"].max())
+
+    def plan(config: DecisionConfig) -> DecisionPlan:
+        return build_plan(
+            players=players,
+            state=state,
+            rules=rules,
+            decision=config,
+            optimiser=optimiser,
+            fixtures=fixtures,
+            chips=calendar,
+            last_gameweek=last_gameweek,
+        )
+
+    return plan
+
+
+def _arm(
+    decision: DecisionConfig, *, simulate: bool, dial: str | None = None, undiscounted: bool = False
+) -> DecisionConfig:
+    simulation = decision.simulation.model_copy(
+        update={"enabled": simulate, "undiscounted_percentile": undiscounted}
+    )
+    update: dict[str, Any] = {"simulation": simulation}
+    if dial is not None:
+        update["risk"] = decision.risk.model_copy(update={"dial": dial})
+    return decision.model_copy(update=update)
+
+
 def _replay_one(
     history: pd.DataFrame,
     *,
@@ -267,31 +470,21 @@ def _replay_one(
     optimiser: OptimiserConfig,
 ) -> ReplayFold:
     started = time.monotonic()
-    horizon = tuple(range(gameweek, gameweek + decision.horizon.gameweeks))
-
-    fitted = fit_as_of(history, deadline, forecast_config, rules, training=training, season=season)
-    players = fitted.predict(horizon, history=history, season=season)
-    state = _squad_at(players, rules, optimiser, replay, gameweek=gameweek)
-    calendar = _widened_chip_windows(chips, history, season)
-    fixtures = _fixture_frame(history, season, horizon)
-
-    def run(*, simulate: bool) -> DecisionPlan:
-        config = decision.model_copy(
-            update={"simulation": decision.simulation.model_copy(update={"enabled": simulate})}
-        )
-        return build_plan(
-            players=players,
-            state=state,
-            rules=rules,
-            decision=config,
-            optimiser=optimiser,
-            fixtures=fixtures,
-            chips=calendar,
-            last_gameweek=int(history[history["season"] == season]["gameweek"].max()),
-        )
-
-    without = run(simulate=False)
-    with_rerank = run(simulate=True)
+    plan = _planner(
+        history,
+        season=season,
+        gameweek=gameweek,
+        deadline=deadline,
+        training=training,
+        rules=rules,
+        chips=chips,
+        forecast_config=forecast_config,
+        replay=replay,
+        decision=decision,
+        optimiser=optimiser,
+    )
+    without = plan(_arm(decision, simulate=False))
+    with_rerank = plan(_arm(decision, simulate=True))
     actuals = _actual_points(history, season)
 
     return ReplayFold(
@@ -428,5 +621,7 @@ __all__ = [
     "ReplayResult",
     "attach_team_ids",
     "replay_chip_decisions",
+    "replay_chip_timing",
     "sample_deadlines",
+    "timing_summary",
 ]

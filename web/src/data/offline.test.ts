@@ -104,10 +104,10 @@ describe("warmPublishedCache", () => {
     expect(added).toEqual(["/fpl-dof/data/v1/meta.json"]);
   });
 
-  it("warms the fixed eager artefacts and not the lazy ones", () => {
+  it("warms the artefacts the registry marks warm, and not the lazy ones", () => {
     // `history.json` fully populated is larger than the other six combined (DL-37). If it ever ends
     // up in this list, a first visit pays for it whether or not the reader opens a player page.
-    expect([...WARMED_ARTEFACTS]).toEqual(["meta", "rules", "players", "squad", "strategies", "models"]);
+    expect([...WARMED_ARTEFACTS]).toEqual(["meta", "rules", "players", "squad", "models", "strategies"]);
     expect(WARMED_ARTEFACTS).not.toContain("history");
     expect(WARMED_ARTEFACTS).not.toContain("fixtures");
   });

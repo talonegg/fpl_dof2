@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 from fpl_dof.factory.registry import strategies
 from fpl_dof.publish.contract import CONTRACT_VERSION
+
+#: The 2025/26 backtest's xP accuracy: a frozen-era record nothing in the repository can rebuild
+#: (DL-94), so every published ``xp_accuracy.json`` carries it forward (WEB-04).
+XP_ACCURACY_RECORD = Path(__file__).parent / "records" / "xp_accuracy_2025-26.json"
 
 
 def build_live_xp_accuracy(
@@ -18,7 +24,7 @@ def build_live_xp_accuracy(
     """The live season's ``xp_accuracy.json``: each evaluated gameweek's MAE per strategy, from the
     xP it recorded before the deadline (ORC-05, ORC-08). ``None`` before any gameweek has one.
 
-    The app shows it beside the checked-in 2025/26 backtest season.
+    Published beside the 2025/26 record by ``with_record``.
     """
     gws: dict[int, dict[str, float]] = {}
     tot: dict[str, list[float]] = {}
@@ -54,4 +60,16 @@ def build_live_xp_accuracy(
     }
 
 
-__all__ = ["build_live_xp_accuracy"]
+def with_record(
+    live: Mapping[str, Any] | None, *, contract_version: int = CONTRACT_VERSION
+) -> dict[str, Any]:
+    """The recorded seasons, then the live ones; a live season replaces a recorded one of the same
+    season and kind."""
+    record: dict[str, Any] = json.loads(XP_ACCURACY_RECORD.read_text(encoding="utf-8"))
+    seasons = list(live["seasons"]) if live else []
+    fresh = {(s["season"], s["kind"]) for s in seasons}
+    kept = [s for s in record["seasons"] if (s["season"], s["kind"]) not in fresh]
+    return {**record, "contract_version": contract_version, "seasons": [*kept, *seasons]}
+
+
+__all__ = ["XP_ACCURACY_RECORD", "build_live_xp_accuracy", "with_record"]

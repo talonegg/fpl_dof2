@@ -28,7 +28,7 @@
  * built with that prefix as its base. Passing the bare origin would check a 404 page.
  */
 import { chromium } from "playwright";
-import { CONTRACT_VERSION } from "./contract-version.mjs";
+import { ARTEFACTS, CONTRACT_VERSION } from "./contract-version.mjs";
 
 const baseUrl = (process.argv[2] ?? "http://127.0.0.1:4173").replace(/\/+$/, "");
 
@@ -36,13 +36,14 @@ const baseUrl = (process.argv[2] ?? "http://127.0.0.1:4173").replace(/\/+$/, "")
 const EXPECTED_CONTRACT_VERSION = CONTRACT_VERSION;
 
 /**
- * Artefacts every successful publication writes, so any one of them missing is a real fault.
+ * Artefacts every successful publication writes, so any one of them missing is a real fault: those the
+ * generated registry marks `required` (WEB-04, `ARTEFACTS` in publish/contract.py).
  *
- * `week.json`, `plan.json` and `league.json` are deliberately absent from this list: each is legitimately
- * missing in a normal published state (DL-20, DL-40), and a smoke test that failed on them would
- * fail every deploy made before the first gameweek is scored.
+ * `week.json`, `plan.json` and `league.json` are not required: each is legitimately missing in a
+ * normal published state (DL-20, DL-40), and a smoke test that failed on them would fail every
+ * deploy made before the first gameweek is scored.
  */
-const REQUIRED_ARTEFACTS = ["meta", "rules", "players", "squad", "fixtures", "history", "health"];
+const REQUIRED_ARTEFACTS = Object.keys(ARTEFACTS).filter((key) => ARTEFACTS[key].required);
 
 /**
  * Routes that must render their real view, named by the `data-testid` of the component that fills
@@ -50,13 +51,11 @@ const REQUIRED_ARTEFACTS = ["meta", "rules", "players", "squad", "fixtures", "hi
  * error page, which is exactly the failure a smoke test exists to catch.
  */
 const ROUTES = [
-  // The dashboard is named by the squad pitch rather than by a wrapper: a pitch that rendered means
-  // the shell mounted, the contract loaded, and the artefacts parsed. A wrapper would have rendered
-  // regardless of all three.
-  ["#/", "squad-pitch", "the dashboard's squad"],
-  ["#/scout", "player-table", "the scout table"],
-  ["#/squad", "squad-builder", "the squad builder"],
-  ["#/fixtures", "fixture-ticker", "the fixture ticker"],
+  // Home is named by its squad card rather than by the shell: the card renders only once the shell
+  // mounted, the contract loaded and the required artefacts parsed. The shell renders regardless.
+  ["#/", "home-squad", "Home's squad"],  ["#/scout", "player-table", "the scout table"],
+  ["#/analysis", "squad-builder", "the squad builder"],
+  ["#/scout/fixtures", "fixture-ticker", "the fixture ticker"],
   ["#/health", "health-panel", "the data health page"],
 ];
 

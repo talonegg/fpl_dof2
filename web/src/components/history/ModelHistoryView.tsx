@@ -77,7 +77,7 @@ function CumulativeChart({ history, ids, highlight }: { history: ModelsHistory; 
   );
 }
 
-/** `/history` — how the five frozen models would have played 2025/26 (a backtest). */
+/** `/models/2025-26` — how each model would have played 2025/26 (a backtest), every one ranked. */
 export function ModelHistoryView({ history }: { history: ModelsHistory }) {
   const registry = useRegistry();
   const ids = orderIds(registry, history.models.filter((m) => m.available).map((m) => m.id));
@@ -89,7 +89,16 @@ export function ModelHistoryView({ history }: { history: ModelsHistory }) {
 
   return (
     <section className="history" data-testid="model-history">
-      <h2>Model history — {history.season}</h2>
+      <h2>
+        {history.season} playthrough{" "}
+        <span className="season-phase season-phase-replay" data-testid="history-kind">
+          {history.season} replay
+        </span>
+      </h2>
+      <p className="models-note" data-testid="history-kind-note">
+        A replay of {history.season}, each model playing its own team: not your squad and not this season, which
+        is on the This season tab.
+      </p>
       <p className="history-caveat" role="note" data-testid="history-caveat">
         {history.caveat}
       </p>
@@ -150,25 +159,26 @@ export function ModelHistoryView({ history }: { history: ModelsHistory }) {
                 </tr>
               );
             })}
+            {unavailable.map((m) => (
+              <tr key={m.id} data-testid={`history-row-${m.id}`}>
+                <td>—</td>
+                <th scope="row">
+                  <ModelBadge model={m.id} />
+                </th>
+                <td colSpan={5} className="models-what models-unavailable" data-testid={`history-unavailable-${m.id}`}>
+                  Unavailable{m.unavailable_reason ? `: ${m.unavailable_reason}` : ""}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
       <p className="models-note">
         Δ is the paired per-GW difference to the champion; CIs are an iid gameweek bootstrap ({history.bootstrap.draws}{" "}
-        draws, seed {history.bootstrap.seed}). ★ = CI excludes zero, with no multiple-comparison correction across four
-        models. One season of 38 GWs is a weak basis for choosing a model. GWs won = ranked first of the five (ties
-        shared).
+        draws, seed {history.bootstrap.seed}). ★ = CI excludes zero, with no multiple-comparison correction across the{" "}
+        {ids.length - 1} models compared with it. One season of {history.gameweeks.length} GWs is a weak basis for choosing a model.
+        GWs won = ranked first of the {ids.length} (ties shared).
       </p>
-      {unavailable.length > 0 && (
-        <ul className="history-unavailable" data-testid="history-unavailable">
-          {unavailable.map((m) => (
-            <li key={m.id}>
-              {m.label}: unavailable — {m.unavailable_reason}
-            </li>
-          ))}
-        </ul>
-      )}
-
       <h3>Cumulative points</h3>
       <CumulativeChart history={history} ids={ids} highlight={highlight} />
 
@@ -176,7 +186,7 @@ export function ModelHistoryView({ history }: { history: ModelsHistory }) {
       <div className="table-scroll history-gw-scroll" tabIndex={0} role="region" aria-labelledby="history-gw-heading">
         <table className="models-table history-gw" data-testid="history-gw-table">
           <caption className="visually-hidden">
-            Points per gameweek, rank of five in brackets, then captain and vice for the highlighted model
+            Points per gameweek, rank of {ids.length} in brackets, then captain and vice for the highlighted model
           </caption>
           <thead>
             <tr>

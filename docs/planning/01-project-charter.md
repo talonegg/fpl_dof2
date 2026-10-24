@@ -213,7 +213,7 @@ Deferred / Withdrawn / Unverified, with the evidence. Paths are under `pipeline/
 
 | ID | Requirement | MoSCoW | Objective | Status |
 | --- | --- | --- | --- | --- |
-| FR-26 | Dashboard showing the current squad, its expected points, the recommended action for the next deadline and a countdown | M | OBJ-3 | Met: `DashboardRoute.tsx` |
+| FR-26 | Dashboard showing the current squad, its expected points, the recommended action for the next deadline and a countdown | M | OBJ-3 | Met: `components/dashboard/Dashboard.tsx` (Home, WEB-08) |
 | FR-27 | Scout view — search, filter and sort all Premier League players by position, club, price, form, ownership, expected points, underlying statistics and fixture difficulty | M | OBJ-5 | Met: `ScoutRoute.tsx` (DL-36) |
 | FR-28 | Compare two or more players side by side across statistics and expected points | M | OBJ-5 | Met: `CompareRoute.tsx` |
 | FR-29 | Plot performance trends over time — points, xG, xA, minutes, defensive contributions, price, ownership — as charts | M | OBJ-5 | Met: `history.json` (DL-37) |

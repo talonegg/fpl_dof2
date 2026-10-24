@@ -1,0 +1,39 @@
+# A declared experiment (MOD-09, 05 section 5.3). The loader is fpl_dof.factory.experiments.load_declared.
+# EXP-02 (D-21). Run by `fpl-dof backtest` when backtest.chip_replay.timing_experiment is on
+# (config/ci-backtest.yaml), through fpl_dof.factory.replay.replay_chip_timing; written
+# 2026-10-24, before it was run.
+id: d21_chip_timing
+kind: decision
+hypothesis: >
+  The re-rank pulls chips to the first horizon gameweek (DL-28: Bench Boost at the first gameweek
+  at 8 of 8 deadlines at Balanced) because plan._draws applies the per-gameweek horizon discount
+  to each week's draws before the percentile is taken. The discount shrinks a later week's upside
+  tail as well as its mean, so a percentile of the discounted sum prefers the chip week whose tail
+  is undiscounted, which is always the first. Taking the discount out of the percentile removes
+  most of the re-rank's excess front-loading at every dial.
+falsifier: >
+  Either direction settles it. (a) The mechanism is refuted if, pooled over the safe, balanced and
+  aggressive dials, the undiscounted arm removes less than half of the re-rank's excess
+  front-loading (first chip on the first horizon gameweek, re-rank on minus re-rank off), or if the
+  re-rank shows no excess front-loading to remove. (b) It is confirmed if it removes at least half.
+  In either case the chip-week points are reported, not judged: eight deadlines cannot show that
+  either arm times chips better (DL-28).
+baseline: discounted
+variant: undiscounted
+metrics: [front_loaded, chip_week_points]
+decision_rule: >
+  A finding about a mechanism, not a model change: it changes no live behaviour. A fix to chip
+  timing that follows from it is a decision-engine change and clears the E8 section 5 bar with its
+  own DL entry; the owner decides.
+length: the bounded chip-replay sample (backtest.chip_replay, eight deadlines) at all three dials
+graded_by: backtest
+decision: shipped
+results: >
+  Local run of replay_chip_timing, the eight shipped chip-replay deadlines (2023/24 GW6-30,
+  2024/25 GW9-21), 2,184 s (2026-10-24). First chip on the first horizon gameweek, out of 8 - re-rank
+  off 1, on as shipped 4, on without the discount 0 (safe), 1 (balanced), 1 (aggressive); the three
+  dials made the same choices with the re-rank off and as shipped. Removing the discount takes away
+  all of the re-rank's excess front-loading (111% pooled), so falsifier (b) holds: the discount
+  inside the percentile is D-21's mechanism. Mean chip-week points (reported, not judged, eight
+  deadlines) - off 78.9, as shipped 70.6, undiscounted 81.5 / 82.8 / 78.9. A fix is a
+  decision-engine change for the owner (E8 section 5, its own DL).

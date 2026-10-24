@@ -1,7 +1,7 @@
 /**
  * The comparison view (E6-S4, FR-28): two to four players side by side, with a verdict.
  *
- * **The URL is the state.** The selection arrives as `#/compare?compare=1,2,3` and every change on
+ * **The URL is the state.** The selection arrives as `#/analysis/compare?compare=1,2,3` and every change on
  * this page — removing a player — is a navigation, not a `useState`. That is what keeps the view
  * bookmarkable and pasteable (DL-36): a comparison someone sends you renders the same comparison,
  * and reloading the page does not empty it. `data/comparison.ts` owns the format; this file never
@@ -230,7 +230,7 @@ function ComparisonBoard({
 
       {/*
         TODO(E6-S8): the fixture run for each compared player's club over the horizon, reading
-        `fetchFixtures()` from `data/api.ts` — `player/fixtureRun.ts` already builds a run for one
+        `useArtefact("fixtures")` from `data/store.ts` — `player/fixtureRun.ts` already builds a run for one
         player and is the thing to reuse. Note `model.teams_rated === 0` means the grid is unrated,
         and must be labelled as such rather than rendered as a rating (DP-09).
       */}

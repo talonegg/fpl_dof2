@@ -40,6 +40,16 @@ PIPE-01 … PIPE-14, built 2026-10-17 to 2026-10-19, remediated by REM-01 … RE
 | --- | --- |
 | [Data pipeline backlog](R1.1.0/R1.1.0-data-pipeline-backlog.md) — PIPE-01 … PIPE-14 and the remediation plan | DL-79, DL-81 to DL-85 |
 
+## R1.2.0 to R1.3.2 — the modular platform's first three releases
+
+The registry and five models live (R1.2.0, R1.2.2, hotfixes R1.2.1, R1.2.3 and R1.2.4), then gameweek
+orchestration (R1.3.0, R1.3.1, R1.3.2), built 2026-10-22 to 2026-10-24.
+
+| Plan | Main decisions |
+| --- | --- |
+| [Modular platform backlog](R1.2.0/R1.2.0-modular-platform-backlog.md) — MOD-01 … MOD-09 | DL-86 to DL-93 |
+| [R1.3.0 gameweek orchestration](R1.3.0/R1.3.0-gameweek-orchestration.md) — ORC-01 … ORC-10 and WEB-02, Drop A and Drop B | DL-94 |
+
 ## Other planning documents
 
 | Document | What it was | Why archived |

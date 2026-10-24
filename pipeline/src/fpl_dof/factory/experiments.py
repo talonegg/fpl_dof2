@@ -47,11 +47,17 @@ class Experiment(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     id: str
+    kind: Literal["forecast", "decision"] = "forecast"
+    """``forecast``: baseline and variant are registered strategies the standing backtest grades.
+    ``decision``: they name arms of a decision-engine replay (``factory.replay``), not strategies.
+    """
     hypothesis: str
     falsifier: str
     baseline: str
     variant: str
-    metrics: tuple[Literal["mae", "spearman", "top_n_precision"], ...]
+    metrics: tuple[
+        Literal["mae", "spearman", "top_n_precision", "front_loaded", "chip_week_points"], ...
+    ]
     decision_rule: str
     length: str
     graded_by: Literal["backtest", "shadow", "both"]
@@ -70,7 +76,8 @@ def load_declared(
             exp = Experiment.model_validate(yaml.safe_load(path.read_text(encoding="utf-8")))
         except (ValidationError, yaml.YAMLError) as exc:
             raise ValueError(f"{path.name}: {exc}") from exc
-        if exp.id != path.stem or not {exp.baseline, exp.variant} <= known:
+        strategies_ok = exp.kind == "decision" or {exp.baseline, exp.variant} <= known
+        if exp.id != path.stem or not strategies_ok:
             raise ValueError(
                 f"{path.name}: id must match the file and both strategies be registered"
             )
