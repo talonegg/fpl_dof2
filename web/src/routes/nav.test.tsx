@@ -11,7 +11,7 @@ const VIEW_TEST_IDS: Record<ViewPath, string> = {
   "/models": "models-page",
   "/models/season": "models-season-empty", // the default fixtures publish no models.json
   "/models/2025-26": "models-backtest",
-  "/review": "gw-selector",
+  "/review": "review",
   "/review/all": "log-table",
   "/gameweek": "week-deadline",
   "/gameweek/plan": "plan-timeline",

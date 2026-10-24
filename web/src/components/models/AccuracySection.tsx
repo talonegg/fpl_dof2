@@ -61,16 +61,25 @@ function MaeChart({ s }: { s: XpAccuracySeason }) {
   );
 }
 
-/** (c) Forecast accuracy: all-player xP MAE per GW for each season played. */
-export function AccuracySection({ accuracy, status }: { accuracy: XpAccuracy | null; status: "loading" | "ready" }) {
+/** Forecast accuracy: all-player xP MAE per GW for each season of the given kinds. */
+export function AccuracySection({
+  accuracy,
+  status,
+  kinds,
+}: {
+  accuracy: XpAccuracy | null;
+  status: "loading" | "ready";
+  kinds: readonly XpAccuracySeason["kind"][];
+}) {
   const registry = useRegistry();
   const sty = (id: string) => seriesStyle(registry, id);
+  const seasons = accuracy?.seasons.filter((s) => kinds.includes(s.kind)) ?? [];
   return (
     <section className="models-page-section" id="models-accuracy" data-testid="models-accuracy" aria-labelledby="models-accuracy-heading">
       <h2 id="models-accuracy-heading">Forecast accuracy (xP vs actual)</h2>
       {status === "loading" ? (
         <p>Loading accuracy scores…</p>
-      ) : !accuracy || accuracy.seasons.length === 0 ? (
+      ) : !accuracy || seasons.length === 0 ? (
         <p className="models-note" data-testid="accuracy-absent">
           No xP accuracy scores are available yet.
         </p>
@@ -79,7 +88,7 @@ export function AccuracySection({ accuracy, status }: { accuracy: XpAccuracy | n
           <p className="models-note">
             {accuracy.metric}. Population: every player all models priced, including those who did not play.
           </p>
-          {accuracy.seasons.map((s) => {
+          {seasons.map((s) => {
             const ids = orderIds(registry, Object.keys(s.pooled_mae));
             return (
               <div key={`${s.season}-${s.kind}`} className="accuracy-season" data-testid={`accuracy-${s.season}`}>
@@ -106,7 +115,6 @@ export function AccuracySection({ accuracy, status }: { accuracy: XpAccuracy | n
               </div>
             );
           })}
-          <p className="models-note">Live 2026/27 (GW7 onward) accuracy appears here once CI publishes its xP scores.</p>
         </>
       )}
     </section>

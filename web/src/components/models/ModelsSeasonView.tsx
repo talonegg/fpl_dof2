@@ -3,6 +3,9 @@ import { formatPoints } from "../../format";
 import { useRegistry } from "../../data/DataProvider";
 import { modelLabel, orderIds, seriesStyle } from "../../data/registry";
 import { ModelBadge } from "./ModelBadge";
+import { ModelStatus } from "./ModelStatus";
+import { rankBy } from "./rank";
+import "../history/history.css";
 import "./models.css";
 
 
@@ -113,13 +116,60 @@ function CumulativeChart({ models }: { models: Models }) {
   );
 }
 
-/** Season to date across all frozen models: totals, a per-GW table, a chart, and the latest advice. */
+/** Every model, ranked on its points to date; a model with nothing scored is listed, unranked, last. */
+function SeasonLadder({ models, order }: { models: Models; order: string[] }) {
+  const totals = new Map(models.season_to_date.map((s) => [s.model, s]));
+  const ranked = rankBy(order, (m) => {
+    const t = totals.get(m);
+    return t && t.gameweeks_scored > 0 ? t.total : null;
+  });
+  const leader = ranked[0]?.score ?? null;
+  return (
+    <div className="table-scroll" tabIndex={0} role="region" aria-labelledby="season-ladder-caption">
+      <table className="models-table" data-testid="season-ladder">
+        <caption id="season-ladder-caption" className="models-caption">
+          This season&rsquo;s ladder: each model&rsquo;s points to date, best first
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Rank</th>
+            <th scope="col">Model</th>
+            <th scope="col">Points</th>
+            <th scope="col">GWs</th>
+            <th scope="col">Per GW</th>
+            <th scope="col">Behind the leader</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ranked.map(({ item: m, score, rank }) => {
+            const t = totals.get(m);
+            return (
+              <tr key={m} data-testid={`ladder-row-${m}`}>
+                <td data-testid={`ladder-rank-${m}`}>{rank ?? "—"}</td>
+                <th scope="row" className="models-what">
+                  <ModelBadge model={m} />
+                  <ModelStatus models={models} id={m} testId={`ladder-${m}`} />
+                </th>
+                <td data-testid={`ladder-total-${m}`}>{score === null ? "—" : pts(score)}</td>
+                <td>{t?.gameweeks_scored ?? 0}</td>
+                <td>{score === null || !t ? "—" : (score / t.gameweeks_scored).toFixed(1)}</td>
+                <td>{score === null || leader === null ? "Not scored yet" : score === leader ? "Leader" : `−${pts(leader - score)}`}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Season to date across every model: the ladder, a per-GW table, a chart, and the latest advice. */
 export function ModelsSeasonView({ models }: { models: Models | null }) {
   const registry = useRegistry();
   if (!models) {
     return (
       <section className="models-season" data-testid="models-season-empty">
-        <h2>All models, season to date</h2>
+        <h2>This season, on your squad</h2>
         <p>
           The five-model comparison has not been published yet. It appears once the frozen models
           record their first pre-deadline decision.
@@ -133,7 +183,17 @@ export function ModelsSeasonView({ models }: { models: Models | null }) {
   const totals = new Map(models.season_to_date.map((s) => [s.model, s]));
   return (
     <section className="models-season" data-testid="models-season">
-      <h2>All models, season to date</h2>
+      <h2>
+        This season, on your squad{" "}
+        <span className="season-phase season-phase-prospective" data-testid="season-kind">
+          Live season {models.season}
+        </span>
+      </h2>
+      <p className="models-note" data-testid="season-kind-note">
+        Each model&rsquo;s advice for this season, scored on what happened. Not the 2025/26 replay, which
+        is on its own tab.
+      </p>
+      <SeasonLadder models={models} order={order} />
       <p className="models-note">
         Points are the final XI after auto-subs, captain (vice if the captain did not play), minus
         hits. Live advice is the champion; the others are comparisons. A handful of gameweeks is far
@@ -147,6 +207,7 @@ export function ModelsSeasonView({ models }: { models: Models | null }) {
           with care.
         </p>
       )}
+      <h3>Per gameweek</h3>
       <div className="table-scroll" tabIndex={0} role="region" aria-label="Points per gameweek by model">
         <table className="models-table" data-testid="models-table">
           <caption className="visually-hidden">Points per gameweek and cumulative total, by model</caption>

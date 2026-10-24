@@ -2,8 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, within } from "@testing-library/react";
 import { installFetchStub, renderApp, resetAppState } from "../../test/render";
 import { historyFixture } from "../history/history.test";
-import { strategiesFixture } from "../../test/fixtures";
-import type { Strategies } from "../../contract/types";
+import { challengerWeek, modelsFixture, strategiesFixture } from "../../test/fixtures";
+import type { Models, Strategies } from "../../contract/types";
 import type { XpAccuracy } from "./accuracy";
 
 const accuracy: XpAccuracy = {
@@ -20,60 +20,54 @@ const accuracy: XpAccuracy = {
       pooled_mae: { champion: 0.975, challenger: 0.91 },
       missing_models: { a_odds: "no saved predictions" },
     },
+    {
+      season: "2026/27",
+      kind: "prospective",
+      gameweeks: [{ gameweek: 7, phase: "prospective", mae: { champion: 1.2, challenger: 1.3 } }],
+      pooled_mae: { champion: 1.234, challenger: 1.3 },
+      missing_models: {},
+    },
   ],
 };
 
-describe("Models page", () => {
+/** GW10's engine had no advice: a source it needs was missing. */
+const engineOut: Models = {
+  ...modelsFixture,
+  gameweeks: modelsFixture.gameweeks.map((g, i, all) =>
+    i === all.length - 1
+      ? { ...g, availability: { ...g.availability, engine: { available: false, reason: "odds not posted" } } }
+      : g,
+  ),
+};
+
+const bodies = { models_history: historyFixture, xp_accuracy: accuracy, strategies: strategiesFixture, week_c1: challengerWeek };
+
+describe("Models", () => {
   beforeEach(() => {
     resetAppState();
     window.history.replaceState(null, "", "/");
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it("has compare, summary, details and accuracy sections with one summary row per model", async () => {
-    installFetchStub({ bodies: { models_history: historyFixture, xp_accuracy: accuracy, strategies: strategiesFixture } });
+  it("outlines every model from the registry: description, role, plan and whether it advises now", async () => {
+    installFetchStub({ bodies: { ...bodies, models: engineOut } });
     renderApp("/models");
-    const page = await screen.findByTestId("models-page");
-    for (const s of ["compare", "summary", "details", "accuracy"]) expect(within(page).getByTestId(`models-jump-${s}`)).toBeTruthy();
-    const rows = within(screen.getByTestId("models-summary")).getAllByRole("row").slice(1);
-    expect(rows.map((r) => r.getAttribute("data-testid"))).toEqual([
-      "models-summary-c3",
-      "models-summary-c1",
-      "models-summary-engine",
-      "models-summary-a",
-      "models-summary-a_odds",
+    const outline = await screen.findByTestId("models-outline");
+    expect(within(outline).getAllByRole("article").map((a) => a.getAttribute("data-testid"))).toEqual([
+      "models-outline-c3",
+      "models-outline-c1",
+      "models-outline-engine",
+      "models-outline-a",
+      "models-outline-a_odds",
     ]);
-    expect((await screen.findAllByText("0.910")).length).toBe(2);
-    expect(screen.getByTestId("summary-mae-c1").textContent).toBe("0.910");
-    expect(screen.getByTestId("summary-mae-a_odds").textContent).toBe("—");
-    expect(screen.getByTestId("models-summary-a_odds").textContent).toContain("Currently duplicates A");
-    expect(screen.getByTestId("accuracy-2025/26-c1").textContent).toBe("0.910");
-    expect(screen.getByTestId("accuracy-2025/26").textContent).toContain("A + odds: no saved predictions");
-  });
-
-  it("reads the live season from the published data, and no frozen-era replay", async () => {
-    const live = { season: "2026/27", kind: "prospective" as const, gameweeks: [], pooled_mae: { champion: 1.234 }, missing_models: {} };
-    const spy = installFetchStub({
-      bodies: { models_history: historyFixture, xp_accuracy: { ...accuracy, seasons: [...accuracy.seasons, live] }, strategies: strategiesFixture },
-    });
-    renderApp("/models");
-    await screen.findByTestId("models-page");
-    await screen.findAllByText("1.234");
-    expect(screen.getByTestId("summary-live-mae-c3").textContent).toBe("1.234");
-    expect(spy.mock.calls.map(([url]) => String(url)).filter((url) => url.includes("replay"))).toEqual([]);
-  });
-
-  it("degrades when the static files are missing", async () => {
-    installFetchStub({ missing: ["models_history", "xp_accuracy"] as never });
-    renderApp("/models");
-    expect(await screen.findByTestId("accuracy-absent")).toBeTruthy();
-    expect(screen.getByTestId("summary-xi-champion").textContent).toBe("—");
-  });
-
-  it("says so on the 2025/26 tab when the models history is missing", async () => {
-    installFetchStub({ missing: ["models_history"] as never });
-    renderApp("/models/2025-26");
-    expect(await screen.findByTestId("history-absent")).toBeTruthy();
+    expect(screen.getByTestId("models-outline-a_odds").textContent).toContain("Currently duplicates A");
+    expect(screen.getByTestId("outline-role-c3").textContent).toBe("Champion: its advice is the live advice");
+    expect(screen.getByTestId("outline-role-engine").textContent).toBe("Comparison, not yet run live");
+    expect(screen.getByTestId("models-outline-c1").textContent).toContain("A multi-gameweek plan, with chips");
+    expect(screen.getByTestId("models-outline-engine").textContent).toContain("This gameweek only, without chips");
+    expect(screen.getByTestId("outline-now-c3").textContent).toBe("Advice published for GW10");
+    expect(screen.getByTestId("outline-now-engine").textContent).toBe("Unavailable for GW10: odds not posted");
+    expect(screen.getByTestId("outline-engine-unavailable")).toBeTruthy();
   });
 
   it("labels experiments as not published and lists no retired strategy", async () => {
@@ -87,21 +81,66 @@ describe("Models page", () => {
         { ...strategiesFixture.strategies[2], id: "old_c2", label: "Old (C2)", role: "retired", published: false },
       ],
     };
-    installFetchStub({ bodies: { models_history: historyFixture, xp_accuracy: accuracy, strategies } });
+    installFetchStub({ bodies: { ...bodies, strategies } });
     renderApp("/models");
-    await screen.findByTestId("models-page");
-    const summary = screen.getByTestId("models-summary");
-    expect(within(summary).getByTestId("models-summary-c3_f3").textContent).toContain("Experiment, not published.");
-    expect(within(summary).getByTestId("models-summary-c3_f3").textContent).not.toContain("Comparison");
-    expect(within(summary).queryByTestId("models-summary-old_c2")).toBeNull();
-    expect(screen.getByTestId("models-detail-c3_f3")).toBeTruthy();
-    expect(screen.queryByTestId("models-detail-old_c2")).toBeNull();
+    expect((await screen.findByTestId("outline-role-c3_f3")).textContent).toBe("Experiment, not published");
+    expect(screen.queryByTestId("models-outline-old_c2")).toBeNull();
+  });
+
+  it("ranks every model on this season's ladder, ties sharing a rank, and says it is the live season", async () => {
+    installFetchStub({ bodies: { ...bodies, models: engineOut } });
+    renderApp("/models/season");
+    const ladder = await screen.findByTestId("season-ladder");
+    const rows = within(ladder).getAllByRole("row").slice(1);
+    expect(rows.map((r) => r.getAttribute("data-testid"))).toEqual([
+      "ladder-row-c3",
+      "ladder-row-a",
+      "ladder-row-a_odds",
+      "ladder-row-c1",
+      "ladder-row-engine",
+    ]);
+    expect(["c3", "a", "a_odds", "c1", "engine"].map((m) => screen.getByTestId(`ladder-rank-${m}`).textContent)).toEqual([
+      "1",
+      "1",
+      "1",
+      "4",
+      "5",
+    ]);
+    expect(screen.getByTestId("ladder-total-c1").textContent).toBe("179");
+    expect(screen.getByTestId("ladder-engine-unavailable").textContent).toContain("odds not posted");
+    expect(screen.getByTestId("season-kind").textContent).toBe("Live season 2026/27");
+    expect(screen.getByTestId("season-kind-note").textContent).toContain("Not the 2025/26 replay");
+  });
+
+  it("shows this season's xP accuracy on the season tab and the backtest's on the 2025/26 tab", async () => {
+    installFetchStub({ bodies: { ...bodies, models: modelsFixture } });
+    const { unmount } = renderApp("/models/season");
+    expect((await screen.findByTestId("accuracy-2026/27-c3")).textContent).toBe("1.234");
+    expect(screen.queryByTestId("accuracy-2025/26")).toBeNull();
+    unmount();
+    renderApp("/models/2025-26");
+    expect((await screen.findByTestId("accuracy-2025/26-c1")).textContent).toBe("0.910");
+    expect(screen.getByTestId("accuracy-2025/26").textContent).toContain("A + odds: no saved predictions");
+    expect(screen.queryByTestId("accuracy-2026/27")).toBeNull();
+    expect(screen.getByTestId("history-kind").textContent).toBe("2025/26 replay");
+  });
+
+  it("degrades when the accuracy and history files are missing", async () => {
+    installFetchStub({ missing: ["models_history", "xp_accuracy"] as never });
+    const { unmount } = renderApp("/models/season");
+    expect(await screen.findByTestId("accuracy-absent")).toBeTruthy();
+    unmount();
+    renderApp("/models/2025-26");
+    expect(await screen.findByTestId("history-absent")).toBeTruthy();
   });
 
   it("sends an old ?section= link for a part that moved to its new tab", async () => {
-    installFetchStub({ bodies: { models_history: historyFixture, xp_accuracy: accuracy, strategies: strategiesFixture } });
-    renderApp("/models?section=history");
+    installFetchStub({ bodies });
+    const { unmount } = renderApp("/models?section=history");
     expect(await screen.findByTestId("model-history")).toBeTruthy();
     expect(screen.queryByTestId("models-page")).toBeNull();
+    unmount();
+    renderApp("/models?section=accuracy");
+    expect(await screen.findByTestId("models-season-page")).toBeTruthy();
   });
 });
