@@ -18,7 +18,7 @@
  */
 
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { Player } from "../../contract/types";
 import {
@@ -31,6 +31,7 @@ import { ScoutControls } from "./ScoutControls";
 import {
   DEFAULT_VISIBLE_COLUMNS,
   PHONE_COLUMNS,
+  PlayerLink,
   orderColumns,
   type ScoutColumn,
 } from "./columns";
@@ -70,7 +71,12 @@ interface ScoutTableProps {
 export function ScoutTable({ players, ownedIds = null }: ScoutTableProps) {
   const isPhone = useMediaQuery(PHONE_QUERY);
 
-  const [filters, setFilters] = useState<ScoutFilters>(EMPTY_FILTERS);
+  // `?club=ARS` (from a fixture ticker row) opens the table already filtered to that club.
+  const [searchParams] = useSearchParams();
+  const [filters, setFilters] = useState<ScoutFilters>(() => {
+    const club = searchParams.get("club");
+    return club ? { ...EMPTY_FILTERS, clubs: [club] } : EMPTY_FILTERS;
+  });
   const [sort, setSort] = useState<ScoutSort>(DEFAULT_SORT);
   const [chosenColumns, setChosenColumns] = useState<string[]>(DEFAULT_VISIBLE_COLUMNS);
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -372,7 +378,7 @@ function ScoutCardRow({
     >
       <div className="scout-card-head">
         <span className="scout-card-name" role="cell">
-          {player.name}
+          <PlayerLink player={player} />
         </span>
         <span className={`confidence-badge confidence-${player.confidence}`}>
           {player.confidence}

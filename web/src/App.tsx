@@ -10,6 +10,7 @@ import { CompareRoute } from "./routes/CompareRoute";
 import { SquadRoute } from "./routes/SquadRoute";
 import { FixturesRoute } from "./routes/FixturesRoute";
 import { LeagueRoute } from "./routes/LeagueRoute";
+import { LeagueTeam } from "./components/league/LeagueTeam";
 import { LogRoute } from "./routes/LogRoute";
 import { SettingsRoute } from "./routes/SettingsRoute";
 import { HealthRoute } from "./routes/HealthRoute";
@@ -66,6 +67,7 @@ export function AppRoutes() {
         {Object.entries(REDIRECTS).map(([path, to]) => (
           <Route key={path} path={path} element={<Redirect to={to} />} />
         ))}
+        <Route path="league/:entryId" element={<LeagueTeam />} />
         <Route path="player/:id" element={<PlayerRoute />} />
         <Route path="settings" element={<SettingsRoute />} />
         <Route path="*" element={<NotFoundRoute />} />

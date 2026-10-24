@@ -42,10 +42,20 @@ export function BottomBar() {
   const [open, setOpen] = useState(false);
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLUListElement>(null);
+  const item = useRef<HTMLLIElement>(null);
   const { pathname } = useLocation();
   const inMore = MORE_SECTIONS.some((s) => s === sectionOf(pathname));
 
   useEffect(() => setOpen(false), [pathname]);
+  // A tap anywhere outside the More item closes the menu.
+  useEffect(() => {
+    if (!open) return;
+    const away = (event: MouseEvent) => {
+      if (!(event.target instanceof Node) || !item.current?.contains(event.target)) setOpen(false);
+    };
+    document.addEventListener("mousedown", away);
+    return () => document.removeEventListener("mousedown", away);
+  }, [open]);
   useEffect(() => {
     if (open) menu.current?.querySelector("a")?.focus();
   }, [open]);
@@ -65,7 +75,7 @@ export function BottomBar() {
             <SectionLink section={section} prefix="bottom" />
           </li>
         ))}
-        <li className="app-more">
+        <li className="app-more" ref={item}>
           <button
             ref={button}
             type="button"
