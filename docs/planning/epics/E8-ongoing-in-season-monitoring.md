@@ -34,7 +34,7 @@ decision.
 | Gameweek | Question | Outcome |
 | --- | --- | --- |
 | GW4 | Is the model beating your intuition? If not, the forecast takes priority over everything else | **Intuition is ahead** (owner, 17 Oct). R1.1.0 keeps its order: the pipeline is what a better forecast is built from ([DL-79](../../decisions/DL-79.md)) |
-| GW8 | Is weekly operation sustainable? If not, automation and alerting jump to the top | *(record)* |
+| GW8 | Is weekly operation sustainable? If not, automation and alerting jump to the top | **Yes** (owner, 24 Oct): sustainable after R1.3.x's automation; the owner's loop is review and decide only. Automation does not jump the queue |
 | GW10–12 | First honest read on live out-of-sample accuracy | *(record)* |
 | Before GW15 | A chip calendar for set 1 exists | *(record)* |
 | GW19 deadline | **Chip set 1 expires — 18:30 GMT, Fri 1 Jan 2027** (per the API, 17 Oct 2026; re-check, FPL moves deadlines). Unused chips are lost | *(record)* |
