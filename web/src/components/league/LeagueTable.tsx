@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import type { League } from "../../contract/types";
 import { useData } from "../../data/DataProvider";
 import { buildLeagueView, byOverlapDescending, nameList, playerNames } from "./league";
@@ -145,7 +146,9 @@ function Row({
           <RankMove change={row.rankChange} />
         </td>
         <td>
-          <span className="league-team">{entry.entry_name}</span>
+          <Link className="league-team" to={`/league/${entry.entry_id}`}>
+            {entry.entry_name}
+          </Link>
           <span className="league-manager">{entry.player_name}</span>
           {row.isOwner && <span className="league-you">You</span>}
           {!row.isOwner && matchesEntered && (

@@ -130,6 +130,24 @@ export function PlayerDetail({ player }: { player: Player }) {
       <FixtureRunPanel player={player} />
       <TrendCharts player={player} />
 
+      <section className="player-panel" data-testid="player-sources">
+        <h3>What the sources hold</h3>
+        <ul>
+          <li>
+            FPL: this season&apos;s price, availability, ownership and gameweek-by-gameweek returns,
+            shown above.
+          </li>
+          <li>
+            The archive: past seasons&apos; FPL records, used to train the forecast. They are not
+            published per player.
+          </li>
+          <li>
+            Understat and FBref: expected-goals data is blocked upstream (D-23), so it is not
+            available here.
+          </li>
+        </ul>
+      </section>
+
       <p className="player-detail-back">
         <Link to="/scout">Back to the scout table</Link>
       </p>

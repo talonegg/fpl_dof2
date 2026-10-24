@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import type { DifficultyScale, FixtureEntry, FixtureGameweek, Fixtures } from "../../contract/types";
 import {
   METRICS,
@@ -186,7 +187,14 @@ function TickerRow({
   return (
     <tr data-testid="ticker-row" data-team={row.team}>
       <th scope="row" className="ticker-club">
-        <span className="ticker-club-short">{row.team}</span>
+        <Link
+          className="ticker-club-short"
+          to={`/scout?club=${encodeURIComponent(row.team)}`}
+          data-testid={`ticker-players-${row.team}`}
+          title={`Players at ${row.name}`}
+        >
+          {row.team}
+        </Link>
         <span className="ticker-club-name">{row.name}</span>
       </th>
 
