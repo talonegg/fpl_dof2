@@ -5,6 +5,7 @@ import {
   buildLeagueView,
   byOverlapDescending,
   compareSquads,
+  fieldedPoints,
   nameList,
   playerNames,
 } from "./league";
@@ -17,6 +18,27 @@ function squadOf(ids: number[], captain: number | null): LeagueSquad {
     vice_captain_id: null,
   };
 }
+
+describe("fieldedPoints (ORC-14)", () => {
+  const chips = { captain_multiplier: 2, captain_multiplier_by_chip: { "3xc": 3 }, bench_scores_with: [], transfers_free_with: [] };
+  const squad: LeagueSquad = { player_ids: [1, 2, 3], starting_ids: [1, 2], captain_id: 1, vice_captain_id: 2 };
+  const ten = () => 10;
+
+  it("counts the fielded XI only, the captain at the configured multiplier", () => {
+    expect([...fieldedPoints(squad, null, chips, ten)]).toEqual([[1, 20], [2, 10], [3, 0]]);
+  });
+
+  it("takes the chip's armband from the rules, and passes it to the vice when the captain was not fielded", () => {
+    expect(fieldedPoints(squad, "3xc", chips, ten).get(1)).toBe(30);
+    const subbed = { ...squad, starting_ids: [2, 3] };
+    expect([...fieldedPoints(subbed, null, chips, ten)]).toEqual([[1, 0], [2, 20], [3, 10]]);
+  });
+
+  it("applies no multiplier when the rules publish none, and keeps unknown points unknown", () => {
+    expect(fieldedPoints(squad, null, undefined, ten).get(1)).toBe(10);
+    expect(fieldedPoints(squad, null, chips, () => null).get(1)).toBeNull();
+  });
+});
 
 describe("compareSquads", () => {
   it("splits two squads into shared, theirs alone and yours alone", () => {

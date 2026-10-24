@@ -597,6 +597,8 @@ class TeamMatchExpectationSchema(pa.DataFrameModel):
     home_win_probability: Series[float] = pa.Field(ge=0, le=1)
     draw_probability: Series[float] = pa.Field(ge=0, le=1)
     away_win_probability: Series[float] = pa.Field(ge=0, le=1)
+    """The three results, margin removed from the 1X2 prices; the fitted goals' outcome only where a
+    source posts no result market (ORC-15)."""
     total_goals: Series[float] = pa.Field(ge=0, le=20)
     over_2_5_probability: Series[float] = pa.Field(ge=0, le=1, nullable=True)
     """P(more than 2.5 goals), margin removed from the over/under 2.5 prices. Null where the

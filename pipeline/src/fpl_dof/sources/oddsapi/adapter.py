@@ -25,6 +25,7 @@ configuration, never logged, and the shared fetcher redacts it from the URL it s
 
 from __future__ import annotations
 
+import dataclasses
 import datetime as dt
 import json
 import os
@@ -330,7 +331,16 @@ class OddsApiAdapter(SourceAdapter):
 
         if result is None and over is None:
             return None
-        return fit_goal_expectations(result=result, over=over, line=line), line
+        fitted = fit_goal_expectations(result=result, over=over, line=line)
+        if result is not None:
+            # The 1X2 prices with the margin removed, not the refit's outcome (ORC-15).
+            fitted = dataclasses.replace(
+                fitted,
+                home_win_probability=result["home"],
+                draw_probability=result["draw"],
+                away_win_probability=result["away"],
+            )
+        return fitted, line
 
     def _expectations(
         self, season: str, events: list[dict[str, Any]], captured_at: pd.Timestamp

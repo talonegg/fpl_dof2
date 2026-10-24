@@ -348,9 +348,8 @@ def _run_stamp(ctx: StageContext) -> dict[str, str]:
 
 def _rules(rules: GameRules) -> dict[str, Any]:
     """Publish the rules the pipeline actually used, so the browser obeys the same numbers."""
-    # The chip rules only score finished gameweeks, which the browser never does; not published.
-    payload: dict[str, Any] = json.loads(rules.model_dump_json(exclude={"chips"}))
-    payload["derived"].pop("chips", None)
+    # The chip rules too: the League scores a rival's finished gameweek with the armband (ORC-14).
+    payload: dict[str, Any] = json.loads(rules.model_dump_json())
     payload["contract_version"] = CONTRACT_VERSION
     return payload
 

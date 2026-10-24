@@ -3,13 +3,13 @@ import type { ModelsHistory } from "../../contract/types";
 import { useRegistry } from "../../data/DataProvider";
 import { modelLabel, orderIds, seriesStyle } from "../../data/registry";
 import type { ModelChoice } from "../../data/model";
+import { signed } from "../../format";
 import { ModelBadge } from "../models/ModelBadge";
 import { ModelSelector } from "../models/ModelSelector";
 import "../models/models.css";
 import "./history.css";
 
 const pts = (v: number) => String(Math.round(v));
-const signed = (v: number, dp = 2) => `${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.abs(v).toFixed(dp)}`;
 
 /** Cumulative points over the season, one line per model; the highlighted model is drawn on top. */
 function CumulativeChart({ history, ids, highlight }: { history: ModelsHistory; ids: ModelChoice[]; highlight: ModelChoice }) {

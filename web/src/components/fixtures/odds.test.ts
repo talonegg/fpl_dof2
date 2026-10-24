@@ -7,11 +7,12 @@ const odds = { win: 0.554, draw: 0.246, loss: 0.2, over_2_5: 0.63, as_of: "2026-
 
 describe("fixture odds wording (ORC-15)", () => {
   it("words the probabilities from the club's side", () => {
-    expect(oddsShort(odds)).toBe("W 55% D 25% L 20%");
+    expect(oddsShort(odds)).toBe("W 55% D 25% L 20% O2.5 63%");
     expect(oddsSentence(odds)).toContain("win 55%, draw 25%, loss 20%, over 2.5 goals 63%");
   });
 
   it("leaves out over 2.5 when no totals market is posted", () => {
+    expect(oddsShort({ ...odds, over_2_5: null })).toBe("W 55% D 25% L 20%");
     expect(oddsSentence({ ...odds, over_2_5: null })).not.toContain("over 2.5");
   });
 

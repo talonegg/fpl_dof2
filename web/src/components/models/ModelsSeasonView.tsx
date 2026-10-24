@@ -1,5 +1,5 @@
 import type { Models } from "../../contract/types";
-import { formatPoints } from "../../format";
+import { formatPoints, signed } from "../../format";
 import { useRegistry } from "../../data/DataProvider";
 import { modelLabel, orderIds, seriesStyle } from "../../data/registry";
 import { transfersText } from "../../data/season";
@@ -156,8 +156,6 @@ function SeasonLadder({ models, order }: { models: Models; order: string[] }) {
   );
 }
 
-const signed = (v: number) => (v > 0 ? `+${v.toFixed(1)}` : v < 0 ? `−${(-v).toFixed(1)}` : "±0.0");
-
 /**
  * Each model's miss split in two per gameweek (ORC-12): forecast error, its XI's xP less the
  * underlying xP (the game's rules applied to FPL's expected goals, assists and goals conceded, and
@@ -174,6 +172,11 @@ function ForecastSplit({ models, order }: { models: Models; order: string[] }) {
         and goals conceded, by the game&rsquo;s rules. <strong>Forecast error</strong> is the XI&rsquo;s xP
         less its underlying xP (above zero: the model expected too much). <strong>Luck</strong> is the points
         before hits less the underlying xP (above zero: the finishing beat the chances).
+      </p>
+      <p className="models-note" data-testid="models-split-actuals">
+        Saves, penalties, cards, own goals, Defensive Contribution and bonus have no expected figure, so
+        underlying xP scores their actual points, as it does any match without an expected figure. Their luck
+        therefore reads zero, and the model&rsquo;s miss on them counts as forecast error.
       </p>
       {split.length === 0 ? (
         <p className="models-note" data-testid="models-split-empty">
@@ -203,7 +206,7 @@ function ForecastSplit({ models, order }: { models: Models; order: string[] }) {
                       <td key={m} data-testid={`models-split-${g.gameweek}-${m}`}>
                         {a?.forecast_error === undefined || a.luck === undefined
                           ? "—"
-                          : `error ${signed(a.forecast_error)}, luck ${signed(a.luck)}`}
+                          : `error ${signed(a.forecast_error, 1)}, luck ${signed(a.luck, 1)}`}
                       </td>
                     );
                   })}

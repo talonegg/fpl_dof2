@@ -126,7 +126,7 @@
       "additionalProperties": false,
       "required": ["win", "draw", "loss", "over_2_5", "as_of"],
       "properties": {
-        "win": { "type": "number", "minimum": 0, "maximum": 1, "description": "This club wins. win + draw + loss is 1 to rounding: the bookmaker margin is removed proportionally." },
+        "win": { "type": "number", "minimum": 0, "maximum": 1, "description": "This club wins, from the match-result (1X2) prices with the bookmaker margin removed proportionally, not from the goals fitted to them; win + draw + loss is 1 to rounding." },
         "draw": { "type": "number", "minimum": 0, "maximum": 1 },
         "loss": { "type": "number", "minimum": 0, "maximum": 1, "description": "The opponent wins." },
         "over_2_5": { "type": ["number", "null"], "minimum": 0, "maximum": 1, "description": "More than 2.5 goals in the match, from the over/under 2.5 prices with the margin removed; the same for both clubs. Null when no totals market is posted." },

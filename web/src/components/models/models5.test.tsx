@@ -109,6 +109,10 @@ describe("the strategy selector is driven by the registry", () => {
     expect(within(table).getAllByRole("row")).toHaveLength(2); // header and the one gameweek with it
     expect(screen.getByTestId(`models-split-${last.gameweek}-c3`).textContent).toBe("error +4.2, luck −3.1");
     expect(screen.getByTestId(`models-split-${last.gameweek}-a`).textContent).toBe("—");
+    // The components scored at their actual points read zero luck: the reader is told so.
+    const actuals = screen.getByTestId("models-split-actuals").textContent ?? "";
+    expect(actuals).toContain("Defensive Contribution and bonus");
+    expect(actuals).toContain("counts as forecast error");
   });
 
   it("the models page says when no gameweek has underlying xP yet", async () => {

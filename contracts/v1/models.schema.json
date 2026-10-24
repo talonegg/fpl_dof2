@@ -84,8 +84,8 @@
         "captain_name": { "type": "string" },
         "vice_captain": { "type": ["integer", "null"] },
         "vice_name": { "type": "string" },
-        "expected_points": { "type": "number", "description": "xPts of the XI with the armband, net of hits." },
-        "option_set": { "$ref": "#/$defs/log_hindsight_optimal", "description": "The options the model weighed at the deadline on its predicted xP, from the ledger's advice of record (ORC-11), for setting beside the hindsight optimum. Absent for frozen gameweeks and advice recorded before R1.4.0." }
+        "expected_points": { "type": "number", "description": "xPts of the XI with the armband, before hits (hit_points carries those)." },
+        "option_set": { "$ref": "#/$defs/log_hindsight_optimal", "description": "The options the model weighed at the deadline on its predicted xP, from the ledger's advice of record (ORC-11), for setting beside the hindsight optimum. Absent for frozen gameweeks and advice recorded before R1.4.1." }
       }
     },
     "model_actual": {

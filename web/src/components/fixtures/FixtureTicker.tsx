@@ -169,7 +169,7 @@ export function FixtureTicker({ fixtures }: { fixtures: Fixtures }) {
       ) : null}
       <p className="ticker-odds-note">
         Beside each fixture, W, D and L are the bookmakers' chances of this club winning, drawing and
-        losing, margin removed. Hover for the over 2.5 goals chance.
+        losing, margin removed; O2.5 is the chance of more than 2.5 goals in the match.
       </p>
 
       <p className="ticker-provenance" data-testid="ticker-provenance">
@@ -328,8 +328,9 @@ function Chip({
       </span>
       <span className="ticker-score">{score.toFixed(1)}</span>
       {fixture.odds ? (
-        <span className="ticker-odds" data-testid="ticker-odds" aria-label={oddsSentence(fixture.odds)}>
-          {oddsShort(fixture.odds)}
+        <span className="ticker-odds" data-testid="ticker-odds">
+          <span aria-hidden="true">{oddsShort(fixture.odds)}</span>
+          <span className="visually-hidden">{oddsSentence(fixture.odds)}</span>
         </span>
       ) : null}
     </span>

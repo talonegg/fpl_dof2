@@ -54,7 +54,7 @@ def diagnose_oracle_gap(
     models_captains: Mapping[str, int],
     player_underlying: Mapping[int, float] | None = None,
 ) -> list[PlayerDiagnostic]:
-    """Analyze the divergence between hindsight optimal moves and model predictions.
+    """Analyse the divergence between hindsight optimal moves and model predictions.
 
     ``models_xp`` is each model's pre-deadline xP per player; a model that did not price a player
     is left out for him, never read as 0.0 (D-37). ``player_underlying`` is each player's

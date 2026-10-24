@@ -61,6 +61,22 @@
         "extra_transfer_cost": { "type": "integer" },
         "free_transfers_per_gameweek": { "type": "integer", "minimum": 1 }
       }
+    },
+    "chips": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "What each chip does to a finished gameweek's score, so the browser scores a team as the game did (the League's differentials). Absent before contract minor 6.",
+      "required": ["captain_multiplier", "captain_multiplier_by_chip", "bench_scores_with", "transfers_free_with"],
+      "properties": {
+        "captain_multiplier": { "type": "integer", "minimum": 1, "description": "The armband's ordinary multiplier." },
+        "captain_multiplier_by_chip": {
+          "type": "object",
+          "additionalProperties": { "type": "integer", "minimum": 1 },
+          "description": "Chip name, as the API names it, to the armband multiplier it imposes instead."
+        },
+        "bench_scores_with": { "type": "array", "items": { "type": "string" }, "description": "Chips under which all fifteen score." },
+        "transfers_free_with": { "type": "array", "items": { "type": "string" }, "description": "Chips under which the gameweek's transfers cost no points." }
+      }
     }
   },
   "$defs": {

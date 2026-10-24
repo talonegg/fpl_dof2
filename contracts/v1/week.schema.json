@@ -131,7 +131,7 @@
         },
         "options": {
           "type": "array",
-          "description": "Every course of action considered, including the roll, each with its own arithmetic.",
+          "description": "Every course of action considered, including the roll, each with its own arithmetic. From R1.4.1 derived from option_set, in its rounding (one solve, one home); kept in this shape for the recommendation card and earlier week files.",
           "items": {
             "type": "object",
             "additionalProperties": false,
@@ -145,7 +145,7 @@
             }
           }
         },
-        "option_set": { "$ref": "#/$defs/log_hindsight_optimal", "description": "What this model weighed on its own predicted xP, in the hindsight optimum's shape: the roll, the best single transfer and the best overall, each with its moves, captain, points before hits, hits, net and gain over roll (ORC-11). Recorded with the advice in the ledger. Absent before R1.4.0." },
+        "option_set": { "$ref": "#/$defs/log_hindsight_optimal", "description": "What this model weighed on its own predicted xP, in the hindsight optimum's shape: the roll, the best single transfer and the best overall, each with its moves, captain, points before hits, hits, net and gain over roll (ORC-11). Recorded with the advice in the ledger. Absent before R1.4.1." },
         "warnings": { "type": "array", "items": { "type": "string" } }
       }
     },

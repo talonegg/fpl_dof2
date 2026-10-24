@@ -39,8 +39,9 @@ function FixtureCell({ fixture }: { fixture: RunFixture }) {
       </span>
       <span className="fixture-difficulty">{fixture.difficulty.toFixed(1)}</span>
       {fixture.odds ? (
-        <span className="fixture-odds" data-testid="fixture-odds" aria-label={oddsSentence(fixture.odds)}>
-          {oddsShort(fixture.odds)}
+        <span className="fixture-odds" data-testid="fixture-odds">
+          <span aria-hidden="true">{oddsShort(fixture.odds)}</span>
+          <span className="visually-hidden">{oddsSentence(fixture.odds)}</span>
         </span>
       ) : null}
     </li>

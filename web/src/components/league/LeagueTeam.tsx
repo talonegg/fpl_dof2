@@ -1,42 +1,10 @@
 import { Link, useParams } from "react-router-dom";
-import type { History, LeagueEntry, Player } from "../../contract/types";
+import type { LeagueEntry, Player } from "../../contract/types";
 import { useData } from "../../data/DataProvider";
 import { pointsIn } from "../../data/season";
 import { unready, useArtefact } from "../../data/store";
-import { compareSquads } from "./league";
+import { compareSquads, fieldedPoints } from "./league";
 import "./league.css";
-
-function Swing({
-  title,
-  ids,
-  byId,
-  hist,
-  gw,
-}: {
-  title: string;
-  ids: number[];
-  byId: Map<number, Player>;
-  hist: History | null;
-  gw: number | null;
-}) {
-  return (
-    <div>
-      <h4>{title}</h4>
-      {ids.length === 0 ? (
-        <p className="league-note">None.</p>
-      ) : (
-        <ul className="league-team-list">
-          {ids.map((id) => (
-            <li key={id} className="league-team-player" data-testid={`diff-${id}`}>
-              {byId.get(id) ? <Link to={`/player/${id}`}>{byId.get(id)!.name}</Link> : <span>#{id}</span>}
-              {hist !== null && <span className="league-team-points">{pointsIn(hist, id, gw) ?? "—"}</span>}
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
 
 function PlayerLine({
   id,
@@ -44,15 +12,17 @@ function PlayerLine({
   points,
   captain,
   showPoints,
+  testId,
 }: {
   id: number;
   player: Player | undefined;
-  points: number | null;
+  points: number | string | null;
   captain: "Captain" | "Vice-captain" | null;
   showPoints: boolean;
+  testId?: string;
 }) {
   return (
-    <li className="league-team-player" data-testid={`league-team-player-${id}`}>
+    <li className="league-team-player" data-testid={testId ?? `league-team-player-${id}`}>
       <span className="league-team-pos">{player?.position ?? "?"}</span>
       {player ? <Link to={`/player/${id}`}>{player.name}</Link> : <span>#{id}</span>}
       {captain && <span className="league-team-badge">{captain}</span>}
@@ -63,13 +33,14 @@ function PlayerLine({
 
 /**
  * One entry's last gameweek (WEB-09): XI, bench, captain and vice, and each player's points that
- * gameweek, from the league's published squad joined to `history.json`. Points are raw (the
- * captain's multiplier is not applied: `rules.json` publishes none). ORC-14 adds the moves
- * (transfers, hit, chip) and the differentials against the owner's squad below it.
+ * gameweek, from the league's published squad joined to `history.json`; the squad lists raw points.
+ * ORC-14 adds the moves (transfers, hit, chip) and the differentials against the owner's squad,
+ * scored as each team fielded them: the XI after automatic substitutions, the armband from
+ * `rules.json`, and the hits.
  */
 export function LeagueTeam() {
   const { entryId } = useParams<{ entryId: string }>();
-  const { players } = useData();
+  const { players, rules } = useData();
   const league = useArtefact("league").state;
   const history = useArtefact("history").state;
 
@@ -102,9 +73,37 @@ export function LeagueTeam() {
   const hist = history.status === "ready" ? history.data : null;
   const byId = new Map(players.players.map((p) => [p.id, p]));
   const name = (id: number) => byId.get(id)?.name ?? `#${id}`;
-  const ownerSquad = data.entries.find((e) => e.is_owner)?.squad ?? null;
+  const owner = data.entries.find((e) => e.is_owner);
+  const ownerSquad = owner?.squad ?? null;
   const diff = squad && ownerSquad && !entry.is_owner ? compareSquads(ownerSquad, squad) : null;
-  const sum = (ids: number[]) => ids.reduce((t, id) => t + (pointsIn(hist, id, gw) ?? 0), 0);
+  const pointsOf = (id: number) => pointsIn(hist, id, gw);
+  const theirs = squad ? fieldedPoints(squad, entry.moves?.chip ?? null, rules.chips, pointsOf) : new Map<number, number | null>();
+  const yours = ownerSquad ? fieldedPoints(ownerSquad, owner?.moves?.chip ?? null, rules.chips, pointsOf) : new Map<number, number | null>();
+  const total = (side: Map<number, number | null>) => [...side.values()].reduce((t: number, p) => t + (p ?? 0), 0);
+  // Players both hold who scored differently for each: the armband, or one team benched him.
+  const scoredApart = diff ? diff.overlapIds.filter((id) => theirs.get(id) !== yours.get(id)) : [];
+  const swing = (title: string, ids: number[], points: (id: number) => number | string | null) => (
+    <div>
+      <h4>{title}</h4>
+      {ids.length === 0 ? (
+        <p className="league-note">None.</p>
+      ) : (
+        <ul className="league-team-list">
+          {ids.map((id) => (
+            <PlayerLine
+              key={id}
+              id={id}
+              player={byId.get(id)}
+              points={points(id)}
+              captain={null}
+              showPoints={hist !== null}
+              testId={`diff-${id}`}
+            />
+          ))}
+        </ul>
+      )}
+    </div>
+  );
   const groups: [string, number[]][] = squad
     ? [
         ["Starting XI", squad.player_ids.filter((id) => squad.starting_ids.includes(id))],
@@ -177,7 +176,7 @@ export function LeagueTeam() {
             </p>
             <p>
               Hit: {entry.moves.hit_cost === 0 ? "none" : `−${entry.moves.hit_cost} points`} · Chip:{" "}
-              {entry.moves.chip ?? "none"}
+              {entry.moves.chip_label ?? "none"}
             </p>
           </>
         ) : (
@@ -197,12 +196,24 @@ export function LeagueTeam() {
           </p>
         ) : (
           <>
-            <Swing title="They hold, you do not" ids={diff.rivalOnlyIds} byId={byId} hist={hist} gw={gw} />
-            <Swing title="You hold, they do not" ids={diff.ownerOnlyIds} byId={byId} hist={hist} gw={gw} />
+            {swing("They hold, you do not", diff.rivalOnlyIds, (id) => theirs.get(id) ?? null)}
+            {swing("You hold, they do not", diff.ownerOnlyIds, (id) => yours.get(id) ?? null)}
+            {swing(
+              "Both hold, scored differently",
+              scoredApart,
+              (id) => `${theirs.get(id) ?? "—"} for them, ${yours.get(id) ?? "—"} for you`,
+            )}
             {hist !== null && (
               <p data-testid="diff-net">
-                Net swing to them in gameweek {gw}: {sum(diff.rivalOnlyIds) - sum(diff.ownerOnlyIds)} points (raw points; a
-                player with no fixture counts as 0).
+                Net swing to them in gameweek {gw}:{" "}
+                {total(theirs) - total(yours) - (entry.moves?.hit_cost ?? 0) + (owner?.moves?.hit_cost ?? 0)} points.
+                Each team&apos;s XI as fielded after automatic substitutions (the bench scores nothing),{" "}
+                {rules.chips
+                  ? "the captain's points multiplied as the game does"
+                  : "raw points: the captain's multiplier is not published"}
+                ; {entry.moves ? `their hit of ${entry.moves.hit_cost} counted` : "their hit is not known, so not counted"},{" "}
+                {owner?.moves ? `and yours of ${owner.moves.hit_cost}` : "yours is not known"}. A player with no fixture
+                counts as 0.
               </p>
             )}
           </>

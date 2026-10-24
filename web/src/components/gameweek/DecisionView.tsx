@@ -6,7 +6,7 @@ import { Bench } from "../Bench";
 import { Decomposition } from "../Decomposition";
 import { OwnershipBet } from "../PlanPanel";
 import { ModelBadge } from "../models/ModelBadge";
-import { OptionsTable } from "../OptionsTable";
+import { ChipScenarios, OptionsTable } from "../OptionsTable";
 import { AlertsPanel } from "../dashboard/AlertsPanel";
 import { DeadlineCountdown } from "../dashboard/DeadlineCountdown";
 import { RecommendationCard } from "../dashboard/RecommendationCard";
@@ -21,7 +21,8 @@ import "../dashboard/dashboard.css";
  * Order is by what changes the decision: deadline, alerts, the move beside its roll comparison
  * (FR-24, always rendered by `RecommendationCard`), the XI/captain/bench with expected points,
  * then the reasoning. The options the model weighed (ORC-11: roll, best single, best overall) sit
- * between the recommendation and the XI, in the hindsight optimum's table.
+ * between the recommendation and the XI, in the hindsight optimum's table, with the chip scenarios
+ * its plan enumerated beside them.
  */
 export function DecisionView({
   week,
@@ -57,10 +58,11 @@ export function DecisionView({
                 testId="decision-options"
               />
             ) : (
-              <p className="models-note" data-testid="decision-no-options">
-                This advice was published without its options; they are published from R1.4.0 on.
+              <p className="options-note" data-testid="decision-no-options">
+                This advice was published without its options; they are published from R1.4.1 on.
               </p>
             )}
+            <ChipScenarios plan={plan} />
           </section>
         </>
       ) : (
