@@ -67,7 +67,7 @@ describe("Last gameweek", () => {
     expect(screen.getByTestId("review-no-optimal").textContent).toContain("GW7 is not in the season log");
   });
 
-  it("sets out the hindsight options and the players who decided them, without the unreliable per-model xP", async () => {
+  it("sets out the hindsight options and the players who decided them, with each model's xP for them", async () => {
     installFetchStub({ bodies });
     renderApp("/review");
     const options = await screen.findByTestId("review-options");
@@ -79,8 +79,27 @@ describe("Last gameweek", () => {
     expect(watkins.textContent).toContain("Model blind spot");
     expect(watkins.textContent).toContain("14 pts");
     expect(watkins.textContent).toContain("Caught out: Champion (C3)");
-    expect(watkins.textContent).not.toContain("5.8");
-    expect(screen.getByTestId("review-diagnostics-xp-note")).toBeTruthy();
+    expect(watkins.textContent).toContain("14 pts (9.43 underlying xP)");
+    const xp = screen.getByTestId("review-diagnostic-xp-17").textContent ?? "";
+    expect(xp).toContain("Champion (C3) 2.10");
+    expect(xp).toContain("5.80");
+  });
+
+  it("does not show an evaluation's per-model xP from before it was the player's own (D-37)", async () => {
+    const before: Log = {
+      ...log,
+      gameweeks: log.gameweeks.map((g) =>
+        g.hindsight
+          ? { ...g, hindsight: { ...g.hindsight, diagnostics: g.hindsight.diagnostics.map(({ underlying_points: _, ...d }) => d) } }
+          : g,
+      ),
+    };
+    installFetchStub({ bodies: { ...bodies, log: before } });
+    renderApp("/review");
+    const watkins = await screen.findByTestId("review-diagnostic-17");
+    expect(watkins.textContent).not.toContain("5.80");
+    expect(watkins.textContent).not.toContain("underlying");
+    expect(screen.queryByTestId("review-diagnostic-xp-17")).toBeNull();
   });
 
   it("sets each model's options at the deadline beside the hindsight's (ORC-11)", async () => {

@@ -18,6 +18,7 @@ import type {
   LogHindsightOptimal,
   LogHindsightPlan,
 } from "../contract/types";
+import { CONTRACT_MINOR } from "../contract/types";
 
 /** A model's options (ORC-11), in the hindsight's shape: [transfers, moves out→in, net, hit]. */
 export function optionSet(
@@ -55,7 +56,7 @@ export function optionSet(
 
 export const meta: Meta = {
   contract_version: 1,
-  contract_minor: 6,
+  contract_minor: CONTRACT_MINOR, // current data: the fixture follows every additive bump
   generated_at: "2026-08-10T10:15:58.217761Z",
   run_id: "20260810T101557Z-d705a43f",
   git_sha: "14c97bc018cebb4fa8b7ac525097ca54d402af75",

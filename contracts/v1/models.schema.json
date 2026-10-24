@@ -98,7 +98,10 @@
         "hit_points": { "type": "number" },
         "n_autosubs": { "type": "integer", "minimum": 0 },
         "vice_used": { "type": "boolean" },
-        "armband_points": { "type": "number" }
+        "armband_points": { "type": "number" },
+        "underlying_points": { "type": "number", "description": "The same final XI and armband, before hits, scored on each player's underlying expected points: the game's rules applied to his minutes and FPL's expected goals, assists and goals conceded (ORC-12). Absent for the frozen record and before evaluation version 4." },
+        "forecast_error": { "type": "number", "description": "The advice's xP less underlying_points: what the forecast missed by. Absent with underlying_points." },
+        "luck": { "type": "number", "description": "points_before_hits less underlying_points: positive when the XI scored more than its chances were worth. xP less points is forecast_error less luck. Absent with underlying_points." }
       }
     },
     "model_gameweek": {

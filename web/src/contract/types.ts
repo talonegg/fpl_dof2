@@ -949,8 +949,11 @@ export interface LogOracleDiagnostic {
   actual_points: number;
   category: "model_blindspot" | "high_variance_outlier" | "captaincy_trap";
   explanation: string;
+  /** Each model's pre-deadline xP for this player, from evaluation version 4 (D-37); a model that did not price him is absent. Before it, the model's team xP over the armband keyed by its own captain, so not the player's. */
   models_xp: Record<string, number>;
   models_trapped: string[];
+  /** The player's underlying expected points for the gameweek: the game's rules applied to his minutes and FPL's expected goals, assists and goals conceded (ORC-12). Absent before evaluation version 4. */
+  underlying_points?: number | null;
 }
 
 /** The season log: per finished gameweek, what the owner played, what it scored, what the pipeline advised beforehand, and how the two differ (DL-69, E8 §3). Advice is read from the ledger written before each deadline and is null where none was recorded — it is never reconstructed after the event. */
@@ -1033,6 +1036,12 @@ export interface ModelActual {
   n_autosubs: number;
   vice_used: boolean;
   armband_points: number;
+  /** The same final XI and armband, before hits, scored on each player's underlying expected points: the game's rules applied to his minutes and FPL's expected goals, assists and goals conceded (ORC-12). Absent for the frozen record and before evaluation version 4. */
+  underlying_points?: number;
+  /** The advice's xP less underlying_points: what the forecast missed by. Absent with underlying_points. */
+  forecast_error?: number;
+  /** points_before_hits less underlying_points: positive when the XI scored more than its chances were worth. xP less points is forecast_error less luck. Absent with underlying_points. */
+  luck?: number;
 }
 
 export interface ModelGameweek {
