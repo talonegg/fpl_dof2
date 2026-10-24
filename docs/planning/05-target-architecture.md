@@ -238,13 +238,17 @@ digest, or says none exists.
 
 **Declared experiments (MOD-09):** one validated YAML per experiment under
 `pipeline/src/fpl_dof/config/experiments/` (`factory.experiments.load_declared`; unknown fields are
-refused, and the baseline and variant must be registered strategies): `id`, `hypothesis`,
+refused, and the baseline and variant must be registered strategies): `id`, `kind`, `hypothesis`,
 `falsifier`, `baseline`, `variant`, `metrics`, `decision_rule`, `length`, `graded_by`, `results` and
-a `decision` that stays `open` until it is decided. The variant is an `experiment`-role,
-unpublished registry strategy, so the standing backtest grades it weekly. Declared:
-`f1_card_rates` (shipped, [DL-90](../decisions/DL-90.md)) and `f3_training_window` (rejected,
-[DL-91](../decisions/DL-91.md)); once decided and recorded on `ledger`, a variant's role becomes
-`retired` and the backtest stops grading it.
+a `decision` that stays `open` until it is decided. For a `forecast` experiment (the default) the
+variant is an `experiment`-role, unpublished registry strategy, so the standing backtest grades it
+weekly. A `decision` experiment's baseline and variant name arms of a decision-engine replay
+instead: `d21_chip_timing` (EXP-02) is `factory.replay.replay_chip_timing`, which the backtest
+stage runs when `backtest.chip_replay.timing_experiment` is on (CI's `config/ci-backtest.yaml`) and
+writes to `experiments/<run_id>-chip-timing.json`. Declared: `f1_card_rates` (shipped,
+[DL-90](../decisions/DL-90.md)), `f3_training_window` (rejected, [DL-91](../decisions/DL-91.md)),
+`e1_bonus_spread` (EXP-01) and `d21_chip_timing` (EXP-02); once decided and recorded on `ledger`, a
+variant's role becomes `retired` and the backtest stops grading it.
 
 Nothing promotes itself. Promotion is the owner's decision, recorded as a `DL-nn`, past the
 [E8 §5 bar](epics/E8-ongoing-in-season-monitoring.md#5-the-bar-for-changing-the-model-mid-season)

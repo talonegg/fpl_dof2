@@ -30,3 +30,14 @@ decision_rule: >
 length: walk-forward over backtest.training_seasons, then at least six live shadow gameweeks
 graded_by: both
 decision: open
+results: >
+  Local walk-forward, 2024/25 to 2025/26, 68 folds, 20,573 scored rows, c3 reproducing DL-90's
+  MAE 1.9061 exactly (2026-10-24). c3_e1 minus c3, mean per gameweek with 95% bootstrap interval -
+  MAE +0.00963 [+0.00634, +0.01317] (worse, significant), Spearman +0.00112 [-0.00011, +0.00241],
+  top-N precision -0.00074 [-0.00662, +0.00515]; pooled RMSE 3.0085 against 3.0566 (better),
+  calibration slope 0.702 against 0.755 (worse). The bonus total is restored (mean prediction by
+  position moves toward realised: MID 0.999 to 1.110 against 1.206, FWD 1.084 to 1.182 against
+  1.312), but goalkeepers' share of each fold's predicted top 10 rises from 33.1% to 34.0% (5.4% of
+  the realised top 10 are goalkeepers): goalkeepers gain bonus too, from saves. Falsifier (a)
+  fires, and (b) for Spearman: the bonus arithmetic is wrong, but it is not D-34's cause.
+  Recommended: reject; the owner decides.
