@@ -101,3 +101,6 @@ def test_forecast_horizon_is_the_decision_horizon(tmp_path: Path) -> None:
     override.write_text("forecast:\n  horizon_gameweeks: 6\n", encoding="utf-8")
     with pytest.raises(ConfigError):
         load_config(environ=env, local_override=override)
+    override.write_text("transfers:\n  horizon_gameweeks: 2\n", encoding="utf-8")
+    with pytest.raises(ConfigError):
+        load_config(environ=env, local_override=override)

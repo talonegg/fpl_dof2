@@ -31,6 +31,9 @@ from fpl_dof.rules.models import GameRules
 from fpl_dof.rules.realised import Lineup, PlayerPerformance, performances, score_lineup
 from fpl_dof.squad.state import HeldPlayer, Provenance, SquadState
 
+# The declared experiment this replay answers (config/experiments/d21_chip_timing.yaml).
+CHIP_TIMING_EXPERIMENT = "d21_chip_timing"
+
 log = get_logger(__name__)
 
 ChipAssignments = tuple[tuple[int, str], ...]
@@ -362,7 +365,7 @@ def timing_summary(
             "excess front-loading, pooled over the dials."
         )
     return {
-        "experiment": "d21_chip_timing",
+        "experiment": CHIP_TIMING_EXPERIMENT,
         "deadlines": len(folds),
         "seconds": round(seconds, 1),
         "arms": summary,

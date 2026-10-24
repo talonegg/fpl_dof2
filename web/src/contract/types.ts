@@ -1273,7 +1273,7 @@ export const ARTEFACTS = {
   },
   "xp_accuracy": {
     "path": "xp_accuracy.json",
-    "required": false,
+    "required": true,
     "warm": false
   },
   "strategies": {
