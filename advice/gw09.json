@@ -1,7 +1,7 @@
 {
   "gameweek": 9,
-  "run_id": "20261024T051315Z-6deb6ea8",
-  "recorded_at": "2026-10-24T05:13:15.851417Z",
+  "run_id": "20261024T123959Z-82396a7a",
+  "recorded_at": "2026-10-24T12:39:59.981681Z",
   "trigger": "change:status",
   "advised": {
     "gameweek": 9,
@@ -307,7 +307,7 @@
         "id": "c3",
         "digest": "3b7f9aea54be23b3bb6e4a01d4c1a436b2c6056655eb0bc7317ff6aeb48e190a"
       },
-      "as_of": "2026-10-24T05:13:15.851417Z",
+      "as_of": "2026-10-24T12:39:59.981681Z",
       "trigger": "change:status",
       "advised": {
         "gameweek": 9,
@@ -603,7 +603,7 @@
         "id": "a",
         "digest": "44d9b03c849731068c6976485c4ea877fd221ff85b2909dff680de661e58d4f3"
       },
-      "as_of": "2026-10-24T05:13:15.851417Z",
+      "as_of": "2026-10-24T12:39:59.981681Z",
       "trigger": "change:status",
       "advised": {
         "gameweek": 9,
@@ -899,7 +899,7 @@
         "id": "a_odds",
         "digest": "6353a0277234806131a3a10a3f80b601101ee81d4aa6baea19d42c6bf68cd4d1"
       },
-      "as_of": "2026-10-24T05:13:15.851417Z",
+      "as_of": "2026-10-24T12:39:59.981681Z",
       "trigger": "change:status",
       "no_advice": "no advice: MissingOddsError: no match odds knowable before the gameweek 9 deadline",
       "missing": [
@@ -913,7 +913,7 @@
         "id": "c1",
         "digest": "08780568cf73b08fd0a48e6ba95f9575816c0d84fa815141d9260837a01b852d"
       },
-      "as_of": "2026-10-24T05:13:15.851417Z",
+      "as_of": "2026-10-24T12:39:59.981681Z",
       "trigger": "change:status",
       "advised": {
         "gameweek": 9,
@@ -1209,7 +1209,7 @@
         "id": "engine",
         "digest": "7225cec1a7acc7ec5057b22fa9401f5d8a04e21927a224b2665ddb5540ff6fdf"
       },
-      "as_of": "2026-10-24T05:13:15.851417Z",
+      "as_of": "2026-10-24T12:39:59.981681Z",
       "trigger": "change:status",
       "advised": {
         "gameweek": 9,
@@ -1492,6 +1492,302 @@
               "hit_points": -4,
               "net_points": 37.38,
               "gain_over_roll": -0.42
+            }
+          ]
+        },
+        "warnings": []
+      },
+      "transfers": 1
+    },
+    "c3_e2": {
+      "role": "experiment",
+      "strategy": {
+        "id": "c3_e2",
+        "digest": "dfea3ac06959d03c3f1e8c96ce3302a7e024dbab573c08c589557e91c06e81fc"
+      },
+      "as_of": "2026-10-24T12:39:59.981681Z",
+      "trigger": "change:status",
+      "advised": {
+        "gameweek": 9,
+        "squad": [
+          8,
+          31,
+          68,
+          90,
+          109,
+          124,
+          165,
+          237,
+          257,
+          277,
+          399,
+          411,
+          426,
+          464,
+          496
+        ],
+        "starting": [
+          411,
+          496,
+          90,
+          8,
+          68,
+          124,
+          426,
+          277,
+          31,
+          399,
+          165
+        ],
+        "bench_order": [
+          237,
+          464,
+          257
+        ],
+        "reserve_goalkeeper": 109,
+        "captain": 411,
+        "vice_captain": 426,
+        "formation": "1-4-4-2",
+        "expected_points": 36.295
+      },
+      "recommendation": {
+        "rationale": "1 free transfer(s) gain 0.71 expected points",
+        "is_roll": false,
+        "transfers": 1,
+        "hit_points": 0,
+        "net_expected_points": 36.295,
+        "gain_over_roll": 0.7104,
+        "bank_after": 0.9,
+        "moves": [
+          {
+            "out": {
+              "player_id": 115,
+              "web_name": "De Cuyper",
+              "price": 5.0,
+              "xp_next": 2.255,
+              "form_points_per_match": 7.0
+            },
+            "in": {
+              "player_id": 90,
+              "web_name": "Hickey",
+              "price": 4.5,
+              "xp_next": 3.225,
+              "form_points_per_match": 1.0
+            }
+          }
+        ],
+        "options": [
+          {
+            "transfers": 0,
+            "hit_points": 0,
+            "net_expected_points": 35.58,
+            "gain_over_roll": 0.0,
+            "moves": []
+          },
+          {
+            "transfers": 1,
+            "hit_points": 0,
+            "net_expected_points": 36.3,
+            "gain_over_roll": 0.71,
+            "moves": [
+              "De Cuyper (\u00a35.0m) -> Hickey (\u00a34.5m)"
+            ]
+          },
+          {
+            "transfers": 2,
+            "hit_points": -4,
+            "net_expected_points": 33.17,
+            "gain_over_roll": -2.41,
+            "moves": [
+              "Verbruggen (\u00a34.5m) -> Kelleher (\u00a35.0m)",
+              "De Cuyper (\u00a35.0m) -> Hickey (\u00a34.5m)"
+            ]
+          }
+        ],
+        "option_set": {
+          "gameweek": 9,
+          "baseline_roll": {
+            "transfers_count": 0,
+            "moves": [],
+            "starting": [
+              411,
+              496,
+              8,
+              68,
+              124,
+              426,
+              277,
+              31,
+              399,
+              165,
+              237
+            ],
+            "captain_id": 411,
+            "captain_name": "Haaland",
+            "points_before_hits": 35.58,
+            "hit_points": 0,
+            "net_points": 35.58,
+            "gain_over_roll": 0.0
+          },
+          "optimal_single": {
+            "transfers_count": 1,
+            "moves": [
+              {
+                "player_out_id": 115,
+                "player_out_name": "De Cuyper",
+                "player_in_id": 90,
+                "player_in_name": "Hickey",
+                "selling_price": 5.0,
+                "buying_price": 4.5
+              }
+            ],
+            "starting": [
+              411,
+              496,
+              90,
+              8,
+              68,
+              124,
+              426,
+              277,
+              31,
+              399,
+              165
+            ],
+            "captain_id": 411,
+            "captain_name": "Haaland",
+            "points_before_hits": 36.3,
+            "hit_points": 0,
+            "net_points": 36.3,
+            "gain_over_roll": 0.71
+          },
+          "optimal_overall": {
+            "transfers_count": 1,
+            "moves": [
+              {
+                "player_out_id": 115,
+                "player_out_name": "De Cuyper",
+                "player_in_id": 90,
+                "player_in_name": "Hickey",
+                "selling_price": 5.0,
+                "buying_price": 4.5
+              }
+            ],
+            "starting": [
+              411,
+              496,
+              90,
+              8,
+              68,
+              124,
+              426,
+              277,
+              31,
+              399,
+              165
+            ],
+            "captain_id": 411,
+            "captain_name": "Haaland",
+            "points_before_hits": 36.3,
+            "hit_points": 0,
+            "net_points": 36.3,
+            "gain_over_roll": 0.71
+          },
+          "all_options": [
+            {
+              "transfers_count": 0,
+              "moves": [],
+              "starting": [
+                411,
+                496,
+                8,
+                68,
+                124,
+                426,
+                277,
+                31,
+                399,
+                165,
+                237
+              ],
+              "captain_id": 411,
+              "captain_name": "Haaland",
+              "points_before_hits": 35.58,
+              "hit_points": 0,
+              "net_points": 35.58,
+              "gain_over_roll": 0.0
+            },
+            {
+              "transfers_count": 1,
+              "moves": [
+                {
+                  "player_out_id": 115,
+                  "player_out_name": "De Cuyper",
+                  "player_in_id": 90,
+                  "player_in_name": "Hickey",
+                  "selling_price": 5.0,
+                  "buying_price": 4.5
+                }
+              ],
+              "starting": [
+                411,
+                496,
+                90,
+                8,
+                68,
+                124,
+                426,
+                277,
+                31,
+                399,
+                165
+              ],
+              "captain_id": 411,
+              "captain_name": "Haaland",
+              "points_before_hits": 36.3,
+              "hit_points": 0,
+              "net_points": 36.3,
+              "gain_over_roll": 0.71
+            },
+            {
+              "transfers_count": 2,
+              "moves": [
+                {
+                  "player_out_id": 109,
+                  "player_out_name": "Verbruggen",
+                  "player_in_id": 82,
+                  "player_in_name": "Kelleher",
+                  "selling_price": 4.5,
+                  "buying_price": 5.0
+                },
+                {
+                  "player_out_id": 115,
+                  "player_out_name": "De Cuyper",
+                  "player_in_id": 90,
+                  "player_in_name": "Hickey",
+                  "selling_price": 5.0,
+                  "buying_price": 4.5
+                }
+              ],
+              "starting": [
+                82,
+                411,
+                90,
+                8,
+                68,
+                124,
+                426,
+                277,
+                31,
+                399,
+                165
+              ],
+              "captain_id": 411,
+              "captain_name": "Haaland",
+              "points_before_hits": 37.17,
+              "hit_points": -4,
+              "net_points": 33.17,
+              "gain_over_roll": -2.41
             }
           ]
         },
