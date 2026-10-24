@@ -176,14 +176,6 @@ a.theme-toggle {
   font-size: var(--font-size-lg);
 }
 
-.placeholder-story {
-  margin: 0 0 var(--space-2);
-  font-size: var(--font-size-xs);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-
 .placeholder-summary,
 .player-detail-sub {
   margin: 0;

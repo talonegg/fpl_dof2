@@ -1,7 +1,6 @@
 import type { Models } from "../../contract/types";
+import { latestGameweek as latest } from "../../data/season";
 import { ProvisionalBadge } from "./ProvisionalBadge";
-
-const latest = (models: Models | null) => models?.gameweeks[models.gameweeks.length - 1];
 
 /** "Unavailable for GW10: reason" when the latest gameweek left the model without advice, else null. */
 export function unavailableNow(models: Models | null, m: string): string | null {

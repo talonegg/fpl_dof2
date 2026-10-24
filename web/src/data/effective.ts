@@ -23,7 +23,49 @@ export function effectiveSquad(squad: Squad, week: Week | null, players: Players
   if (!squad.skipped && squad.status !== "skipped") return squad;
   const advised = week && !week.skipped ? week.advised : undefined;
   if (!advised || advised.squad.length === 0) return squad;
+  return fromLineup(squad, advised, players);
+}
 
+/**
+ * The owner's team as it stands, before any advice is taken (Home, WEB-08). In-season it is the
+ * advised fifteen with the recommended moves undone — the squad the pipeline read; preseason, the
+ * squad as published. The XI and armband are the ones last played (`week.reconciliation`) when that
+ * was these fifteen, and none otherwise: the owner's next lineup is not published, and the advised
+ * one is the model's, not the owner's.
+ */
+export function currentSquad(squad: Squad, week: Week | null, players: Players): Squad {
+  if (!squad.skipped && squad.status !== "skipped") return squad;
+  const advised = week && !week.skipped ? week.advised : undefined;
+  if (!week || !advised || advised.squad.length === 0) return squad;
+  const back = new Map((week.recommendation?.moves ?? []).map((m) => [m.in.player_id, m.out.player_id]));
+  const ids = advised.squad.map((id) => back.get(id) ?? id);
+  // `played` is an untyped record in the contract: read only what has the expected shape.
+  const played = (week.reconciliation?.played ?? {}) as { squad?: unknown; starting?: unknown; captain?: unknown };
+  const playedSquad = Array.isArray(played.squad) ? (played.squad as unknown[]) : [];
+  const same = playedSquad.length === ids.length && ids.every((id) => playedSquad.includes(id));
+  return fromLineup(
+    squad,
+    {
+      squad: ids,
+      starting: same && Array.isArray(played.starting) ? (played.starting as number[]) : [],
+      captain: same && typeof played.captain === "number" ? played.captain : null,
+      vice_captain: null,
+    },
+    players,
+  );
+}
+
+interface Lineup {
+  squad: number[];
+  starting: number[];
+  captain: number | null;
+  vice_captain: number | null;
+  bench_order?: number[];
+  expected_points?: number;
+}
+
+/** These ids as squad members, each with the published player's numbers; nothing is recomputed. */
+function fromLineup(squad: Squad, advised: Lineup, players: Players): Squad {
   const byId = new Map(players.players.map((player) => [player.id, player]));
   const starting = new Set(advised.starting);
   const members: Squad["players"] = [];

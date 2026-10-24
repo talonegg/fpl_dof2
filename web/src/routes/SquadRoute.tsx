@@ -1,15 +1,18 @@
+import { useMemo } from "react";
 import { useData } from "../data/DataProvider";
 import { useOwnerIdentity } from "../components/settings/identity";
 import { SquadPitch } from "../components/SquadPitch";
 import { Bench } from "../components/Bench";
 import { SquadBuilder } from "../components/squad/SquadBuilder";
+import { PlanTimeline } from "../components/squad/PlanTimeline";
+import { indexPlayers } from "../components/squad/draft";
 import "../components/squad/squad.css";
 
 /**
- * `/analysis` — the squad builder (E6-S7, FR-31). `/squad` redirects here; the plan timeline and
- * chip calendar moved to This gameweek, Plan ahead (WEB-07).
+ * `/analysis` — the squad builder (E6-S7, FR-31, WEB-14). `/squad` redirects here; the plan
+ * timeline also shows under This gameweek, Plan ahead, beside the chip calendar (WEB-07).
  *
- * Two layers, in the order a reader wants them:
+ * Three layers, in the order a reader wants them:
  *
  * 1. **What the optimiser produced** — the pitch and bench, unchanged from E6-S1. This is the
  *    recommendation, and it stays visually distinct from anything the reader then does to it.
@@ -17,6 +20,9 @@ import "../components/squad/squad.css";
  *    ban, and re-optimise around those constraints. Every edit is checked live against `rules.json`
  *    by `components/squad/legality.ts`, which is parameterised from the published rules and restates
  *    none of them (DL-14, Invariant 9).
+ * 3. **What happens next** — the plan week by week as named transfers, from `plan.json` (E4); absent,
+ *    rather than empty, when nothing is published (DL-20, DP-15).
+ *
  * **Whose squad is this, against the team ID entered in Settings (E13-S2)?** `week.squad_state`
  * carries the `entry_id` the pipeline actually read picks for, when it read any — a declared or
  * reconstructed squad may carry none. Three states follow: no team ID entered (nothing to check,
@@ -24,8 +30,9 @@ import "../components/squad/squad.css";
  * hidden — DP-09).
  */
 export function SquadRoute() {
-  const { rules, squad, players, week } = useData();
+  const { rules, squad, players, week, plan } = useData();
   const identity = useOwnerIdentity();
+  const index = useMemo(() => indexPlayers(players.players, squad), [players, squad]);
   const entryId = week?.squad_state?.entry_id ?? null;
 
   return (
@@ -51,6 +58,7 @@ export function SquadRoute() {
       <SquadPitch squad={squad} rules={rules} />
       <Bench squad={squad} />
       <SquadBuilder players={players.players} squad={squad} rules={rules} week={week} />
+      {plan && <PlanTimeline plan={plan} index={index} />}
     </>
   );
 }

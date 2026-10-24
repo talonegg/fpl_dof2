@@ -1,8 +1,11 @@
 import { Link } from "react-router-dom";
 import type { Health, Log, LogGameweek, Models } from "../../contract/types";
-import { useData, useRegistry } from "../../data/DataProvider";
+import { useData, useModel, useRegistry } from "../../data/DataProvider";
+import { currentSquad } from "../../data/effective";
+import { MODEL_PARAM } from "../../data/model";
 import { modelLabel } from "../../data/registry";
 import type { Registry } from "../../data/registry";
+import { latestGameweek, pointsIn } from "../../data/season";
 import { unready, useArtefact } from "../../data/store";
 import { formatPoints } from "../../format";
 import { gateOutcome, runOutcome, sourceName, troubledSources } from "../health/health";
@@ -36,12 +39,10 @@ export function Dashboard() {
   );
 }
 
-const latestOf = (models: Models | null) => models?.gameweeks[models.gameweeks.length - 1] ?? null;
-
 /** Strategies waiting on a source (ORC-07): the reason is the pipeline's own words. */
 function WaitingSources({ models }: { models: Models | null }) {
   const registry = useRegistry();
-  const latest = latestOf(models);
+  const latest = latestGameweek(models);
   const waiting = Object.entries(latest?.availability ?? {}).filter(
     ([, a]) => !a.available && (a.sources?.length ?? 0) > 0,
   );
@@ -72,17 +73,19 @@ function WaitingSources({ models }: { models: Models | null }) {
   );
 }
 
-/** Your squad: last gameweek's points (history.json, measured) beside next gameweek's xP (a forecast). */
+/**
+ * Your squad as it stands, before any model's advice (`currentSquad`): last gameweek's points
+ * (history.json, measured) beside next gameweek's xP (a forecast).
+ */
 function HomeSquad() {
-  const { squad } = useData();
+  const { publishedSquad, week, players } = useData();
+  const squad = currentSquad(publishedSquad, week, players);
   const { state } = useArtefact("history");
   const history = state.status === "ready" ? state.data : null;
   const lastGw = history && history.gameweeks_played > 0 ? history.gameweeks_played : null;
-  const pointsOf = (id: number): string => {
-    const rows =
-      history?.players.find((p) => p.id === id)?.gameweeks.filter((g) => g.gw === lastGw) ?? [];
-    return lastGw === null || rows.length === 0 ? "—" : String(rows.reduce((t, g) => t + g.pts, 0));
-  };
+  const pointsOf = (id: number): string => String(pointsIn(history, id, lastGw) ?? "—");
+  // The bench is only named when the XI is known: an unknown lineup is not a bench of fifteen.
+  const lineup = squad.players.some((p) => p.starting);
   const ordered = [...squad.players].sort((a, b) => Number(b.starting) - Number(a.starting));
 
   return (
@@ -108,7 +111,7 @@ function HomeSquad() {
                     {p.team} {p.position}
                     {p.is_captain && " · captain"}
                     {p.is_vice_captain && " · vice"}
-                    {!p.starting && " · bench"}
+                    {lineup && !p.starting && " · bench"}
                   </span>
                 </th>
                 <td>{pointsOf(p.player_id)}</td>
@@ -132,7 +135,8 @@ function HomeSquad() {
 function ModelAdvice() {
   const { models, weeks } = useData();
   const registry = useRegistry();
-  const latest = latestOf(models);
+  const { available, setModel } = useModel();
+  const latest = latestGameweek(models);
   const shown = (models?.models ?? []).filter((m) => m.role !== "retired");
 
   return (
@@ -172,7 +176,14 @@ function ModelAdvice() {
                     {roll !== undefined ? `, roll ${formatPoints(roll)} xP` : ", roll not published"}.
                   </p>
                 )}
-                <Link to="/gameweek">{modelLabel(registry, m.id)} in This gameweek</Link>
+                {available.includes(m.id) ? (
+                  // The query makes the link shareable; the click switches the model now, as the provider reads the query only on load.
+                  <Link to={`/gameweek?${MODEL_PARAM}=${encodeURIComponent(m.id)}`} onClick={() => setModel(m.id)}>
+                    {modelLabel(registry, m.id)} in This gameweek
+                  </Link>
+                ) : (
+                  <p className="home-sub">Its full decision is not published for This gameweek.</p>
+                )}
               </li>
             );
           })}

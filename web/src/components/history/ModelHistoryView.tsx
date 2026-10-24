@@ -175,9 +175,9 @@ export function ModelHistoryView({ history }: { history: ModelsHistory }) {
       </div>
       <p className="models-note">
         Δ is the paired per-GW difference to the champion; CIs are an iid gameweek bootstrap ({history.bootstrap.draws}{" "}
-        draws, seed {history.bootstrap.seed}). ★ = CI excludes zero, with no multiple-comparison correction across four
-        models. One season of 38 GWs is a weak basis for choosing a model. GWs won = ranked first of the five (ties
-        shared).
+        draws, seed {history.bootstrap.seed}). ★ = CI excludes zero, with no multiple-comparison correction across the{" "}
+        {ids.length - 1} models compared with it. One season of {history.gameweeks.length} GWs is a weak basis for choosing a model.
+        GWs won = ranked first of the {ids.length} (ties shared).
       </p>
       <h3>Cumulative points</h3>
       <CumulativeChart history={history} ids={ids} highlight={highlight} />
@@ -186,7 +186,7 @@ export function ModelHistoryView({ history }: { history: ModelsHistory }) {
       <div className="table-scroll history-gw-scroll" tabIndex={0} role="region" aria-labelledby="history-gw-heading">
         <table className="models-table history-gw" data-testid="history-gw-table">
           <caption className="visually-hidden">
-            Points per gameweek, rank of five in brackets, then captain and vice for the highlighted model
+            Points per gameweek, rank of {ids.length} in brackets, then captain and vice for the highlighted model
           </caption>
           <thead>
             <tr>

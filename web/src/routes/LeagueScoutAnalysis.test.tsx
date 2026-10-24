@@ -38,6 +38,14 @@ describe("League: a team's last gameweek (WEB-09)", () => {
     expect(within(page).getByTestId("league-team-no-points").textContent).toContain("68");
   });
 
+  it("says a malformed season history is malformed, not unpublished", async () => {
+    installFetchStub({ bodies: { history: "not a history" } });
+    renderApp("/league/100");
+    const note = await screen.findByTestId("league-team-no-points");
+    await waitFor(() => expect(note.textContent).toContain("malformed"));
+    expect(note.textContent).not.toContain("not published");
+  });
+
   it("says a team's squad was not published", async () => {
     installFetchStub({ bodies: { history } });
     renderApp("/league/300");

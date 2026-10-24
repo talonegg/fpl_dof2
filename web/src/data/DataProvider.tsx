@@ -6,9 +6,9 @@ import { ContractMajorError } from "./compat";
 import { MODEL_STORAGE_KEY, readModelChoice, storeModelChoice } from "./model";
 import { EMPTY_REGISTRY, resolveModel } from "./registry";
 import type { Registry } from "./registry";
-import type { ModelGameweek } from "../contract/types";
 import type { ModelChoice } from "./model";
 import { effectiveSquad } from "./effective";
+import { latestGameweek } from "./season";
 
 /** Loading state, as a discriminated union so no view can read `data` before it exists. */
 export type DataState =
@@ -159,15 +159,9 @@ export function availableModels(data: PublishedData): ModelChoice[] {
  * decision exists, and replaced by it at the decision window.
  */
 export function provisionalModels(data: PublishedData): ModelChoice[] {
-  const latest = latestModelGameweek(data);
+  const latest = latestGameweek(data.models);
   if (!latest?.provisional) return [];
   return Object.keys(latest.advice).filter((m) => m !== data.registry.champion);
-}
-
-/** The most recent gameweek the harness recorded advice for, or null. */
-export function latestModelGameweek(data: PublishedData): ModelGameweek | null {
-  const gws = data.models?.gameweeks ?? [];
-  return gws.length > 0 ? gws[gws.length - 1] : null;
 }
 
 /** The registry, for any view: empty outside a provider or before the data is ready. */

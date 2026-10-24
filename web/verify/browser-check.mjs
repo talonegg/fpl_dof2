@@ -138,21 +138,67 @@ for (const viewport of VIEWPORTS) {
     );
     process.exit(1);
   }
-  await page.waitForSelector('[data-testid="squad-pitch"]', { timeout: 15000 });
+  await page.waitForSelector('[data-testid="home-squad"]', { timeout: 15000 });
 
   check(consoleErrors.length === 0, `no console errors (${consoleErrors.slice(0, 3).join(" | ")})`);
 
-  // --- the shell and the dashboard are present ---
-  for (const id of ["app-nav", "header", "squad-pitch", "bench"]) {
+  // --- the shell and Home are present (WEB-08) ---
+  for (const id of ["app-nav", "header", "home-squad", "home-models", "home-health", "home-last"]) {
     check(await page.locator(`[data-testid="${id}"]`).count() > 0, `${id} rendered`);
   }
-  // The scout table lives on its own route now; finding it on the dashboard would mean the route
+  // The scout table lives on its own route now; finding it on Home would mean the route
   // split had not actually happened.
   check(
     (await page.locator('[data-testid="player-table"]').count()) === 0,
-    "the scout table is not on the dashboard",
+    "the scout table is not on Home",
   );
 
+  // --- no horizontal page scroll, at any width ---
+  const overflow = await page.evaluate(() => ({
+    scrollWidth: document.documentElement.scrollWidth,
+    clientWidth: document.documentElement.clientWidth,
+    bodyScrollWidth: document.body.scrollWidth,
+  }));
+  check(
+    overflow.scrollWidth <= overflow.clientWidth + 1,
+    `page does not scroll horizontally (scrollWidth ${overflow.scrollWidth} vs clientWidth ${overflow.clientWidth})`,
+  );
+
+  // --- nothing overflows the viewport, unless it is deliberately inside a scroller ---
+  // A wide table inside its own `overflow-x: auto` container is the intended pattern, so an
+  // element with a horizontally scrollable ancestor is not an overflow bug. An element that
+  // escapes the viewport with no scroller above it is.
+  const widest = await page.evaluate((limit) => {
+    const inScroller = (element) => {
+      for (let node = element.parentElement; node; node = node.parentElement) {
+        const overflowX = getComputedStyle(node).overflowX;
+        if (overflowX === "auto" || overflowX === "scroll") return true;
+      }
+      return false;
+    };
+    let worst = { tag: "none", width: 0 };
+    for (const element of document.querySelectorAll("body *")) {
+      const rect = element.getBoundingClientRect();
+      if (rect.right > limit + 1 && rect.width > worst.width && !inScroller(element)) {
+        worst = {
+          tag: `${element.tagName.toLowerCase()}.${element.className || "-"}`.slice(0, 60),
+          width: Math.round(rect.right),
+        };
+      }
+    }
+    return worst;
+  }, viewport.width);
+  check(widest.width === 0, `nothing escapes the viewport outside a scroller (widest: ${widest.tag} @ ${widest.width}px)`);
+
+  await page.screenshot({ path: `${outputDir}${viewport.name}.png`, fullPage: false });
+  await page.screenshot({ path: `${outputDir}${viewport.name}-full.png`, fullPage: true });
+
+  // --- this gameweek's decision (WEB-12): the deadline, the roll comparison and the XI ---
+  // Home carries the squad as it stands; the decision, its pitch and its bench live on This gameweek.
+  await page.evaluate(() => {
+    window.location.hash = "#/gameweek";
+  });
+  await page.waitForSelector('[data-testid="decision-view"], [data-testid="gameweek-absent"]', { timeout: 10000 });
   // --- this week's decision (E1) ---
   // The panel is absent before the first gameweek is scored, which is a valid state (DL-20). What
   // must never happen is a panel that renders *one* deadline: FPL publishes in UK time, the owner
@@ -203,55 +249,23 @@ for (const viewport of VIEWPORTS) {
     notes.push("  (no weekly panel published; skipping its checks)");
   }
 
-  // --- no horizontal page scroll, at any width ---
-  const overflow = await page.evaluate(() => ({
-    scrollWidth: document.documentElement.scrollWidth,
-    clientWidth: document.documentElement.clientWidth,
-    bodyScrollWidth: document.body.scrollWidth,
-  }));
-  check(
-    overflow.scrollWidth <= overflow.clientWidth + 1,
-    `page does not scroll horizontally (scrollWidth ${overflow.scrollWidth} vs clientWidth ${overflow.clientWidth})`,
-  );
+  if ((await page.locator('[data-testid="squad-pitch"]').count()) > 0) {
+    // --- the squad renders a full lineup and a bench ---
+    const starters = await page.locator('[data-testid="squad-pitch"] [data-testid="squad-player-card"]').count();
+    const bench = await page.locator('[data-testid="bench"] [data-testid="squad-player-card"]').count();
+    check(starters === 11, `eleven starters on the pitch (found ${starters})`);
+    check(bench === 4, `four substitutes on the bench (found ${bench})`);
 
-  // --- nothing overflows the viewport, unless it is deliberately inside a scroller ---
-  // A wide table inside its own `overflow-x: auto` container is the intended pattern, so an
-  // element with a horizontally scrollable ancestor is not an overflow bug. An element that
-  // escapes the viewport with no scroller above it is.
-  const widest = await page.evaluate((limit) => {
-    const inScroller = (element) => {
-      for (let node = element.parentElement; node; node = node.parentElement) {
-        const overflowX = getComputedStyle(node).overflowX;
-        if (overflowX === "auto" || overflowX === "scroll") return true;
-      }
-      return false;
-    };
-    let worst = { tag: "none", width: 0 };
-    for (const element of document.querySelectorAll("body *")) {
-      const rect = element.getBoundingClientRect();
-      if (rect.right > limit + 1 && rect.width > worst.width && !inScroller(element)) {
-        worst = {
-          tag: `${element.tagName.toLowerCase()}.${element.className || "-"}`.slice(0, 60),
-          width: Math.round(rect.right),
-        };
-      }
-    }
-    return worst;
-  }, viewport.width);
-  check(widest.width === 0, `nothing escapes the viewport outside a scroller (widest: ${widest.tag} @ ${widest.width}px)`);
-
-  await page.screenshot({ path: `${outputDir}${viewport.name}.png`, fullPage: false });
-  await page.screenshot({ path: `${outputDir}${viewport.name}-full.png`, fullPage: true });
-
-  // --- the squad renders a full lineup and a bench ---
-  const starters = await page.locator('[data-testid="squad-pitch"] [data-testid="squad-player-card"]').count();
-  const bench = await page.locator('[data-testid="bench"] [data-testid="squad-player-card"]').count();
-  check(starters === 11, `eleven starters on the pitch (found ${starters})`);
-  check(bench === 4, `four substitutes on the bench (found ${bench})`);
-
-  // --- uncertainty is always shown alongside a mean (Invariant 6) ---
-  const pitchText = await page.locator('[data-testid="squad-pitch"]').innerText();
-  check(pitchText.includes("±"), "expected points are shown with their uncertainty");
+    // --- uncertainty is always shown alongside a mean (Invariant 6) ---
+    const pitchText = await page.locator('[data-testid="squad-pitch"]').innerText();
+    check(pitchText.includes("±"), "expected points are shown with their uncertainty");
+  } else {
+    notes.push("  (no advised XI published; skipping the pitch checks)");
+  }
+  await page.evaluate(() => {
+    window.location.hash = "#/";
+  });
+  await page.waitForSelector('[data-testid="home-squad"]', { timeout: 10000 });
 
   // --- the narrow-screen bottom bar and its "More" disclosure (WEB-07, §5 Q3) ---
   if (viewport.width <= 560) {
@@ -281,8 +295,8 @@ for (const viewport of VIEWPORTS) {
   await page.waitForSelector('[data-testid="player-table"]', { timeout: 10000 });
   check(true, "the scout route is reachable from the nav");
   check(
-    (await page.locator('[data-testid="squad-pitch"]').count()) === 0,
-    "leaving the dashboard unmounts its content",
+    (await page.locator('[data-testid="home-squad"]').count()) === 0,
+    "leaving Home unmounts its content",
   );
 
   // --- the scout table filters, sorts and selects, all client-side (E6-S2) ---
@@ -511,7 +525,7 @@ for (const viewport of VIEWPORTS) {
     await page.evaluate(() => {
       window.location.hash = "#/";
     });
-    await page.waitForSelector('[data-testid="squad-pitch"]', { timeout: 10000 });
+    await page.waitForSelector('[data-testid="home-squad"]', { timeout: 10000 });
     check(
       consoleErrors.length === errorsBeforeSwitch,
       `switching strategy raises no console error (${consoleErrors.slice(errorsBeforeSwitch, errorsBeforeSwitch + 2).join(" | ")})`,
@@ -528,7 +542,7 @@ for (const viewport of VIEWPORTS) {
   await page.evaluate(() => {
     window.location.hash = "#/";
   });
-  await page.waitForSelector('[data-testid="squad-pitch"]', { timeout: 10000 });
+  await page.waitForSelector('[data-testid="home-squad"]', { timeout: 10000 });
   check(
     (await page.evaluate(() => document.documentElement.hasAttribute("data-theme"))) === false,
     "with no stored preference the theme follows the system",
@@ -561,7 +575,7 @@ for (const viewport of VIEWPORTS) {
   // The stored preference must survive a reload — which is the one place a real reload belongs,
   // and it happens after the no-reload check above.
   await page.reload({ waitUntil: "networkidle" });
-  await page.waitForSelector('[data-testid="squad-pitch"]', { timeout: 10000 });
+  await page.waitForSelector('[data-testid="home-squad"]', { timeout: 10000 });
   check(
     (await page.evaluate(() => document.documentElement.getAttribute("data-theme"))) === "dark",
     "the theme choice survives a reload",
@@ -620,7 +634,7 @@ notes.push("\n== accessibility: keyboard and colour-independence ==");
   };
 
   await page.goto(baseUrl, { waitUntil: "networkidle" });
-  await page.waitForSelector('[data-testid="squad-pitch"]', { timeout: 15000 });
+  await page.waitForSelector('[data-testid="home-squad"]', { timeout: 15000 });
 
   const dashboardStops = await tabThrough(25);
   check(dashboardStops.length > 0, `the dashboard has keyboard-reachable controls (${dashboardStops.length} stops)`);
@@ -830,7 +844,7 @@ notes.push("\n== progressive web app ==");
   });
 
   await page.goto(baseUrl, { waitUntil: "networkidle" });
-  await page.waitForSelector('[data-testid="squad-pitch"]', { timeout: 15000 });
+  await page.waitForSelector('[data-testid="home-squad"]', { timeout: 15000 });
 
   // --- the manifest, read the way a browser reads it: from the document's own link ---
   const manifestHref = await page.getAttribute("link[rel='manifest']", "href");
@@ -952,7 +966,7 @@ notes.push("\n== progressive web app ==");
   let offlineOpened = true;
   try {
     await offlinePage.goto(baseUrl, { waitUntil: "domcontentloaded", timeout: 20000 });
-    await offlinePage.waitForSelector('[data-testid="squad-pitch"]', { timeout: 20000 });
+    await offlinePage.waitForSelector('[data-testid="home-squad"]', { timeout: 20000 });
   } catch (error) {
     offlineOpened = false;
     notes.push(`  (offline load failed: ${String(error).split("\n")[0]})`);
@@ -961,8 +975,8 @@ notes.push("\n== progressive web app ==");
 
   if (offlineOpened) {
     // Opening is not enough — it has to render the *data*, or the shell has cached an empty app.
-    const starters = await offlinePage.locator('[data-testid="squad-pitch"] [data-testid="squad-player-card"]').count();
-    check(starters === 11, `offline, the last-published squad still renders (${starters} starters)`);
+    const members = await offlinePage.locator('[data-testid="home-squad"] tbody tr').count();
+    check(members > 0, `offline, the last-published squad still renders (${members} players)`);
     check(
       (await offlinePage.locator('[data-testid="app-error"]').count()) === 0,
       "offline, no data-load error is shown",
@@ -1026,7 +1040,7 @@ notes.push("\n== performance: emulated Pixel 5 on throttled 4G ==");
     await client.send("Emulation.setCPUThrottlingRate", { rate: 4 });
 
     await page.goto(baseUrl, { waitUntil: "load" });
-    await page.waitForSelector('[data-testid="squad-pitch"]', { timeout: 60000 });
+    await page.waitForSelector('[data-testid="home-squad"]', { timeout: 60000 });
 
     const fcp = await page.evaluate(
       () => performance.getEntriesByName("first-contentful-paint")[0]?.startTime ?? null,

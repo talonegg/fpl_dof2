@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import type { KeyboardEvent } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { BOTTOM_SECTIONS, MORE_SECTIONS, SECTIONS, sectionOf, slug } from "../routes/nav";
-import type { NavSection } from "../routes/nav";
+import type { NavSection, NavTab } from "../routes/nav";
+import { useArtefact } from "../data/store";
 
 function SectionLink({ section, prefix }: { section: NavSection; prefix: string }) {
   return (
@@ -47,14 +48,14 @@ export function BottomBar() {
   const inMore = MORE_SECTIONS.some((s) => s === sectionOf(pathname));
 
   useEffect(() => setOpen(false), [pathname]);
-  // A tap anywhere outside the More item closes the menu.
+  // A tap, click or pen press anywhere outside the More item closes the menu.
   useEffect(() => {
     if (!open) return;
-    const away = (event: MouseEvent) => {
+    const away = (event: PointerEvent) => {
       if (!(event.target instanceof Node) || !item.current?.contains(event.target)) setOpen(false);
     };
-    document.addEventListener("mousedown", away);
-    return () => document.removeEventListener("mousedown", away);
+    document.addEventListener("pointerdown", away);
+    return () => document.removeEventListener("pointerdown", away);
   }, [open]);
   useEffect(() => {
     if (open) menu.current?.querySelector("a")?.focus();
@@ -75,7 +76,14 @@ export function BottomBar() {
             <SectionLink section={section} prefix="bottom" />
           </li>
         ))}
-        <li className="app-more" ref={item}>
+        <li
+          className="app-more"
+          ref={item}
+          // Tabbing out of the menu closes it; a move between its own entries does not.
+          onBlur={(event) => {
+            if (!(event.relatedTarget instanceof Node) || !event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+          }}
+        >
           <button
             ref={button}
             type="button"
@@ -100,6 +108,12 @@ export function BottomBar() {
   );
 }
 
+/** A tab named by the season its artefact covers, the static label until it loads. */
+function SeasonLabel({ from, label }: { from: NonNullable<NavTab["seasonFrom"]>; label: string }) {
+  const { state } = useArtefact(from);
+  return <>{state.status === "ready" ? state.data.season : label}</>;
+}
+
 /** The current section's sub-views, as links: each tab is a route. Nothing for a single-view section. */
 export function SectionTabs() {
   const section = sectionOf(useLocation().pathname);
@@ -114,7 +128,7 @@ export function SectionTabs() {
           className={({ isActive }) => `section-tab${isActive ? " active" : ""}`}
           data-testid={`tab-${slug(tab.path.slice(1))}`}
         >
-          {tab.label}
+          {tab.seasonFrom ? <SeasonLabel from={tab.seasonFrom} label={tab.label} /> : tab.label}
         </NavLink>
       ))}
     </nav>

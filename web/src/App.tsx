@@ -3,7 +3,7 @@ import { HashRouter, Navigate, Route, Routes, useLocation } from "react-router-d
 import { ThemeProvider } from "./theme/ThemeProvider";
 import { DataProvider } from "./data/DataProvider";
 import { AppLayout } from "./layout/AppLayout";
-import { DashboardRoute } from "./routes/DashboardRoute";
+import { Dashboard } from "./components/dashboard/Dashboard";
 import { ScoutRoute } from "./routes/ScoutRoute";
 import { PlayerRoute } from "./routes/PlayerRoute";
 import { CompareRoute } from "./routes/CompareRoute";
@@ -16,8 +16,9 @@ import { SettingsRoute } from "./routes/SettingsRoute";
 import { HealthRoute } from "./routes/HealthRoute";
 import { GameweekRoute, PlanAheadRoute } from "./routes/GameweekRoute";
 import { NotFoundRoute } from "./routes/NotFoundRoute";
-import { HindsightPage, ModelsBacktestPage, ModelsPage, ModelsSeasonPage } from "./components/models/ModelsPage";
-import { REDIRECTS } from "./routes/nav";
+import { ModelsBacktestPage, ModelsPage, ModelsSeasonPage } from "./components/models/ModelsPage";
+import { LastGameweek } from "./components/review/LastGameweek";
+import { REDIRECTS, queryRedirect } from "./routes/nav";
 import type { ViewPath } from "./routes/nav";
 import { PasswordGate } from "./gate/PasswordGate";
 import { BUILD_PASSWORD_HASH } from "./gate/hash";
@@ -28,12 +29,12 @@ import "./App.css";
  * to the nav without a view here, or a view here with no nav entry, fails the type check.
  */
 const VIEWS: Record<ViewPath, ReactElement> = {
-  "/": <DashboardRoute />,
+  "/": <Dashboard />,
   "/league": <LeagueRoute />,
   "/models": <ModelsPage />,
   "/models/season": <ModelsSeasonPage />,
   "/models/2025-26": <ModelsBacktestPage />,
-  "/review": <HindsightPage />,
+  "/review": <LastGameweek />,
   "/review/all": <LogRoute />,
   "/gameweek": <GameweekRoute />,
   "/gameweek/plan": <PlanAheadRoute />,
@@ -50,6 +51,13 @@ function Redirect({ to }: { to: string }) {
   return <Navigate to={{ pathname: to, search, hash }} replace />;
 }
 
+/** A section's view, unless its query names an old part that moved (`/models?section=history`). */
+function View({ element }: { element: ReactElement }) {
+  const { pathname, search, hash } = useLocation();
+  const moved = queryRedirect(pathname, search);
+  return moved ? <Navigate to={{ ...moved, hash }} replace /> : element;
+}
+
 /**
  * The route table. Exported separately from `App` so tests (and any future story) can mount it
  * under a `MemoryRouter` at a chosen path without a real browser history.
@@ -62,11 +70,13 @@ export function AppRoutes() {
     <Routes>
       <Route element={<AppLayout />}>
         {Object.entries(VIEWS).map(([path, element]) => (
-          <Route key={path} path={path} element={element} />
+          <Route key={path} path={path} element={<View element={element} />} />
         ))}
-        {Object.entries(REDIRECTS).map(([path, to]) => (
-          <Route key={path} path={path} element={<Redirect to={to} />} />
-        ))}
+        {Object.entries(REDIRECTS)
+          .filter(([path]) => !path.includes("?"))
+          .map(([path, to]) => (
+            <Route key={path} path={path} element={<Redirect to={to} />} />
+          ))}
         <Route path="league/:entryId" element={<LeagueTeam />} />
         <Route path="player/:id" element={<PlayerRoute />} />
         <Route path="settings" element={<SettingsRoute />} />

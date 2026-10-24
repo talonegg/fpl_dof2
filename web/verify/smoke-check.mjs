@@ -51,11 +51,9 @@ const REQUIRED_ARTEFACTS = Object.keys(ARTEFACTS).filter((key) => ARTEFACTS[key]
  * error page, which is exactly the failure a smoke test exists to catch.
  */
 const ROUTES = [
-  // The dashboard is named by the squad pitch rather than by a wrapper: a pitch that rendered means
-  // the shell mounted, the contract loaded, and the artefacts parsed. A wrapper would have rendered
-  // regardless of all three.
-  ["#/", "squad-pitch", "the dashboard's squad"],
-  ["#/scout", "player-table", "the scout table"],
+  // Home is named by its squad card rather than by the shell: the card renders only once the shell
+  // mounted, the contract loaded and the required artefacts parsed. The shell renders regardless.
+  ["#/", "home-squad", "Home's squad"],  ["#/scout", "player-table", "the scout table"],
   ["#/analysis", "squad-builder", "the squad builder"],
   ["#/scout/fixtures", "fixture-ticker", "the fixture ticker"],
   ["#/health", "health-panel", "the data health page"],

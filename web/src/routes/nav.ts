@@ -9,6 +9,8 @@
 export interface NavTab {
   readonly path: string;
   readonly label: string;
+  /** An artefact whose `season` names the tab once it has loaded; `label` until then. */
+  readonly seasonFrom?: "models_history";
 }
 
 export interface NavSection {
@@ -29,7 +31,7 @@ export const SECTIONS = [
     tabs: [
       { path: "/models", label: "Overview" },
       { path: "/models/season", label: "This season" },
-      { path: "/models/2025-26", label: "2025/26" },
+      { path: "/models/2025-26", label: "2025/26", seasonFrom: "models_history" },
     ],
   },
   {
@@ -84,14 +86,36 @@ export const BOTTOM_BAR: readonly Section["path"][] = ["/", "/gameweek", "/revie
 export const BOTTOM_SECTIONS: readonly NavSection[] = BOTTOM_BAR.flatMap((p) => SECTIONS.filter((s) => s.path === p));
 export const MORE_SECTIONS: readonly NavSection[] = SECTIONS.filter((s) => !BOTTOM_BAR.includes(s.path));
 
-/** Paths from before the eight sections, kept so no saved link breaks. The query string is carried over. */
+/**
+ * Paths from before the eight sections, kept so no saved link breaks. A key with a query matches
+ * when its path and each of its parameters do (`queryRedirect`); the rest of the query string is
+ * carried over.
+ */
 export const REDIRECTS: Readonly<Record<string, ViewPath>> = {
   "/log": "/review/all",
   "/squad": "/analysis",
   "/compare": "/analysis/compare",
   "/fixtures": "/scout/fixtures",
   "/history": "/models/2025-26",
+  "/models?section=history": "/models/2025-26",
+  "/models?section=hindsight": "/review",
+  "/models?section=accuracy": "/models/season",
 };
+
+/** Where a view's location goes when its query names a part that moved, with the query left over. */
+export function queryRedirect(pathname: string, search: string): { pathname: ViewPath; search: string } | undefined {
+  const params = new URLSearchParams(search);
+  for (const [from, to] of Object.entries(REDIRECTS)) {
+    const [path, query] = from.split("?");
+    if (query === undefined || path !== pathname) continue;
+    const wanted = [...new URLSearchParams(query)];
+    if (!wanted.every(([k, v]) => params.get(k) === v)) continue;
+    for (const [k] of wanted) params.delete(k);
+    const rest = params.toString();
+    return { pathname: to, search: rest ? `?${rest}` : "" };
+  }
+  return undefined;
+}
 
 /** The section a path belongs to: `/` only exactly, every other section by prefix. */
 export function sectionOf(pathname: string): NavSection | undefined {

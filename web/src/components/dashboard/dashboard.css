@@ -392,11 +392,14 @@
 
 .home-table {
   width: 100%;
+  /* Three short columns fit a 375 px screen: no scroller, unlike the global table's 42rem floor. */
+  min-width: 0;
   border-collapse: collapse;
 }
 
 .home-table th,
 .home-table td {
+  white-space: normal;
   text-align: left;
   padding: var(--space-1) var(--space-2);
   border-bottom: 1px solid var(--border);
