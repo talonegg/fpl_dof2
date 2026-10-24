@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import math
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +19,7 @@ import pytest
 from fpl_dof.config.models import RulesConfig
 from fpl_dof.rules.models import GameRules, Position
 from fpl_dof.rules.realised import Lineup, PlayerPerformance, performances, score_lineup
+from fpl_dof.rules.underlying import underlying_points, underlying_team_points
 
 CORPUS = (
     Path(__file__).resolve().parents[2]
@@ -382,3 +384,100 @@ def _positions() -> dict[int, Position]:
 
 def _kwargs(lineup: Lineup) -> dict[str, Any]:
     return {f: getattr(lineup, f) for f in Lineup.__dataclass_fields__}
+
+
+# --- Underlying expected points (ORC-12) ---------------------------------------------------------
+
+
+def _row(pid: int, position: str, minutes: int, **stats: Any) -> dict[str, Any]:
+    return {"player_id": pid, "position": position, "minutes": minutes, **stats}
+
+
+def _units(mean: float, per: int) -> float:
+    """``E[floor(N / per)]``, ``N ~ Poisson(mean)``, by brute force, apart from the module's sum."""
+    return sum(math.exp(-mean) * mean**k / math.factorial(k) * (k // per) for k in range(60))
+
+
+def test_one_players_underlying_xp_is_the_hand_calculation_from_the_config(
+    game_rules: GameRules,
+) -> None:
+    """ORC-12's acceptance: a midfielder's 90 minutes on 0.4 xG, 0.2 xA and 1.0 xGC, with his real
+    yellow card and bonus point (they have no expected input), scored only from the rules. His two
+    real goals and three conceded do not count: the expected figures replace them."""
+    s = game_rules.scoring
+    rows = pd.DataFrame(
+        [
+            _row(
+                1, "MID", 90, expected_goals=0.4, expected_assists=0.2,
+                expected_goals_conceded=1.0, goals_scored=2, assists=0, clean_sheets=0,
+                goals_conceded=3, yellow_cards=1, bonus=1,
+            )
+        ]
+    )  # fmt: skip
+    hand = (
+        s.long_play
+        + 0.4 * s.goals_scored[Position.MID]
+        + 0.2 * s.assists
+        + math.exp(-1.0) * s.clean_sheets[Position.MID]  # P(no goal) under Poisson(1.0)
+        + _units(1.0, s.goals_conceded_per_point) * s.goals_conceded[Position.MID]
+        + s.yellow_cards
+        + s.bonus
+    )
+    assert underlying_points(rows, game_rules) == {1: pytest.approx(hand)}
+
+
+def test_goals_conceded_count_whole_units_and_a_substitute_gets_no_clean_sheet(
+    game_rules: GameRules,
+) -> None:
+    s = game_rules.scoring
+    per = s.goals_conceded_per_point
+    # E[floor(N/2)] = (mean - P(N odd)) / 2: a closed form the brute force must meet.
+    assert _units(2.0, 2) == pytest.approx((2.0 - (1 - math.exp(-4.0)) / 2) / 2)
+    rows = pd.DataFrame(
+        [
+            _row(1, "DEF", 90, expected_goals_conceded=2.0, saves=0),
+            _row(2, "DEF", s.long_play_minutes - 1, expected_goals_conceded=0.1),
+            _row(3, "DEF", 0, expected_goals=0.5),
+        ]
+    )
+    got = underlying_points(rows, game_rules)
+    assert got[1] == pytest.approx(
+        s.long_play
+        + math.exp(-2.0) * s.clean_sheets[Position.DEF]
+        + _units(2.0, per) * s.goals_conceded[Position.DEF]
+    )
+    assert got[2] == pytest.approx(s.short_play + _units(0.1, per) * s.goals_conceded[Position.DEF])
+    assert got[3] == 0.0
+
+
+def test_a_match_without_expected_figures_scores_the_actual_and_doubles_are_summed(
+    game_rules: GameRules,
+) -> None:
+    s = game_rules.scoring
+    actual = {"goals_scored": 1, "assists": 1, "clean_sheets": 1, "goals_conceded": 0}
+    rows = pd.DataFrame(
+        [
+            _row(1, "FWD", 90, expected_goals=None, expected_assists=None,
+                 expected_goals_conceded=None, **actual),
+            _row(1, "FWD", 90, expected_goals=0.5, expected_assists=0.0,
+                 expected_goals_conceded=0.0, **actual),
+        ]
+    )  # fmt: skip
+    once = s.long_play + s.goals_scored[Position.FWD] + s.assists + s.clean_sheets[Position.FWD]
+    again = s.long_play + 0.5 * s.goals_scored[Position.FWD] + s.clean_sheets[Position.FWD]
+    assert underlying_points(rows, game_rules) == {1: pytest.approx(once + again)}
+
+
+@pytest.mark.parametrize("chip", [None, "bboost", "3xc"])
+def test_a_teams_underlying_is_its_final_xi_and_armband(
+    chip: str | None, game_rules: GameRules
+) -> None:
+    """The players and the armband the realised scorer fielded, at their underlying points."""
+    perfs = _team(p6=_perf(6, Position.MID, 0, 0))  # the captain did not play: 13 comes on
+    lineup = Lineup(**{**_kwargs(_XI), "chip": chip})
+    scored = score_lineup(lineup, perfs, game_rules)
+    underlying = {pid: float(pid) for pid in range(1, 16)} | {6: 0.0}
+    fielded = range(1, 16) if chip == "bboost" else [*range(1, 6), 13, *range(7, 12)]
+    extra = game_rules.chips.armband(chip) - 1
+    want = sum(underlying[p] for p in fielded) + underlying[7] * extra  # the vice's armband
+    assert underlying_team_points(lineup, scored, underlying, game_rules) == pytest.approx(want)

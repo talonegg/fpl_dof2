@@ -302,6 +302,7 @@ class FdcoukAdapter(SourceAdapter):
                     "draw_probability": fitted.draw_probability,
                     "away_win_probability": fitted.away_win_probability,
                     "total_goals": fitted.total_goals,
+                    "over_2_5_probability": over,
                 }
             )
 

@@ -85,9 +85,9 @@ export function ModelsPage() {
 }
 
 /**
- * `/models/season` — the live season: the ladder of each model's advice on your squad and how its
- * xP compared with the points scored. Drop B adds the "as if played" ladder (ORC-13) and underlying
- * xP (ORC-12) here.
+ * `/models/season` — the live season: the ladder of each model's advice on your squad, its miss split
+ * into forecast error and luck by underlying xP (ORC-12), and how its xP compared with the points
+ * scored. Drop B adds the "as if played" ladder (ORC-13) here.
  */
 export function ModelsSeasonPage() {
   const { models } = useData();

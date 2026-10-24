@@ -17,6 +17,7 @@ import type {
   DifficultyScale,
   FixtureEntry,
   FixtureGameweek,
+  FixtureOdds,
   Fixtures,
   Player,
   TeamFixtures,
@@ -89,6 +90,8 @@ export interface RunFixture {
   isDouble: boolean;
   /** Second and subsequent fixtures of a double, so the view can mark them. */
   indexInGameweek: number;
+  /** Margin-free match odds from this club's side, or null while none are posted (ORC-15). */
+  odds: FixtureOdds | null;
 }
 
 export interface RunGameweek {
@@ -116,6 +119,8 @@ export interface FixtureRun {
    * silent (DP-09, DP-15).
    */
   unrated: boolean;
+  /** When the odds are next fetched, for the not-posted wording (ORC-15). */
+  oddsNextCheck: string | null;
 }
 
 function toRunGameweek(
@@ -138,6 +143,7 @@ function toRunGameweek(
         band: bandFor(difficulty, scale),
         isDouble: gameweek.is_double,
         indexInGameweek: index,
+        odds: entry.odds ?? null,
       };
     }),
   };
@@ -178,6 +184,7 @@ export function buildFixtureRun(
     doubles: gameweeks.filter((gw) => gw.isDouble).length,
     scale: fixtures.scale,
     unrated: fixtures.model.teams_rated === 0,
+    oddsNextCheck: fixtures.odds_next_check ?? null,
   };
 }
 

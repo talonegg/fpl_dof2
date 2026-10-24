@@ -15,11 +15,48 @@ import type {
   Models,
   Strategies,
   Strategy,
+  LogHindsightOptimal,
+  LogHindsightPlan,
 } from "../contract/types";
+import { CONTRACT_MINOR } from "../contract/types";
+
+/** A model's options (ORC-11), in the hindsight's shape: [transfers, moves out→in, net, hit]. */
+export function optionSet(
+  gameweek: number,
+  captain: string,
+  options: [number, [string, string][], number, number][],
+): LogHindsightOptimal {
+  const roll = options[0][2];
+  const plans: LogHindsightPlan[] = options.map(([transfers, moves, net, hit], i) => ({
+    transfers_count: transfers,
+    moves: moves.map(([out, inn], j) => ({
+      player_out_id: 100 + i * 10 + j,
+      player_out_name: out,
+      player_in_id: 200 + i * 10 + j,
+      player_in_name: inn,
+      selling_price: 5.0,
+      buying_price: 5.0,
+    })),
+    starting: [1, 2],
+    captain_id: 9,
+    captain_name: captain,
+    points_before_hits: net - hit,
+    hit_points: hit,
+    net_points: net,
+    gain_over_roll: Math.round((net - roll) * 100) / 100,
+  }));
+  return {
+    gameweek,
+    baseline_roll: plans[0],
+    optimal_single: plans.find((p) => p.transfers_count === 1) ?? null,
+    optimal_overall: plans.reduce((best, p) => (p.net_points > best.net_points ? p : best)),
+    all_options: plans,
+  };
+}
 
 export const meta: Meta = {
   contract_version: 1,
-  contract_minor: 5,
+  contract_minor: CONTRACT_MINOR, // current data: the fixture follows every additive bump
   generated_at: "2026-08-10T10:15:58.217761Z",
   run_id: "20260810T101557Z-d705a43f",
   git_sha: "14c97bc018cebb4fa8b7ac525097ca54d402af75",
@@ -258,6 +295,11 @@ export const week: Week = {
       { transfers: 1, hit_points: 0, net_expected_points: 52.4, gain_over_roll: 2.4, moves: [] },
       { transfers: 2, hit_points: -4, net_expected_points: 49.1, gain_over_roll: -0.9, moves: [] },
     ],
+    option_set: optionSet(2, "Haaland", [
+      [0, [], 50.0, 0],
+      [1, [["Salah", "Saka"]], 52.4, 0],
+      [2, [["Salah", "Saka"], ["Raya", "Pope"]], 53.1, -4],
+    ]),
     warnings: [],
   },
   advised: {
@@ -506,6 +548,7 @@ export const leagueTable: League = {
       // Shares Raya and Watkins, captains Raya where the owner captains Watkins, and holds one
       // player the owner does not (#4, deliberately absent from `players.json`).
       squad: { player_ids: [1, 2, 4], starting_ids: [1, 2], captain_id: 1, vice_captain_id: 2 },
+      moves: { gameweek: 3, hit_cost: 4, chip: "bboost", transfers: [{ out_id: 3, in_id: 4 }] },
     },
     {
       entry_id: 200,
@@ -828,6 +871,10 @@ export const challengerWeek: Week = {
     net_expected_points: 51.0,
     gain_over_roll: 0,
     moves: [],
+    option_set: optionSet(2, "Raya", [
+      [0, [], 51.0, 0],
+      [1, [["Saka", "Palmer"]], 50.6, 0],
+    ]),
   },
   advised: {
     ...week.advised!,

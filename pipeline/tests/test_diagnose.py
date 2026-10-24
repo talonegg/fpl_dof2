@@ -89,3 +89,29 @@ def test_diagnose_blindspot_vs_outlier() -> None:
 
     assert mbeumo_diag.category == DiagnosticCategory.MODEL_BLINDSPOT
     assert henderson_diag.category == DiagnosticCategory.HIGH_VARIANCE_OUTLIER
+
+
+def test_a_model_that_did_not_price_a_player_is_left_out_not_read_as_zero() -> None:
+    """D-37: a missing belief is absent, so it cannot make a spread, or a blind spot, out of 0.0."""
+    optimal = HindsightOptimalPlan(
+        transfers_count=1,
+        moves=(HindsightMove(10, "Rogers", 18, "Henderson", 5.5, 4.5),),
+        starting=(18,),
+        captain_id=13,
+        captain_name="Haaland",
+        points_before_hits=40,
+        hit_points=0,
+        net_points=40,
+        gain_over_roll=10.0,
+    )
+    diags = diagnose_oracle_gap(
+        optimal=optimal,
+        player_actuals={18: 14, 13: 2},
+        models_xp={"xp_v1": {18: 2.6}, "c1": {13: 6.0}},
+        models_captains={"xp_v1": 13, "c1": 13},
+        player_underlying={18: 6.123},
+    )
+    (henderson,) = diags
+    assert henderson.models_xp == {"xp_v1": 2.6}
+    assert henderson.category == DiagnosticCategory.HIGH_VARIANCE_OUTLIER  # not a 2.6 spread
+    assert henderson.as_dict()["underlying_points"] == 6.12

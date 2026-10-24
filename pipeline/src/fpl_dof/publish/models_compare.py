@@ -92,7 +92,9 @@ def _live_advice(
         advised.get("bench_order") or []
     )
     starting = [int(p) for p in advised.get("starting") or []]
-    return {
+    # The options weighed at the deadline (ORC-11), as recorded; absent before they were.
+    weighed = {"option_set": rec["option_set"]} if rec.get("option_set") else {}
+    return weighed | {
         "transfers": [
             {
                 "out": int(m["out"]["player_id"]),

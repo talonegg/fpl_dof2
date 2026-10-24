@@ -42,6 +42,8 @@ class Table(StrEnum):
     ENTRY_GAMEWEEK = "entry_gameweek"
     LEAGUE_STANDING = "league_standing"
     LEAGUE_PICK = "league_pick"
+    LEAGUE_TRANSFER = "league_transfer"
+    LEAGUE_GAMEWEEK = "league_gameweek"
     PLAYER_CROSSWALK = "player_crosswalk"
     PLAYER_ADVANCED = "player_advanced"
     PLAYER_METRIC = "player_metric"
@@ -596,10 +598,43 @@ class TeamMatchExpectationSchema(pa.DataFrameModel):
     draw_probability: Series[float] = pa.Field(ge=0, le=1)
     away_win_probability: Series[float] = pa.Field(ge=0, le=1)
     total_goals: Series[float] = pa.Field(ge=0, le=20)
+    over_2_5_probability: Series[float] = pa.Field(ge=0, le=1, nullable=True)
+    """P(more than 2.5 goals), margin removed from the over/under 2.5 prices. Null where the
+    source posts no totals market (ORC-15)."""
 
     class Config:
         strict = True
         coerce = True
+
+
+class LeagueTransferSchema(pa.DataFrameModel):
+    """A rival's transfer in the published gameweek (ORC-14). Not ``entry_transfer``, for the same
+    reason ``league_pick`` is not ``entry_pick``: that table is the owner's, and the decision reads
+    it. No prices — the drill-down shows who moved, and the public endpoint is the only source."""
+
+    entry_id: Series[int] = pa.Field(ge=1)
+    gameweek: Series[int] = pa.Field(ge=1, le=38)
+    player_in_id: Series[int] = pa.Field(ge=1)
+    player_out_id: Series[int] = pa.Field(ge=1)
+
+    class Config:
+        strict = True
+        coerce = True
+
+
+class LeagueGameweekSchema(pa.DataFrameModel):
+    """A rival's transfer count, hit cost and chip for the published gameweek (ORC-14)."""
+
+    entry_id: Series[int] = pa.Field(ge=1)
+    gameweek: Series[int] = pa.Field(ge=1, le=38)
+    transfers: Series[int] = pa.Field(ge=0)
+    transfers_cost: Series[int] = pa.Field(ge=0)
+    chip: Series[str] = pa.Field(nullable=True)
+
+    class Config:
+        strict = True
+        coerce = True
+        unique = ["entry_id", "gameweek"]  # noqa: RUF012 - pandera Config
 
 
 SCHEMAS: dict[Table, type[pa.DataFrameModel]] = {
@@ -619,6 +654,8 @@ SCHEMAS: dict[Table, type[pa.DataFrameModel]] = {
     Table.ENTRY_GAMEWEEK: EntryGameweekSchema,
     Table.LEAGUE_STANDING: LeagueStandingSchema,
     Table.LEAGUE_PICK: LeaguePickSchema,
+    Table.LEAGUE_TRANSFER: LeagueTransferSchema,
+    Table.LEAGUE_GAMEWEEK: LeagueGameweekSchema,
     Table.PLAYER_CROSSWALK: PlayerCrosswalkSchema,
     Table.PLAYER_ADVANCED: PlayerAdvancedSchema,
     Table.PLAYER_METRIC: PlayerMetricSchema,
@@ -640,6 +677,8 @@ OPTIONAL_TABLES: frozenset[Table] = frozenset(
         # Only exist when a mini-league is configured, which it is not by default (E6-S10).
         Table.LEAGUE_STANDING,
         Table.LEAGUE_PICK,
+        Table.LEAGUE_TRANSFER,
+        Table.LEAGUE_GAMEWEEK,
         # Everything an external source contributes. Losing one of those sources removes the
         # fields it fed and nothing else, which is what DP-15 asks for in table form.
         Table.PLAYER_CROSSWALK,

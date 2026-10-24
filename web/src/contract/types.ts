@@ -6,7 +6,7 @@
 
 export const CONTRACT_VERSION = 1;
 
-export const CONTRACT_MINOR = 5;
+export const CONTRACT_MINOR = 6;
 
 /** What this publication is, when it was made, and what produced it. The browser reads this first and can render an honest 'as at' line without trusting anything else. */
 export interface Meta {
@@ -178,6 +178,34 @@ export interface MoveSide {
   form_points_per_match?: number | null;
 }
 
+/** Every option a transfer solve weighed: the roll, the best single transfer and the best overall. The hindsight solves it on realised points (whole); each model's decision on its predicted xP (ORC-11). The same definition is in week.schema.json and models.schema.json, and the type generator fails if they differ. */
+export interface LogHindsightOptimal {
+  gameweek: number;
+  baseline_roll: LogHindsightPlan;
+  optimal_single: LogHindsightPlan | null;
+  optimal_overall: LogHindsightPlan;
+  all_options: LogHindsightPlan[];
+}
+
+export interface LogHindsightPlan {
+  transfers_count: number;
+  moves: {
+    player_out_id: number;
+    player_out_name: string;
+    player_in_id: number;
+    player_in_name: string;
+    selling_price: number;
+    buying_price: number;
+  }[];
+  starting: number[];
+  captain_id: number;
+  captain_name: string;
+  points_before_hits: number;
+  hit_points: number;
+  net_points: number;
+  gain_over_roll: number;
+}
+
 /** This week's decision: the deadline, the squad as it stands, what to do, and why. Times are UTC on the wire; the browser renders local zones itself (DL-11). */
 export interface Week {
   contract_version: 1;
@@ -257,6 +285,8 @@ export interface Week {
       gain_over_roll: number;
       moves?: string[];
     }[];
+    /** What this model weighed on its own predicted xP, in the hindsight optimum's shape: the roll, the best single transfer and the best overall, each with its moves, captain, points before hits, hits, net and gain over roll (ORC-11). Recorded with the advice in the ledger. Absent before R1.4.0. */
+    option_set?: LogHindsightOptimal;
     warnings?: string[];
   };
   advised?: {
@@ -628,6 +658,21 @@ export interface FixtureEntry {
   attack_difficulty: number;
   /** Difficulty for this club's defenders and goalkeeper, from expected goals against. */
   defence_difficulty: number;
+  /** The bookmaker market for this fixture, margin removed. Null until odds are posted, and for a finished fixture (ORC-15). */
+  odds?: FixtureOdds | null;
+}
+
+/** Match odds as probabilities, always from the perspective of the club whose row it sits in: win is this club winning, loss is the opponent winning. There are no player odds; no free source has them. */
+export interface FixtureOdds {
+  /** This club wins. win + draw + loss is 1 to rounding: the bookmaker margin is removed proportionally. */
+  win: number;
+  draw: number;
+  /** The opponent wins. */
+  loss: number;
+  /** More than 2.5 goals in the match, from the over/under 2.5 prices with the margin removed; the same for both clubs. Null when no totals market is posted. */
+  over_2_5: number | null;
+  /** UTC time the odds were captured. */
+  as_of: string;
 }
 
 /** The fixture ticker: a team-by-gameweek difficulty grid built from the model's own expected goals rather than FPL's static preseason FDR (DL-37). Covers the same gameweek window plan.json does, so the ticker and the plan cannot disagree about how far ahead 'ahead' is. Doubles and blanks come from the same fixture-counting the chip calendar uses, not from a second derivation of the same fact. */
@@ -639,6 +684,8 @@ export interface Fixtures {
   to_gameweek: number;
   scale: DifficultyScale;
   model: FixtureModel;
+  /** UTC instant of the next fast-ingest firing that fetches fixture odds, for the 'odds not posted yet' wording (ORC-07, ORC-15). Null when no check is due before the deadline. */
+  odds_next_check?: string | null;
   teams: TeamFixtures[];
 }
 
@@ -672,6 +719,21 @@ export interface LeagueEntry {
   /** This row is the configured team. **The comparison is anchored on this row and no other**: differentials are measured against the squad actually fielded, never against the squad the optimiser recommended, because a differential against a team you do not own is not a differential (DP-09). At most one entry has this set, and none does when no team is configured or the owner is not in this league. */
   is_owner: boolean;
   squad?: LeagueSquad | null;
+  /** What this manager did in the published gameweek (ORC-14). Null when it was not read - outside the squad budget, or the fetch failed - which is a different claim from a manager who made no transfers (an object with an empty list). A failed fetch degrades this one team only (NFR-15). */
+  moves?: LeagueMoves | null;
+}
+
+/** A manager's transfers, hit and chip for one gameweek, from the public entry history and transfers endpoints. Players are ids; the app names them from players.json. */
+export interface LeagueMoves {
+  gameweek: number;
+  /** Points deducted for extra transfers, as the game reports it. */
+  hit_cost: number;
+  /** The chip played that gameweek, by the API's own name. Null when none. */
+  chip: string | null;
+  transfers: {
+    out_id: number;
+    in_id: number;
+  }[];
 }
 
 /** A manager's fifteen for the published gameweek, as the public picks endpoint reports them. Carries no prices: the endpoint does not report another manager's purchase or selling price, and this project will never authenticate to obtain one (Invariant 4). */
@@ -912,33 +974,6 @@ export interface LogModelRank {
   };
 }
 
-export interface LogHindsightOptimal {
-  gameweek: number;
-  baseline_roll: LogHindsightPlan;
-  optimal_single: LogHindsightPlan | null;
-  optimal_overall: LogHindsightPlan;
-  all_options: LogHindsightPlan[];
-}
-
-export interface LogHindsightPlan {
-  transfers_count: number;
-  moves: {
-    player_out_id: number;
-    player_out_name: string;
-    player_in_id: number;
-    player_in_name: string;
-    selling_price: number;
-    buying_price: number;
-  }[];
-  starting: number[];
-  captain_id: number;
-  captain_name: string;
-  points_before_hits: number;
-  hit_points: number;
-  net_points: number;
-  gain_over_roll: number;
-}
-
 export interface LogOracleDiagnostic {
   player_id: number;
   player_name: string;
@@ -946,8 +981,11 @@ export interface LogOracleDiagnostic {
   actual_points: number;
   category: "model_blindspot" | "high_variance_outlier" | "captaincy_trap";
   explanation: string;
+  /** Each model's pre-deadline xP for this player, from evaluation version 4 (D-37); a model that did not price him is absent. Before it, the model's team xP over the armband keyed by its own captain, so not the player's. */
   models_xp: Record<string, number>;
   models_trapped: string[];
+  /** The player's underlying expected points for the gameweek: the game's rules applied to his minutes and FPL's expected goals, assists and goals conceded (ORC-12). Absent before evaluation version 4. */
+  underlying_points?: number | null;
 }
 
 /** The season log: per finished gameweek, what the owner played, what it scored, what the pipeline advised beforehand, and how the two differ (DL-69, E8 §3). Advice is read from the ledger written before each deadline and is null where none was recorded — it is never reconstructed after the event. */
@@ -1019,6 +1057,8 @@ export interface ModelAdvice {
   vice_name: string;
   /** xPts of the XI with the armband, net of hits. */
   expected_points: number;
+  /** The options the model weighed at the deadline on its predicted xP, from the ledger's advice of record (ORC-11), for setting beside the hindsight optimum. Absent for frozen gameweeks and advice recorded before R1.4.0. */
+  option_set?: LogHindsightOptimal;
 }
 
 export interface ModelActual {
@@ -1028,6 +1068,12 @@ export interface ModelActual {
   n_autosubs: number;
   vice_used: boolean;
   armband_points: number;
+  /** The same final XI and armband, before hits, scored on each player's underlying expected points: the game's rules applied to his minutes and FPL's expected goals, assists and goals conceded (ORC-12). Absent for the frozen record and before evaluation version 4. */
+  underlying_points?: number;
+  /** The advice's xP less underlying_points: what the forecast missed by. Absent with underlying_points. */
+  forecast_error?: number;
+  /** points_before_hits less underlying_points: positive when the XI scored more than its chances were worth. xP less points is forecast_error less luck. Absent with underlying_points. */
+  luck?: number;
 }
 
 export interface ModelGameweek {

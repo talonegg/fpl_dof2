@@ -604,3 +604,24 @@ def test_upcoming_odds_are_retained_yet_refetched_after_their_ttl(tmp_path: Path
     assert len(sidecars) == 2
     assert all(json.loads(p.read_text())["retain"] is True for p in sidecars)
     assert not any(json.loads(p.read_text())["immutable"] for p in sidecars)
+
+
+def test_fdcouk_conforms_the_over_under_2_5_prices_margin_free(tmp_path: Path) -> None:
+    """ORC-15: the totals market is de-vigged to one, and null where no totals are posted."""
+    import pandas as pd
+
+    from fpl_dof.sources.bronze import BronzeStore
+    from fpl_dof.sources.fdcouk.adapter import FdcoukAdapter
+    from fpl_dof.sources.fetch import Fetcher
+
+    csv = (
+        "Div,Date,Time,HomeTeam,AwayTeam,B365H,B365D,B365A,B365>2.5,B365<2.5\n"
+        "E0,17/08/2024,15:00,Arsenal,Wolves,1.25,6.50,11.00,1.60,2.40\n"
+        "E0,18/08/2024,14:00,Everton,Brighton,2.90,3.30,2.50,,\n"
+    )
+    with Fetcher(config=HttpConfig(), bronze=BronzeStore(tmp_path), run_id="t") as fetcher:
+        frame = FdcoukAdapter(fetcher).parse_fixtures_csv(csv, "2024/25", None)
+
+    # (1/1.6) / (1/1.6 + 1/2.4): the margin removed, so over + under is one.
+    assert frame["over_2_5_probability"].iloc[0] == pytest.approx(0.6)
+    assert pd.isna(frame["over_2_5_probability"].iloc[1])

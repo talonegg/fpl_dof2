@@ -225,6 +225,7 @@
     },
     "log_hindsight_optimal": {
       "type": "object",
+      "description": "Every option a transfer solve weighed: the roll, the best single transfer and the best overall. The hindsight solves it on realised points (whole); each model's decision on its predicted xP (ORC-11). The same definition is in week.schema.json and models.schema.json, and the type generator fails if they differ.",
       "additionalProperties": false,
       "required": ["gameweek", "baseline_roll", "optimal_single", "optimal_overall", "all_options"],
       "properties": {
@@ -282,9 +283,9 @@
         "starting": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
         "captain_id": { "type": "integer", "minimum": 1 },
         "captain_name": { "type": "string" },
-        "points_before_hits": { "type": "integer" },
+        "points_before_hits": { "type": "number" },
         "hit_points": { "type": "integer" },
-        "net_points": { "type": "integer" },
+        "net_points": { "type": "number" },
         "gain_over_roll": { "type": "number" }
       }
     },
@@ -313,11 +314,16 @@
         "explanation": { "type": "string" },
         "models_xp": {
           "type": "object",
+          "description": "Each model's pre-deadline xP for this player, from evaluation version 4 (D-37); a model that did not price him is absent. Before it, the model's team xP over the armband keyed by its own captain, so not the player's.",
           "additionalProperties": { "type": "number" }
         },
         "models_trapped": {
           "type": "array",
           "items": { "type": "string" }
+        },
+        "underlying_points": {
+          "type": ["number", "null"],
+          "description": "The player's underlying expected points for the gameweek: the game's rules applied to his minutes and FPL's expected goals, assists and goals conceded (ORC-12). Absent before evaluation version 4."
         }
       }
     }
