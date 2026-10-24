@@ -1,12 +1,7 @@
 import { useId } from "react";
-import type { LogHindsightOptimal, LogHindsightPlan } from "../contract/types";
-import { formatPoints } from "../format";
-import "./models/models.css";
-import "./models/modelsPage.css";
-import "./review/review.css";
-
-const hits = (n: number) => (n === 0 ? "—" : `−${Math.abs(n)}`);
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+import type { LogHindsightOptimal, LogHindsightPlan, Plan, PlanOption } from "../contract/types";
+import { formatHits, formatPoints, plural } from "../format";
+import "./OptionsTable.css";
 
 export function movesText(plan: LogHindsightPlan): string {
   return plan.moves.length === 0 ? "Roll" : plan.moves.map((m) => `${m.player_out_name} → ${m.player_in_name}`).join(", ");
@@ -54,9 +49,9 @@ export function OptionsTable({
       .filter(Boolean)
       .join(", ");
   return (
-    <div className="table-scroll" tabIndex={0} role="region" aria-labelledby={captionId}>
-      <table className="models-table" data-testid={testId}>
-        <caption id={captionId} className="models-caption">
+    <div className="options-scroll" tabIndex={0} role="region" aria-labelledby={captionId}>
+      <table className="options-table" data-testid={testId}>
+        <caption id={captionId} className="options-caption">
           {caption}
         </caption>
         <thead>
@@ -77,12 +72,12 @@ export function OptionsTable({
               <tr key={i} data-testid={`${testId}-${i}`} className={same(optimal.optimal_overall, p) ? "is-best" : undefined}>
                 <th scope="row">
                   {plural(p.transfers_count, "transfer")}
-                  {tag && <span className="review-tag"> {tag}</span>}
+                  {tag && <span className="options-tag"> {tag}</span>}
                 </th>
-                <td className="models-what">{movesText(p)}</td>
+                <td className="options-moves">{movesText(p)}</td>
                 <td>{p.captain_name}</td>
                 <td>{planPoints(p.points_before_hits, realised)}</td>
-                <td>{hits(p.hit_points)}</td>
+                <td>{formatHits(p.hit_points)}</td>
                 <td>
                   <strong>{planPoints(p.net_points, realised)}</strong>
                 </td>
@@ -90,6 +85,70 @@ export function OptionsTable({
               </tr>
             );
           })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/**
+ * The chip scenarios a model's multi-week plan enumerated (ORC-11): each option of `plan.json` that
+ * plays a chip, read as published — no new solve. Its points are over the plan's horizon, net of
+ * hits, so they sit beside this gameweek's options rather than in the same table.
+ */
+export function ChipScenarios({ plan }: { plan: Plan | null }) {
+  const captionId = useId();
+  if (!plan || plan.skipped) {
+    return (
+      <p className="options-note" data-testid="decision-no-scenarios">
+        This model publishes no multi-week plan, so it has no chip scenarios.
+      </p>
+    );
+  }
+  const seen = new Set<string>();
+  const scenarios = [plan.recommended, ...(plan.alternatives ?? [])].filter((o): o is PlanOption => {
+    if (!o || seen.has(o.key) || (o.chips ?? []).length === 0) return false;
+    seen.add(o.key);
+    return true;
+  });
+  if (scenarios.length === 0) {
+    return (
+      <p className="options-note" data-testid="decision-no-scenarios">
+        This model&apos;s plan enumerated no chip scenario this gameweek.
+      </p>
+    );
+  }
+  const weeks = plan.gameweeks ?? [];
+  const span = weeks.length > 0 ? `GW${weeks[0]}–GW${weeks[weeks.length - 1]}` : "the plan's horizon";
+  const roll = plan.baseline?.total_expected_points;
+  return (
+    <div className="options-scroll" tabIndex={0} role="region" aria-labelledby={captionId}>
+      <table className="options-table" data-testid="decision-scenarios">
+        <caption id={captionId} className="options-caption">
+          The chip scenarios its plan weighed, {span}, on this model&apos;s xP net of hits
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Scenario</th>
+            <th scope="col">Hits</th>
+            <th scope="col">Net</th>
+            <th scope="col">Gain over roll</th>
+          </tr>
+        </thead>
+        <tbody>
+          {scenarios.map((o) => (
+            <tr key={o.key} data-testid={`decision-scenario-${o.key}`} className={o === plan.recommended ? "is-best" : undefined}>
+              <th scope="row">
+                {o.label}
+                {o === plan.recommended && <span className="options-tag"> recommended</span>}
+              </th>
+              <td>{formatHits(o.total_hit_points ?? 0)}</td>
+              <td>
+                <strong>{formatPoints(o.total_expected_points)}</strong>
+              </td>
+              <td>{roll === undefined ? "—" : planGain(o.total_expected_points - roll, false)}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>

@@ -59,12 +59,17 @@ describe("League: a team's last gameweek (WEB-09)", () => {
     const moves = await screen.findByTestId("league-team-moves");
     expect(moves.textContent).toContain("→ #4");
     expect(moves.textContent).toContain("−4 points");
-    expect(moves.textContent).toContain("bboost");
+    // The chip by its label, not the API's "3xc".
+    expect(moves.textContent).toContain("Chip: Triple Captain");
     const diff = screen.getByTestId("league-team-diff");
-    // They hold #4 (no fixture, a dash); you hold #3 (7 points): a net swing of -7 to them.
-    expect(within(diff).getByTestId("diff-4").textContent).toContain("—");
-    expect(within(diff).getByTestId("diff-3").textContent).toContain("7");
-    await waitFor(() => expect(within(diff).getByTestId("diff-net").textContent).toContain("-7 points"));
+    // Only the fielded XI scores: their #4 and your #3 (7 raw points) are both on the bench.
+    await waitFor(() => expect(within(diff).getByTestId("diff-3").textContent).toContain("0"));
+    expect(within(diff).getByTestId("diff-4").textContent).toContain("0");
+    // Both hold Raya (8): their Triple Captain armband from rules.json makes him 24; you field him at 8.
+    expect(within(diff).getByTestId("diff-1").textContent).toContain("24 for them, 8 for you");
+    // 24 - 8, less their 4-point hit: 12 to them.
+    expect(within(diff).getByTestId("diff-net").textContent).toContain("12 points");
+    expect(within(diff).getByTestId("diff-net").textContent).toContain("their hit of 4 counted");
   });
 
   it("degrades only the team whose moves were not fetched (ORC-14, NFR-15)", async () => {

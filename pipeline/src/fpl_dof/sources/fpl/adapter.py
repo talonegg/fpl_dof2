@@ -1117,9 +1117,27 @@ class FplApiAdapter(SourceAdapter):
     def _rival_moves(
         self, entry_id: int, gameweek: int, request: IngestRequest
     ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-        """One rival's hit, chip and transfers for ``gameweek``, from the public entry endpoints."""
+        """One rival's hit, chip and transfers for ``gameweek``, from the public entry endpoints.
+
+        The fetch checks each payload's shape, not its rows, so a malformed row is raised here as
+        a contract error: the callers then degrade only this team, as for a failed fetch (DP-15).
+        """
         history = self.fetch_entry_history(entry_id, request)
         transfers = self.fetch_entry_transfers(entry_id, request)
+        try:
+            return self._read_rival_moves(history, transfers, gameweek)
+        except (KeyError, ValueError, TypeError) as exc:
+            raise SourceContractError(
+                f"malformed history or transfers row: {exc!r}",
+                source=self.name,
+                resource="entry_history",
+                key=str(entry_id),
+            ) from exc
+
+    @staticmethod
+    def _read_rival_moves(
+        history: dict[str, Any], transfers: list[dict[str, Any]], gameweek: int
+    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
         current = next(
             (r for r in history.get("current") or [] if int(r["event"]) == gameweek), None
         )

@@ -8,8 +8,9 @@ import { formatLocalDateTime } from "../../format";
 
 const pct = (p: number) => `${Math.round(p * 100)}%`;
 
-/** Compact, never colour-only: letters carry the meaning. */
-export const oddsShort = (o: FixtureOdds) => `W ${pct(o.win)} D ${pct(o.draw)} L ${pct(o.loss)}`;
+/** Compact, never colour-only: letters carry the meaning. Over 2.5 is visible, not hover-only. */
+export const oddsShort = (o: FixtureOdds) =>
+  `W ${pct(o.win)} D ${pct(o.draw)} L ${pct(o.loss)}${o.over_2_5 == null ? "" : ` O2.5 ${pct(o.over_2_5)}`}`;
 
 /** The full sentence, for tooltips and screen readers. */
 export const oddsSentence = (o: FixtureOdds) =>

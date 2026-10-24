@@ -65,6 +65,21 @@ describe("This gameweek", () => {
     expect(screen.getByTestId("decision-options-1").textContent).toContain("−0.40");
   });
 
+  it("shows the chip scenarios the model's plan enumerated, and says when a model has no plan (ORC-11)", async () => {
+    installFetchStub({ bodies: { strategies: strategiesFixture, week_c1: challengerWeek } });
+    renderApp("/gameweek");
+    const scenario = await screen.findByTestId("decision-scenario-bboost@4");
+    expect(scenario.textContent).toContain("Bench Boost in GW4");
+    expect(scenario.textContent).toContain("recommended");
+    expect(scenario.textContent).toContain("248.10");
+    expect(scenario.textContent).toContain("−4");
+    expect(screen.getByTestId("decision-scenarios").textContent).toContain("GW2–GW6");
+
+    // C1 publishes a week but no plan here: said, not an empty table.
+    fireEvent.click(screen.getByTestId("model-toggle-c1"));
+    await waitFor(() => expect(screen.getByTestId("decision-no-scenarios").textContent).toContain("no multi-week plan"));
+  });
+
   it("says so when the advice was published without its options", async () => {
     const { option_set: _gone, ...bare } = week.recommendation!;
     installFetchStub({ bodies: { week: { ...week, recommendation: bare } } });

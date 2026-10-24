@@ -577,6 +577,14 @@ def test_every_published_strategy_publishes_and_records_the_options_it_weighed(
             recommendation["net_expected_points"], abs=0.01
         )
         assert recorded["models"][s.id]["recommendation"]["option_set"] == options
+        # One home: the older `options` shape is derived from the option set, in its rounding.
+        assert [
+            (o["transfers"], o["hit_points"], o["net_expected_points"], o["gain_over_roll"])
+            for o in recommendation["options"]
+        ] == [
+            (p["transfers_count"], p["hit_points"], p["net_points"], p["gain_over_roll"])
+            for p in options["all_options"]
+        ]
 
 
 def _fail_c1(monkeypatch: pytest.MonkeyPatch) -> None:

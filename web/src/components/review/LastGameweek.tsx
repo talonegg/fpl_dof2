@@ -5,7 +5,7 @@ import { useData, useRegistry } from "../../data/DataProvider";
 import { modelLabel, orderIds, resolveModel } from "../../data/registry";
 import { transfersText } from "../../data/season";
 import { useArtefact } from "../../data/store";
-import { formatPoints } from "../../format";
+import { formatHits, formatPoints, plural, signed } from "../../format";
 import { ModelBadge } from "../models/ModelBadge";
 import { OptionsTable, movesText, planGain, planPoints } from "../OptionsTable";
 import { rankBy } from "../models/rank";
@@ -16,9 +16,6 @@ import "./review.css";
 /** The owner's own row in the evaluation's rankings: the one that is not a strategy. */
 const PLAYED = "played";
 
-const hits = (n: number) => (n === 0 ? "—" : `−${Math.abs(n)}`);
-const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : "±0");
-const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 const CATEGORY: Record<LogOracleDiagnostic["category"], string> = {
   model_blindspot: "Model blind spot",
@@ -38,7 +35,7 @@ interface Row {
 function playedText(gw: LogGameweek | undefined, name: (id: number | null) => string): string {
   if (!gw) return "Not in the season log";
   const parts = [`captain ${name(gw.played.captain)}`];
-  if (gw.score) parts.unshift(`${plural(gw.score.transfers, "transfer")}${gw.score.transfers_cost ? ` (${hits(gw.score.transfers_cost)})` : ""}`);
+  if (gw.score) parts.unshift(`${plural(gw.score.transfers, "transfer")}${gw.score.transfers_cost ? ` (${formatHits(gw.score.transfers_cost)})` : ""}`);
   if (gw.chip) parts.push(`chip ${gw.chip}`);
   const r = gw.reconciliation;
   const unexplained = r?.divergences.filter((d) => d.status === "unexplained").length ?? 0;
@@ -305,7 +302,7 @@ export function LastGameweek() {
                   <td data-testid="review-points-optimum">
                     <strong>{optimum.net_points}</strong>
                   </td>
-                  <td>{yours === null ? "—" : signed(optimum.net_points - yours)}</td>
+                  <td>{yours === null ? "—" : signed(optimum.net_points - yours, 0)}</td>
                 </tr>
               )}
               {ranked.map(({ item: r, rank }) => (
@@ -317,7 +314,7 @@ export function LastGameweek() {
                   </td>
                   <td>{r.xp === null ? "—" : formatPoints(r.xp)}</td>
                   <td data-testid={`review-points-${r.key}`}>{r.points === null ? "—" : Math.round(r.points)}</td>
-                  <td>{r.key === PLAYED || r.points === null || yours === null ? "—" : signed(Math.round(r.points - yours))}</td>
+                  <td>{r.key === PLAYED || r.points === null || yours === null ? "—" : signed(Math.round(r.points - yours), 0)}</td>
                 </tr>
               ))}
             </tbody>
@@ -362,7 +359,7 @@ export function LastGameweek() {
           <WeighedTable gameweek={gameweek} hindsight={hindsight?.optimal ?? null} ids={ids} advice={mg?.advice ?? {}} />
         ) : (
           <p className="models-note" data-testid="review-no-weighed">
-            No model&rsquo;s options were recorded at the GW{gameweek} deadline: they are kept from R1.4.0 on.
+            No model&rsquo;s options were recorded at the GW{gameweek} deadline: they are kept from R1.4.1 on.
           </p>
         )}
       </section>

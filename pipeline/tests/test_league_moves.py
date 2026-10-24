@@ -57,7 +57,7 @@ def adapter(tmp_path: Path) -> Iterator[FplApiAdapter]:
         yield FplApiAdapter(fetcher)
 
 
-def _mock(mock: respx.MockRouter, *, failing: int | None) -> None:
+def _mock(mock: respx.MockRouter, *, failing: int | None, malformed: int | None = None) -> None:
     mock.get(f"{BASE}/leagues-classic/42/standings/").mock(
         return_value=httpx.Response(200, json=STANDINGS)
     )
@@ -69,17 +69,19 @@ def _mock(mock: respx.MockRouter, *, failing: int | None) -> None:
         mock.get(f"{BASE}/entry/{entry}/history/").mock(
             return_value=httpx.Response(500) if broken else httpx.Response(200, json=HISTORY)
         )
+        # A list of rows passes the shape check; one row with no player in is still unreadable.
+        rows = [*TRANSFERS, {"event": 2, "element_in": None}] if entry == malformed else TRANSFERS
         mock.get(f"{BASE}/entry/{entry}/transfers/").mock(
-            return_value=httpx.Response(200, json=TRANSFERS)
+            return_value=httpx.Response(200, json=rows)
         )
 
 
 def _conform(
-    adapter: FplApiAdapter, failing: int | None = None
+    adapter: FplApiAdapter, failing: int | None = None, malformed: int | None = None
 ) -> tuple[dict[str, pd.DataFrame], list[str]]:
     warnings: list[str] = []
     with respx.mock(assert_all_called=False) as mock:
-        _mock(mock, failing=failing)
+        _mock(mock, failing=failing, malformed=malformed)
         tables = adapter._conform_league(
             42, BOOTSTRAP, IngestRequest(run_id="r", league_id=42, league_rival_limit=5), warnings
         )
@@ -112,6 +114,16 @@ def test_one_failing_rival_degrades_only_that_team(adapter: FplApiAdapter) -> No
     assert len(tables["league_standing"]) == 2
 
 
+def test_a_malformed_rival_row_degrades_only_that_team(adapter: FplApiAdapter) -> None:
+    """DP-15: a row the fetch's shape check lets through degrades its team, with a warning."""
+    tables, warnings = _conform(adapter, malformed=8)
+
+    assert list(tables["league_gameweek"]["entry_id"]) == [7]
+    assert list(tables["league_transfer"]["entry_id"].unique()) == [7]
+    assert any("league entry 8" in w and "malformed" in w for w in warnings)
+    assert len(tables["league_standing"]) == 2
+
+
 def test_moves_publish_and_a_missing_team_is_null() -> None:
     contract = Contract(root=find_contracts_root())
     standings = pd.DataFrame(
@@ -131,7 +143,7 @@ def test_moves_publish_and_a_missing_team_is_null() -> None:
         ]
     )
     weeks = pd.DataFrame(
-        [{"entry_id": 7, "gameweek": 2, "transfers": 3, "transfers_cost": 8, "chip": None}]
+        [{"entry_id": 7, "gameweek": 2, "transfers": 3, "transfers_cost": 8, "chip": "3xc"}]
     )
     moved = pd.DataFrame([{"entry_id": 7, "gameweek": 2, "player_in_id": 11, "player_out_id": 10}])
     payload = build_league(
@@ -151,7 +163,9 @@ def test_moves_publish_and_a_missing_team_is_null() -> None:
     assert first["moves"] == {
         "gameweek": 2,
         "hit_cost": 8,
-        "chip": None,
+        "chip": "3xc",
+        # Named as the game shows it, not by the API's id (as the plan's chip labels).
+        "chip_label": "Triple Captain",
         "transfers": [{"out_id": 10, "in_id": 11}],
     }
     assert second["moves"] is None

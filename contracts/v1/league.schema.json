@@ -56,11 +56,12 @@
       "type": "object",
       "description": "A manager's transfers, hit and chip for one gameweek, from the public entry history and transfers endpoints. Players are ids; the app names them from players.json.",
       "additionalProperties": false,
-      "required": ["gameweek", "hit_cost", "chip", "transfers"],
+      "required": ["gameweek", "hit_cost", "chip", "chip_label", "transfers"],
       "properties": {
         "gameweek": { "type": "integer", "minimum": 1, "maximum": 38 },
         "hit_cost": { "type": "integer", "minimum": 0, "description": "Points deducted for extra transfers, as the game reports it." },
-        "chip": { "type": ["string", "null"], "description": "The chip played that gameweek, by the API's own name. Null when none." },
+        "chip": { "type": ["string", "null"], "description": "The chip played that gameweek, by the API's own name (the key rules.json's chips use). Null when none." },
+        "chip_label": { "type": ["string", "null"], "description": "The chip's name as the game shows it (\"Triple Captain\", not \"3xc\"), as the plan's chip labels. Null when none." },
         "transfers": {
           "type": "array",
           "items": {

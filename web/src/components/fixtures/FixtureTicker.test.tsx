@@ -176,8 +176,11 @@ describe("FixtureTicker odds (ORC-15)", () => {
   it("shows the odds beside a priced fixture, readable by a screen reader", () => {
     renderTicker(priced);
     const odds = within(cell("ARS", 1)).getByTestId("ticker-odds");
-    expect(odds.textContent).toBe("W 55% D 25% L 20%");
-    expect(odds.getAttribute("aria-label")).toContain("over 2.5 goals 63%");
+    // Over 2.5 is visible text, not hover-only; the sentence is real (visually hidden) text, not an
+    // aria-label on a role-less span (NFR-14).
+    expect(odds.querySelector("[aria-hidden='true']")?.textContent).toBe("W 55% D 25% L 20% O2.5 63%");
+    expect(odds.querySelector(".visually-hidden")?.textContent).toContain("over 2.5 goals 63%");
+    expect(odds.getAttribute("aria-label")).toBeNull();
   });
 
   it("says when the next check is for fixtures without odds", () => {

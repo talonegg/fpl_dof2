@@ -625,3 +625,29 @@ def test_fdcouk_conforms_the_over_under_2_5_prices_margin_free(tmp_path: Path) -
     # (1/1.6) / (1/1.6 + 1/2.4): the margin removed, so over + under is one.
     assert frame["over_2_5_probability"].iloc[0] == pytest.approx(0.6)
     assert pd.isna(frame["over_2_5_probability"].iloc[1])
+
+
+def test_fdcouk_conforms_the_1x2_prices_margin_free_not_the_refit(tmp_path: Path) -> None:
+    """ORC-15: win/draw/loss are the de-vigged 1X2 prices, not the Poisson refit's outcome."""
+    from fpl_dof.sources.bronze import BronzeStore
+    from fpl_dof.sources.fdcouk.adapter import FdcoukAdapter
+    from fpl_dof.sources.fetch import Fetcher
+    from fpl_dof.sources.oddsapi.market import fit_goal_expectations
+
+    # Totals that disagree with the 1X2, so the refit cannot reproduce both.
+    csv = (
+        "Div,Date,Time,HomeTeam,AwayTeam,B365H,B365D,B365A,B365>2.5,B365<2.5\n"
+        "E0,17/08/2024,15:00,Arsenal,Wolves,1.60,5.00,10.00,3.00,1.40\n"
+    )
+    with Fetcher(config=HttpConfig(), bronze=BronzeStore(tmp_path), run_id="t") as fetcher:
+        row = FdcoukAdapter(fetcher).parse_fixtures_csv(csv, "2024/25", None).iloc[0]
+
+    implied = {"home": 1 / 1.60, "draw": 1 / 5.00, "away": 1 / 10.00}
+    total = sum(implied.values())  # 1.025: a 2.5% margin, removed proportionally
+    result = {key: value / total for key, value in implied.items()}
+    assert row["home_win_probability"] == pytest.approx(result["home"])
+    assert row["draw_probability"] == pytest.approx(result["draw"])
+    assert row["away_win_probability"] == pytest.approx(result["away"])
+    refit = fit_goal_expectations(result=result, over=row["over_2_5_probability"])
+    # What used to be published, and not the same number.
+    assert refit.home_win_probability != pytest.approx(result["home"], abs=1e-3)

@@ -76,6 +76,17 @@ export interface Rules {
     extra_transfer_cost: number;
     free_transfers_per_gameweek?: number;
   };
+  /** What each chip does to a finished gameweek's score, so the browser scores a team as the game did (the League's differentials). Absent before contract minor 6. */
+  chips?: {
+    /** The armband's ordinary multiplier. */
+    captain_multiplier: number;
+    /** Chip name, as the API names it, to the armband multiplier it imposes instead. */
+    captain_multiplier_by_chip: Record<string, number>;
+    /** Chips under which all fifteen score. */
+    bench_scores_with: string[];
+    /** Chips under which the gameweek's transfers cost no points. */
+    transfers_free_with: string[];
+  };
 }
 
 export interface Player {
@@ -277,7 +288,7 @@ export interface Week {
       out: MoveSide;
       in: MoveSide;
     }[];
-    /** Every course of action considered, including the roll, each with its own arithmetic. */
+    /** Every course of action considered, including the roll, each with its own arithmetic. From R1.4.1 derived from option_set, in its rounding (one solve, one home); kept in this shape for the recommendation card and earlier week files. */
     options?: {
       transfers: number;
       hit_points: number;
@@ -285,7 +296,7 @@ export interface Week {
       gain_over_roll: number;
       moves?: string[];
     }[];
-    /** What this model weighed on its own predicted xP, in the hindsight optimum's shape: the roll, the best single transfer and the best overall, each with its moves, captain, points before hits, hits, net and gain over roll (ORC-11). Recorded with the advice in the ledger. Absent before R1.4.0. */
+    /** What this model weighed on its own predicted xP, in the hindsight optimum's shape: the roll, the best single transfer and the best overall, each with its moves, captain, points before hits, hits, net and gain over roll (ORC-11). Recorded with the advice in the ledger. Absent before R1.4.1. */
     option_set?: LogHindsightOptimal;
     warnings?: string[];
   };
@@ -664,7 +675,7 @@ export interface FixtureEntry {
 
 /** Match odds as probabilities, always from the perspective of the club whose row it sits in: win is this club winning, loss is the opponent winning. There are no player odds; no free source has them. */
 export interface FixtureOdds {
-  /** This club wins. win + draw + loss is 1 to rounding: the bookmaker margin is removed proportionally. */
+  /** This club wins, from the match-result (1X2) prices with the bookmaker margin removed proportionally, not from the goals fitted to them; win + draw + loss is 1 to rounding. */
   win: number;
   draw: number;
   /** The opponent wins. */
@@ -728,8 +739,10 @@ export interface LeagueMoves {
   gameweek: number;
   /** Points deducted for extra transfers, as the game reports it. */
   hit_cost: number;
-  /** The chip played that gameweek, by the API's own name. Null when none. */
+  /** The chip played that gameweek, by the API's own name (the key rules.json's chips use). Null when none. */
   chip: string | null;
+  /** The chip's name as the game shows it ("Triple Captain", not "3xc"), as the plan's chip labels. Null when none. */
+  chip_label: string | null;
   transfers: {
     out_id: number;
     in_id: number;
@@ -1055,9 +1068,9 @@ export interface ModelAdvice {
   captain_name: string;
   vice_captain: number | null;
   vice_name: string;
-  /** xPts of the XI with the armband, net of hits. */
+  /** xPts of the XI with the armband, before hits (hit_points carries those). */
   expected_points: number;
-  /** The options the model weighed at the deadline on its predicted xP, from the ledger's advice of record (ORC-11), for setting beside the hindsight optimum. Absent for frozen gameweeks and advice recorded before R1.4.0. */
+  /** The options the model weighed at the deadline on its predicted xP, from the ledger's advice of record (ORC-11), for setting beside the hindsight optimum. Absent for frozen gameweeks and advice recorded before R1.4.1. */
   option_set?: LogHindsightOptimal;
 }
 

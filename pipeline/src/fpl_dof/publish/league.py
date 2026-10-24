@@ -24,6 +24,7 @@ from typing import Any
 import pandas as pd
 
 from fpl_dof.frames import as_int
+from fpl_dof.optimise.chips import chip_label
 
 
 def build_league(
@@ -148,10 +149,12 @@ def _moves(
     moves: dict[int, dict[str, Any]] = {}
     for row in gameweeks[gameweeks["gameweek"] == gameweek].to_dict(orient="records"):
         entry_id = as_int(row["entry_id"])
+        chip = None if pd.isna(row["chip"]) else str(row["chip"])
         moves[entry_id] = {
             "gameweek": gameweek,
             "hit_cost": as_int(row["transfers_cost"]),
-            "chip": None if pd.isna(row["chip"]) else str(row["chip"]),
+            "chip": chip,
+            "chip_label": None if chip is None else chip_label(chip),
             "transfers": [],
         }
     if transfers is not None and not transfers.empty:

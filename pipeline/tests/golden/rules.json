@@ -1,6 +1,20 @@
 {
+ "chips": {
+  "bench_scores_with": [
+   "bboost"
+  ],
+  "captain_multiplier": 2,
+  "captain_multiplier_by_chip": {
+   "3xc": 3
+  },
+  "transfers_free_with": [
+   "wildcard",
+   "freehit"
+  ]
+ },
  "contract_version": 1,
  "derived": {
+  "chips": "config",
   "scoring.events": "api",
   "scoring.thresholds": "config",
   "season": "config",

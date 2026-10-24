@@ -95,6 +95,12 @@ export const rules: Rules = {
     defensive_contribution: { GKP: 0, DEF: 2, MID: 2, FWD: 2 },
   },
   transfers: { max_free_transfers: 5, extra_transfer_cost: -4 },
+  chips: {
+    captain_multiplier: 2,
+    captain_multiplier_by_chip: { "3xc": 3 },
+    bench_scores_with: ["bboost"],
+    transfers_free_with: ["wildcard", "freehit"],
+  },
 };
 
 function components() {
@@ -548,7 +554,7 @@ export const leagueTable: League = {
       // Shares Raya and Watkins, captains Raya where the owner captains Watkins, and holds one
       // player the owner does not (#4, deliberately absent from `players.json`).
       squad: { player_ids: [1, 2, 4], starting_ids: [1, 2], captain_id: 1, vice_captain_id: 2 },
-      moves: { gameweek: 3, hit_cost: 4, chip: "bboost", transfers: [{ out_id: 3, in_id: 4 }] },
+      moves: { gameweek: 3, hit_cost: 4, chip: "3xc", chip_label: "Triple Captain", transfers: [{ out_id: 3, in_id: 4 }] },
     },
     {
       entry_id: 200,
