@@ -10,6 +10,7 @@ import { ChipScenarios, OptionsTable } from "../OptionsTable";
 import { AlertsPanel } from "../dashboard/AlertsPanel";
 import { DeadlineCountdown } from "../dashboard/DeadlineCountdown";
 import { RecommendationCard } from "../dashboard/RecommendationCard";
+import { SquadBudget } from "./SquadBudget";
 import { SquadSummary } from "./SquadSummary";
 import "../dashboard/dashboard.css";
 
@@ -31,6 +32,7 @@ export function DecisionView({
   rules,
   players,
   horizonGameweeks,
+  currentValue,
 }: {
   week: Week;
   plan: Plan | null;
@@ -38,6 +40,8 @@ export function DecisionView({
   rules: Rules;
   players: Players;
   horizonGameweeks: number;
+  /** The owner's fifteen before any advice, at today's prices (`currentSquad`). */
+  currentValue: number;
 }) {
   const recommendation = week.skipped ? undefined : week.recommendation;
   return (
@@ -79,6 +83,14 @@ export function DecisionView({
 
       {!week.skipped && (
         <>
+          {week.squad_state && (
+            <SquadBudget
+              state={week.squad_state}
+              recommendation={recommendation}
+              currentValue={currentValue}
+              advisedValue={squad.total_price}
+            />
+          )}
           <SquadSummary squad={squad} horizonGameweeks={horizonGameweeks} advised={week.advised} />
           <p className="dash-model-line" data-testid="decision-xi-model">
             Advised XI, captain and bench from <ModelBadge />
