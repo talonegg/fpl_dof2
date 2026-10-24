@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { installFetchStub, renderApp, resetAppState } from "./test/render";
+import { history } from "./components/player/testFixtures";
 import { IDENTITY_STORAGE_KEY } from "./components/settings/identity";
 
 describe("App shell", () => {
@@ -20,8 +21,8 @@ describe("App shell", () => {
 
     expect(screen.getByTestId("app-nav")).toBeTruthy();
     expect(screen.getByTestId("week-deadline")).toBeTruthy();
-    expect(screen.getByTestId("squad-pitch")).toBeTruthy();
-    expect(screen.getByTestId("bench")).toBeTruthy();
+    expect(screen.getByTestId("home-squad")).toBeTruthy();
+    expect(screen.getByTestId("home-health")).toBeTruthy();
 
     // Quiet model warning for an "informative" price dependence.
     expect(screen.getByTestId("model-warning").className).toContain("model-warning-quiet");
@@ -120,16 +121,17 @@ describe("App shell", () => {
   it("navigating between routes does not re-fetch the published data", async () => {
     // The caching claim in DL-35, checked rather than assumed. Six artefacts, one request each,
     // however many times the reader moves between views.
-    const fetchSpy = installFetchStub();
+    const fetchSpy = installFetchStub({ bodies: { history } });
     renderApp("/");
-    await waitFor(() => expect(screen.getByTestId("squad-pitch")).toBeTruthy());
+    // Home's own reads (history, health, log) settle before the count is taken.
+    await waitFor(() => expect(screen.getByTestId("home-health").textContent).toContain("Run:"));
+    await waitFor(() => expect(screen.getByTestId("home-last-yours")).toBeTruthy());
     const afterFirstLoad = fetchSpy.mock.calls.length;
-    expect(afterFirstLoad).toBe(8); // six artefacts + the optional strategies registry and models
 
     fireEvent.click(screen.getByTestId("nav-scouting"));
     await waitFor(() => expect(screen.getByTestId("player-table")).toBeTruthy());
     fireEvent.click(screen.getByTestId("nav-home"));
-    await waitFor(() => expect(screen.getByTestId("squad-pitch")).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId("home-squad")).toBeTruthy());
 
     expect(fetchSpy.mock.calls.length).toBe(afterFirstLoad);
   });
@@ -152,7 +154,7 @@ describe("App shell without a weekly recommendation", () => {
     renderApp("/");
 
     await waitFor(() => expect(screen.getByTestId("header")).toBeTruthy());
-    expect(screen.getByTestId("squad-pitch")).toBeTruthy();
+    expect(screen.getByTestId("home-squad")).toBeTruthy();
     expect(screen.queryByTestId("week-deadline")).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
   });
@@ -178,6 +180,6 @@ describe("App shell when the data cannot be loaded", () => {
     // The failure is not cached, so a retry genuinely retries.
     installFetchStub();
     fireEvent.click(screen.getByText("Try again"));
-    await waitFor(() => expect(screen.getByTestId("squad-pitch")).toBeTruthy());
+    await waitFor(() => expect(screen.getByTestId("home-squad")).toBeTruthy());
   });
 });

@@ -6,7 +6,7 @@ import type { ViewPath } from "./nav";
 
 /** The test id each view renders with the default fixtures: proof the route reached its real view. */
 const VIEW_TEST_IDS: Record<ViewPath, string> = {
-  "/": "squad-pitch",
+  "/": "home-squad",
   "/league": "league-table",
   "/models": "models-page",
   "/models/season": "models-season-empty", // the default fixtures publish no models.json
@@ -81,7 +81,7 @@ describe("the eight-section shell (WEB-07)", () => {
 
   it("opens Settings from the gear in the header", async () => {
     renderApp("/");
-    await screen.findByTestId("squad-pitch");
+    await screen.findByTestId("home-squad");
     const gear = screen.getByTestId("nav-settings");
     expect(gear.getAttribute("aria-label")).toBe("Settings");
     fireEvent.click(gear);
