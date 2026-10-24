@@ -671,24 +671,37 @@ are displayed, not fed into the objective (Q-09).
 ### 8.2 Information architecture
 
 A hash router (DL-35) inside a theme provider, a client-side password gate (deterrence only — the data
-stays publicly fetchable) and one data context. A flat top bar of ten entries, Data health last; a
-global strategy selector lists every published strategy that has a week and chooses whose advice is shown on every page. Strategy ids, labels, roles, colours and artefact paths come from the published registry (`strategies.json`), never from the code (MOD-07). Player detail is reached from Scout and Squad.
+stays publicly fetchable) and one data context. Eight sections, declared once in `web/src/routes/nav.ts`
+with each section's sub-views as tabs (R1.4.0 WEB-07): all eight in the top bar on a wide screen, Data
+health last; on a narrow one a bottom bar of Home, This gameweek, Last gameweek, League and Scouting,
+with Models, Analysis and Data health behind "More". A global header carries the run banner and the
+strategy selector, which lists every published strategy that has a week and chooses whose advice is
+shown in every section; Settings sits behind a gear beside it. Strategy ids, labels, roles, colours and
+artefact paths come from the published registry (`strategies.json`), never from the code (MOD-07).
+Player detail is reached from Scouting and the squad.
 
 ### 8.3 Screens
 
+Each section's views as they stand; WEB-08 to WEB-14 rebuild them to the R1.4.0 plan §1.
+
 | Route | Content |
 | --- | --- |
-| `/` Dashboard | Deadline countdown, alerts, this week's move with the roll option beside it, squad and bench, plan and ownership bet |
-| `/scout` | Every player, virtualised (DL-36): filter, sort, presets, xP with range, trailing form beside it (DL-70), decomposition, "owned" filter, select into Compare |
+| `/` Home | Deadline countdown, alerts, this week's move with the roll option beside it, squad and bench, plan and ownership bet |
+| `/league` League | Standings, overlap, differentials, captain divergence (DL-40) |
+| `/models` Models | A multi-select comparison of the registry's published strategies against the champion (advice differences, xP on the players they disagree on, historical performance), then summary, details and xP accuracy |
+| `/models/season` | Every model's live season to date: points per gameweek, the cumulative chart, the latest advice |
+| `/models/2025-26` | The 2025/26 playthrough of every frozen model (`/history` redirects) |
+| `/review` Last gameweek | The hindsight optimum against each model's advice (E14) |
+| `/review/all` | Per evaluated gameweek: played, scored, advised, followed, and the hindsight optimum (DL-69, ORC-05; `/log` redirects) |
+| `/gameweek` This gameweek | Both deadlines, the move with every option weighed, including the roll, and the alerts |
+| `/gameweek/plan` | Plan ahead: the multi-gameweek plan as a timeline and the chip calendar with its expiry clock |
+| `/scout` Scouting | Every player, virtualised (DL-36): filter, sort, presets, xP with range, trailing form beside it (DL-70), decomposition, "owned" filter, select into Compare |
+| `/scout/fixtures` | Clubs × gameweeks shaded by model difficulty (DL-37; `/fixtures` redirects) |
 | `/player/:id` | xP with range, decomposition, P(plays), fixture run, trends |
-| `/compare` | Up to four players: rows, overlaid trends, a verdict naming a leader only when forecasts separate |
-| `/squad` | The optimiser's squad, or the owner's in-season (DL-67); the builder — swap, start, bench, lock, ban, live legality, heuristic re-optimise; plan timeline and chip calendar |
-| `/fixtures` | Clubs × gameweeks shaded by model difficulty (DL-37) |
-| `/league` | Standings, overlap, differentials, captain divergence (DL-40) |
-| `/log` | Per evaluated gameweek: played, scored, advised, followed, and the hindsight optimum (DL-69, ORC-05) |
-| `/models` | A multi-select comparison of the registry's published strategies against the champion (advice differences, xP on the players they disagree on, historical performance), then summary, details, xP accuracy, hindsight (E14), history (`/history` redirects) |
+| `/analysis` Analysis | The optimiser's squad, or the owner's in-season (DL-67); the builder — swap, start, bench, lock, ban, live legality, heuristic re-optimise (`/squad` redirects) |
+| `/analysis/compare` | Up to four players: rows, overlaid trends, a verdict naming a leader only when forecasts separate (`/compare` redirects, with its `?compare=`) |
+| `/health` Data health | Last run, gates, every source's status and freshness, trends from recent manifests (DL-41) |
 | `/settings` | Team and league IDs, kept in the browser (DL-44); a copyable link to dispatch a run |
-| `/health` | Last run, gates, every source's status and freshness, trends from recent manifests (DL-41) |
 
 Not built: risk dial, horizon or constraint settings in the UI (pipeline configuration only); a run
 queued from the browser (Q-16).
@@ -703,7 +716,7 @@ Hand-written SVG in `web/src/components/charts/` (03 §5.2):
 | Points, minutes, Defensive Contribution, price, ownership over time | Bar and line charts on player detail; overlaid on Compare |
 | Expected versus actual returns | Cumulative lines on player detail |
 | Fixture difficulty | An HTML grid, not a chart |
-| Model accuracy over time | xP error and cumulative points per model on `/models` |
+| Model accuracy over time | xP error and cumulative points per model in Models |
 | Pipeline health | Solve time, rows, price dependence over recent runs |
 | xP decomposition | A list with a sum check, not a bar |
 | Ownership versus xP scatter | **Not built** |

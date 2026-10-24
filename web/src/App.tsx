@@ -1,4 +1,5 @@
-import { HashRouter, Route, Routes } from "react-router-dom";
+import type { ReactElement } from "react";
+import { HashRouter, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { ThemeProvider } from "./theme/ThemeProvider";
 import { DataProvider } from "./data/DataProvider";
 import { AppLayout } from "./layout/AppLayout";
@@ -12,36 +13,61 @@ import { LeagueRoute } from "./routes/LeagueRoute";
 import { LogRoute } from "./routes/LogRoute";
 import { SettingsRoute } from "./routes/SettingsRoute";
 import { HealthRoute } from "./routes/HealthRoute";
-import { ModelsRoute } from "./routes/ModelsRoute";
-import { HistoryRoute } from "./routes/HistoryRoute";
+import { GameweekRoute, PlanAheadRoute } from "./routes/GameweekRoute";
 import { NotFoundRoute } from "./routes/NotFoundRoute";
+import { HindsightPage, ModelsBacktestPage, ModelsPage, ModelsSeasonPage } from "./components/models/ModelsPage";
+import { REDIRECTS } from "./routes/nav";
+import type { ViewPath } from "./routes/nav";
 import { PasswordGate } from "./gate/PasswordGate";
 import { BUILD_PASSWORD_HASH } from "./gate/hash";
 import "./App.css";
 
 /**
+ * The view behind every section and sub-tab in `routes/nav.ts`. Typed by `ViewPath`, so a path added
+ * to the nav without a view here, or a view here with no nav entry, fails the type check.
+ */
+const VIEWS: Record<ViewPath, ReactElement> = {
+  "/": <DashboardRoute />,
+  "/league": <LeagueRoute />,
+  "/models": <ModelsPage />,
+  "/models/season": <ModelsSeasonPage />,
+  "/models/2025-26": <ModelsBacktestPage />,
+  "/review": <HindsightPage />,
+  "/review/all": <LogRoute />,
+  "/gameweek": <GameweekRoute />,
+  "/gameweek/plan": <PlanAheadRoute />,
+  "/scout": <ScoutRoute />,
+  "/scout/fixtures": <FixturesRoute />,
+  "/analysis": <SquadRoute />,
+  "/analysis/compare": <CompareRoute />,
+  "/health": <HealthRoute />,
+};
+
+/** An old path's new home, keeping its query (`?compare=`, `?model=`) and hash. */
+function Redirect({ to }: { to: string }) {
+  const { search, hash } = useLocation();
+  return <Navigate to={{ pathname: to, search, hash }} replace />;
+}
+
+/**
  * The route table. Exported separately from `App` so tests (and any future story) can mount it
  * under a `MemoryRouter` at a chosen path without a real browser history.
  *
- * Every path here has a matching entry in `routes/nav.ts`, except the parameterised player route
- * and the catch-all.
+ * The sections' views come from `VIEWS`, the old paths from `REDIRECTS`; beyond those, only the
+ * parameterised player route, Settings (the header's gear) and the catch-all.
  */
 export function AppRoutes() {
   return (
     <Routes>
       <Route element={<AppLayout />}>
-        <Route index element={<DashboardRoute />} />
-        <Route path="scout" element={<ScoutRoute />} />
+        {Object.entries(VIEWS).map(([path, element]) => (
+          <Route key={path} path={path} element={element} />
+        ))}
+        {Object.entries(REDIRECTS).map(([path, to]) => (
+          <Route key={path} path={path} element={<Redirect to={to} />} />
+        ))}
         <Route path="player/:id" element={<PlayerRoute />} />
-        <Route path="compare" element={<CompareRoute />} />
-        <Route path="squad" element={<SquadRoute />} />
-        <Route path="fixtures" element={<FixturesRoute />} />
-        <Route path="league" element={<LeagueRoute />} />
-        <Route path="log" element={<LogRoute />} />
         <Route path="settings" element={<SettingsRoute />} />
-        <Route path="models" element={<ModelsRoute />} />
-        <Route path="history" element={<HistoryRoute />} />
-        <Route path="health" element={<HealthRoute />} />
         <Route path="*" element={<NotFoundRoute />} />
       </Route>
     </Routes>
@@ -65,8 +91,7 @@ export function App() {
       <PasswordGate expectedHash={BUILD_PASSWORD_HASH}>
         <DataProvider>
           <HashRouter
-            // Opt in to the v6→v7 behaviour changes now, while there are six routes rather than
-            // twelve. Both are behavioural, not cosmetic, and both are cheap to adopt here.
+            // Opt in to the v6→v7 behaviour changes. Both are behavioural, not cosmetic, and both are cheap to adopt here.
             future={{ v7_startTransition: true, v7_relativeSplatPath: true }}
           >
             <AppRoutes />

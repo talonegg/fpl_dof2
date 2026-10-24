@@ -52,7 +52,7 @@ describe("App shell", () => {
       IDENTITY_STORAGE_KEY,
       JSON.stringify({ teamId: 1234567, leagueId: null }),
     );
-    renderApp("/squad");
+    renderApp("/analysis");
 
     await waitFor(() => expect(screen.getByTestId("squad-pitch")).toBeTruthy());
     // Fixture week.squad_state.entry_id is 1234567 — the same id, so it is confirmed, not disputed.
@@ -65,7 +65,7 @@ describe("App shell", () => {
       IDENTITY_STORAGE_KEY,
       JSON.stringify({ teamId: 7654321, leagueId: null }),
     );
-    renderApp("/squad");
+    renderApp("/analysis");
 
     await waitFor(() => expect(screen.getByTestId("squad-pitch")).toBeTruthy());
     const note = screen.getByTestId("squad-owned-mismatch");
@@ -74,28 +74,31 @@ describe("App shell", () => {
   });
 
   it("renders the comparison route from the ids in the URL", async () => {
-    renderApp("/compare?compare=1,2");
+    renderApp("/analysis/compare?compare=1,2");
     await waitFor(() => expect(screen.getByTestId("compare-table")).toBeTruthy());
     expect(screen.getByTestId("compare-verdict")).toBeTruthy();
   });
 
-  it("explains how to get to a comparison when /compare is opened with no selection", async () => {
-    renderApp("/compare");
+  it("explains how to get to a comparison when compare is opened with no selection", async () => {
+    renderApp("/analysis/compare");
     await waitFor(() => expect(screen.getByTestId("compare-empty")).toBeTruthy());
     expect(screen.getByTestId("compare-empty-scout")).toBeTruthy();
   });
 
   it("renders the fixture ticker on its own route", async () => {
-    renderApp("/fixtures");
+    renderApp("/scout/fixtures");
     await waitFor(() => expect(screen.getByTestId("fixture-ticker")).toBeTruthy());
     expect(screen.getAllByTestId("ticker-row").length).toBeGreaterThan(0);
   });
 
-  it("renders the squad route with the pitch, the builder and the plan timeline", async () => {
-    renderApp("/squad");
+  it("renders Analysis with the pitch and the builder, and Plan ahead with the plan timeline", async () => {
+    const { unmount } = renderApp("/analysis");
     await waitFor(() => expect(screen.getByTestId("squad-pitch")).toBeTruthy());
     expect(screen.getByTestId("squad-builder")).toBeTruthy();
-    expect(screen.getByTestId("plan-timeline")).toBeTruthy();
+    expect(screen.queryByTestId("plan-timeline")).toBeNull();
+    unmount();
+    renderApp("/gameweek/plan");
+    await waitFor(() => expect(screen.getByTestId("plan-timeline")).toBeTruthy());
   });
 
   it("resolves a player detail route from its id parameter", async () => {
@@ -123,9 +126,9 @@ describe("App shell", () => {
     const afterFirstLoad = fetchSpy.mock.calls.length;
     expect(afterFirstLoad).toBe(8); // six artefacts + the optional strategies registry and models
 
-    fireEvent.click(screen.getByTestId("nav-scout"));
+    fireEvent.click(screen.getByTestId("nav-scouting"));
     await waitFor(() => expect(screen.getByTestId("player-table")).toBeTruthy());
-    fireEvent.click(screen.getByTestId("nav-dashboard"));
+    fireEvent.click(screen.getByTestId("nav-home"));
     await waitFor(() => expect(screen.getByTestId("squad-pitch")).toBeTruthy());
 
     expect(fetchSpy.mock.calls.length).toBe(afterFirstLoad);

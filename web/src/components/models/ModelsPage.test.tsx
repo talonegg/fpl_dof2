@@ -30,11 +30,11 @@ describe("Models page", () => {
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it("has summary, details, accuracy and history sections with one summary row per model", async () => {
+  it("has compare, summary, details and accuracy sections with one summary row per model", async () => {
     installFetchStub({ bodies: { models_history: historyFixture, xp_accuracy: accuracy, strategies: strategiesFixture } });
     renderApp("/models");
     const page = await screen.findByTestId("models-page");
-    for (const s of ["compare", "summary", "details", "accuracy", "hindsight", "history"]) expect(within(page).getByTestId(`models-jump-${s}`)).toBeTruthy();
+    for (const s of ["compare", "summary", "details", "accuracy"]) expect(within(page).getByTestId(`models-jump-${s}`)).toBeTruthy();
     const rows = within(screen.getByTestId("models-summary")).getAllByRole("row").slice(1);
     expect(rows.map((r) => r.getAttribute("data-testid"))).toEqual([
       "models-summary-c3",
@@ -49,7 +49,6 @@ describe("Models page", () => {
     expect(screen.getByTestId("models-summary-a_odds").textContent).toContain("Currently duplicates A");
     expect(screen.getByTestId("accuracy-2025/26-c1").textContent).toBe("0.910");
     expect(screen.getByTestId("accuracy-2025/26").textContent).toContain("A + odds: no saved predictions");
-    expect(await screen.findByTestId("model-history")).toBeTruthy();
   });
 
   it("reads the live season from the published data, and no frozen-era replay", async () => {
@@ -68,8 +67,13 @@ describe("Models page", () => {
     installFetchStub({ missing: ["models_history", "xp_accuracy"] as never });
     renderApp("/models");
     expect(await screen.findByTestId("accuracy-absent")).toBeTruthy();
-    expect(await screen.findByTestId("history-absent")).toBeTruthy();
     expect(screen.getByTestId("summary-xi-champion").textContent).toBe("—");
+  });
+
+  it("says so on the 2025/26 tab when the models history is missing", async () => {
+    installFetchStub({ missing: ["models_history"] as never });
+    renderApp("/models/2025-26");
+    expect(await screen.findByTestId("history-absent")).toBeTruthy();
   });
 
   it("labels experiments as not published and lists no retired strategy", async () => {
@@ -94,10 +98,10 @@ describe("Models page", () => {
     expect(screen.queryByTestId("models-detail-old_c2")).toBeNull();
   });
 
-  it("redirects the old /history tab to the Models page", async () => {
+  it("sends an old ?section= link for a part that moved to its new tab", async () => {
     installFetchStub({ bodies: { models_history: historyFixture, xp_accuracy: accuracy, strategies: strategiesFixture } });
-    renderApp("/history");
-    expect(await screen.findByTestId("models-page")).toBeTruthy();
+    renderApp("/models?section=history");
     expect(await screen.findByTestId("model-history")).toBeTruthy();
+    expect(screen.queryByTestId("models-page")).toBeNull();
   });
 });

@@ -26,7 +26,7 @@ const outputDir = new URL("./screenshots/", import.meta.url).pathname.replace(/^
 mkdirSync(outputDir, { recursive: true });
 
 const VIEWPORTS = [
-  { name: "mobile", width: 390, height: 844 },
+  { name: "mobile", width: 375, height: 812 },
   { name: "tablet", width: 820, height: 1180 },
   { name: "desktop", width: 1440, height: 900 },
 ];
@@ -253,8 +253,31 @@ for (const viewport of VIEWPORTS) {
   const pitchText = await page.locator('[data-testid="squad-pitch"]').innerText();
   check(pitchText.includes("±"), "expected points are shown with their uncertainty");
 
+  // --- the narrow-screen bottom bar and its "More" disclosure (WEB-07, §5 Q3) ---
+  if (viewport.width <= 560) {
+    check(await page.locator('[data-testid="bottom-bar"]').isVisible(), "the bottom bar is shown on a narrow screen");
+    check(!(await page.locator('nav.app-nav').isVisible()), "the top nav gives way to the bottom bar on a narrow screen");
+    const more = page.locator('[data-testid="bottom-more"]');
+    await more.focus();
+    await page.keyboard.press("Enter");
+    check(
+      (await more.getAttribute("aria-expanded")) === "true" &&
+        (await page.locator('[data-testid="bottom-more-menu"]').isVisible()),
+      "More opens from the keyboard",
+    );
+    await page.keyboard.press("Escape");
+    check(
+      (await more.getAttribute("aria-expanded")) === "false" &&
+        (await more.evaluate((el) => el === document.activeElement)),
+      "Escape closes More and returns focus to it",
+    );
+  } else {
+    check(!(await page.locator('[data-testid="bottom-bar"]').isVisible()), "the bottom bar is hidden on a wide screen");
+  }
+
   // --- navigation is client-side and reaches the scout view (E6-S1) ---
-  await page.locator('[data-testid="nav-scout"]').click();
+  // The top nav on a wide screen, the bottom bar on a narrow one: whichever is showing.
+  await page.locator('[data-testid="nav-scouting"]:visible, [data-testid="bottom-scouting"]:visible').click();
   await page.waitForSelector('[data-testid="player-table"]', { timeout: 10000 });
   check(true, "the scout route is reachable from the nav");
   check(
@@ -300,7 +323,7 @@ for (const viewport of VIEWPORTS) {
   await page.waitForTimeout(200);
 
   // Sorting lives on the header, which only the wide layout has: below 640px the rows are cards
-  // (E6-S2), and a header that scrolled sideways off a 390px screen would be worse than none.
+  // (E6-S2), and a header that scrolled sideways off a 375px screen would be worse than none.
   const priceHeader = page.locator('[data-testid="sort-price"]');
   if ((await priceHeader.count()) > 0) {
     // Comparing only the first row after changing the sort *column* is a weak check: the most
@@ -353,7 +376,7 @@ for (const viewport of VIEWPORTS) {
   );
   await checkboxes.nth(1).check();
   const compareHref = await page.locator('[data-testid="scout-compare-go"]').getAttribute("href");
-  check(/#\/compare\?compare=\d+,\d+$/.test(compareHref ?? ""), `the comparison link carries the ids (${compareHref})`);
+  check(/#\/analysis\/compare\?compare=\d+,\d+$/.test(compareHref ?? ""), `the comparison link carries the ids (${compareHref})`);
   await page.locator('[data-testid="scout-compare-clear"]').click();
   await page.waitForTimeout(100);
 
@@ -391,11 +414,24 @@ for (const viewport of VIEWPORTS) {
   // --- every route in the shell resolves to its real view ---
   // These named the placeholder each story would replace until E6-S4, S7 and S8 landed; they now
   // name the delivered views, so the sweep fails if a route regresses to rendering nothing.
-  // `#/compare` with no `?compare=` is the empty state, which is a rendered view and not a fault.
+  // `#/analysis/compare` with no `?compare=` is the empty state, which is a rendered view and not a fault.
+  // Every section and sub-tab of `routes/nav.ts` (WEB-07), then the old paths, which redirect.
   for (const [hash, testId] of [
+    ["#/league", "app-nav"],
+    ["#/review", "section-tabs"],
+    ["#/review/all", "section-tabs"],
+    ["#/gameweek", "section-tabs"],
+    ["#/gameweek/plan", "section-tabs"],
+    ["#/models/season", "section-tabs"],
+    ["#/models/2025-26", "models-backtest"],
+    ["#/analysis/compare", "compare-empty"],
+    ["#/analysis", "squad-builder"],
+    ["#/scout/fixtures", "fixture-ticker"],
     ["#/compare", "compare-empty"],
     ["#/squad", "squad-builder"],
     ["#/fixtures", "fixture-ticker"],
+    ["#/log", "section-tabs"],
+    ["#/history", "models-backtest"],
     ["#/player/1", "player-detail"],
     // The data health page (E7-S6). Its test id is asserted like any other view, and for the same
     // reason: it is the page a reader opens when something looks wrong, so a route that regressed
@@ -409,7 +445,11 @@ for (const viewport of VIEWPORTS) {
       window.location.hash = h;
     }, hash);
     await page.waitForSelector(`[data-testid="${testId}"]`, { timeout: 10000 });
-    check(true, `${hash} renders ${testId}`);
+    const routeOverflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    check(
+      (await page.locator('[data-testid="not-found"]').count()) === (hash === "#/no-such-view" ? 1 : 0) && routeOverflow <= 1,
+      `${hash} renders ${testId}, with no horizontal scroll`,
+    );
   }
 
   // The caching half of DL-35: a route change is a render, not a network event. Stated as "no core
@@ -585,7 +625,9 @@ notes.push("\n== accessibility: keyboard and colour-independence ==");
   const dashboardStops = await tabThrough(25);
   check(dashboardStops.length > 0, `the dashboard has keyboard-reachable controls (${dashboardStops.length} stops)`);
   check(
-    dashboardStops.some((s) => s.testId === "nav-scout"),
+    dashboardStops.some((s) => s.testId === "nav-scouting") &&
+      dashboardStops.some((s) => s.testId === "nav-data-health") &&
+      dashboardStops.some((s) => s.testId === "nav-settings"),
     "every nav destination is reachable by Tab",
   );
   check(
@@ -682,7 +724,7 @@ notes.push("\n== accessibility: keyboard and colour-independence ==");
 
   // --- the squad builder's controls (E6-S7) ---
   await page.evaluate(() => {
-    window.location.hash = "#/squad";
+    window.location.hash = "#/analysis";
   });
   await page.waitForSelector('[data-testid="squad-builder"]', { timeout: 10000 });
   const builderStops = await tabThrough(40);
@@ -731,7 +773,7 @@ notes.push("\n== accessibility: keyboard and colour-independence ==");
 
   // --- the fixture grid, the one surface where colour is doing real work (E6-S8) ---
   await page.evaluate(() => {
-    window.location.hash = "#/fixtures";
+    window.location.hash = "#/scout/fixtures";
   });
   await page.waitForSelector('[data-testid="fixture-ticker"]', { timeout: 10000 });
   await page.waitForTimeout(400);

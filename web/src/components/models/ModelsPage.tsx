@@ -1,7 +1,7 @@
 import { useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import type { Models, ModelsHistory } from "../../contract/types";
-import { useDataState, useRegistry } from "../../data/DataProvider";
+import { useData, useDataState, useRegistry } from "../../data/DataProvider";
 import { useArtefact } from "../../data/store";
 import type { ArtefactState } from "../../data/store";
 import { ModelHistoryView } from "../history/ModelHistoryView";
@@ -21,9 +21,10 @@ const SECTIONS = [
   ["summary", "Summary"],
   ["details", "Details"],
   ["accuracy", "Accuracy"],
-  ["hindsight", "Hindsight"],
-  ["history", "History"],
 ] as const;
+
+/** Old `?section=` links to the parts that moved to their own tab (WEB-07). */
+const MOVED: Record<string, string> = { history: "/models/2025-26", hindsight: "/review" };
 
 
 function unavailableNow(models: Models | null, m: string): string | null {
@@ -102,11 +103,6 @@ function SummaryTable({ history, accuracy, models }: { history: ModelsHistory | 
   );
 }
 
-/**
- * `/models` — every frozen model on one page: (a) summary, (b) per-model details, (c) xP accuracy,
- * (d) history (the backtest's models history; the live season is under Details). `/history` redirects to the History
- * section. Every part degrades on its own: a missing file hides or explains its section only.
- */
 /** The sections below only ask "still loading?" and "what data, if any?": a missing or unreadable
  * history or accuracy file explains its own section (DP-15). */
 function settled<T>(state: ArtefactState<T>): { status: "loading" | "settled"; data: T | null } {
@@ -114,12 +110,17 @@ function settled<T>(state: ArtefactState<T>): { status: "loading" | "settled"; d
   return { status: "settled", data: state.status === "ready" ? state.data : null };
 }
 
+/**
+ * `/models` — every frozen model: the comparison, (a) summary, (b) per-model details, (c) xP
+ * accuracy. This season is `/models/season`, the 2025/26 backtest `/models/2025-26` (`/history`
+ * redirects there) and the hindsight optimum is Last gameweek (WEB-07). Every part degrades on its
+ * own: a missing file hides or explains its section only.
+ */
 export function ModelsPage() {
   const { state } = useDataState();
   const data = state.status === "ready" ? state.data : null;
   const history = settled(useArtefact("models_history").state);
   const accuracy = settled(useArtefact("xp_accuracy").state);
-  const { state: logState } = useArtefact("log");
   const [params] = useSearchParams();
   const section = params.get("section");
   const allLoaded = history.status !== "loading" && accuracy.status !== "loading";
@@ -128,6 +129,8 @@ export function ModelsPage() {
   }, [section, allLoaded]);
   const models = data?.models ?? null;
   const registry = useRegistry();
+
+  if (section && MOVED[section]) return <Navigate to={MOVED[section]} replace />;
 
   return (
     <div className="models-page" data-testid="models-page">
@@ -190,27 +193,45 @@ export function ModelsPage() {
             );
           })}
         </div>
-        {data && <ModelsSeasonView models={data.models} />}
       </section>
 
       <AccuracySection accuracy={accuracy.data} status={accuracy.status === "loading" ? "loading" : "ready"} />
-
-      <HindsightSection
-        log={logState.status === "ready" ? logState.data : null}
-        players={data?.players ?? null}
-        status={logState.status === "malformed" ? "error" : logState.status}
-      />
-
-      <section className="models-page-section" id="models-history" aria-labelledby="models-history-heading">
-        <h2 id="models-history-heading">History</h2>
-        {history.status === "loading" ? (
-          <p data-testid="history-loading">Loading the model history…</p>
-        ) : history.data ? (
-          <ModelHistoryView history={history.data} />
-        ) : (
-          <p data-testid="history-absent">The models history has not been published yet.</p>
-        )}
-      </section>
     </div>
+  );
+}
+
+/** `/models/season` — every model's live season to date, from `models.json`. */
+export function ModelsSeasonPage() {
+  const { models } = useData();
+  return <ModelsSeasonView models={models} />;
+}
+
+/** `/models/2025-26` — how each frozen model would have played 2025/26 (the backtest's models history). */
+export function ModelsBacktestPage() {
+  const history = settled(useArtefact("models_history").state);
+  return (
+    <section className="models-page-section" id="models-history" aria-labelledby="models-history-heading" data-testid="models-backtest">
+      <h2 id="models-history-heading">2025/26 playthrough</h2>
+      {history.status === "loading" ? (
+        <p data-testid="history-loading">Loading the model history…</p>
+      ) : history.data ? (
+        <ModelHistoryView history={history.data} />
+      ) : (
+        <p data-testid="history-absent">The models history has not been published yet.</p>
+      )}
+    </section>
+  );
+}
+
+/** `/review` — last gameweek against the hindsight optimum, from `log.json` (WEB-07 interim; WEB-11 builds it out). */
+export function HindsightPage() {
+  const { players } = useData();
+  const { state } = useArtefact("log");
+  return (
+    <HindsightSection
+      log={state.status === "ready" ? state.data : null}
+      players={players}
+      status={state.status === "malformed" ? "error" : state.status}
+    />
   );
 }

@@ -37,12 +37,12 @@ describe("comparison selection", () => {
 
   it("builds a link the comparison route can parse back", () => {
     const href = compareHref([7, 8]);
-    expect(href).toBe("/compare?compare=7,8");
+    expect(href).toBe("/analysis/compare?compare=7,8");
     expect(parseCompareIds(href.slice(href.indexOf("?")))).toEqual([7, 8]);
   });
 
   it("links to the bare route when nothing is selected", () => {
-    expect(compareHref([])).toBe("/compare");
+    expect(compareHref([])).toBe("/analysis/compare");
   });
 
   it("needs two players before there is anything to compare", () => {
