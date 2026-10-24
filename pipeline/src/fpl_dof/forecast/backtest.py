@@ -468,6 +468,7 @@ def walk_forward(
     seasons: Sequence[str] | None = None,
     metrics: pd.DataFrame | None = None,
     workers: int = 1,
+    graded_seasons: Sequence[str] | None = None,
 ) -> BacktestResult:
     """Replay the seasons one deadline at a time, refitting at each step, for every entrant.
 
@@ -491,6 +492,9 @@ def walk_forward(
     ``metrics`` is the conformed advanced table, passed straight through to the feature store. The
     harness does not filter it and must not: which of its rows are knowable at a deadline is a
     feature-store question, and answering it twice is how the two answers diverge.
+
+    ``graded_seasons``, when given, limits the folds graded to those seasons; the others are still
+    walked, so they are the training rows of the graded ones (the live season's replay, ORC-13).
     """
     if not entrants:
         raise ValueError("walk_forward needs at least one entrant: the champion")
@@ -518,6 +522,7 @@ def walk_forward(
         backtest_config=backtest_config,
         metrics=metrics,
         workers=workers,
+        graded_seasons=frozenset(graded_seasons or ()),
     )
     champion_walk = walks[champion.id]
     if champion_walk.failure is not None:
@@ -789,6 +794,7 @@ def _walk_one(
     forecast_config: ForecastConfig,
     backtest_config: BacktestConfig,
     metrics: pd.DataFrame | None,
+    graded_seasons: frozenset[str] = frozenset(),
 ) -> _Walk:
     """Walk one entrant over every deadline; with ``harness`` also fit the benchmarks on its folds.
 
@@ -840,6 +846,8 @@ def _walk_one(
         if played < backtest_config.minimum_training_matches:
             # Predicting from almost nothing measures the prior, not the model.
             continue
+        if graded_seasons and season not in graded_seasons:
+            continue  # walked for its rows only
 
         training = {
             own: _window(training_rows(cache, before=deadline), own[0], season)

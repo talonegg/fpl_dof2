@@ -78,6 +78,9 @@ ARTEFACTS: dict[str, Artefact] = {
     # The models history (ORC-06): the weekly backtest's season simulation of every graded
     # strategy, recorded on `ledger`; the latest season is published. Absent until a backtest ran.
     "models_history": Artefact("models_history.schema.json"),
+    # The live season as if each strategy had played it (ORC-13), in the models history's shape:
+    # the weekly backtest's replay, recorded on `ledger`, labelled replayed or live at publish.
+    "as_if_played": Artefact("models_history.schema.json"),
     # All-player next-GW xP MAE: the 2025/26 backtest season, a frozen-era record carried forward
     # from `publish/records/` (WEB-04), and the live season's from the evaluations (ORC-05).
     "xp_accuracy": Artefact("xp_accuracy.schema.json", required=True),

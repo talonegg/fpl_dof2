@@ -14,12 +14,14 @@ import json
 import os
 import re
 import shutil
+from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
 from fpl_dof.artefacts import (
+    AS_IF_PLAYED_DIRNAME,
     MODELS_HISTORY_DIRNAME,
     QUALITY_REPORT_FILENAME,
     SQUAD_FILENAME,
@@ -48,6 +50,7 @@ from fpl_dof.publish.health import build_health
 from fpl_dof.publish.history import build_history
 from fpl_dof.publish.league import build_league
 from fpl_dof.publish.models_compare import build_models
+from fpl_dof.publish.models_history import label_as_played
 from fpl_dof.publish.season_log import build_log
 from fpl_dof.publish.strategies import artefact_paths, build_strategies
 from fpl_dof.rules.models import GameRules
@@ -172,6 +175,20 @@ def run(ctx: StageContext) -> StageResult:
             log.warning("publish.models_dropped", extra={"error": repr(exc)})
     if not published_models:
         removed.append("models.json")
+
+    # The live season as if each model had played it (ORC-13), labelled from the live record in
+    # models.json. Absent until a backtest has replayed a live gameweek; never fails the publish.
+    played = _as_if_played(ctx, models_payload if published_models else None)
+    published_played = False
+    if played is not None:
+        try:
+            path = contract.write("as_if_played", played, destination)
+            outputs.append(Output(path=path, rows=len(played["gameweeks"])))
+            published_played = True
+        except Exception as exc:
+            log.warning("publish.as_if_played_dropped", extra={"error": repr(exc)})
+    if not published_played:
+        removed.append("as_if_played.json")
 
     # Every published strategy's week and plan, when there are any (MOD-04). Their absence is normal
     # before the season starts (DL-20), so a missing file is not an error. Each is validated against
@@ -611,13 +628,16 @@ def _season_log(
     )
 
 
-def _models_history(ctx: StageContext) -> dict[str, Any] | None:
-    """The newest backtest record's latest season under ``ledger/models_history/`` (ORC-06).
+def _models_history(
+    ctx: StageContext, dirname: str = MODELS_HISTORY_DIRNAME
+) -> dict[str, Any] | None:
+    """The newest backtest record's latest season under ``ledger/models_history/`` (ORC-06), or
+    under ``dirname``.
 
     Run ids sort by time, so the last readable file is the newest run; an unreadable one is logged
     and the one before it is used.
     """
-    for path in sorted((ctx.layout.ledger / MODELS_HISTORY_DIRNAME).glob("*.json"), reverse=True):
+    for path in sorted((ctx.layout.ledger / dirname).glob("*.json"), reverse=True):
         try:
             documents = json.loads(path.read_text(encoding="utf-8"))
         except OSError, json.JSONDecodeError:
@@ -626,6 +646,13 @@ def _models_history(ctx: StageContext) -> dict[str, Any] | None:
         if isinstance(documents, list) and documents and isinstance(documents[-1], dict):
             return {**documents[-1], "contract_version": CONTRACT_VERSION}
     return None
+
+
+def _as_if_played(ctx: StageContext, models: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    """The newest live-season replay under ``ledger/as_if_played/``, labelled replayed or live
+    from ``models`` (ORC-13)."""
+    document = _models_history(ctx, AS_IF_PLAYED_DIRNAME)
+    return None if document is None else label_as_played(document, models)
 
 
 def _models(

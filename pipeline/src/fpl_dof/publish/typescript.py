@@ -90,7 +90,11 @@ def generate(contract: Contract) -> str:
     parts.append(f"export const CONTRACT_MINOR = {CONTRACT_MINOR};\n")
 
     emitted: dict[str, tuple[str, Any]] = {}
+    by_schema: dict[str, str] = {}  # schema file -> the first artefact typed from it
     for artefact in ARTEFACTS:
+        if (first := by_schema.setdefault(ARTEFACTS[artefact].schema, artefact)) != artefact:
+            parts.append(f"export type {_type_name(artefact)} = {_type_name(first)};\n")
+            continue
         schema = contract.schema(artefact)
         defs = schema.get("$defs", {})
         for name, subschema in defs.items():

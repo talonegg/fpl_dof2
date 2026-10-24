@@ -139,9 +139,11 @@ def grade(
     *,
     metrics: pd.DataFrame | None = None,
     inputs: ForecastInputs | None = None,
+    graded_seasons: Sequence[str] | None = None,
 ) -> Graded:
     """Walk every gradeable strategy forward over ``backtest.training_seasons``, one process
     per strategy (``backtest.strategy_workers``); one whose fit raises is not graded (D-32).
+    ``graded_seasons`` grades only those seasons' folds (``walk_forward``).
 
     A champion whose walk fails raises :class:`ChampionNotGradedError` with every strategy's
     reason, those skipped before the walk included, so the stage can still record them.
@@ -156,6 +158,7 @@ def grade(
             seasons=config.backtest.training_seasons or None,
             metrics=metrics,
             workers=config.backtest.strategy_workers,
+            graded_seasons=graded_seasons,
         )
     except ChampionNotGradedError as exc:
         raise ChampionNotGradedError({**exc.reasons, **skipped}) from exc
