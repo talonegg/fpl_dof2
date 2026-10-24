@@ -129,7 +129,7 @@
         "win": { "type": "number", "minimum": 0, "maximum": 1, "description": "This club wins. win + draw + loss is 1 to rounding: the bookmaker margin is removed proportionally." },
         "draw": { "type": "number", "minimum": 0, "maximum": 1 },
         "loss": { "type": "number", "minimum": 0, "maximum": 1, "description": "The opponent wins." },
-        "over_2_5": { "type": "number", "minimum": 0, "maximum": 1, "description": "More than 2.5 goals in the match, from the goals the margin-free market implies; the same for both clubs." },
+        "over_2_5": { "type": ["number", "null"], "minimum": 0, "maximum": 1, "description": "More than 2.5 goals in the match, from the over/under 2.5 prices with the margin removed; the same for both clubs. Null when no totals market is posted." },
         "as_of": { "type": "string", "format": "date-time", "description": "UTC time the odds were captured." }
       }
     }

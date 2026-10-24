@@ -463,9 +463,16 @@ def _odds_rows() -> pd.DataFrame:
                 "home_win_prob": 0.55,
                 "draw_prob": 0.25,
                 "away_win_prob": 0.20,
-                "expected_home_goals": 1.8,
-                "expected_away_goals": 0.9,
-            }
+                "over_2_5_prob": 0.63,
+            },
+            {
+                "fixture_id": 2,
+                "captured_at": pd.Timestamp("2026-08-18T09:00:00Z"),
+                "home_win_prob": 0.4,
+                "draw_prob": 0.3,
+                "away_win_prob": 0.3,
+                "over_2_5_prob": float("nan"),
+            },
         ]
     )
 
@@ -487,11 +494,27 @@ def test_odds_are_published_from_each_clubs_own_side(contract: Contract) -> None
     assert (home["odds"]["win"], home["odds"]["loss"]) == (0.55, 0.2)
     assert (away["odds"]["win"], away["odds"]["loss"]) == (0.2, 0.55)
     assert home["odds"]["win"] + home["odds"]["draw"] + home["odds"]["loss"] == pytest.approx(1)
-    # Poisson(2.7): P(total <= 2) = e^-2.7 * (1 + 2.7 + 3.645)
-    assert home["odds"]["over_2_5"] == pytest.approx(1 - 0.0672055 * 7.345, abs=1e-3)
+    assert home["odds"]["over_2_5"] == 0.63
     assert home["odds"]["over_2_5"] == away["odds"]["over_2_5"]
-    # The second match has no odds row: null, not a guess.
-    assert _entry(grid, 3, 1)["odds"] is None
+    # A match priced 1X2 only: over_2_5 alone is null. A match with no row: no odds at all.
+    assert _entry(grid, 3, 1)["odds"]["over_2_5"] is None
+    assert (
+        _entry(
+            build_fixtures(
+                fixtures=_fixture_rows([(1, 1, 2)]),
+                teams=_teams(),
+                model=_strong_model(),
+                from_gameweek=1,
+                to_gameweek=1,
+                config=FixtureTickerConfig(),
+                contract_version=1,
+                odds=_odds_rows().iloc[:0],
+            ),
+            1,
+            1,
+        )["odds"]
+        is None
+    )
     assert grid["odds_next_check"] == "2026-08-19T06:00:00Z"
 
 

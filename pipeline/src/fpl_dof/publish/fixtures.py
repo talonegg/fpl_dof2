@@ -33,27 +33,11 @@ from fpl_dof.optimise.chips import GameweekShape, gameweek_shapes
 
 MODEL_NAME = "M2_team_strength"
 
-#: The goals line of the published over market. The market is priced at 2.5 and nothing else.
-GOAL_LINE = 2.5
-
-
-def over_probability(total_goals: float) -> float:
-    """P(more than ``GOAL_LINE`` goals) for Poisson-distributed ``total_goals``.
-
-    The sum of two independent Poisson scores is Poisson, so no scoreline grid is needed.
-    """
-    term = cumulative = math.exp(-total_goals)
-    for count in range(1, int(GOAL_LINE) + 1):
-        term *= total_goals / count
-        cumulative += term
-    return 1.0 - cumulative
-
 
 def _odds_by_fixture(odds: pd.DataFrame | None) -> dict[int, dict[str, Any]]:
     """Match odds per ``fixture_id``, in the home side's terms (margin already removed upstream).
 
-    ``over_2_5`` is the Poisson over probability of the goals the market implies, so it is
-    consistent with the 1X2 it was fitted alongside.
+    ``over_2_5`` is the margin-free over/under 2.5 price, None where no totals market is posted.
     """
     if odds is None or odds.empty:
         return {}
@@ -62,12 +46,9 @@ def _odds_by_fixture(odds: pd.DataFrame | None) -> dict[int, dict[str, Any]]:
             "home": round(as_float(row.home_win_prob), 4),
             "draw": round(as_float(row.draw_prob), 4),
             "away": round(as_float(row.away_win_prob), 4),
-            "over_2_5": round(
-                over_probability(
-                    as_float(row.expected_home_goals) + as_float(row.expected_away_goals)
-                ),
-                4,
-            ),
+            "over_2_5": None
+            if pd.isna(row.over_2_5_prob)
+            else round(as_float(row.over_2_5_prob), 4),
             "as_of": _iso(row.captured_at),
         }
         for row in odds.dropna(subset=["fixture_id"]).itertuples()

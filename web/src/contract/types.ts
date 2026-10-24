@@ -639,8 +639,8 @@ export interface FixtureOdds {
   draw: number;
   /** The opponent wins. */
   loss: number;
-  /** More than 2.5 goals in the match, from the goals the margin-free market implies; the same for both clubs. */
-  over_2_5: number;
+  /** More than 2.5 goals in the match, from the over/under 2.5 prices with the margin removed; the same for both clubs. Null when no totals market is posted. */
+  over_2_5: number | null;
   /** UTC time the odds were captured. */
   as_of: string;
 }

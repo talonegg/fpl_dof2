@@ -11,6 +11,10 @@ describe("fixture odds wording (ORC-15)", () => {
     expect(oddsSentence(odds)).toContain("win 55%, draw 25%, loss 20%, over 2.5 goals 63%");
   });
 
+  it("leaves out over 2.5 when no totals market is posted", () => {
+    expect(oddsSentence({ ...odds, over_2_5: null })).not.toContain("over 2.5");
+  });
+
   it("says when the next check is, or that none is due", () => {
     expect(oddsNotPosted("2026-08-19T06:00:00Z")).toMatch(/^Odds not posted yet; next check at .+\.$/);
     expect(oddsNotPosted(null)).toMatch(/^Odds not posted yet; no further check/);
