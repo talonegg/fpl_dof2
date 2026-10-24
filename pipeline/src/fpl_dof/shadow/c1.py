@@ -34,6 +34,7 @@ the live fit stops at the first unfinished gameweek (REM-08).
 
 from __future__ import annotations
 
+import dataclasses
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -239,6 +240,10 @@ class FittedC1:
     models: dict[str, tuple[Any, Any, float]]
     b0: FittedBaseline
 
+    def rebased(self, past: pd.DataFrame, as_of: pd.Timestamp) -> FittedC1:
+        """These weights, predicting at an earlier deadline from ``past`` (ORC-13, DL-97)."""
+        return dataclasses.replace(self, past=past, as_of=utc_deadline(as_of))
+
     def predict(self, upcoming: pd.DataFrame) -> pd.DataFrame:
         """``player_code``, ``p_play``, ``mean_if_play`` and ``sd_if_play`` for each player in
         ``upcoming`` (one gameweek, a row per fixture). A position with no fitted model reads 0."""
@@ -350,15 +355,30 @@ class Fitted(Protocol):
     @property
     def b0(self) -> FittedBaseline: ...
 
+    def rebased(self, past: pd.DataFrame, as_of: pd.Timestamp) -> Fitted:
+        """These weights, predicting at an earlier deadline from ``past`` (ORC-13)."""
+        ...
+
     def predict(self, upcoming: pd.DataFrame) -> pd.DataFrame:
         """``player_code``, ``p_play``, ``mean_if_play`` and ``sd_if_play`` per player."""
         ...
 
 
-def forecast(inputs: ForecastInputs, rules: GameRules, config: ForecastConfig) -> Forecast:
+def forecast(
+    inputs: ForecastInputs,
+    rules: GameRules,
+    config: ForecastConfig,
+    *,
+    fitted: Fitted | None = None,
+) -> Forecast:
     """C1's forecast frame for the gameweek being decided, fitted on history before its cutoff."""
     return forecast_with(
-        inputs, rules, config, MODEL_NAME, lambda past, cutoff: fit_as_of(past, cutoff, config.c1)
+        inputs,
+        rules,
+        config,
+        MODEL_NAME,
+        lambda past, cutoff: fit_as_of(past, cutoff, config.c1),
+        fitted=fitted,
     )
 
 
@@ -368,10 +388,13 @@ def forecast_with(
     config: ForecastConfig,
     model: str,
     fit: Callable[[pd.DataFrame, pd.Timestamp], Fitted],
+    *,
+    fitted: Fitted | None = None,
 ) -> Forecast:
     """The one-gameweek frame of a forecaster that predicts P(play) and points given play (C1, A,
     A_odds): fitted on the history knowable before the cutoff, scaled by availability news, with
-    the two-state mixture's variance and its own B0 line."""
+    the two-state mixture's variance and its own B0 line. Given ``fitted``, its weights predict
+    from the same history instead of a new fit (ORC-13)."""
     gameweek, cutoff, _ = live.next_deadline(inputs.gameweeks, config, as_of=inputs.as_of)
     history = inputs.player_gameweek
     if history is None or history.empty:
@@ -379,7 +402,7 @@ def forecast_with(
     deadlines = inputs.gameweeks
     fit_gameweek = as_int(deadlines.loc[deadlines["deadline_time"] >= cutoff, "gameweek"].min())
     past = knowable_history(history, rules.season, before_gameweek=fit_gameweek)
-    fitted = fit(past, cutoff)
+    fitted = fitted.rebased(past, cutoff) if fitted is not None else fit(past, cutoff)
     upcoming = upcoming_rows(inputs.players, inputs.fixtures, rules.season, gameweek)
     predicted = fitted.predict(upcoming).set_index("player_code")
 
@@ -414,6 +437,7 @@ def forecast_with(
         model=model,
         fallback_reason=None,
         captain_line=price_position_line(fitted.b0),
+        fitted=fitted,
     )
 
 

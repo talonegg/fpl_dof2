@@ -33,11 +33,9 @@ MODELS_HISTORY_DIRNAME = "models_history"
 #: own step for it, after the experiments record is appended (DP-15); a run that builds one
 #: removes it.
 MODELS_HISTORY_FAILURE_FILENAME = "models-history-failure.txt"
-#: Under ``DataLayout.ledger``: the live season as if each strategy had played it, one
-#: ``<run_id>.json`` per run (a list of one document), kept on ``ledger`` (ORC-13).
+#: Under ``DataLayout.ledger``: today's models replayed in-sample on the live season, one
+#: ``<run_id>.json`` per run (a list of one document), kept on ``ledger`` (ORC-13, DL-97).
 AS_IF_PLAYED_DIRNAME = "as_if_played"
-#: In gold: why this run's live-season replay could not be built; failed on as the history's is.
-AS_IF_PLAYED_FAILURE_FILENAME = "as-if-played-failure.txt"
 
 
 class NoBronzeError(RuntimeError):

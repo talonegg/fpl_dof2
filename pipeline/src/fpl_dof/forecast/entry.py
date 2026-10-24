@@ -13,6 +13,7 @@ a pipeline context (DP-03); the forecast stage only calls this and writes what i
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import pandas as pd
 
@@ -42,15 +43,27 @@ class Forecast:
     captain_line: PricePositionLine | None = None
     """B0 fitted on the same window as the model, for the price-and-position captain rule (DL-76).
     ``None`` when nothing has been played to fit it on."""
+    fitted: Any = None
+    """The fitted model behind the frame, whose ``rebased`` predicts at an earlier deadline with
+    these weights: the in-sample replay's (ORC-13, DL-97). ``None`` for ``xp_v0``: it has none."""
 
 
-def publishable(inputs: ForecastInputs, rules: GameRules, config: ForecastConfig) -> Forecast:
-    """Run ``xp_v1``, or ``xp_v0`` and a stated reason; the frame is validated before it leaves."""
-    reason = _cold_start_reason(inputs, config)
+def publishable(
+    inputs: ForecastInputs, rules: GameRules, config: ForecastConfig, *, fitted: Any = None
+) -> Forecast:
+    """Run ``xp_v1``, or ``xp_v0`` and a stated reason; the frame is validated before it leaves.
+
+    ``fitted`` (a :attr:`Forecast.fitted` of ``xp_v1``) predicts with those weights instead of a
+    new fit, so the cold start, a question about fitting, is not asked (ORC-13). A failure to
+    predict with them raises rather than falling back: a replay is of the model it was given.
+    """
+    reason = None if fitted is not None else _cold_start_reason(inputs, config)
     if reason is None:
         try:
-            frame, b0 = live.build(inputs, rules, config)
+            frame, chain = live.build(inputs, rules, config, fitted=fitted)
         except live.ColdStartError as exc:
+            if fitted is not None:
+                raise
             reason = str(exc)
         else:
             description = frame.attrs.get("component_description")
@@ -60,7 +73,8 @@ def publishable(inputs: ForecastInputs, rules: GameRules, config: ForecastConfig
                 model=live.MODEL_NAME,
                 fallback_reason=None,
                 component_description=description if isinstance(description, dict) else None,
-                captain_line=price_position_line(b0),
+                captain_line=price_position_line(chain.b0),
+                fitted=chain,
             )
 
     log.warning(

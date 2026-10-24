@@ -1133,8 +1133,6 @@ export interface ModelHistoryModel {
   role: string;
   available: boolean;
   unavailable_reason: string | null;
-  /** as_if_played only: the first gameweek the live record holds this strategy's advice; null when it has never advised live. Absent in models_history.json. */
-  live_from?: number | null;
 }
 
 export interface ModelHistoryEntry {
@@ -1152,13 +1150,15 @@ export interface ModelHistoryEntry {
   cumulative: number;
   rank: number;
   cumulative_rank: number;
-  /** as_if_played only: replayed before the strategy went live (live_from), live from it. Absent in models_history.json. */
-  record?: "replayed" | "live";
+  /** The chip played this gameweek, by its name in rules.json; absent when none was (in_sample only: the backtest plays none). */
+  chip?: string;
 }
 
 export interface ModelHistoryGameweek {
   gameweek: number;
   models: Record<string, ModelHistoryEntry>;
+  /** in_sample only: strategy id -> why it could not play this gameweek (its inputs absent at the deadline); such a model has no entry under models. Absent when every model played. */
+  unavailable?: Record<string, string>;
 }
 
 export interface ModelHistoryDelta {
@@ -1183,12 +1183,12 @@ export interface ModelHistorySummary {
   delta_vs_champion: null | ModelHistoryDelta;
 }
 
-/** How every registered strategy would have played an archive season in the standing backtest (FPL auto-subs, vice-captain fallback, hits, no chips), each on its own fresh squad, scored by the one realised-points scorer. A backtest, not real play. Simulated by the weekly `fpl-dof backtest`, recorded on the `ledger` branch under `models_history/`, and the latest season published by `fpl-dof publish` (ORC-06). The same shape, `kind` `as_if_played`, is the live season as if each strategy had played it, published as `as_if_played.json` with each gameweek labelled replayed or live (ORC-13). */
+/** How every registered strategy would have played an archive season in the standing backtest (FPL auto-subs, vice-captain fallback, hits, no chips), each on its own fresh squad, scored by the one realised-points scorer. A backtest, not real play. Simulated by the weekly `fpl-dof backtest`, recorded on the `ledger` branch under `models_history/`, and the latest season published by `fpl-dof publish` (ORC-06). The same shape, `kind` `in_sample`, is `as_if_played.json`: today's published models replayed in-sample on the live season's finished gameweeks, each on its own squad with its own transfers, hits and chips; not evidence of skill (ORC-13, DL-97). */
 export interface ModelsHistory {
   contract_version: 1;
   season: string;
-  /** backtest: an archive season (models_history.json). as_if_played: the live season (as_if_played.json). */
-  kind: "backtest" | "as_if_played";
+  /** backtest: an archive season, out of sample (models_history.json). in_sample: today's models replayed on the live season (as_if_played.json). */
+  kind: "backtest" | "in_sample";
   caveat: string;
   champion: string;
   /** Where the numbers came from: the backtest run, its config digest, the simulator, the scorer and the settings. */
