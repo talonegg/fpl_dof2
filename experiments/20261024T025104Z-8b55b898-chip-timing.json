@@ -1,0 +1,908 @@
+{
+  "experiment": "d21_chip_timing",
+  "deadlines": 8,
+  "seconds": 797.1,
+  "arms": {
+    "safe/off": {
+      "front_loaded": 1,
+      "offsets": [
+        1,
+        3,
+        0,
+        1,
+        4,
+        2,
+        2,
+        3
+      ],
+      "mean_actual_points": 78.88
+    },
+    "safe/discounted": {
+      "front_loaded": 4,
+      "offsets": [
+        1,
+        0,
+        0,
+        1,
+        4,
+        0,
+        1,
+        0
+      ],
+      "mean_actual_points": 70.62
+    },
+    "safe/undiscounted": {
+      "front_loaded": 0,
+      "offsets": [
+        1,
+        4,
+        4,
+        1,
+        4,
+        4,
+        1,
+        3
+      ],
+      "mean_actual_points": 81.5
+    },
+    "balanced/off": {
+      "front_loaded": 1,
+      "offsets": [
+        1,
+        3,
+        0,
+        1,
+        4,
+        2,
+        2,
+        3
+      ],
+      "mean_actual_points": 78.88
+    },
+    "balanced/discounted": {
+      "front_loaded": 4,
+      "offsets": [
+        1,
+        0,
+        0,
+        1,
+        4,
+        0,
+        1,
+        0
+      ],
+      "mean_actual_points": 70.62
+    },
+    "balanced/undiscounted": {
+      "front_loaded": 1,
+      "offsets": [
+        1,
+        0,
+        4,
+        1,
+        4,
+        4,
+        1,
+        3
+      ],
+      "mean_actual_points": 82.75
+    },
+    "aggressive/off": {
+      "front_loaded": 1,
+      "offsets": [
+        1,
+        3,
+        0,
+        1,
+        4,
+        2,
+        2,
+        3
+      ],
+      "mean_actual_points": 78.88
+    },
+    "aggressive/discounted": {
+      "front_loaded": 4,
+      "offsets": [
+        1,
+        0,
+        0,
+        1,
+        4,
+        0,
+        1,
+        0
+      ],
+      "mean_actual_points": 70.62
+    },
+    "aggressive/undiscounted": {
+      "front_loaded": 1,
+      "offsets": [
+        1,
+        3,
+        0,
+        1,
+        4,
+        4,
+        2,
+        4
+      ],
+      "mean_actual_points": 78.88
+    }
+  },
+  "discount_share_of_front_loading": 1.111,
+  "verdict": "safe: first chip on the first horizon gameweek at 1/8 with the re-rank off, 4/8 on as shipped, 0/8 on without the discount; balanced: first chip on the first horizon gameweek at 1/8 with the re-rank off, 4/8 on as shipped, 1/8 on without the discount; aggressive: first chip on the first horizon gameweek at 1/8 with the re-rank off, 4/8 on as shipped, 1/8 on without the discount. Removing the discount from the percentile takes away 111% of the re-rank's excess front-loading, pooled over the dials.",
+  "folds": [
+    {
+      "season": "2023/24",
+      "gameweek": 6,
+      "arms": {
+        "safe/off": {
+          "chips": [
+            [
+              7,
+              "bboost"
+            ]
+          ],
+          "offset": 1,
+          "actual_points": 63.0
+        },
+        "safe/discounted": {
+          "chips": [
+            [
+              7,
+              "bboost"
+            ]
+          ],
+          "offset": 1,
+          "actual_points": 63.0
+        },
+        "safe/undiscounted": {
+          "chips": [
+            [
+              7,
+              "bboost"
+            ]
+          ],
+          "offset": 1,
+          "actual_points": 63.0
+        },
+        "balanced/off": {
+          "chips": [
+            [
+              7,
+              "bboost"
+            ]
+          ],
+          "offset": 1,
+          "actual_points": 63.0
+        },
+        "balanced/discounted": {
+          "chips": [
+            [
+              7,
+              "bboost"
+            ]
+          ],
+          "offset": 1,
+          "actual_points": 63.0
+        },
+        "balanced/undiscounted": {
+          "chips": [
+            [
+              7,
+              "bboost"
+            ]
+          ],
+          "offset": 1,
+          "actual_points": 63.0
+        },
+        "aggressive/off": {
+          "chips": [
+            [
+              7,
+              "bboost"
+            ]
+          ],
+          "offset": 1,
+          "actual_points": 63.0
+        },
+        "aggressive/discounted": {
+          "chips": [
+            [
+              7,
+              "bboost"
+            ]
+          ],
+          "offset": 1,
+          "actual_points": 63.0
+        },
+        "aggressive/undiscounted": {
+          "chips": [
+            [
+              7,
+              "bboost"
+            ]
+          ],
+          "offset": 1,
+          "actual_points": 63.0
+        }
+      }
+    },
+    {
+      "season": "2023/24",
+      "gameweek": 12,
+      "arms": {
+        "safe/off": {
+          "chips": [
+            [
+              15,
+              "bboost"
+            ]
+          ],
+          "offset": 3,
+          "actual_points": 39.0
+        },
+        "safe/discounted": {
+          "chips": [
+            [
+              12,
+              "bboost"
+            ]
+          ],
+          "offset": 0,
+          "actual_points": 70.0
+        },
+        "safe/undiscounted": {
+          "chips": [
+            [
+              16,
+              "bboost"
+            ]
+          ],
+          "offset": 4,
+          "actual_points": 60.0
+        },
+        "balanced/off": {
+          "chips": [
+            [
+              15,
+              "bboost"
+            ]
+          ],
+          "offset": 3,
+          "actual_points": 39.0
+        },
+        "balanced/discounted": {
+          "chips": [
+            [
+              12,
+              "bboost"
+            ]
+          ],
+          "offset": 0,
+          "actual_points": 70.0
+        },
+        "balanced/undiscounted": {
+          "chips": [
+            [
+              12,
+              "bboost"
+            ]
+          ],
+          "offset": 0,
+          "actual_points": 70.0
+        },
+        "aggressive/off": {
+          "chips": [
+            [
+              15,
+              "bboost"
+            ]
+          ],
+          "offset": 3,
+          "actual_points": 39.0
+        },
+        "aggressive/discounted": {
+          "chips": [
+            [
+              12,
+              "bboost"
+            ]
+          ],
+          "offset": 0,
+          "actual_points": 70.0
+        },
+        "aggressive/undiscounted": {
+          "chips": [
+            [
+              15,
+              "bboost"
+            ]
+          ],
+          "offset": 3,
+          "actual_points": 39.0
+        }
+      }
+    },
+    {
+      "season": "2023/24",
+      "gameweek": 18,
+      "arms": {
+        "safe/off": {
+          "chips": [
+            [
+              18,
+              "bboost"
+            ]
+          ],
+          "offset": 0,
+          "actual_points": 46.0
+        },
+        "safe/discounted": {
+          "chips": [
+            [
+              18,
+              "bboost"
+            ]
+          ],
+          "offset": 0,
+          "actual_points": 46.0
+        },
+        "safe/undiscounted": {
+          "chips": [
+            [
+              22,
+              "bboost"
+            ]
+          ],
+          "offset": 4,
+          "actual_points": 33.0
+        },
+        "balanced/off": {
+          "chips": [
+            [
+              18,
+              "bboost"
+            ]
+          ],
+          "offset": 0,
+          "actual_points": 46.0
+        },
+        "balanced/discounted": {
+          "chips": [
+            [
+              18,
+              "bboost"
+            ]
+          ],
+          "offset": 0,
+          "actual_points": 46.0
+        },
+        "balanced/undiscounted": {
+          "chips": [
+            [
+              22,
+              "bboost"
+            ]
+          ],
+          "offset": 4,
+          "actual_points": 33.0
+        },
+        "aggressive/off": {
+          "chips": [
+            [
+              18,
+              "bboost"
+            ]
+          ],
+          "offset": 0,
+          "actual_points": 46.0
+        },
+        "aggressive/discounted": {
+          "chips": [
+            [
+              18,
+              "bboost"
+            ]
+          ],
+          "offset": 0,
+          "actual_points": 46.0
+        },
+        "aggressive/undiscounted": {
+          "chips": [
+            [
+              18,
+              "bboost"
+            ]
+          ],
+          "offset": 0,
+          "actual_points": 46.0
+        }
+      }
+    },
+    {
+      "season": "2023/24",
+      "gameweek": 24,
+      "arms": {
+        "safe/off": {
+          "chips": [
+            [
+              25,
+              "bboost"
+            ]
+          ],
+          "offset": 1,
+          "actual_points": 88.0
+        },
+        "safe/discounted": {
+          "chips": [
+            [
+              25,
+              "bboost"
+            ]
+          ],
+          "offset": 1,
+          "actual_points": 88.0
+        },
+        "safe/undiscounted": {
+          "chips": [
+            [
+              25,
+              "bboost"
+            ]
+          ],
+          "offset": 1,
+          "actual_points": 88.0
+        },
+        "balanced/off": {
+          "chips": [
+            [
+              25,
+              "bboost"
+            ]
+          ],
+          "offset": 1,
+          "actual_points": 88.0
+        },
+        "balanced/discounted": {
+          "chips": [
+            [
+              25,
+              "bboost"
+            ]
+          ],
+          "offset": 1,
+          "actual_points": 88.0
+        },
+        "balanced/undiscounted": {
+          "chips": [
+            [
+              25,
+              "bboost"
+            ]
+          ],
+          "offset": 1,
+          "actual_points": 88.0
+        },
+        "aggressive/off": {
+          "chips": [
+            [
+              25,
+              "bboost"
+            ]
+          ],
+          "offset": 1,
+          "actual_points": 88.0
+        },
+        "aggressive/discounted": {
+          "chips": [
+            [
+              25,
+              "bboost"
+            ]
+          ],
+          "offset": 1,
+          "actual_points": 88.0
+        },
+        "aggressive/undiscounted": {
+          "chips": [
+            [
+              25,
+              "bboost"
+            ]
+          ],
+          "offset": 1,
+          "actual_points": 88.0
+        }
+      }
+    },
+    {
+      "season": "2023/24",
+      "gameweek": 30,
+      "arms": {
+        "safe/off": {
+          "chips": [
+            [
+              34,
+              "bboost"
+            ]
+          ],
+          "offset": 4,
+          "actual_points": 135.0
+        },
+        "safe/discounted": {
+          "chips": [
+            [
+              34,
+              "bboost"
+            ]
+          ],
+          "offset": 4,
+          "actual_points": 135.0
+        },
+        "safe/undiscounted": {
+          "chips": [
+            [
+              34,
+              "bboost"
+            ]
+          ],
+          "offset": 4,
+          "actual_points": 135.0
+        },
+        "balanced/off": {
+          "chips": [
+            [
+              34,
+              "bboost"
+            ]
+          ],
+          "offset": 4,
+          "actual_points": 135.0
+        },
+        "balanced/discounted": {
+          "chips": [
+            [
+              34,
+              "bboost"
+            ]
+          ],
+          "offset": 4,
+          "actual_points": 135.0
+        },
+        "balanced/undiscounted": {
+          "chips": [
+            [
+              34,
+              "bboost"
+            ]
+          ],
+          "offset": 4,
+          "actual_points": 135.0
+        },
+        "aggressive/off": {
+          "chips": [
+            [
+              34,
+              "bboost"
+            ]
+          ],
+          "offset": 4,
+          "actual_points": 135.0
+        },
+        "aggressive/discounted": {
+          "chips": [
+            [
+              34,
+              "bboost"
+            ]
+          ],
+          "offset": 4,
+          "actual_points": 135.0
+        },
+        "aggressive/undiscounted": {
+          "chips": [
+            [
+              34,
+              "bboost"
+            ]
+          ],
+          "offset": 4,
+          "actual_points": 135.0
+        }
+      }
+    },
+    {
+      "season": "2024/25",
+      "gameweek": 9,
+      "arms": {
+        "safe/off": {
+          "chips": [
+            [
+              11,
+              "bboost"
+            ]
+          ],
+          "offset": 2,
+          "actual_points": 41.0
+        },
+        "safe/discounted": {
+          "chips": [
+            [
+              9,
+              "bboost"
+            ]
+          ],
+          "offset": 0,
+          "actual_points": 44.0
+        },
+        "safe/undiscounted": {
+          "chips": [
+            [
+              13,
+              "bboost"
+            ]
+          ],
+          "offset": 4,
+          "actual_points": 76.0
+        },
+        "balanced/off": {
+          "chips": [
+            [
+              11,
+              "bboost"
+            ]
+          ],
+          "offset": 2,
+          "actual_points": 41.0
+        },
+        "balanced/discounted": {
+          "chips": [
+            [
+              9,
+              "bboost"
+            ]
+          ],
+          "offset": 0,
+          "actual_points": 44.0
+        },
+        "balanced/undiscounted": {
+          "chips": [
+            [
+              13,
+              "bboost"
+            ]
+          ],
+          "offset": 4,
+          "actual_points": 76.0
+        },
+        "aggressive/off": {
+          "chips": [
+            [
+              11,
+              "bboost"
+            ]
+          ],
+          "offset": 2,
+          "actual_points": 41.0
+        },
+        "aggressive/discounted": {
+          "chips": [
+            [
+              9,
+              "bboost"
+            ]
+          ],
+          "offset": 0,
+          "actual_points": 44.0
+        },
+        "aggressive/undiscounted": {
+          "chips": [
+            [
+              13,
+              "bboost"
+            ]
+          ],
+          "offset": 4,
+          "actual_points": 76.0
+        }
+      }
+    },
+    {
+      "season": "2024/25",
+      "gameweek": 15,
+      "arms": {
+        "safe/off": {
+          "chips": [
+            [
+              17,
+              "bboost"
+            ]
+          ],
+          "offset": 2,
+          "actual_points": 84.0
+        },
+        "safe/discounted": {
+          "chips": [
+            [
+              16,
+              "bboost"
+            ]
+          ],
+          "offset": 1,
+          "actual_points": 62.0
+        },
+        "safe/undiscounted": {
+          "chips": [
+            [
+              16,
+              "bboost"
+            ]
+          ],
+          "offset": 1,
+          "actual_points": 62.0
+        },
+        "balanced/off": {
+          "chips": [
+            [
+              17,
+              "bboost"
+            ]
+          ],
+          "offset": 2,
+          "actual_points": 84.0
+        },
+        "balanced/discounted": {
+          "chips": [
+            [
+              16,
+              "bboost"
+            ]
+          ],
+          "offset": 1,
+          "actual_points": 62.0
+        },
+        "balanced/undiscounted": {
+          "chips": [
+            [
+              16,
+              "bboost"
+            ]
+          ],
+          "offset": 1,
+          "actual_points": 62.0
+        },
+        "aggressive/off": {
+          "chips": [
+            [
+              17,
+              "bboost"
+            ]
+          ],
+          "offset": 2,
+          "actual_points": 84.0
+        },
+        "aggressive/discounted": {
+          "chips": [
+            [
+              16,
+              "bboost"
+            ]
+          ],
+          "offset": 1,
+          "actual_points": 62.0
+        },
+        "aggressive/undiscounted": {
+          "chips": [
+            [
+              17,
+              "bboost"
+            ]
+          ],
+          "offset": 2,
+          "actual_points": 84.0
+        }
+      }
+    },
+    {
+      "season": "2024/25",
+      "gameweek": 21,
+      "arms": {
+        "safe/off": {
+          "chips": [
+            [
+              24,
+              "bboost"
+            ]
+          ],
+          "offset": 3,
+          "actual_points": 135.0
+        },
+        "safe/discounted": {
+          "chips": [
+            [
+              21,
+              "bboost"
+            ]
+          ],
+          "offset": 0,
+          "actual_points": 57.0
+        },
+        "safe/undiscounted": {
+          "chips": [
+            [
+              24,
+              "bboost"
+            ]
+          ],
+          "offset": 3,
+          "actual_points": 135.0
+        },
+        "balanced/off": {
+          "chips": [
+            [
+              24,
+              "bboost"
+            ]
+          ],
+          "offset": 3,
+          "actual_points": 135.0
+        },
+        "balanced/discounted": {
+          "chips": [
+            [
+              21,
+              "bboost"
+            ]
+          ],
+          "offset": 0,
+          "actual_points": 57.0
+        },
+        "balanced/undiscounted": {
+          "chips": [
+            [
+              24,
+              "bboost"
+            ]
+          ],
+          "offset": 3,
+          "actual_points": 135.0
+        },
+        "aggressive/off": {
+          "chips": [
+            [
+              24,
+              "bboost"
+            ]
+          ],
+          "offset": 3,
+          "actual_points": 135.0
+        },
+        "aggressive/discounted": {
+          "chips": [
+            [
+              21,
+              "bboost"
+            ]
+          ],
+          "offset": 0,
+          "actual_points": 57.0
+        },
+        "aggressive/undiscounted": {
+          "chips": [
+            [
+              25,
+              "3xc"
+            ]
+          ],
+          "offset": 4,
+          "actual_points": 100.0
+        }
+      }
+    }
+  ],
+  "warnings": [],
+  "run_id": "20261024T025104Z-8b55b898",
+  "config_digest": "4b80f073f939b3d8834ba3d57359c0e26077b4f8a9781c288abed44b68a0f3cb"
+}
