@@ -1,8 +1,11 @@
+import type { ReactNode } from "react";
 import type { Meta } from "../contract/types";
 import { formatLocalDateTime } from "../format";
 
 interface HeaderProps {
   meta: Meta;
+  /** The model selector: the shell passes it in, so one choice applies across every section (WEB-07). */
+  children?: ReactNode;
 }
 
 /** `schedule`, `manual`, `day-before` or `change:<kinds>` in words. */
@@ -18,7 +21,7 @@ export function describeTrigger(trigger: string): string {
   return words[trigger] ?? trigger;
 }
 
-export function Header({ meta }: HeaderProps) {
+export function Header({ meta, children }: HeaderProps) {
   const priceDependence = meta.model.price_dependence;
   const showWarning = priceDependence === "repricing" || priceDependence === "thin";
 
@@ -56,6 +59,7 @@ export function Header({ meta }: HeaderProps) {
           forecast is informative beyond price alone.
         </div>
       )}
+      {children}
     </header>
   );
 }

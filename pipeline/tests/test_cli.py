@@ -103,6 +103,25 @@ def test_a_run_in_a_temporary_directory_leaves_the_app_data_alone(tmp_path: Path
     )
 
 
+def test_a_run_leaves_web_src_untouched(tmp_path: Path) -> None:
+    """WEB-03: the generated types are written by `contract types`, never by a pipeline run."""
+    from fpl_dof.paths import find_repo_root
+
+    repo = find_repo_root()
+    assert repo is not None
+
+    def snapshot() -> dict[str, tuple[int, int]]:
+        return {
+            str(f): (f.stat().st_size, f.stat().st_mtime_ns)
+            for f in (repo / "web" / "src").rglob("*")
+            if f.is_file()
+        }
+
+    before = snapshot()
+    assert main(["--data-dir", str(tmp_path / "data"), "run"]) == EXIT_OK
+    assert snapshot() == before
+
+
 def test_silver_replay_prices_cli(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     data_dir = tmp_path / "data"
     assert main(["--data-dir", str(data_dir), "ingest"]) == EXIT_OK

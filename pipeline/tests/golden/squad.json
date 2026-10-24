@@ -1,8 +1,8 @@
 {
  "bench_order": [
-  61,
-  106,
-  84
+  174,
+  175,
+  106
  ],
  "budget": 100.0,
  "captain_id": 55,
@@ -13,7 +13,7 @@
   "GKP": 1,
   "MID": 5
  },
- "objective": 130.663,
+ "objective": 104.486,
  "players": [
   {
    "components": {
@@ -38,38 +38,10 @@
    "team": "BHA",
    "team_id": 5,
    "web_name": "Verbruggen",
-   "xp_horizon": 9.79,
-   "xp_horizon_sd": 4.405,
+   "xp_horizon": 8.559,
+   "xp_horizon_sd": 3.851,
    "xp_next": 2.916,
    "xp_next_sd": 1.312
-  },
-  {
-   "components": {
-    "appearance": 0.0,
-    "assists": 0.0,
-    "bonus": 0.0,
-    "cards": -0.0,
-    "clean_sheet": 0.0,
-    "defensive_contribution": 0.0,
-    "goals": 0.0,
-    "goals_conceded": -0.0,
-    "saves": 0.0
-   },
-   "confidence": "high",
-   "is_captain": false,
-   "is_vice_captain": false,
-   "player_id": 61,
-   "position": "DEF",
-   "price": 5.5,
-   "start_probability": 0.944,
-   "starting": false,
-   "team": "BOU",
-   "team_id": 3,
-   "web_name": "Truffert",
-   "xp_horizon": 4.901,
-   "xp_horizon_sd": 2.205,
-   "xp_next": 0.0,
-   "xp_next_sd": 0.5
   },
   {
    "components": {
@@ -94,8 +66,8 @@
    "team": "BRE",
    "team_id": 4,
    "web_name": "Thiago",
-   "xp_horizon": 6.635,
-   "xp_horizon_sd": 2.986,
+   "xp_horizon": 3.524,
+   "xp_horizon_sd": 1.586,
    "xp_next": 0.0,
    "xp_next_sd": 0.5
   },
@@ -122,8 +94,8 @@
    "team": "CHE",
    "team_id": 6,
    "web_name": "Rogers",
-   "xp_horizon": 11.524,
-   "xp_horizon_sd": 5.186,
+   "xp_horizon": 7.673,
+   "xp_horizon_sd": 3.453,
    "xp_next": 0.0,
    "xp_next_sd": 0.5
   },
@@ -150,8 +122,8 @@
    "team": "ARS",
    "team_id": 1,
    "web_name": "Rice",
-   "xp_horizon": 14.268,
-   "xp_horizon_sd": 6.421,
+   "xp_horizon": 12.694,
+   "xp_horizon_sd": 5.713,
    "xp_next": 4.286,
    "xp_next_sd": 1.929
   },
@@ -178,36 +150,8 @@
    "team": "CHE",
    "team_id": 6,
    "web_name": "Lacroix",
-   "xp_horizon": 11.283,
-   "xp_horizon_sd": 5.077,
-   "xp_next": 0.0,
-   "xp_next_sd": 0.5
-  },
-  {
-   "components": {
-    "appearance": 0.0,
-    "assists": 0.0,
-    "bonus": 0.0,
-    "cards": -0.0,
-    "clean_sheet": 0.0,
-    "defensive_contribution": 0.0,
-    "goals": 0.0,
-    "goals_conceded": -0.0,
-    "saves": 0.0
-   },
-   "confidence": "high",
-   "is_captain": false,
-   "is_vice_captain": false,
-   "player_id": 84,
-   "position": "DEF",
-   "price": 5.5,
-   "start_probability": 0.857,
-   "starting": false,
-   "team": "BRE",
-   "team_id": 4,
-   "web_name": "Collins",
-   "xp_horizon": 6.027,
-   "xp_horizon_sd": 2.712,
+   "xp_horizon": 7.501,
+   "xp_horizon_sd": 3.375,
    "xp_next": 0.0,
    "xp_next_sd": 0.5
   },
@@ -234,8 +178,8 @@
    "team": "BHA",
    "team_id": 5,
    "web_name": "Struijk",
-   "xp_horizon": 7.834,
-   "xp_horizon_sd": 3.525,
+   "xp_horizon": 6.849,
+   "xp_horizon_sd": 3.082,
    "xp_next": 2.343,
    "xp_next_sd": 1.054
   },
@@ -262,8 +206,8 @@
    "team": "AVL",
    "team_id": 2,
    "web_name": "Martinez",
-   "xp_horizon": 7.871,
-   "xp_horizon_sd": 3.542,
+   "xp_horizon": 5.609,
+   "xp_horizon_sd": 2.524,
    "xp_next": 3.121,
    "xp_next_sd": 1.404
   },
@@ -290,8 +234,8 @@
    "team": "AVL",
    "team_id": 2,
    "web_name": "Watkins",
-   "xp_horizon": 11.581,
-   "xp_horizon_sd": 5.211,
+   "xp_horizon": 8.274,
+   "xp_horizon_sd": 3.723,
    "xp_next": 4.553,
    "xp_next_sd": 2.049
   },
@@ -318,8 +262,8 @@
    "team": "ARS",
    "team_id": 1,
    "web_name": "Gabriel",
-   "xp_horizon": 14.369,
-   "xp_horizon_sd": 6.466,
+   "xp_horizon": 12.801,
+   "xp_horizon_sd": 5.76,
    "xp_next": 4.505,
    "xp_next_sd": 2.027
   },
@@ -346,8 +290,8 @@
    "team": "CHE",
    "team_id": 6,
    "web_name": "Jo\u00e3o Pedro",
-   "xp_horizon": 11.795,
-   "xp_horizon_sd": 5.308,
+   "xp_horizon": 7.855,
+   "xp_horizon_sd": 3.535,
    "xp_next": 0.0,
    "xp_next_sd": 0.5
   },
@@ -374,8 +318,8 @@
    "team": "BHA",
    "team_id": 5,
    "web_name": "Minteh",
-   "xp_horizon": 9.039,
-   "xp_horizon_sd": 4.068,
+   "xp_horizon": 7.903,
+   "xp_horizon_sd": 3.556,
    "xp_next": 2.674,
    "xp_next_sd": 1.203
   },
@@ -402,8 +346,8 @@
    "team": "ARS",
    "team_id": 1,
    "web_name": "Saka",
-   "xp_horizon": 13.98,
-   "xp_horizon_sd": 6.291,
+   "xp_horizon": 12.442,
+   "xp_horizon_sd": 5.599,
    "xp_next": 4.246,
    "xp_next_sd": 1.911
   },
@@ -430,16 +374,72 @@
    "team": "AVL",
    "team_id": 2,
    "web_name": "Gomes",
-   "xp_horizon": 6.83,
-   "xp_horizon_sd": 3.073,
+   "xp_horizon": 4.889,
+   "xp_horizon_sd": 2.2,
    "xp_next": 2.666,
    "xp_next_sd": 1.2
+  },
+  {
+   "components": {
+    "appearance": 1.656,
+    "assists": 0.158,
+    "bonus": 0.151,
+    "cards": -0.127,
+    "clean_sheet": 0.703,
+    "defensive_contribution": 0.028,
+    "goals": 0.111,
+    "goals_conceded": -0.619,
+    "saves": 0.0
+   },
+   "confidence": "none",
+   "is_captain": false,
+   "is_vice_captain": false,
+   "player_id": 174,
+   "position": "DEF",
+   "price": 4.0,
+   "start_probability": 0.791,
+   "starting": false,
+   "team": "COV",
+   "team_id": 7,
+   "web_name": "Kitching",
+   "xp_horizon": 3.748,
+   "xp_horizon_sd": 3.748,
+   "xp_next": 2.061,
+   "xp_next_sd": 2.061
+  },
+  {
+   "components": {
+    "appearance": 1.656,
+    "assists": 0.158,
+    "bonus": 0.151,
+    "cards": -0.127,
+    "clean_sheet": 0.703,
+    "defensive_contribution": 0.028,
+    "goals": 0.111,
+    "goals_conceded": -0.619,
+    "saves": 0.0
+   },
+   "confidence": "none",
+   "is_captain": false,
+   "is_vice_captain": false,
+   "player_id": 175,
+   "position": "DEF",
+   "price": 4.0,
+   "start_probability": 0.791,
+   "starting": false,
+   "team": "COV",
+   "team_id": 7,
+   "web_name": "van Ewijk",
+   "xp_horizon": 3.748,
+   "xp_horizon_sd": 3.748,
+   "xp_next": 2.061,
+   "xp_next_sd": 2.061
   }
  ],
  "run_id": "<masked>",
  "skipped": false,
  "solve_seconds": "<masked>",
  "status": "optimal",
- "total_price": 99.0,
+ "total_price": 96.0,
  "vice_captain_id": 4
 }

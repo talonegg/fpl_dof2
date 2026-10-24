@@ -47,6 +47,9 @@ jobs:
         working-directory: pipeline
         run: python -m mypy
 
+      - name: generated web types are current (WEB-03)
+        run: fpl-dof contract types --check
+
       - name: import boundaries (MOD-01, DL-87)
         working-directory: pipeline
         run: lint-imports

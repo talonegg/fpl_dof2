@@ -9,11 +9,11 @@
  "deadline_utc": "2026-08-21T17:30:00Z",
  "generated_at": "<masked>",
  "git_sha": "<masked>",
- "horizon_gameweeks": 6,
+ "horizon_gameweeks": 5,
  "model": {
   "name": "xp_v0",
   "price_dependence": "informative",
-  "r_squared_on_price": 0.3705
+  "r_squared_on_price": 0.3408
  },
  "next_gameweek": 1,
  "run_id": "<masked>",

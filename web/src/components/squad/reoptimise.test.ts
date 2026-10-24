@@ -256,7 +256,7 @@ describe("chooseLineup", () => {
   it("returns null for a squad that cannot fill any legal shape", () => {
     const onlyKeepers = pool
       .filter((player) => player.position === "GKP")
-      .map((player) => ({ player_id: player.id, position: player.position, xp_next: player.xp_next }));
+      .map((player) => ({ player_id: player.id, position: player.position, xp_next: player.xp_next, start_probability: 1 }));
     expect(chooseLineup(onlyKeepers, rules)).toBeNull();
   });
 });

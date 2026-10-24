@@ -253,6 +253,38 @@ def test_a_history_that_cannot_be_built_never_costs_the_experiments_record(
     assert MODELS_HISTORY_FAILURE_FILENAME in steps[check]["run"]
 
 
+def test_the_chip_timing_experiment_runs_after_the_record_and_never_costs_it(
+    game_rules: GameRules,
+    simulated: Simulated,
+    config: Config,
+    layout: DataLayout,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """EXP-02, DP-15: on, the stage writes ``<run_id>-chip-timing.json`` beside the strategies'
+    record; a replay that cannot run (no chip table here) records why instead of failing."""
+    history, result, _ = simulated
+    monkeypatch.setattr(backtest, "read_rules", lambda *_a: game_rules)
+    monkeypatch.setattr(
+        backtest,
+        "read_table_optional",
+        lambda _s, _y, t: history if t.value == "player_gameweek" else None,
+    )
+    monkeypatch.setattr(backtest, "grade", lambda *_a, **_k: Graded(result=result))
+    monkeypatch.setattr(backtest, "_models_history", lambda *_a: [])
+    replay = config.backtest.chip_replay.model_copy(update={"timing_experiment": True})
+    on = config.model_copy(
+        update={"backtest": config.backtest.model_copy(update={"chip_replay": replay})}
+    )
+    ctx = StageContext(config=on, layout=layout, run_id="r-timing")
+    backtest.run(ctx)
+    experiments = layout.ledger / "experiments"
+    assert (experiments / "r-timing.json").exists()
+    record = json.loads((experiments / "r-timing-chip-timing.json").read_text("utf-8"))
+    assert record["experiment"] == "d21_chip_timing"
+    assert "no chip table" in record["not_run"]
+    assert record["run_id"] == "r-timing"
+
+
 def test_the_backtest_records_it_and_the_pipeline_publishes_the_newest(
     game_rules: GameRules,
     simulated: Simulated,

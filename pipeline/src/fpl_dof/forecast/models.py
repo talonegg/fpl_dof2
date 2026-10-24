@@ -933,11 +933,11 @@ class BonusModel:
         """
         if history.empty or "bps" not in history.columns:
             return self
-        played = history[history["minutes"] > 0]["bps"].dropna()
+        played = history[history["minutes"] > 0].dropna(subset=["bps"])
         if len(played) < 50:
             return self
-        self.typical_bps_mean = float(played.mean())
-        self.typical_bps_sd = max(1.0, float(played.std()))
+        self.typical_bps_mean = float(played["bps"].mean())
+        self.typical_bps_sd = max(1.0, float(played["bps"].std()))
         return self
 
     def expected_bonus(self, expected_bps: float, *, players_in_match: int = 22) -> float:
@@ -949,7 +949,10 @@ class BonusModel:
         """
         if self.typical_bps_sd <= 0:
             return 0.0
-        z = (expected_bps - self.typical_bps_mean) / self.typical_bps_sd
+        return self._bonus_at(expected_bps, players_in_match)
+
+    def _bonus_at(self, bps: float, players_in_match: int) -> float:
+        z = (bps - self.typical_bps_mean) / self.typical_bps_sd
         # P(this player beats a randomly chosen other player in the same match).
         beats_one = 0.5 * (1.0 + math.erf(z / math.sqrt(2.0)))
         others = max(1, players_in_match - 1)
@@ -966,7 +969,7 @@ class BonusModel:
         return total
 
     def describe(self) -> dict[str, object]:
-        return {
+        described: dict[str, object] = {
             "bonus_points": list(self.bonus_points),
             "typical_bps_mean": round(self.typical_bps_mean, 3),
             "typical_bps_sd": round(self.typical_bps_sd, 3),
@@ -975,6 +978,7 @@ class BonusModel:
                 "BPS matrix"
             ),
         }
+        return described
 
 
 @dataclass
@@ -1067,7 +1071,9 @@ def fit_components(
             matches, current_season=rules.season
         ),
         rates=rates,
-        bonus=BonusModel(bonus_points=tuple(rules.scoring.bonus_points)).fit(history),
+        bonus=BonusModel(
+            bonus_points=tuple(rules.scoring.bonus_points),
+        ).fit(history),
         # Not fitted — read. The duty table is curated knowledge and there is nothing in `history`
         # to learn it from; what the flag decides is whether the scorer sees it at all (DL-50).
         duty=(

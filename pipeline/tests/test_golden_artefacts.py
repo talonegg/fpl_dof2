@@ -18,6 +18,7 @@ from typing import Any
 import pytest
 
 from fpl_dof.cli import EXIT_OK, main
+from fpl_dof.publish.contract import ARTEFACTS
 
 pytestmark = pytest.mark.usefixtures("recorded_fpl_api")
 
@@ -57,6 +58,8 @@ def test_published_artefacts_match_the_golden_files(
     assert main(["--data-dir", str(data_dir), "run"]) == EXIT_OK
     published = sorted((data_dir / "web" / "v1").glob("*.json"))
     assert published
+    # Every artefact the registry calls required is written (WEB-04): the smoke check relies on it.
+    assert {f"{k}.json" for k, a in ARTEFACTS.items() if a.required} <= {p.name for p in published}
     actual = {
         p.name: json.dumps(normalise(json.loads(p.read_text("utf-8"))), indent=1, sort_keys=True)
         + "\n"

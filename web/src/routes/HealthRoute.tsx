@@ -1,5 +1,5 @@
 import { HealthPanel } from "../components/health/HealthPanel";
-import { useHealth } from "../components/health/useHealth";
+import { useArtefact } from "../data/store";
 import "../components/health/health.css";
 
 /**
@@ -16,7 +16,7 @@ import "../components/health/health.css";
  * different diagnoses and are reported as three different things (DP-15).
  */
 export function HealthRoute() {
-  const { state, retry } = useHealth();
+  const { state, retry } = useArtefact("health");
 
   if (state.status === "loading") {
     return (
@@ -72,7 +72,7 @@ export function HealthRoute() {
     );
   }
 
-  if (state.status === "error") {
+  if (state.status !== "ready") {
     return (
       <section className="health-status" data-testid="health-error">
         <h2>Data health</h2>
@@ -84,5 +84,5 @@ export function HealthRoute() {
     );
   }
 
-  return <HealthPanel health={state.health} />;
+  return <HealthPanel health={state.data} />;
 }

@@ -9,11 +9,10 @@
  */
 
 import type { Player } from "../../contract/types";
-import { fetchFixtures } from "../../data/api";
+import { unready, useArtefact } from "../../data/store";
 import { formatLocalDateTime } from "../../format";
 import { BAND_LABELS, buildFixtureRun, difficultyBasisLabel, runStatement } from "./fixtureRun";
 import type { RunFixture } from "./fixtureRun";
-import { useLazyArtefact } from "./useLazyArtefact";
 import type { Fixtures } from "../../contract/types";
 
 function FixtureCell({ fixture }: { fixture: RunFixture }) {
@@ -88,18 +87,16 @@ function Run({ fixtures, player }: { fixtures: Fixtures; player: Player }) {
 }
 
 export function FixtureRunPanel({ player }: { player: Player }) {
-  const state = useLazyArtefact<Fixtures>(
-    fetchFixtures,
-    "The fixture grid is not part of this published data set.",
-  );
+  const { state } = useArtefact("fixtures");
+  const why = unready(state, "The fixture grid is not part of this published data set.");
 
   return (
     <section className="player-panel" data-testid="fixture-run-panel">
       <h3>Upcoming fixtures</h3>
       {state.status === "loading" && <p className="panel-note">Loading the fixture grid…</p>}
-      {state.status === "unavailable" && (
+      {why && (
         <p className="panel-note" data-testid="fixture-run-unavailable">
-          Fixture difficulty is unavailable: {state.reason}
+          Fixture difficulty is unavailable: {why}
         </p>
       )}
       {state.status === "ready" && <Run fixtures={state.data} player={player} />}

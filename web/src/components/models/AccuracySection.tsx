@@ -1,6 +1,9 @@
 import { useRegistry } from "../../data/DataProvider";
 import { modelLabel, orderIds, seriesStyle } from "../../data/registry";
+import { unready, useArtefact } from "../../data/store";
 import type { XpAccuracy, XpAccuracySeason } from "./accuracy";
+
+const ABSENT = "No xP accuracy scores are available yet.";
 
 const KIND_NOTE: Record<XpAccuracySeason["kind"], string> = {
   backtest: "Backtest (walk-forward, configs tuned on these seasons: in-sample)",
@@ -61,25 +64,36 @@ function MaeChart({ s }: { s: XpAccuracySeason }) {
   );
 }
 
-/** (c) Forecast accuracy: all-player xP MAE per GW for each season played. */
-export function AccuracySection({ accuracy, status }: { accuracy: XpAccuracy | null; status: "loading" | "ready" }) {
+/** Forecast accuracy: all-player xP MAE per GW for each season of the given kinds; an unreadable file says why (DP-15). */
+export function AccuracySection({ kinds }: { kinds: readonly XpAccuracySeason["kind"][] }) {
   const registry = useRegistry();
+  const { state, retry } = useArtefact("xp_accuracy");
+  const accuracy: XpAccuracy | null = state.status === "ready" ? state.data : null;
   const sty = (id: string) => seriesStyle(registry, id);
+  const seasons = accuracy?.seasons.filter((s) => kinds.includes(s.kind)) ?? [];
+  const why = state.status === "error" || state.status === "malformed" ? unready(state, ABSENT) : null;
   return (
     <section className="models-page-section" id="models-accuracy" data-testid="models-accuracy" aria-labelledby="models-accuracy-heading">
       <h2 id="models-accuracy-heading">Forecast accuracy (xP vs actual)</h2>
-      {status === "loading" ? (
+      {state.status === "loading" ? (
         <p>Loading accuracy scores…</p>
-      ) : !accuracy || accuracy.seasons.length === 0 ? (
+      ) : why ? (
+        <p className="models-note" data-testid="accuracy-unavailable">
+          Accuracy scores are unavailable: {why}{" "}
+          <button type="button" onClick={retry}>
+            Try again
+          </button>
+        </p>
+      ) : !accuracy || seasons.length === 0 ? (
         <p className="models-note" data-testid="accuracy-absent">
-          No xP accuracy scores are available yet.
+          {ABSENT}
         </p>
       ) : (
         <>
           <p className="models-note">
             {accuracy.metric}. Population: every player all models priced, including those who did not play.
           </p>
-          {accuracy.seasons.map((s) => {
+          {seasons.map((s) => {
             const ids = orderIds(registry, Object.keys(s.pooled_mae));
             return (
               <div key={`${s.season}-${s.kind}`} className="accuracy-season" data-testid={`accuracy-${s.season}`}>
@@ -106,7 +120,6 @@ export function AccuracySection({ accuracy, status }: { accuracy: XpAccuracy | n
               </div>
             );
           })}
-          <p className="models-note">Live 2026/27 (GW7 onward) accuracy appears here once CI publishes its xP scores.</p>
         </>
       )}
     </section>

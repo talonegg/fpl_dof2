@@ -1,209 +1,128 @@
-import { useEffect } from "react";
-import { useSearchParams } from "react-router-dom";
-import type { Models, ModelsHistory } from "../../contract/types";
-import { useDataState, useRegistry } from "../../data/DataProvider";
-import { useArtefact } from "../../data/store";
+import type { Models, Strategy } from "../../contract/types";
+import { useData, useDataState, useRegistry } from "../../data/DataProvider";
+import { unready, useArtefact } from "../../data/store";
 import { ModelHistoryView } from "../history/ModelHistoryView";
 import "../history/history.css";
-import { useLog } from "../log/useLog";
 import { AccuracySection } from "./AccuracySection";
-import type { XpAccuracy } from "./accuracy";
-import { HindsightSection } from "./HindsightSection";
-import { ModelBadge } from "./ModelBadge";
 import { ComparePanel } from "./ComparePanel";
 import { ModelsSeasonView } from "./ModelsSeasonView";
-import { ProvisionalBadge } from "./ProvisionalBadge";
+import { ModelStatus, ProvisionalNote, unavailableNow } from "./ModelStatus";
 import "./models.css";
 import "./modelsPage.css";
 
-const SECTIONS = [
-  ["compare", "Compare"],
-  ["summary", "Summary"],
-  ["details", "Details"],
-  ["accuracy", "Accuracy"],
-  ["hindsight", "Hindsight"],
-  ["history", "History"],
-] as const;
+function roleText({ role, published }: Strategy): string {
+  if (role === "champion") return "Champion: its advice is the live advice";
+  if (role === "experiment") return "Experiment, not published";
+  return published ? "Comparison, run every refresh" : "Comparison, not yet run live";
+}
 
-
-function unavailableNow(models: Models | null, m: string): string | null {
+function nowText(models: Models | null, s: Strategy): string {
+  const unavailable = unavailableNow(models, s.id);
+  if (unavailable) return unavailable;
   const last = models?.gameweeks[models.gameweeks.length - 1];
-  const a = last?.availability?.[m];
-  return a && a.available === false ? `Unavailable for GW${last?.gameweek}${a.reason ? `: ${a.reason}` : ""}` : null;
+  if (last?.advice[s.id]) return `Advice published for GW${last.gameweek}`;
+  return s.published ? "No advice in the season record yet" : "Not run live";
 }
 
-/** (a) One row per model. */
-function SummaryTable({ history, accuracy, models }: { history: ModelsHistory | null; accuracy: XpAccuracy | null; models: Models | null }) {
-  const registry = useRegistry();
-  const back = new Map(history?.summary.map((s) => [s.model, s]) ?? []);
-  const acc = (season: string) => accuracy?.seasons.find((s) => s.season === season);
-  const a2526 = acc("2025/26");
-  const a2627 = acc("2026/27");
-  const f = (v: number | undefined, dp: number) => (v === undefined ? "—" : v.toFixed(dp));
-  return (
-    <div className="table-scroll" tabIndex={0} role="region" aria-labelledby="models-summary-heading">
-      <table className="models-table models-summary" data-testid="models-summary">
-        <thead>
-          <tr>
-            <th scope="col">Model</th>
-            <th scope="col">What it is</th>
-            <th scope="col">
-              Backtest XI pts/GW <span className="history-sub">2025/26</span>
-            </th>
-            <th scope="col">
-              xP MAE <span className="history-sub">2025/26</span>
-            </th>
-            <th scope="col">
-              xP MAE <span className="history-sub">2026/27 live</span>
-            </th>
-            <th scope="col">Status / caveat</th>
-          </tr>
-        </thead>
-        <tbody>
-          {registry.entries.filter((e) => e.role !== "retired").map(({ id: m, description, role, published }) => {
-            const b = back.get(m);
-            const now = unavailableNow(models, m);
-            const last = models?.gameweeks[models.gameweeks.length - 1];
-            const prov = !!last?.provisional && last.advice[m] !== undefined;
-            return (
-              <tr key={m} data-testid={`models-summary-${m}`}>
-                <th scope="row">
-                  <ModelBadge model={m} />
-                  {prov && (
-                    <>
-                      {" "}
-                      <ProvisionalBadge testId={`summary-provisional-${m}`} />
-                    </>
-                  )}
-                </th>
-                <td className="models-what">{description}</td>
-                <td data-testid={`summary-xi-${m}`}>{f(b?.mean_per_gameweek, 2)}</td>
-                <td data-testid={`summary-mae-${m}`}>{f(a2526?.pooled_mae[m], 3)}</td>
-                <td data-testid={`summary-live-mae-${m}`}>{f(a2627?.pooled_mae[m], 3)}</td>
-                <td className="models-what">
-                  <strong>
-                    {role === "champion"
-                      ? "Champion — live advice"
-                      : role === "experiment"
-                        ? "Experiment, not published"
-                        : published
-                          ? "Comparison"
-                          : "Comparison, not yet live"}
-                    .
-                  </strong>
-                  {now ? <span className="models-unavailable"> {now}.</span> : null}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-}
+const HISTORY_ABSENT = "The models history has not been published yet.";
 
 /**
- * `/models` — every frozen model on one page: (a) summary, (b) per-model details, (c) xP accuracy,
- * (d) history (the backtest's models history; the live season is under Details). `/history` redirects to the History
- * section. Every part degrades on its own: a missing file hides or explains its section only.
+ * `/models` — what each model is, from `strategies.json`: its role, what it plans, whether it is
+ * advising now; then this gameweek's advice compared. This season is `/models/season`, the 2025/26
+ * playthrough `/models/2025-26` (WEB-10).
  */
 export function ModelsPage() {
   const { state } = useDataState();
   const data = state.status === "ready" ? state.data : null;
-  const history = useArtefact("models_history");
-  const accuracy = useArtefact("xp_accuracy");
-  const { state: logState } = useLog();
-  const [params] = useSearchParams();
-  const section = params.get("section");
-  const allLoaded = history.status === "ready" && accuracy.status === "ready";
-  useEffect(() => {
-    if (section && allLoaded) document.getElementById(`models-${section}`)?.scrollIntoView?.({ block: "start" });
-  }, [section, allLoaded]);
-  const models = data?.models ?? null;
+  const history = useArtefact("models_history").state;
   const registry = useRegistry();
+  const models = data?.models ?? null;
 
   return (
     <div className="models-page" data-testid="models-page">
       <h1 className="models-page-title">Models</h1>
-      <nav className="models-page-nav" aria-label="Models page sections">
-        {SECTIONS.map(([id, label]) => (
-          <a key={id} href={`#/models?section=${id}`} data-testid={`models-jump-${id}`}>
-            {label}
-          </a>
-        ))}
-      </nav>
-
-      {data && <ComparePanel data={data} history={history.data} />}
-
-      <section className="models-page-section" id="models-summary" aria-labelledby="models-summary-heading">
-        <h2 id="models-summary-heading">Summary</h2>
-        {models?.provisional && (
-          <p className="models-provisional-note" data-testid="models-provisional-note">
-            <ProvisionalBadge testId="models-provisional-banner" /> GW
-            {models.gameweeks[models.gameweeks.length - 1]?.gameweek} advice is a preview of each model’s current pick. It
-            freezes at the decision window before the deadline, when the frozen decision replaces it.
-          </p>
-        )}
-        <SummaryTable history={history.data} accuracy={accuracy.data} models={models} />
-        <p className="models-note">
-          Backtest XI pts/GW: realistic walk-forward 2025/26 (auto-subs, vice fallback, hits, no chips) — not real play. xP
-          MAE: all-player mean absolute error of next-GW xP, lower is better. “—” = no data for that model.
-        </p>
-      </section>
-
-      <section className="models-page-section" id="models-details" aria-labelledby="models-details-heading">
-        <h2 id="models-details-heading">Details</h2>
-        <div className="models-detail-grid" data-testid="models-details">
-          {registry.entries.filter((e) => e.role !== "retired").map((e) => {
-            const b = history.data?.summary.find((x) => x.model === e.id);
-            return (
-              <article key={e.id} className="models-detail-card" data-testid={`models-detail-${e.id}`}>
+      <ProvisionalNote models={models} />
+      <section className="models-page-section" aria-labelledby="models-outline-heading">
+        <h2 id="models-outline-heading">What each model is</h2>
+        <div className="models-detail-grid" data-testid="models-outline">
+          {registry.entries
+            .filter((e) => e.role !== "retired")
+            .map((e) => (
+              <article key={e.id} className="models-detail-card" data-testid={`models-outline-${e.id}`}>
                 <h3>
-                  {e.label} <span className="history-sub">({e.id})</span>
+                  {e.label}
+                  <ModelStatus models={models} id={e.id} testId={`outline-${e.id}`} />
                 </h3>
                 <p>{e.description}</p>
                 <dl>
                   <div>
                     <dt>Role</dt>
-                    <dd>
-                      {e.role}
-                      {e.published ? ", published" : ", not yet published"}
-                    </dd>
+                    <dd data-testid={`outline-role-${e.id}`}>{roleText(e)}</dd>
                   </div>
-                  {b && (
-                    <div>
-                      <dt>2025/26 backtest</dt>
-                      <dd>
-                        {Math.round(b.total)} pts, rank {b.final_rank} of {history.data?.summary.length}
-                      </dd>
-                    </div>
-                  )}
+                  <div>
+                    <dt>Plans</dt>
+                    <dd>{e.plan ? "A multi-gameweek plan, with chips" : "This gameweek only, without chips"}</dd>
+                  </div>
+                  <div>
+                    <dt>Now</dt>
+                    <dd data-testid={`outline-now-${e.id}`}>{nowText(models, e)}</dd>
+                  </div>
                 </dl>
               </article>
-            );
-          })}
+            ))}
         </div>
-        {data && <ModelsSeasonView models={data.models} />}
       </section>
 
-      <AccuracySection accuracy={accuracy.data} status={accuracy.status === "loading" ? "loading" : "ready"} />
+      {data && (
+        <ComparePanel
+          data={data}
+          history={history.status === "ready" ? history.data : null}
+          historyWhy={unready(history, HISTORY_ABSENT)}
+        />
+      )}
+    </div>
+  );
+}
 
-      <HindsightSection
-        log={logState.status === "ready" ? logState.log : null}
-        players={data?.players ?? null}
-        status={logState.status}
-      />
+/**
+ * `/models/season` — the live season: the ladder of each model's advice on your squad and how its
+ * xP compared with the points scored. Drop B adds the "as if played" ladder (ORC-13) and underlying
+ * xP (ORC-12) here.
+ */
+export function ModelsSeasonPage() {
+  const { models } = useData();
+  return (
+    <div className="models-page" data-testid="models-season-page">
+      <ProvisionalNote models={models} />
+      <ModelsSeasonView models={models} />
+      <AccuracySection kinds={["replay", "prospective"]} />
+    </div>
+  );
+}
 
-      <section className="models-page-section" id="models-history" aria-labelledby="models-history-heading">
-        <h2 id="models-history-heading">History</h2>
-        {history.status === "loading" ? (
-          <p data-testid="history-loading">Loading the model history…</p>
-        ) : history.data ? (
-          <ModelHistoryView history={history.data} />
-        ) : (
-          <p data-testid="history-absent">The models history has not been published yet.</p>
-        )}
-      </section>
+/** `/models/2025-26` — how each model would have played 2025/26 (the backtest's models history). */
+export function ModelsBacktestPage() {
+  const { state: history, retry } = useArtefact("models_history");
+  return (
+    <div className="models-page" data-testid="models-backtest">
+      {history.status === "loading" ? (
+        <p data-testid="history-loading">Loading the model history…</p>
+      ) : history.status === "ready" ? (
+        <ModelHistoryView history={history.data} />
+      ) : (
+        <section className="models-page-section">
+          <h2>Past-season playthrough</h2>
+          <p data-testid="history-absent">
+            {history.status === "absent" ? HISTORY_ABSENT : `The models history is unavailable: ${unready(history, HISTORY_ABSENT)}`}{" "}
+            {history.status !== "absent" && (
+              <button type="button" onClick={retry}>
+                Try again
+              </button>
+            )}
+          </p>
+        </section>
+      )}
+      <AccuracySection kinds={["backtest"]} />
     </div>
   );
 }

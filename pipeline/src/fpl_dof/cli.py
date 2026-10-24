@@ -152,12 +152,38 @@ def build_parser() -> argparse.ArgumentParser:
         "history kept before ingest checked each capture (ORC-10).",
     )
 
+    contract_parser = subparsers.add_parser("contract", help="Web contract utilities")
+    contract_sub = contract_parser.add_subparsers(dest="contract_command", required=True)
+    types_parser = contract_sub.add_parser(
+        "types", help="Write web/src/contract/types.ts from contracts/ (WEB-03)."
+    )
+    types_parser.add_argument(
+        "--check",
+        action="store_true",
+        help="Write nothing; exit non-zero when the checked-in file differs.",
+    )
+
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    if args.command == "contract":
+        from fpl_dof.publish import Contract, find_contracts_root, generate, write_types
+
+        contracts = find_contracts_root()
+        target = contracts.parent / "web" / "src" / "contract" / "types.ts"
+        schemas = Contract(root=contracts)
+        if not args.check:
+            print(f"wrote {write_types(schemas, target)}")
+            return EXIT_OK
+        # Line endings are git's business (autocrlf), not a difference in the contract.
+        if target.read_text(encoding="utf-8") == generate(schemas):
+            return EXIT_OK
+        print(f"{target} differs from the contracts: run `fpl-dof contract types`", file=sys.stderr)
+        return EXIT_STAGE_FAILED
 
     # Command-line overrides are expressed as environment overrides so there is exactly one
     # precedence order in the system, defined in the config loader.

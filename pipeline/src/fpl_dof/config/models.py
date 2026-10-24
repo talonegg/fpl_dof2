@@ -13,7 +13,7 @@ import datetime as dt
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 
 from fpl_dof.triggers import MANUAL, TRIGGER_STAMP
 
@@ -1421,13 +1421,18 @@ class ForecastConfig(_Section):
     ``published`` decides which of the two the app actually reads.
     """
 
-    horizon_gameweeks: int = Field(default=6, ge=1, le=38)
-    horizon_discount: float = Field(
-        default=0.92,
-        gt=0,
-        le=1,
-        description="Per-gameweek discount on future value. Nearer gameweeks are more knowable.",
-    )
+    _horizon: HorizonConfig = PrivateAttr(default_factory=lambda: HorizonConfig())
+
+    @property
+    def horizon_gameweeks(self) -> int:
+        """``decision.horizon.gameweeks``, the one planning horizon (DL-78)."""
+        return self._horizon.gameweeks
+
+    @property
+    def horizon_discount(self) -> float:
+        """``decision.horizon.discount``, the one planning discount (DL-78)."""
+        return self._horizon.discount
+
     defensive_contribution_seasons: tuple[str, ...] = Field(
         default=("2025/26",),
         description=(
@@ -1544,6 +1549,17 @@ class ChipReplayConfig(_Section):
         default=1,
         ge=0,
         description="Free transfers the replayed squad starts each sampled deadline with.",
+    )
+    timing_experiment: bool = Field(
+        default=False,
+        description=(
+            "Whether `fpl-dof backtest` also replays chip timing as the declared experiment "
+            "`d21_chip_timing` (EXP-02): every sampled deadline at every dial in "
+            "`decision.simulation.percentile_by_dial`, re-rank off and on, the latter with and "
+            "without the discount inside the percentile. Off by default because it costs about "
+            "a model refit plus nine plans a deadline; the weekly CI backtest turns it on "
+            "(config/ci-backtest.yaml). It changes no live advice."
+        ),
     )
 
 
@@ -2015,6 +2031,17 @@ class SimulationConfig(_Section):
             "Bench Boost and Triple Captain are exactly the decisions the mean cannot see."
         ),
     )
+    undiscounted_percentile: bool = Field(
+        default=True,
+        description=(
+            "Whether the re-rank's percentile is taken over the plan's points *without* the "
+            "per-gameweek horizon discount (D-21, DL-96). On: the discount stays in the MILP's "
+            "objective, where it is a time preference over means, and is kept out of the "
+            "percentile, where it shrinks a later week's upside tail and pulled chips to the "
+            "first horizon gameweek (EXP-02: 4 of 8 replayed deadlines as discounted, 0-1 of 8 "
+            "undiscounted, at every dial). Off reproduces the re-rank shipped before DL-96."
+        ),
+    )
 
 
 class DecisionConfig(_Section):
@@ -2143,15 +2170,6 @@ class TransferConfig(_Section):
         description=(
             "Expected points a hit must gain *beyond* its 4-point cost before it is recommended. "
             "Zero means break-even is enough; raise it to demand a margin against forecast error."
-        ),
-    )
-    horizon_gameweeks: int = Field(
-        default=1,
-        ge=1,
-        le=38,
-        description=(
-            "Gameweeks the transfer decision is judged over. E1 is single-gameweek by scope; the "
-            "multi-gameweek version is E4."
         ),
     )
 
@@ -2534,3 +2552,9 @@ class Config(_Section):
     decision: DecisionConfig = DecisionConfig()
     publish: PublishConfig = PublishConfig()
     schedule: ScheduleConfig = ScheduleConfig()
+
+    @model_validator(mode="after")
+    def _one_horizon(self) -> Config:
+        """The forecast sums over the plan's horizon; there is no second one (DL-78)."""
+        self.forecast._horizon = self.decision.horizon
+        return self

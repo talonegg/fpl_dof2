@@ -1,15 +1,17 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { Link, Outlet } from "react-router-dom";
 import { useDataState } from "../data/DataProvider";
 import { isOlderMinor } from "../data/compat";
 import { Header } from "../components/Header";
 import { ThemeToggle } from "./ThemeToggle";
 import { LockButton } from "../gate/PasswordGate";
-import { NAV_ITEMS } from "../routes/nav";
+import { BottomBar, SectionTabs, TopNav } from "./Nav";
 import { ModelSelector } from "../components/models/ModelSelector";
 import { SourceAlerts } from "./SourceAlerts";
 
 /**
- * The persistent shell: brand, navigation, theme control, then the active route.
+ * The persistent shell: brand, the eight sections (a bottom bar on narrow screens), the theme control
+ * and the gear for Settings; then the global header (run banner and model selector), the section's
+ * sub-tabs and the active route (WEB-07).
  *
  * The loading and error states are rendered here, once, rather than in each view — so `useData()`
  * inside a route is unconditional and every view degrades the same way (DP-15). The nav stays on
@@ -25,24 +27,11 @@ export function AppLayout() {
       <header className="app-topbar" data-testid="app-nav">
         <div className="app-topbar-inner">
           <h1 className="app-nav-brand">FPL DOF</h1>
-          <nav className="app-nav" aria-label="Main">
-            <ul className="app-nav-links">
-              {NAV_ITEMS.map((item) => (
-                <li key={item.path}>
-                  <NavLink
-                    to={item.path}
-                    end={item.path === "/"}
-                    className={({ isActive }) => `app-nav-link${isActive ? " active" : ""}`}
-                    data-testid={`nav-${item.label.toLowerCase()}`}
-                  >
-                    <span className="app-nav-link-full">{item.label}</span>
-                    <span className="app-nav-link-short">{item.shortLabel}</span>
-                  </NavLink>
-                </li>
-              ))}
-            </ul>
-          </nav>
+          <TopNav />
           <ThemeToggle />
+          <Link to="/settings" className="theme-toggle" aria-label="Settings" title="Settings" data-testid="nav-settings">
+            <span aria-hidden="true">⚙</span>
+          </Link>
           <LockButton />
         </div>
       </header>
@@ -83,15 +72,18 @@ export function AppLayout() {
                 newer details may be missing. It will resolve itself at the next publication.
               </p>
             )}
-            <Header meta={state.data.meta} />
+            <Header meta={state.data.meta}>
+              <ModelSelector />
+            </Header>
             <SourceAlerts data={state.data} />
-            <ModelSelector />
+            <SectionTabs />
             <main>
               <Outlet />
             </main>
           </>
         )}
       </div>
+      <BottomBar />
     </div>
   );
 }

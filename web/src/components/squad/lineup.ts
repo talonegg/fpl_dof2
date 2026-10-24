@@ -19,6 +19,8 @@ export interface LineupCandidate {
   position: Position;
   /** Expected points for the coming gameweek. The XI is picked for the next deadline, not the horizon. */
   xp_next: number;
+  /** P(plays): discounts a substitute's worth, since he scores only if he comes on. */
+  start_probability: number;
 }
 
 export interface Lineup {
@@ -40,6 +42,14 @@ export interface Lineup {
  */
 function byExpectedPoints(a: LineupCandidate, b: LineupCandidate): number {
   return b.xp_next - a.xp_next || a.player_id - b.player_id;
+}
+
+/**
+ * Bench order: P(plays) × xP, then id — `bench_value` in `squad/selection.py`, held to it by
+ * `contracts/conformance/lineup-corpus.json` (owner answer Q2).
+ */
+export function byBenchValue(a: LineupCandidate, b: LineupCandidate): number {
+  return b.xp_next * b.start_probability - a.xp_next * a.start_probability || a.player_id - b.player_id;
 }
 
 /**
@@ -84,7 +94,7 @@ export function chooseLineup(players: readonly LineupCandidate[], rules: Rules):
     const ranked = [...starters].sort(byExpectedPoints);
     const bench = players
       .filter((player) => !startingIds.has(player.player_id) && player.position !== "GKP")
-      .sort(byExpectedPoints);
+      .sort(byBenchValue);
 
     best = {
       starting: starters.map((player) => player.player_id),

@@ -21,7 +21,7 @@ from fpl_dof.config.models import Config
 from fpl_dof.gameweek import Due, SilverTables, season_states
 from fpl_dof.paths import DataLayout
 from fpl_dof.pipeline import StageContext
-from fpl_dof.publish.benchmark import build_live_xp_accuracy
+from fpl_dof.publish.benchmark import build_live_xp_accuracy, with_record
 from fpl_dof.publish.contract import CONTRACT_VERSION, Contract, find_contracts_root
 from fpl_dof.publish.season_log import build_log
 from fpl_dof.rules.models import GameRules, Position
@@ -308,6 +308,24 @@ def test_the_evaluation_scores_each_strategy_and_its_xp(game_rules: GameRules) -
     assert accuracy is not None
     Contract(root=find_contracts_root()).validate("xp_accuracy", accuracy)
     assert accuracy["seasons"][0]["pooled_mae"]["c3"] == c3["xp_accuracy"]["mae"]
+
+
+def test_the_published_xp_accuracy_carries_the_2025_26_record_forward() -> None:
+    """WEB-04: the frozen-era backtest season is in every publication, live season or not."""
+    contract = Contract(root=find_contracts_root())
+    alone = with_record(None)
+    contract.validate("xp_accuracy", alone)
+    assert [(s["season"], s["kind"]) for s in alone["seasons"]] == [("2025/26", "backtest")]
+    live = {"seasons": [{**alone["seasons"][0], "season": SEASON, "kind": "prospective"}]}
+    merged = with_record(live)
+    contract.validate("xp_accuracy", merged)
+    assert [(s["season"], s["kind"]) for s in merged["seasons"]] == [
+        ("2025/26", "backtest"),
+        (SEASON, "prospective"),
+    ]
+    # A live season of the same season and kind replaces the recorded one.
+    replaced = with_record({"seasons": [{**alone["seasons"][0], "pooled_mae": {"c3": 1.0}}]})
+    assert [s["pooled_mae"] for s in replaced["seasons"]] == [{"c3": 1.0}]
 
 
 def test_a_gameweek_waits_for_complete_evidence() -> None:

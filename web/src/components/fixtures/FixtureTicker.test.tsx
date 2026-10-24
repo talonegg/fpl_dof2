@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { MemoryRouter } from "react-router-dom";
 import type { Fixtures } from "../../contract/types";
 import { fixtureGrid } from "../../test/fixtures";
 import { FixtureTicker } from "./FixtureTicker";
 
 function renderTicker(fixtures: Fixtures = fixtureGrid) {
-  return render(<FixtureTicker fixtures={fixtures} />);
+  return render(
+    <MemoryRouter>
+      <FixtureTicker fixtures={fixtures} />
+    </MemoryRouter>,
+  );
 }
 
 function rowOrder(): string[] {

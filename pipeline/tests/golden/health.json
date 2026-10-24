@@ -171,7 +171,7 @@
     "duration_seconds": "<masked>",
     "finished_at": null,
     "gates_failed": 0,
-    "r_squared_on_price": 0.3705,
+    "r_squared_on_price": 0.3408,
     "rows": {
      "chip": 8,
      "fixture": 12,

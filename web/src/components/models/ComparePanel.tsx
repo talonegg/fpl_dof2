@@ -36,7 +36,16 @@ function Cell({ differs, children, testId }: { differs: boolean; children: React
  * baseline (the champion unless it is deselected), the players they disagree on with the xP their
  * week artefacts carry, and how each has performed. Every published strategy is selected by default.
  */
-export function ComparePanel({ data, history }: { data: PublishedData; history: ModelsHistory | null }) {
+export function ComparePanel({
+  data,
+  history,
+  historyWhy,
+}: {
+  data: PublishedData;
+  history: ModelsHistory | null;
+  /** Why the backtest columns are empty, when the models history is not ready. */
+  historyWhy: string | null;
+}) {
   const { registry, weeks, plans, players, models } = data;
   const published = registry.entries.filter((e) => e.published);
   const [off, setOff] = useState<ReadonlySet<string>>(new Set());
@@ -221,11 +230,9 @@ export function ComparePanel({ data, history }: { data: PublishedData; history: 
           <thead>
             <tr>
               <th scope="col">Strategy</th>
-              <th scope="col">
-                2025/26 backtest pts/GW
-              </th>
+              <th scope="col">{history?.season ?? "Backtest"} backtest pts/GW</th>
               <th scope="col">Δ vs champion / GW</th>
-              <th scope="col">2026/27 live total</th>
+              <th scope="col">{models?.season ?? "This season"} live total</th>
             </tr>
           </thead>
           <tbody>
@@ -245,9 +252,14 @@ export function ComparePanel({ data, history }: { data: PublishedData; history: 
         </table>
       </div>
       <p className="models-note">
-        The backtest is a walk-forward replay of 2025/26, not real play; a handful of live gameweeks cannot separate the
-        strategies. The full history is further down this page.
+        The backtest is a walk-forward replay of {history?.season ?? "a past season"}, not real play; a handful of live
+        gameweeks cannot separate the strategies. The full playthrough is on its own tab.
       </p>
+      {historyWhy && (
+        <p className="models-note" data-testid="compare-history-unavailable">
+          The backtest columns are empty: {historyWhy}
+        </p>
+      )}
     </section>
   );
 }

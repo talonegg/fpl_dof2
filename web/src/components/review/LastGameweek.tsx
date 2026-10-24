@@ -1,0 +1,352 @@
+import { useId, useMemo, useState } from "react";
+import type { ReactNode } from "react";
+import type { LogGameweek, LogHindsightOptimal, LogHindsightPlan, LogOracleDiagnostic, ModelGameweek } from "../../contract/types";
+import { useData, useRegistry } from "../../data/DataProvider";
+import { modelLabel, orderIds, resolveModel } from "../../data/registry";
+import { transfersText } from "../../data/season";
+import { useArtefact } from "../../data/store";
+import { formatPoints } from "../../format";
+import { ModelBadge } from "../models/ModelBadge";
+import { rankBy } from "../models/rank";
+import "../models/models.css";
+import "../models/modelsPage.css";
+import "./review.css";
+
+/** The owner's own row in the evaluation's rankings: the one that is not a strategy. */
+const PLAYED = "played";
+
+const hits = (n: number) => (n === 0 ? "—" : `−${Math.abs(n)}`);
+const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${-n}` : "±0");
+const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
+
+const CATEGORY: Record<LogOracleDiagnostic["category"], string> = {
+  model_blindspot: "Model blind spot",
+  high_variance_outlier: "High-variance haul",
+  captaincy_trap: "Captaincy trap",
+};
+
+interface Row {
+  key: string;
+  who: ReactNode;
+  did: string;
+  xp: number | null;
+  points: number | null;
+}
+
+/** What you did, from the game's record and the reconciliation against the advice. */
+function playedText(gw: LogGameweek | undefined, name: (id: number | null) => string): string {
+  if (!gw) return "Not in the season log";
+  const parts = [`captain ${name(gw.played.captain)}`];
+  if (gw.score) parts.unshift(`${plural(gw.score.transfers, "transfer")}${gw.score.transfers_cost ? ` (${hits(gw.score.transfers_cost)})` : ""}`);
+  if (gw.chip) parts.push(`chip ${gw.chip}`);
+  const r = gw.reconciliation;
+  const unexplained = r?.divergences.filter((d) => d.status === "unexplained").length ?? 0;
+  parts.push(
+    !r
+      ? "no advice recorded"
+      : r.followed
+        ? "followed the advice"
+        : unexplained > 0
+          ? `${plural(unexplained, "unexplained difference")} from the advice`
+          : "overrode the advice",
+  );
+  return parts.join(" · ");
+}
+
+function movesText(plan: LogHindsightPlan): string {
+  return plan.moves.length === 0 ? "Roll" : plan.moves.map((m) => `${m.player_out_name} → ${m.player_in_name}`).join(", ");
+}
+
+const same = (a: LogHindsightPlan | null, b: LogHindsightPlan) => a !== null && JSON.stringify(a) === JSON.stringify(b);
+
+/** The hindsight options: every choice the optimiser weighed, scored on the points that happened. */
+function OptionsTable({ gameweek, optimal }: { gameweek: number; optimal: LogHindsightOptimal }) {
+  const fallback = [optimal.baseline_roll, optimal.optimal_single, optimal.optimal_overall].filter(
+    (p, i, all): p is LogHindsightPlan => p !== null && all.findIndex((q) => same(q, p)) === i,
+  );
+  const options = optimal.all_options.length > 0 ? optimal.all_options : fallback;
+  const tags = (p: LogHindsightPlan) =>
+    [
+      same(optimal.baseline_roll, p) && "roll",
+      same(optimal.optimal_single, p) && "best single transfer",
+      same(optimal.optimal_overall, p) && "best overall",
+    ]
+      .filter(Boolean)
+      .join(", ");
+  return (
+    <div className="table-scroll" tabIndex={0} role="region" aria-labelledby="review-options-caption">
+      <table className="models-table" data-testid="review-options">
+        <caption id="review-options-caption" className="models-caption">
+          GW{gameweek} hindsight options, scored on the points that happened
+        </caption>
+        <thead>
+          <tr>
+            <th scope="col">Option</th>
+            <th scope="col">Moves</th>
+            <th scope="col">Captain</th>
+            <th scope="col">Before hits</th>
+            <th scope="col">Hits</th>
+            <th scope="col">Net</th>
+            <th scope="col">Gain over roll</th>
+          </tr>
+        </thead>
+        <tbody>
+          {options.map((p, i) => {
+            const tag = tags(p);
+            return (
+              <tr key={i} data-testid={`review-option-${i}`} className={same(optimal.optimal_overall, p) ? "is-best" : undefined}>
+                <th scope="row">
+                  {plural(p.transfers_count, "transfer")}
+                  {tag && <span className="review-tag"> {tag}</span>}
+                </th>
+                <td className="models-what">{movesText(p)}</td>
+                <td>{p.captain_name}</td>
+                <td>{p.points_before_hits}</td>
+                <td>{hits(p.hit_points)}</td>
+                <td>
+                  <strong>{p.net_points}</strong>
+                </td>
+                <td>{signed(Math.round(p.gain_over_roll))}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** The players who decided the optimum, and why the models missed them. */
+function Diagnostics({ diagnostics }: { diagnostics: LogOracleDiagnostic[] }) {
+  const registry = useRegistry();
+  if (diagnostics.length === 0) return <p className="models-note">Nothing stood out: no blind spot, haul or captaincy trap.</p>;
+  const label = (key: string) => modelLabel(registry, resolveModel(registry, key) ?? key);
+  return (
+    <>
+      {/* The published models_xp is each model's team xP over the armband, keyed by its own captain,
+          not the player's xP, so it is not shown until the pipeline publishes it (debt register). */}
+      <p className="models-note" data-testid="review-diagnostics-xp-note">
+        Each model&rsquo;s xP for these players is not yet published reliably, so it is not shown here.
+      </p>
+      <ul className="review-diagnostics" data-testid="review-diagnostics">
+        {diagnostics.map((d) => (
+          <li key={`${d.role}-${d.player_id}`} className="review-diagnostic" data-testid={`review-diagnostic-${d.player_id}`}>
+            <p>
+              <span className="review-tag">{CATEGORY[d.category]}</span> <strong>{d.player_name}</strong>,{" "}
+              {d.role === "captain" ? "the optimum's captain" : "brought in by the optimum"}: {d.actual_points} pts
+            </p>
+            <p>{d.explanation}</p>
+            {d.models_trapped.length > 0 && <p>Caught out: {d.models_trapped.map(label).join(", ")}.</p>}
+          </li>
+        ))}
+      </ul>
+    </>
+  );
+}
+
+/**
+ * `/review` — one evaluated gameweek (the latest by default, any earlier one by choice): every
+ * model's advice against what you played and against what happened, the hindsight optimum with its
+ * options, and the players that decided it (WEB-11). Points come from `models.json` and `log.json`;
+ * either missing leaves the other's rows standing (DP-15). Drop B sets each model's own options
+ * (ORC-11) beside the hindsight options.
+ */
+export function LastGameweek() {
+  const { players, models } = useData();
+  const registry = useRegistry();
+  const { state, retry } = useArtefact("log");
+  const selectId = useId();
+  const log = state.status === "ready" ? state.data : null;
+  const names = useMemo(() => new Map(players.players.map((p) => [p.id, p.name])), [players]);
+  const name = (id: number | null) => (id === null ? "—" : (names.get(id) ?? `#${id}`));
+
+  const gameweeks = useMemo(
+    () =>
+      [
+        ...new Set([
+          ...(log?.gameweeks.filter((g) => g.score !== null || g.hindsight).map((g) => g.gameweek) ?? []),
+          ...(models?.gameweeks.filter((g) => g.actual).map((g) => g.gameweek) ?? []),
+        ]),
+      ].sort((a, b) => a - b),
+    [log, models],
+  );
+  const [chosen, setChosen] = useState<number | null>(null);
+  const gameweek = chosen ?? gameweeks[gameweeks.length - 1] ?? null;
+
+  if (state.status === "loading") {
+    return (
+      <section className="models-page" data-testid="review-loading">
+        <h1>Last gameweek</h1>
+        <p>Loading the season log…</p>
+      </section>
+    );
+  }
+
+  const logProblem =
+    state.status === "absent"
+      ? "No season log is published yet, so your points and the hindsight optimum are missing."
+      : state.status !== "ready"
+        ? "The season log could not be loaded, so your points and the hindsight optimum are missing."
+        : null;
+
+  if (gameweek === null) {
+    return (
+      <section className="models-page" data-testid="review-empty">
+        <h1>Last gameweek</h1>
+        <p>Nothing has been evaluated yet. A gameweek appears here once it is finished and its points are scored.</p>
+        {logProblem && <p>{logProblem}</p>}
+      </section>
+    );
+  }
+
+  const lg = log?.gameweeks.find((g) => g.gameweek === gameweek);
+  const mg: ModelGameweek | undefined = models?.gameweeks.find((g) => g.gameweek === gameweek);
+  const hindsight = lg?.hindsight ?? null;
+  const ranking = new Map(
+    (hindsight?.rankings ?? []).map((r) => [r.model_name === PLAYED ? PLAYED : (resolveModel(registry, r.model_name) ?? r.model_name), r]),
+  );
+  const ids = orderIds(registry, [...(models?.models.map((m) => m.id) ?? []), ...[...ranking.keys()].filter((k) => k !== PLAYED)]);
+  const you = ranking.get(PLAYED);
+  const yours = lg?.score?.points ?? you?.score.net_points ?? null;
+
+  const rows: Row[] = [
+    {
+      key: PLAYED,
+      who: <strong>You</strong>,
+      did: playedText(lg, name),
+      // Your team carries no forecast of its own; the advice's xP is on the champion's row.
+      xp: null,
+      points: yours,
+    },
+    ...ids.map((m): Row => {
+      const advice = mg?.advice[m];
+      const rk = ranking.get(m);
+      const availability = mg?.availability[m];
+      return {
+        key: m,
+        who: <ModelBadge model={m} />,
+        did: advice
+          ? `${transfersText(advice)} · captain ${advice.captain_name}`
+          : rk
+            ? `captain ${name(rk.score.captain_id)}`
+            : availability?.available === false
+              ? `Unavailable${availability.reason ? `: ${availability.reason}` : ""}`
+              : "No advice recorded",
+        xp: advice?.expected_points ?? rk?.score.expected_points ?? null,
+        points: mg?.actual?.[m]?.points ?? rk?.score.net_points ?? null,
+      };
+    }),
+  ];
+  const ranked = rankBy(rows, (r) => r.points);
+  const optimum = hindsight?.optimal?.optimal_overall ?? null;
+
+  return (
+    <div className="models-page" data-testid="review">
+      <h1>Last gameweek</h1>
+      <div className="review-picker">
+        <label htmlFor={selectId}>Gameweek</label>
+        <select
+          id={selectId}
+          value={gameweek}
+          onChange={(e) => setChosen(Number(e.target.value))}
+          data-testid="review-gameweek"
+        >
+          {gameweeks.map((g) => (
+            <option key={g} value={g}>
+              GW{g}
+              {g === gameweeks[gameweeks.length - 1] ? " (latest)" : ""}
+            </option>
+          ))}
+        </select>
+      </div>
+      {logProblem && (
+        <p className="models-note" data-testid="review-log-problem">
+          {logProblem}{" "}
+          <button type="button" onClick={retry}>
+            Try again
+          </button>
+        </p>
+      )}
+      {mg && mg.record !== "live" && (
+        <p className="models-note" data-testid="review-frozen-note">
+          GW{gameweek} is from the frozen record: each model&rsquo;s points are its own virtual team&rsquo;s, not advice on your
+          squad.
+        </p>
+      )}
+
+      <section className="models-page-section" aria-labelledby="review-models-caption">
+        <div className="table-scroll" tabIndex={0} role="region" aria-labelledby="review-models-caption">
+          <table className="models-table" data-testid="review-models">
+            <caption id="review-models-caption" className="models-caption">
+              GW{gameweek}: each model&rsquo;s advice against what you played and what happened
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col">Rank</th>
+                <th scope="col">Who</th>
+                <th scope="col">Advice, or what you did</th>
+                <th scope="col">xP before the deadline</th>
+                <th scope="col">Points</th>
+                <th scope="col">Against you</th>
+              </tr>
+            </thead>
+            <tbody>
+              {optimum && (
+                <tr data-testid="review-row-optimum" className="is-best">
+                  <td>—</td>
+                  <th scope="row">Hindsight optimum</th>
+                  <td className="models-what">
+                    {movesText(optimum)} · captain {optimum.captain_name} (the best legal move, knowing the points)
+                  </td>
+                  <td>—</td>
+                  <td data-testid="review-points-optimum">
+                    <strong>{optimum.net_points}</strong>
+                  </td>
+                  <td>{yours === null ? "—" : signed(optimum.net_points - yours)}</td>
+                </tr>
+              )}
+              {ranked.map(({ item: r, rank }) => (
+                <tr key={r.key} data-testid={`review-row-${r.key}`}>
+                  <td>{rank ?? "—"}</td>
+                  <th scope="row">{r.who}</th>
+                  <td className="models-what" data-testid={`review-did-${r.key}`}>
+                    {r.did}
+                  </td>
+                  <td>{r.xp === null ? "—" : formatPoints(r.xp)}</td>
+                  <td data-testid={`review-points-${r.key}`}>{r.points === null ? "—" : Math.round(r.points)}</td>
+                  <td>{r.key === PLAYED || r.points === null || yours === null ? "—" : signed(Math.round(r.points - yours))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <p className="models-note">
+          Points are the final XI after automatic substitutions and the captain&rsquo;s armband, net of hits. Against you is
+          each row&rsquo;s points minus yours.
+        </p>
+      </section>
+
+      <section className="models-page-section" aria-labelledby="review-optimum-heading">
+        <h2 id="review-optimum-heading">The hindsight optimum</h2>
+        {!lg ? (
+          <p className="models-note" data-testid="review-no-optimal">
+            {logProblem ?? `GW${gameweek} is not in the season log.`}
+          </p>
+        ) : !hindsight?.optimal ? (
+          <p className="models-note" data-testid="review-no-optimal">
+            {hindsight?.optimal_unavailable_reason ?? `The hindsight optimum was not worked out for GW${gameweek}.`}
+          </p>
+        ) : (
+          <>
+            <OptionsTable gameweek={gameweek} optimal={hindsight.optimal} />
+            <p className="models-note">
+              Best overall XI: {hindsight.optimal.optimal_overall.starting.map(name).join(", ")}.
+            </p>
+            <h3>The players who decided it</h3>
+            <Diagnostics diagnostics={hindsight.diagnostics} />
+          </>
+        )}
+      </section>
+    </div>
+  );
+}

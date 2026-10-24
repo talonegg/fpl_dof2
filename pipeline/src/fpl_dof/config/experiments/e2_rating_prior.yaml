@@ -1,0 +1,28 @@
+# A declared experiment (MOD-09, 05 section 5.3). The loader is fpl_dof.factory.experiments.load_declared.
+# D-34 follow-up to EXP-01. Hypothesis and falsifier written 2026-10-24, before the variant was graded.
+id: e2_rating_prior
+hypothesis: >
+  M2's club attack and defence ratings are unshrunk (team_strength.rating_prior_matches is 0.0), so
+  a club's rating after a handful of matches is its own noisy scored/conceded ratio, and early
+  forecasts and fixture-difficulty swings are over-confident. Shrinking each rating towards the
+  league-neutral 1.0 with a prior worth 8 effective matches lowers the held-out forecast error.
+falsifier: >
+  c3_e2 does not improve on c3 in the held-out seasons: the paired mean delta in MAE is not better
+  with a 95% bootstrap interval that excludes zero; or it degrades Spearman with an interval that
+  excludes zero. Either way the shipped default of no shrinkage stands.
+baseline: c3
+variant: c3_e2
+metrics: [mae, spearman]
+decision_rule: >
+  A model change (E8 section 5): promoted only if condition 1 (held-out regression improves),
+  condition 2 (six shadow gameweeks live without degrading) and condition 3 (explicable in advance,
+  above) all hold. Promotion waits for that bar and an owner decision in a DL entry; 8 is the one
+  value tried, not a tuned optimum.
+length: walk-forward over backtest.training_seasons, then at least six live shadow gameweeks
+graded_by: both
+decision: open
+results: >
+  Not yet graded by the standing backtest. Prior diagnostic that motivated it, not the result: in
+  EXP-01's held-out run (2024/25 to 2025/26, 68 folds) setting rating_prior_matches to 8 gave MAE
+  -0.0074 [-0.0114, -0.0040] against c3 (better) and moved the goalkeeper share of the predicted
+  top 10 only to 32.8% from 33.1%.

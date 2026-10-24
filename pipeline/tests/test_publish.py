@@ -265,6 +265,35 @@ def test_typescript_is_generated_for_every_artefact(contract: Contract) -> None:
     assert "do not edit by hand" in source
 
 
+def _two_schemas(monkeypatch: pytest.MonkeyPatch, second: dict[str, Any]) -> Contract:
+    """Two artefacts defining `$defs` `Thing`; the rest of the corpus is empty."""
+    first = {"type": "object", "properties": {"a": {"type": "string"}}}
+    schemas = {"meta": {"$defs": {"Thing": first}}, "rules": {"$defs": {"Thing": second}}}
+    monkeypatch.setattr(Contract, "schema", lambda self, artefact: schemas.get(artefact, {}))
+    return Contract(root=Path())
+
+
+def test_a_defs_name_with_different_shapes_fails_generation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """WEB-03: a silent first-wins would give the app a type the pipeline does not produce."""
+    other = {"type": "object", "properties": {"b": {"type": "string"}}}
+    with pytest.raises(ContractViolationError, match=r"Thing.*different shapes"):
+        generate(_two_schemas(monkeypatch, other))
+
+
+def test_a_defs_name_with_the_same_shape_is_emitted_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    same = {"type": "object", "properties": {"a": {"type": "string"}}}
+    assert generate(_two_schemas(monkeypatch, same)).count("export interface Thing ") == 1
+
+
+def test_the_checked_in_types_match_the_contracts() -> None:
+    """WEB-03: what CI's `fpl-dof contract types --check` runs."""
+    from fpl_dof.cli import main
+
+    assert main(["contract", "types", "--check"]) == 0
+
+
 def test_generated_types_carry_the_enums(contract: Contract) -> None:
     source = generate(contract)
     assert '"GKP" | "DEF" | "MID" | "FWD"' in source

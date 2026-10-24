@@ -100,7 +100,7 @@ describe("LeagueRoute", () => {
     renderApp("/");
 
     await waitFor(() => expect(screen.getByTestId("app-nav")).toBeTruthy());
-    fireEvent.click(screen.getByTestId("nav-mini-league"));
+    fireEvent.click(screen.getByTestId("nav-league"));
     await waitFor(() => expect(screen.getByTestId("league-absent")).toBeTruthy());
   });
 });

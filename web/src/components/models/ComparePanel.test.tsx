@@ -107,16 +107,18 @@ describe("a strategy the TypeScript has never named, in every model view", () =>
   });
   afterEach(() => vi.unstubAllGlobals());
 
-  it("renders in the switcher, the summary, the details and the history views", async () => {
+  it("renders in the switcher, the outline and the history views", async () => {
     const history = JSON.parse(
       JSON.stringify(historyFixture).replace(/"champion"/g, '"zeta_1"').replace(/"challenger"/g, '"zeta_2"'),
     );
     installFetchStub({ bodies: { ...bodies, models_history: history } });
-    renderApp("/models");
-    await screen.findByTestId("model-history");
+    const { unmount } = renderApp("/models");
+    await screen.findByTestId("models-outline-zeta_2");
     expect(screen.getByTestId("model-toggle-zeta_2").textContent).toBe("Zeta 2");
-    expect(screen.getByTestId("models-summary-zeta_2").textContent).toContain("Zeta 2");
-    expect(screen.getByTestId("models-detail-zeta_2").textContent).toContain("Zeta 2 description.");
+    expect(screen.getByTestId("models-outline-zeta_2").textContent).toContain("Zeta 2 description.");
+    unmount();
+    renderApp("/models/2025-26");
+    await screen.findByTestId("model-history");
     expect(screen.getByTestId("history-row-zeta_2").textContent).toContain("Zeta 2");
     expect(screen.getByTestId("history-chart").querySelector('polyline[data-model="zeta_2"]')).toBeTruthy();
     expect(screen.getByTestId("history-chart").textContent).toContain("Zeta 1");

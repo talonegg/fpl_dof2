@@ -1,5 +1,5 @@
 // Generated from contracts/v1/*.schema.json — do not edit by hand.
-// Regenerate with: fpl-dof publish
+// Regenerate with: fpl-dof contract types
 //
 // These types are generated from the same schemas the publisher validates against, so the app
 // cannot compile against a shape the pipeline does not produce.
@@ -1203,3 +1203,103 @@ export interface Strategies {
   /** Champion first, then by role, published before unpublished, then by id. */
   strategies: Strategy[];
 }
+
+/** Every published artefact and how the app loads it, from `ARTEFACTS`. */
+export const ARTEFACTS = {
+  "meta": {
+    "path": "meta.json",
+    "required": true,
+    "warm": true
+  },
+  "rules": {
+    "path": "rules.json",
+    "required": true,
+    "warm": true
+  },
+  "players": {
+    "path": "players.json",
+    "required": true,
+    "warm": true
+  },
+  "squad": {
+    "path": "squad.json",
+    "required": true,
+    "warm": true
+  },
+  "week": {
+    "path": "week.json",
+    "required": false,
+    "warm": false
+  },
+  "plan": {
+    "path": "plan.json",
+    "required": false,
+    "warm": false
+  },
+  "history": {
+    "path": "history.json",
+    "required": true,
+    "warm": false
+  },
+  "fixtures": {
+    "path": "fixtures.json",
+    "required": true,
+    "warm": false
+  },
+  "league": {
+    "path": "league.json",
+    "required": false,
+    "warm": false
+  },
+  "health": {
+    "path": "health.json",
+    "required": true,
+    "warm": false
+  },
+  "log": {
+    "path": "log.json",
+    "required": false,
+    "warm": false
+  },
+  "models": {
+    "path": "models.json",
+    "required": false,
+    "warm": true
+  },
+  "models_history": {
+    "path": "models_history.json",
+    "required": false,
+    "warm": false
+  },
+  "xp_accuracy": {
+    "path": "xp_accuracy.json",
+    "required": true,
+    "warm": false
+  },
+  "strategies": {
+    "path": "strategies.json",
+    "required": false,
+    "warm": true
+  }
+} as const;
+
+/** Each artefact's type, by key. */
+export interface ArtefactMap {
+  meta: Meta;
+  rules: Rules;
+  players: Players;
+  squad: Squad;
+  week: Week;
+  plan: Plan;
+  history: History;
+  fixtures: Fixtures;
+  league: League;
+  health: Health;
+  log: Log;
+  models: Models;
+  models_history: ModelsHistory;
+  xp_accuracy: XpAccuracy;
+  strategies: Strategies;
+}
+
+export type ArtefactKey = keyof ArtefactMap;

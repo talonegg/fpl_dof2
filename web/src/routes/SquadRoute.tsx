@@ -9,7 +9,8 @@ import { indexPlayers } from "../components/squad/draft";
 import "../components/squad/squad.css";
 
 /**
- * `/squad` — the squad builder and transfer planner (E6-S7, FR-31).
+ * `/analysis` — the squad builder (E6-S7, FR-31, WEB-14). `/squad` redirects here; the plan
+ * timeline also shows under This gameweek, Plan ahead, beside the chip calendar (WEB-07).
  *
  * Three layers, in the order a reader wants them:
  *
@@ -19,12 +20,8 @@ import "../components/squad/squad.css";
  *    ban, and re-optimise around those constraints. Every edit is checked live against `rules.json`
  *    by `components/squad/legality.ts`, which is parameterised from the published rules and restates
  *    none of them (DL-14, Invariant 9).
- * 3. **What happens next** — the multi-gameweek plan as named transfers per gameweek, and the chip
- *    calendar with its expiry clock, both from `plan.json` (E4).
- *
- * The plan section is absent, rather than empty, when nothing has been published: before the first
- * scored gameweek there is no squad to plan around, which is a normal state and not a failure
- * (DL-20, DP-15).
+ * 3. **What happens next** — the plan week by week as named transfers, from `plan.json` (E4); absent,
+ *    rather than empty, when nothing is published (DL-20, DP-15).
  *
  * **Whose squad is this, against the team ID entered in Settings (E13-S2)?** `week.squad_state`
  * carries the `entry_id` the pipeline actually read picks for, when it read any — a declared or
