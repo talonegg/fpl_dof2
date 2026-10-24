@@ -26,7 +26,7 @@ decision.
 | Model verdict | *(model card headline)* | `model-card.md` beside the published artefacts ([DL-21](../../decisions/DL-21.md)) |
 | Overrides this season, and why | *(count; reasons pattern)* | Reasons are a manual note until a reasons file feeds `reconcile(overrides=...)` (§3) |
 | Chips | *(used / remaining; set 1 expires GW19)* | `/review/all`, squad state in `week.json` |
-| Candidates in shadow | `minutes_v2` on in the shipped config; `adaptive_shrinkage`, `duty_term`, `gkp_v2` off, each measured and not clearing the bar (DL-49, DL-50, DL-51) | `forecast.discrimination` in `config/defaults/forecast.yaml`; the model card |
+| Candidates in shadow | `minutes_v2` on in the shipped config; `adaptive_shrinkage`, `duty_term`, `gkp_v2` off, each measured and not clearing the bar (DL-49, DL-50, DL-51); `c3_e2` (E2, rating shrinkage) live from R1.4.2, condition 1 met, six shadow gameweeks to go (DL-98) | `forecast.discrimination` in `config/defaults/forecast.yaml`; `config/strategies/c3_e2.yaml`; the model card |
 | Next decision point | *(from §4)* | §4 |
 
 ### Decision points

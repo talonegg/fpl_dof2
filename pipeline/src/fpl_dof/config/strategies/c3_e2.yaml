@@ -1,10 +1,11 @@
 # Experiment E2 (experiments/e2_rating_prior.yaml, D-34): c3 with M2's club ratings shrunk towards
-# the league-neutral 1.0. Graded against c3 by the standing backtest; never advised.
+# the league-neutral 1.0. Graded against c3 by the standing backtest, and live in shadow, one
+# gameweek at a time, for its six shadow gameweeks (DL-98); never the live advice.
 id: c3_e2
 label: C3 with rating shrinkage (E2)
 description: The champion with M2's attack/defence ratings shrunk (rating_prior_matches 8).
 role: experiment
-published: false
+published: true # in shadow since R1.4.2 (DL-98)
 forecaster:
   type: recipe
   model: xp_v1
@@ -12,5 +13,5 @@ forecaster:
   training_window: current_season
 policy:
   captain_rule: price_position
-  plan: true
+  plan: false # one gameweek: a second plan breaks the 300 s budget (DL-98)
 requires: [fixture]

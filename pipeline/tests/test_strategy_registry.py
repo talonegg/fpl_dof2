@@ -63,8 +63,8 @@ def test_shipped_registry_has_exactly_one_champion_and_unique_ids() -> None:
 
 def test_shipped_registry_names_the_dl87_strategies() -> None:
     assert champion().id == "c3"
-    assert {s.id for s in published_strategies()} == {"c3", "c1", "engine", "a", "a_odds"}
-    # Beside them, the MOD-09 experiments, retired once graded (DL-91): registered, never advised.
+    assert {s.id for s in published_strategies()} == {"c3", "c1", "engine", "a", "a_odds", "c3_e2"}
+    # Beside them, the MOD-09 experiments, retired once graded (DL-91); E2 in shadow (DL-98).
     assert {s.id for s in strategies()} - {"c3_f1", "c3_f3", "c3_e1", "c3_e2"} == {
         "c3",
         "c1",
