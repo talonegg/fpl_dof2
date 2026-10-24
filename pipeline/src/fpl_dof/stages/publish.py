@@ -572,6 +572,8 @@ def _league(ctx: StageContext, season: str, gameweeks: pd.DataFrame) -> dict[str
         standings=standings,
         league_picks=read_table_optional(silver, season, Table.LEAGUE_PICK),
         entry_picks=read_table_optional(silver, season, Table.ENTRY_PICK),
+        league_gameweeks=read_table_optional(silver, season, Table.LEAGUE_GAMEWEEK),
+        league_transfers=read_table_optional(silver, season, Table.LEAGUE_TRANSFER),
         owner_entry_id=ctx.config.entry.team_id,
         gameweek=_latest_finished(gameweeks),
         squad_limit=ctx.config.entry.league_rival_limit,

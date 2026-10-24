@@ -46,6 +46,36 @@ describe("League: a team's last gameweek (WEB-09)", () => {
     expect(note.textContent).not.toContain("not published");
   });
 
+  it("shows a rival's transfers, hit, chip and differentials with the points each was worth (ORC-14)", async () => {
+    const withThree = {
+      ...history,
+      players: [
+        ...history.players,
+        { id: 3, gameweeks: [{ gw: 3, pts: 7, mins: 90, goals: 0, assists: 0, price: 5 }], prices: [] },
+      ],
+    };
+    installFetchStub({ bodies: { history: withThree } });
+    renderApp("/league/100");
+    const moves = await screen.findByTestId("league-team-moves");
+    expect(moves.textContent).toContain("→ #4");
+    expect(moves.textContent).toContain("−4 points");
+    expect(moves.textContent).toContain("bboost");
+    const diff = screen.getByTestId("league-team-diff");
+    // They hold #4 (no fixture, a dash); you hold #3 (7 points): a net swing of -7 to them.
+    expect(within(diff).getByTestId("diff-4").textContent).toContain("—");
+    expect(within(diff).getByTestId("diff-3").textContent).toContain("7");
+    await waitFor(() => expect(within(diff).getByTestId("diff-net").textContent).toContain("-7 points"));
+  });
+
+  it("degrades only the team whose moves were not fetched (ORC-14, NFR-15)", async () => {
+    installFetchStub({ bodies: { history } });
+    renderApp("/league/400");
+    expect((await screen.findByTestId("league-team-no-moves")).textContent).toContain("not available");
+    // Its squad and differentials still render.
+    expect(screen.getByTestId("league-team-player-2")).toBeTruthy();
+    expect(screen.getByTestId("league-team-diff").textContent).toContain("They hold, you do not");
+  });
+
   it("says a team's squad was not published", async () => {
     installFetchStub({ bodies: { history } });
     renderApp("/league/300");
