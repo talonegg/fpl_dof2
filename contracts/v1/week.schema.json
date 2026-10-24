@@ -145,6 +145,7 @@
             }
           }
         },
+        "option_set": { "$ref": "#/$defs/log_hindsight_optimal", "description": "What this model weighed on its own predicted xP, in the hindsight optimum's shape: the roll, the best single transfer and the best overall, each with its moves, captain, points before hits, hits, net and gain over roll (ORC-11). Recorded with the advice in the ledger. Absent before R1.4.0." },
         "warnings": { "type": "array", "items": { "type": "string" } }
       }
     },
@@ -225,6 +226,131 @@
         "form_points_per_match": {
           "type": ["number", "null"],
           "description": "The model-free benchmark's side: points per match over the last six appearances, null before the player has appeared (DL-70)."
+        }
+      }
+    },
+    "log_hindsight_optimal": {
+      "type": "object",
+      "description": "Every option a transfer solve weighed: the roll, the best single transfer and the best overall. The hindsight solves it on realised points (whole); each model's decision on its predicted xP (ORC-11). The same definition is in week.schema.json and models.schema.json, and the type generator fails if they differ.",
+      "additionalProperties": false,
+      "required": [
+        "gameweek",
+        "baseline_roll",
+        "optimal_single",
+        "optimal_overall",
+        "all_options"
+      ],
+      "properties": {
+        "gameweek": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 38
+        },
+        "baseline_roll": {
+          "$ref": "#/$defs/log_hindsight_plan"
+        },
+        "optimal_single": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/log_hindsight_plan"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "optimal_overall": {
+          "$ref": "#/$defs/log_hindsight_plan"
+        },
+        "all_options": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/log_hindsight_plan"
+          }
+        }
+      }
+    },
+    "log_hindsight_plan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "transfers_count",
+        "moves",
+        "starting",
+        "captain_id",
+        "captain_name",
+        "points_before_hits",
+        "hit_points",
+        "net_points",
+        "gain_over_roll"
+      ],
+      "properties": {
+        "transfers_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "moves": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "player_out_id",
+              "player_out_name",
+              "player_in_id",
+              "player_in_name",
+              "selling_price",
+              "buying_price"
+            ],
+            "properties": {
+              "player_out_id": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "player_out_name": {
+                "type": "string"
+              },
+              "player_in_id": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "player_in_name": {
+                "type": "string"
+              },
+              "selling_price": {
+                "type": "number"
+              },
+              "buying_price": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        "starting": {
+          "type": "array",
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "captain_id": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "captain_name": {
+          "type": "string"
+        },
+        "points_before_hits": {
+          "type": "number"
+        },
+        "hit_points": {
+          "type": "integer"
+        },
+        "net_points": {
+          "type": "number"
+        },
+        "gain_over_roll": {
+          "type": "number"
         }
       }
     }

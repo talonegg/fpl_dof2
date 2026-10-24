@@ -53,7 +53,7 @@ from fpl_dof.factory.registry import (
     published_strategies,
     stamp,
 )
-from fpl_dof.frames import as_float
+from fpl_dof.frames import as_float, as_int
 from fpl_dof.gameweek import Due, SilverTables, season_states
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.optimise.captain import PricePositionLine
@@ -81,6 +81,7 @@ from fpl_dof.week.evaluation import (
     unready,
 )
 from fpl_dof.week.ledger import read_advice, read_predictions, record_advice, record_predictions
+from fpl_dof.week.oracle import option_set
 from fpl_dof.week.reconcile import Reconciliation, reconcile
 
 log = get_logger(__name__)
@@ -708,6 +709,14 @@ def _payload(snapshot: Snapshot, frame: pd.DataFrame, decision: Decision) -> dic
                 }
                 for option in sorted(recommendation.options, key=lambda o: o.transfers)
             ],
+            # What the model weighed, in the hindsight optimum's shape (ORC-11); the ledger keeps
+            # it with the rest of the recommendation, so Last gameweek can set the two side by side.
+            "option_set": option_set(
+                deadline.gameweek,
+                recommendation,
+                {as_int(i): str(name) for i, name in lookup["web_name"].items()},
+                digits=2,
+            ).as_dict(),
             "warnings": [*recommendation.warnings, *decision.warnings],
         },
         "advised": {

@@ -3,9 +3,9 @@
  * beside it, and Plan ahead counts the gameweeks to chip expiry from the published calendar.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { installFetchStub, renderApp, resetAppState } from "../test/render";
-import { challengerWeek, plan, strategiesFixture } from "../test/fixtures";
+import { challengerWeek, plan, strategiesFixture, week } from "../test/fixtures";
 
 describe("This gameweek", () => {
   beforeEach(() => {
@@ -41,6 +41,36 @@ describe("This gameweek", () => {
     expect(screen.queryByTestId("week-moves")).toBeNull();
     expect(screen.getByTestId("dashboard-roll-comparison")).toBeTruthy();
     expect(screen.getByTestId("dashboard-roll-counterfactual")).toBeTruthy();
+  });
+
+  it("shows the selected model's roll, best single and best overall (ORC-11)", async () => {
+    installFetchStub({ bodies: { strategies: strategiesFixture, week_c1: challengerWeek } });
+    renderApp("/gameweek");
+    const options = await screen.findByTestId("decision-options");
+    expect(within(options).getAllByRole("row")).toHaveLength(4);
+    expect(screen.getByTestId("decision-options-0").textContent).toContain("roll");
+    expect(screen.getByTestId("decision-options-0").textContent).toContain("50.00");
+    const single = screen.getByTestId("decision-options-1").textContent;
+    expect(single).toContain("best single transfer");
+    expect(single).toContain("Salah → Saka");
+    expect(single).toContain("+2.40");
+    const overall = screen.getByTestId("decision-options-2").textContent;
+    expect(overall).toContain("best overall");
+    expect(overall).toContain("−4");
+    expect(overall).toContain("53.10");
+
+    fireEvent.click(screen.getByTestId("model-toggle-c1"));
+    await waitFor(() => expect(within(screen.getByTestId("decision-options")).getAllByRole("row")).toHaveLength(3));
+    expect(screen.getByTestId("decision-options-0").textContent).toContain("roll, best overall");
+    expect(screen.getByTestId("decision-options-1").textContent).toContain("−0.40");
+  });
+
+  it("says so when the advice was published without its options", async () => {
+    const { option_set: _gone, ...bare } = week.recommendation!;
+    installFetchStub({ bodies: { week: { ...week, recommendation: bare } } });
+    renderApp("/gameweek");
+    expect((await screen.findByTestId("decision-no-options")).textContent).toContain("without its options");
+    expect(screen.getByTestId("dashboard-roll-comparison")).toBeTruthy();
   });
 });
 

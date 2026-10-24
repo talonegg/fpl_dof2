@@ -383,3 +383,41 @@ def test_a_strategy_waiting_for_a_source_names_it_since_when_and_the_next_check(
     }
     assert gw9["a_odds"]["next_check"] is None  # no longer Open: nothing is checked for it
     assert gw10["c1"] == {"available": False, "reason": "boom"}
+
+
+def test_the_options_a_model_weighed_are_published_from_the_advice_of_record() -> None:
+    """ORC-11: a ledger recommendation's option set reaches its gameweek's advice; an entry
+    recorded before it has none, and says nothing."""
+    plan = {
+        "transfers_count": 0,
+        "moves": [],
+        "starting": list(range(1, 12)),
+        "captain_id": 11,
+        "captain_name": "Cap",
+        "points_before_hits": 51.25,
+        "hit_points": 0,
+        "net_points": 51.25,
+        "gain_over_roll": 0.0,
+    }
+    options = {
+        "gameweek": 9,
+        "baseline_roll": plan,
+        "optimal_single": None,
+        "optimal_overall": plan,
+        "all_options": [plan],
+    }
+    entry = _ledger_entry(9, 0, 1)
+    entry["models"]["c3"]["recommendation"]["option_set"] = options
+    p = build_models(
+        season="2026/27",
+        decisions=[],
+        scores=[],
+        frozen_tag=None,
+        contract_version=CONTRACT_VERSION,
+        ledger={9: entry},
+    )
+    assert p is not None
+    Contract(root=find_contracts_root()).validate("models", p)
+    advice = p["gameweeks"][0]["advice"]
+    assert advice["c3"]["option_set"] == options
+    assert "option_set" not in advice["c1"]

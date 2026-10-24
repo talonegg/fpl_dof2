@@ -7,6 +7,7 @@ Identifies the mathematical ceiling: optimal single transfer, optimal 2 transfer
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
@@ -14,7 +15,7 @@ import pandas as pd
 
 from fpl_dof.config.models import OptimiserConfig, TransferConfig
 from fpl_dof.frames import as_int
-from fpl_dof.optimise.transfer import recommend_transfers
+from fpl_dof.optimise.transfer import TransferRecommendation, recommend_transfers
 from fpl_dof.rules.models import GameRules
 from fpl_dof.squad.state import SquadState
 
@@ -46,9 +47,9 @@ class HindsightOptimalPlan:
     starting: tuple[int, ...]
     captain_id: int
     captain_name: str
-    points_before_hits: int
+    points_before_hits: float
     hit_points: int
-    net_points: int
+    net_points: float
     gain_over_roll: float
 
     def as_dict(self) -> dict[str, Any]:
@@ -128,43 +129,52 @@ def solve_hindsight_optimal(
         transfer_config=transfer_cfg,
         optimiser_config=opt_cfg,
     )
+    # Realised points are whole, so the hindsight publishes them as integers.
+    return option_set(gameweek, rec, names, digits=None)
 
-    plans: list[HindsightOptimalPlan] = []
-    baseline_opt = rec.options[0]
 
-    for opt in rec.options:
-        moves = tuple(
-            HindsightMove(
-                player_out_id=m.player_out_id,
-                player_out_name=m.player_out_name,
-                player_in_id=m.player_in_id,
-                player_in_name=m.player_in_name,
-                selling_price=m.selling_price,
-                buying_price=m.buying_price,
-            )
-            for m in opt.moves
-        )
-        plan = HindsightOptimalPlan(
+def option_set(
+    gameweek: int,
+    recommendation: TransferRecommendation,
+    names: Mapping[int, str],
+    *,
+    digits: int | None,
+) -> HindsightOptimalResult:
+    """Every option a transfer solve weighed, as roll, best single and best overall (ORC-11).
+
+    One shape for both directions: the hindsight on realised points, and each model's decision on
+    its predicted xP. ``digits`` is ``round``'s: ``None`` gives whole points (realised), an integer
+    keeps that many decimals (predicted).
+    """
+    roll = recommendation.roll
+    plans = tuple(
+        HindsightOptimalPlan(
             transfers_count=opt.transfers,
-            moves=moves,
+            moves=tuple(
+                HindsightMove(
+                    player_out_id=m.player_out_id,
+                    player_out_name=m.player_out_name,
+                    player_in_id=m.player_in_id,
+                    player_in_name=m.player_in_name,
+                    selling_price=m.selling_price,
+                    buying_price=m.buying_price,
+                )
+                for m in opt.moves
+            ),
             starting=opt.starting,
             captain_id=opt.captain_id,
             captain_name=names.get(opt.captain_id, f"Player {opt.captain_id}"),
-            points_before_hits=round(opt.gross_expected_points),
+            points_before_hits=round(opt.gross_expected_points, digits),
             hit_points=opt.hit_points,
-            net_points=round(opt.net_expected_points),
-            gain_over_roll=round(opt.net_expected_points - baseline_opt.net_expected_points, 2),
+            net_points=round(opt.net_expected_points, digits),
+            gain_over_roll=round(opt.net_expected_points - roll.net_expected_points, 2),
         )
-        plans.append(plan)
-
-    baseline_roll = plans[0]
-    optimal_single = plans[1] if len(plans) > 1 else None
-    optimal_overall = max(plans, key=lambda p: p.net_points)
-
+        for opt in sorted(recommendation.options, key=lambda o: o.transfers)
+    )
     return HindsightOptimalResult(
         gameweek=gameweek,
-        baseline_roll=baseline_roll,
-        optimal_single=optimal_single,
-        optimal_overall=optimal_overall,
-        all_options=tuple(plans),
+        baseline_roll=plans[0],
+        optimal_single=next((p for p in plans if p.transfers_count == 1), None),
+        optimal_overall=max(plans, key=lambda p: p.net_points),
+        all_options=plans,
     )
