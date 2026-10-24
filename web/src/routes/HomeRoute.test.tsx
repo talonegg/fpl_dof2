@@ -4,7 +4,7 @@ import { installFetchStub, renderApp, resetAppState } from "../test/render";
 import { challengerWeek, modelsFixture, seasonLog, strategiesFixture } from "../test/fixtures";
 import { history } from "../components/player/testFixtures";
 import { blockedHealth } from "../components/health/testFixtures";
-import { mockLog } from "../components/models/HindsightSection.fixtures";
+import { mockLog } from "../components/review/fixtures";
 import type { Models } from "../contract/types";
 
 /** Home (WEB-08): the acceptance criteria, through the rendered route. */
