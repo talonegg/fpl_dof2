@@ -247,7 +247,8 @@ instead: `d21_chip_timing` (EXP-02) is `factory.replay.replay_chip_timing`, whic
 stage runs when `backtest.chip_replay.timing_experiment` is on (CI's `config/ci-backtest.yaml`) and
 writes to `experiments/<run_id>-chip-timing.json`. Declared: `f1_card_rates` (shipped,
 [DL-90](../decisions/DL-90.md)), `f3_training_window` (rejected, [DL-91](../decisions/DL-91.md)),
-`e1_bonus_spread` (EXP-01) and `d21_chip_timing` (EXP-02); once decided and recorded on `ledger`, a
+`e1_bonus_spread` (EXP-01, rejected), `d21_chip_timing` (EXP-02, shipped, [DL-96](../decisions/DL-96.md)) and
+`e2_rating_prior` (open); once decided and recorded on `ledger`, a
 variant's role becomes `retired` and the backtest stops grading it.
 
 Nothing promotes itself. Promotion is the owner's decision, recorded as a `DL-nn`, past the
