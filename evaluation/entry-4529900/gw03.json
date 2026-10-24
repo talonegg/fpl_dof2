@@ -1,9 +1,9 @@
 {
   "gameweek": 3,
   "season": "2026/27",
-  "evaluation_version": "3",
-  "evaluated_at": "2026-10-23T21:45:16.291102Z",
-  "run_id": "20261023T214516Z-7b10fd30",
+  "evaluation_version": "4",
+  "evaluated_at": "2026-10-24T04:55:54.001187Z",
+  "run_id": "20261024T045554Z-178a7dc7",
   "entry_id": 4529900,
   "log": {
     "gameweek": 3,
@@ -297,7 +297,8 @@
           "models_xp": {},
           "models_trapped": [
             "played"
-          ]
+          ],
+          "underlying_points": 7.26
         },
         {
           "player_id": 204,
@@ -305,9 +306,10 @@
           "role": "transfer_in",
           "actual_points": 15,
           "category": "high_variance_outlier",
-          "explanation": "Mitchell hauled with 15 pts despite modest expectations across all models (max 0.0 xP).",
+          "explanation": "Mitchell hauled with 15 pts; no model's xP for him was recorded.",
           "models_xp": {},
-          "models_trapped": []
+          "models_trapped": [],
+          "underlying_points": 7.26
         },
         {
           "player_id": 330,
@@ -315,9 +317,10 @@
           "role": "transfer_in",
           "actual_points": 14,
           "category": "high_variance_outlier",
-          "explanation": "Bogle hauled with 14 pts despite modest expectations across all models (max 0.0 xP).",
+          "explanation": "Bogle hauled with 14 pts; no model's xP for him was recorded.",
           "models_xp": {},
-          "models_trapped": []
+          "models_trapped": [],
+          "underlying_points": 12.58
         }
       ]
     }

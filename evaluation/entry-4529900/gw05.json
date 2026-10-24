@@ -1,9 +1,9 @@
 {
   "gameweek": 5,
   "season": "2026/27",
-  "evaluation_version": "3",
-  "evaluated_at": "2026-10-23T21:45:16.291102Z",
-  "run_id": "20261023T214516Z-7b10fd30",
+  "evaluation_version": "4",
+  "evaluated_at": "2026-10-24T04:55:54.001187Z",
+  "run_id": "20261024T045554Z-178a7dc7",
   "entry_id": 4529900,
   "log": {
     "gameweek": 5,
@@ -1503,13 +1503,12 @@
           "actual_points": 17,
           "category": "captaincy_trap",
           "explanation": "Brobbey scored 17 pts as optimal captain. Models played, c3 backed alternative captains who scored less.",
-          "models_xp": {
-            "c3": 0.0
-          },
+          "models_xp": {},
           "models_trapped": [
             "played",
             "c3"
-          ]
+          ],
+          "underlying_points": 14.52
         },
         {
           "player_id": 176,
@@ -1517,11 +1516,10 @@
           "role": "transfer_in",
           "actual_points": 15,
           "category": "high_variance_outlier",
-          "explanation": "Dasilva hauled with 15 pts despite modest expectations across all models (max 0.0 xP).",
-          "models_xp": {
-            "c3": 0.0
-          },
-          "models_trapped": []
+          "explanation": "Dasilva hauled with 15 pts; no model's xP for him was recorded.",
+          "models_xp": {},
+          "models_trapped": [],
+          "underlying_points": 8.04
         },
         {
           "player_id": 552,
@@ -1529,11 +1527,10 @@
           "role": "transfer_in",
           "actual_points": 17,
           "category": "high_variance_outlier",
-          "explanation": "Brobbey hauled with 17 pts despite modest expectations across all models (max 0.0 xP).",
-          "models_xp": {
-            "c3": 0.0
-          },
-          "models_trapped": []
+          "explanation": "Brobbey hauled with 17 pts; no model's xP for him was recorded.",
+          "models_xp": {},
+          "models_trapped": [],
+          "underlying_points": 14.52
         }
       ]
     }
@@ -1546,7 +1543,10 @@
         "hit_points": 0.0,
         "n_autosubs": 0,
         "vice_used": false,
-        "armband_points": 4.0
+        "armband_points": 4.0,
+        "underlying_points": 42.08,
+        "forecast_error": 0.42,
+        "luck": -9.08
       },
       "xp_accuracy": null
     }
