@@ -13,7 +13,7 @@ import datetime as dt
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 
 from fpl_dof.triggers import MANUAL, TRIGGER_STAMP
 
@@ -1421,13 +1421,18 @@ class ForecastConfig(_Section):
     ``published`` decides which of the two the app actually reads.
     """
 
-    horizon_gameweeks: int = Field(default=6, ge=1, le=38)
-    horizon_discount: float = Field(
-        default=0.92,
-        gt=0,
-        le=1,
-        description="Per-gameweek discount on future value. Nearer gameweeks are more knowable.",
-    )
+    _horizon: HorizonConfig = PrivateAttr(default_factory=lambda: HorizonConfig())
+
+    @property
+    def horizon_gameweeks(self) -> int:
+        """``decision.horizon.gameweeks``, the one planning horizon (DL-78)."""
+        return self._horizon.gameweeks
+
+    @property
+    def horizon_discount(self) -> float:
+        """``decision.horizon.discount``, the one planning discount (DL-78)."""
+        return self._horizon.discount
+
     defensive_contribution_seasons: tuple[str, ...] = Field(
         default=("2025/26",),
         description=(
@@ -2534,3 +2539,9 @@ class Config(_Section):
     decision: DecisionConfig = DecisionConfig()
     publish: PublishConfig = PublishConfig()
     schedule: ScheduleConfig = ScheduleConfig()
+
+    @model_validator(mode="after")
+    def _one_horizon(self) -> Config:
+        """The forecast sums over the plan's horizon; there is no second one (DL-78)."""
+        self.forecast._horizon = self.decision.horizon
+        return self

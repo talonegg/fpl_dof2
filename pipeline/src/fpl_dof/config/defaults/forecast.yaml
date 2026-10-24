@@ -7,9 +7,8 @@
 # once E3 can measure whether tuning helps. Changing one without evidence is a decision, and
 # should be recorded as one.
 forecast:
-  horizon_gameweeks: 6
-  horizon_discount: 0.92
-
+  # The horizon (length and discount) is `decision.horizon`, the one setting the forecast and the
+  # plan share (DL-78).
   # Defensive Contribution was introduced in 2025/26. Earlier seasons report zero because the
   # metric did not exist. Reading that as "did not defend" would systematically underrate
   # defenders and defensive midfielders — the exact group the design says the model should beat
