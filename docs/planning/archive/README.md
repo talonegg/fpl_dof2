@@ -50,6 +50,15 @@ orchestration (R1.3.0, R1.3.1, R1.3.2), built 2026-10-22 to 2026-10-24.
 | [Modular platform backlog](R1.2.0/R1.2.0-modular-platform-backlog.md) — MOD-01 … MOD-09 | DL-86 to DL-93 |
 | [R1.3.0 gameweek orchestration](R1.3.0/R1.3.0-gameweek-orchestration.md) — ORC-01 … ORC-10 and WEB-02, Drop A and Drop B | DL-94 |
 
+## R1.4.0 and R1.4.1 — the UI redesign
+
+The app in eight sections (R1.4.0, Drop A), then each model's options, underlying xP, the live
+season as if played, rivals' moves and odds (R1.4.1, Drop B), built and verified 2026-10-24.
+
+| Plan | Main decisions |
+| --- | --- |
+| [R1.4.0 UI redesign](R1.4.0/R1.4.0-ui-redesign.md) — WEB-03 … WEB-14, EXP-01, EXP-02, D-29, ORC-11 … ORC-15 | DL-95 to DL-97 |
+
 ## Other planning documents
 
 | Document | What it was | Why archived |

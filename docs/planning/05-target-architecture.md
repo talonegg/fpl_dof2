@@ -410,7 +410,7 @@ Each release is a vertical slice that leaves the weekly advice working ([DP-07](
 | **R1.4.0 — UI redesign** ([DL-95](../decisions/DL-95.md)) | The app in eight sections on the artefact registry and one hook; types checked in CI; each model's options, underlying xP, the live season as if played, rivals' moves and odds published. `contract_minor` and the runtime check came in R1.3.0 | W2, W3, W4, W5, W6 |
 | **Later** | Decoupled app and data deploys; UI flags; `experiment.yml` and experiments in the app | W1 |
 
-Stories and acceptance criteria: [R1.2.0 backlog](archive/R1.2.0/R1.2.0-modular-platform-backlog.md), [R1.3.0](archive/R1.3.0/R1.3.0-gameweek-orchestration.md), [R1.4.0](epics/R1.4.0-ui-redesign.md).
+Stories and acceptance criteria: [R1.2.0 backlog](archive/R1.2.0/R1.2.0-modular-platform-backlog.md), [R1.3.0](archive/R1.3.0/R1.3.0-gameweek-orchestration.md), [R1.4.0](archive/R1.4.0/R1.4.0-ui-redesign.md).
 
 ---
 
