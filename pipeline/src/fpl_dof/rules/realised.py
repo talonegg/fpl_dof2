@@ -14,7 +14,11 @@ which FPL publishes no answer.
 - **Auto-substitutions**: a starter who did not play (his gameweek complete with no minutes, which
   includes a player whose club had no fixture) is replaced by the reserve goalkeeper if he is the
   goalkeeper, otherwise by the first outfield substitute, in bench order, who played and whose
-  arrival keeps the XI within the formation bounds. A substitute yet to play cannot come on.
+  arrival keeps the XI within the formation bounds. In play, a substitute yet to play cannot come
+  on, and he holds the place while he could: if the first substitute whose arrival would keep the
+  formation is yet to play, nobody is projected on until his gameweek is over, because if he plays
+  he is FPL's choice. A reserve goalkeeper yet to play holds the goalkeeper's place the same way. So
+  a substitution projected now is never undone by the fixtures still to come.
 - **Double gameweeks**: a performance is the player's whole gameweek, every fixture summed.
 - **The armband** multiplies the captain, or the vice-captain if the captain did not play. A captain
   yet to play keeps it, and his points so far are multiplied.
@@ -140,20 +144,24 @@ def score_lineup(
                 continue
             perf = perfs.get(pid)
             if perf is not None and perf.position == Position.GKP:
-                if gkp is not None and played(gkp):
+                if gkp is not None and played(gkp):  # one yet to play holds the place
                     starting[i] = gkp
                     subs_out.append(pid)
                     subs_in.append(gkp)
                 continue
             for sub in lineup.bench_order:
-                if sub in subs_in or not played(sub):
+                if sub in subs_in or did_not_play(sub):
                     continue
                 trial = [*starting[:i], sub, *starting[i + 1 :]]
-                if _formation_ok(trial, perfs, rules):
+                if not _formation_ok(trial, perfs, rules):
+                    continue
+                if played(sub):
                     starting[i] = sub
                     subs_out.append(pid)
                     subs_in.append(sub)
-                    break
+                # One yet to play who could come on holds the place: if he plays, he is FPL's
+                # choice, so nobody below him is projected on until his gameweek is over.
+                break
         fielded = starting
 
     multiplier = chips.armband(lineup.chip)
