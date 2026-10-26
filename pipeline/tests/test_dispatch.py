@@ -141,6 +141,26 @@ def test_the_kinds_the_manifest_writes_are_the_kinds_the_guard_accepts() -> None
     assert _decide(_open(600), kinds=list(CHANGE_KINDS))
 
 
+def test_a_result_dispatches_a_change_run_the_guard_lets_through_for_the_gameweek_in_play(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """LIVE-02: the fast ingest's manifest carries `results` like any kind; the run it starts may
+    be for the gameweek that has since gone into play, or have no Open gameweek at all (GW38)."""
+    script = _script()
+    calls: list[list[str]] = []
+    monkeypatch.setattr(script.subprocess, "run", lambda argv, **_: calls.append(argv))
+    manifest = tmp_path / "changes.json"
+    manifest.write_text(json.dumps({"gameweek": 9, "kinds": ["results"]}), encoding="utf-8")
+    assert script.main(["--manifest", str(manifest)]) == 0
+    [argv] = calls
+    sent = dict(field.split("=", 1) for field in argv[5::2])
+    assert sent["trigger"] == "change" and sent["kinds"] == "results" and sent["gameweek"] == "9"
+    kinds = sent["kinds"].split(",")
+    assert _decide(_open(600, gameweek=10), kinds=kinds, gameweek=9, in_play=(9,))
+    assert not _decide(_open(600, gameweek=10), kinds=["prices"], gameweek=9, in_play=(9,))
+    assert _decide(None, kinds=kinds, gameweek=None, in_play=(38,))
+
+
 def _trigger_patterns(node: object) -> list[str]:
     """Every `trigger` property's pattern in a JSON Schema, however deep."""
     if isinstance(node, list):

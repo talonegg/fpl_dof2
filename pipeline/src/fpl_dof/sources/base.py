@@ -19,12 +19,32 @@ from typing import ClassVar
 
 import pandas as pd
 
-from fpl_dof.config.models import SourceOverride
+from fpl_dof.config.models import ScheduleConfig, SourceOverride
 from fpl_dof.rules.models import ApiRules
+from fpl_dof.sources.bronze import Snapshot
 from fpl_dof.sources.fetch import Fetched, Fetcher
 
 #: When the Open gameweek's matches can kick off: its deadline, then the next deadline or ``None``.
 Window = tuple[dt.datetime, dt.datetime | None] | None
+
+
+@dataclass(frozen=True, slots=True)
+class ChangeContext:
+    """What a source reads the change between two captures against (ORC-02, LIVE-02)."""
+
+    window: Window
+    """When the Open gameweek's matches can kick off, or ``None`` when no gameweek is Open."""
+    matchday_zone: str
+    """The zone whose date groups a gameweek's fixtures into matchdays."""
+    settle: dt.timedelta
+    """How long after a matchday's last kick-off it counts as done, bonus confirmed or not."""
+
+    @classmethod
+    def of(cls, window: Window, schedule: ScheduleConfig) -> ChangeContext:
+        """The context for ``window``, with the matchday rule's tunables from config (DP-06)."""
+        return cls(
+            window, schedule.matchday_zone, dt.timedelta(hours=schedule.matchday_settle_hours)
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -231,11 +251,14 @@ class SourceAdapter(ABC):
     watched: ClassVar[tuple[tuple[str, str], ...]] = ()
     """The ``(resource, key)`` captures the change manifest compares across an ingest (ORC-02)."""
 
-    def changes(self, resource: str, before: bytes, after: bytes, window: Window) -> set[str]:
+    def changes(
+        self, resource: str, before: Snapshot, after: Snapshot, context: ChangeContext
+    ) -> set[str]:
         """The change kinds (:data:`~fpl_dof.sources.changes.KINDS`) between two captures of one
-        watched resource. ``window`` is when the Open gameweek's matches can kick off, from its
-        deadline to the next one's (``None`` for no next), or ``None`` when no gameweek is Open.
-        The default sees none: a source changes nothing that starts a run unless it says so."""
+        watched resource, the earlier first. Each capture carries its bytes and when it was taken,
+        which a rule that counts time since a kick-off reads (LIVE-02's settle cap); ``context``
+        carries the Open gameweek's kick-off window and the matchday rule's tunables. The default
+        sees none: a source changes nothing that starts a run unless it says so."""
         return set()
 
     def note_observed(self, key: str, fetched: Fetched) -> None:

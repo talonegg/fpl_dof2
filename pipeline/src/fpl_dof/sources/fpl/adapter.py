@@ -43,18 +43,20 @@ from typing import Any, ClassVar, cast
 
 import pandas as pd
 
+from fpl_dof.gameweek import matchdays_done_since
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.obs.manifest import utcnow
 from fpl_dof.rules.models import ApiRules, ApiScoring, ApiSquad, Position
 from fpl_dof.silver.tables import Table, columns_for
 from fpl_dof.sources.base import (
+    ChangeContext,
     Conformed,
     IngestReport,
     IngestRequest,
     Resource,
     SourceAdapter,
-    Window,
 )
+from fpl_dof.sources.bronze import Snapshot
 from fpl_dof.sources.errors import (
     OfflineWithoutSnapshotError,
     SourceContractError,
@@ -91,6 +93,11 @@ REQUIRED_HISTORY_PAST_KEYS = (
     "starts",
     "defensive_contribution",
 )
+
+
+def _checked(event: dict[str, Any]) -> tuple[bool, bool]:
+    """A gameweek's two completion flags, as the change manifest compares them (LIVE-02)."""
+    return bool(event.get("finished")), bool(event.get("data_checked"))
 
 
 def _standings_results(standings: dict[str, Any]) -> list[dict[str, Any]]:
@@ -274,15 +281,39 @@ class FplApiAdapter(SourceAdapter):
         ("fixtures", "all"),
     )
 
-    def changes(self, resource: str, before: bytes, after: bytes, window: Window) -> set[str]:
-        """Prices, status or news per player; kick-off or gameweek per fixture (ORC-02). A player
-        or fixture in only one capture is not a change of either."""
-        old, new = json.loads(before), json.loads(after)
+    def changes(
+        self, resource: str, before: Snapshot, after: Snapshot, context: ChangeContext
+    ) -> set[str]:
+        """Prices, status or news per player; kick-off or gameweek per fixture (ORC-02); results
+        when a matchday becomes done or a gameweek is marked finished or data-checked (LIVE-02).
+        A player, fixture or gameweek in only one capture is not a change of any. A fixture's
+        start, score or provisional finish moves nothing: only its bonus-confirmed ``finished``
+        counts, through the matchday rule (:func:`~fpl_dof.gameweek.matchdays_done_since`)."""
+        old, new = json.loads(before.read_bytes()), json.loads(after.read_bytes())
+        kinds: set[str] = set()
         if resource == "fixtures":
             was = {f["id"]: (f.get("kickoff_time"), f.get("event")) for f in old}
             now = {f["id"]: (f.get("kickoff_time"), f.get("event")) for f in new}
-            return {"fixtures"} if any(was.get(i, at) != at for i, at in now.items()) else set()
-        kinds: set[str] = set()
+            if any(was.get(i, at) != at for i, at in now.items()):
+                kinds.add("fixtures")
+            if matchdays_done_since(
+                self._fixtures(old) if old else None,
+                before.meta.fetched_at,
+                self._fixtures(new) if new else None,
+                after.meta.fetched_at,
+                zone=context.matchday_zone,
+                settle=context.settle,
+            ):
+                kinds.add("results")
+            return kinds
+        flags = {e["id"]: _checked(e) for e in old.get("events") or []}
+        for event in new.get("events") or []:
+            prior = flags.get(event["id"])
+            if prior is not None and any(
+                flag and not was for was, flag in zip(prior, _checked(event), strict=True)
+            ):
+                kinds.add("results")  # marked finished, or data-checked
+        players = {e["id"]: e for e in old["elements"]}
         players = {e["id"]: e for e in old["elements"]}
         for element in new["elements"]:
             prior = players.get(element["id"])

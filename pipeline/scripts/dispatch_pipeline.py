@@ -2,9 +2,10 @@
 
     python pipeline/scripts/dispatch_pipeline.py [--daily] [--day-before] [--manifest PATH]
 
-Reads the change manifest the ingest stage just wrote. A change of any kind dispatches a
-``change`` run with its kinds; ``--daily`` (the slow ingest) dispatches the daily ``schedule``
-refresh when nothing changed; ``--day-before`` dispatches a ``day-before`` run that must publish.
+Reads the change manifest the ingest stage just wrote. A change of any kind, ``results``
+(LIVE-02) among them, dispatches a ``change`` run with its kinds; ``--daily`` (the slow ingest)
+dispatches the daily ``schedule`` refresh when nothing changed; ``--day-before`` dispatches a
+``day-before`` run that must publish.
 With none of those, nothing is dispatched. The pipeline's guard validates the inputs and applies
 the freeze (``fpl_dof.week.schedule.dispatch_decision``); this script only says what happened.
 Needs ``gh`` with a token that has ``actions: write``.

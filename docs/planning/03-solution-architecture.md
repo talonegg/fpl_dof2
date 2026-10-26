@@ -410,9 +410,9 @@ manually dispatchable.
 | Workflow | Trigger | Does |
 | --- | --- | --- |
 | `ci.yml` | Push to `main`, `pre-release`, `dev/**`; every pull request | Lint, type-check, unit, property and contract tests; `scripts/docs.py check` |
-| `ingest-fast.yml` | Hourly; a guard (`fpl-dof-schedule --decide fast`) decides whether to fetch | `bootstrap-static`, `fixtures` and the upcoming odds — prices, status, ownership. Rebuilds `data`, then dispatches `pipeline.yml` with `trigger=change` and the kinds its change manifest moved, if any (ORC-02) |
+| `ingest-fast.yml` | Hourly; a guard (`fpl-dof-schedule --decide fast`) decides whether to fetch: four-hourly, but every hour within a day of the Open gameweek's deadline and while a gameweek is in play, from its deadline until data-checked (LIVE-02) | `bootstrap-static`, `fixtures` and the upcoming odds — prices, status, ownership. Rebuilds `data`, then dispatches `pipeline.yml` with `trigger=change` and the kinds its change manifest moved, if any (ORC-02) |
 | `ingest-slow.yml` | Daily, with a fallback slot (each scheduled firing is a no-op once today's ingest succeeded); dispatch, with `must_publish` from `day-before.yml` | Full ingest including per-player summaries; updates `data`; dispatches `pipeline.yml` (`day-before` when `must_publish`, else `change` with its kinds, else the daily `schedule` refresh); archives each newly closed gameweek's bronze to `snapshots`, once, and fails if bronze has no gameweek schedule |
-| `pipeline.yml` | One tick four times an hour (`7,23,41,53 * * * *`); dispatch with typed inputs `trigger` (`manual`, `change`, `schedule`, `day-before`), `kinds`, `gameweek`, `must_publish` (ORC-02) | `guard` (`fpl-dof-schedule --decide pipeline`: the tick runs only in a pre-deadline window; every trigger is refused inside the freeze or for a gameweek no longer Open, and an unknown input fails the step) → `run` (restores the retired frozen harness's last record from `ledger`, read-only, so `models.json` keeps its history up to the switch; `fpl-dof bronze verify --quarantine`, then `fpl-dof run --only transform…publish`; advice appended to `ledger` — the champion's as soon as its week exists, before its plan and the challengers run — contract uploaded, `data` rebuilt with the new price history) → `deploy` (calls `deploy.yml` only when `run` published, ORC-03) |
+| `pipeline.yml` | One tick four times an hour (`7,23,41,53 * * * *`); dispatch with typed inputs `trigger` (`manual`, `change`, `schedule`, `day-before`), `kinds`, `gameweek`, `must_publish` (ORC-02) | `guard` (`fpl-dof-schedule --decide pipeline`: the tick runs only in a pre-deadline window; every trigger is refused inside the freeze or for a gameweek no longer Open, except that a `results` change may be for a gameweek in play and needs none Open; an unknown input fails the step) → `run` (restores the retired frozen harness's last record from `ledger`, read-only, so `models.json` keeps its history up to the switch; `fpl-dof bronze verify --quarantine`, then `fpl-dof run --only transform…publish`; advice appended to `ledger` — the champion's as soon as its week exists, before its plan and the challengers run — contract uploaded, `data` rebuilt with the new price history) → `deploy` (calls `deploy.yml` only when `run` published, ORC-03) |
 | `day-before.yml` | Every 20 minutes in a nightly UTC window | On the day before a deadline, dispatches `ingest-slow` with `must_publish=true` once (deduplicated by the run's `workflow_dispatch` event since midnight Sydney, never its title); that ingest dispatches the pipeline, whose deploy then requires a fresh contract |
 | `deploy.yml` | Called by Pipeline as its last job when the run published; push to `main`; dispatch | Builds the SPA with the calling run's own contract (a push or dispatch takes the newest pipeline run's, until WEB-01), deploys to Pages (ORC-03, [DL-94](../decisions/DL-94.md)) |
 | `backtest.yml` | Weekly; dispatch | Archive ingest under `config/ci-backtest.yaml` (DL-68), then the walk-forward regression; beside it, its own job replays today's models in-sample on the live season (`fpl-dof as-if-played`, ORC-13) |
@@ -436,9 +436,24 @@ has no row for it.
 **2. An ingest starts a pipeline run only when something material moved** (ORC-02,
 [DL-94](../decisions/DL-94.md)). Ingest compares the bronze it restored with the bronze it fetched
 (`sources/changes.py`, each source diffing its own captures) and writes the kinds that moved to
-`data/runs/changes.json`: any price, any status or news line, any fixture's kick-off or gameweek, and
-a match of the Open gameweek priced for the first time. There are no thresholds. Ownership, a price
-moving on an already-priced match, or a recapture of the same bytes starts nothing.
+`data/runs/changes.json`: any price, any status or news line, any fixture's kick-off or gameweek, a
+match of the Open gameweek priced for the first time, and `results` (LIVE-02,
+[DL-99](../decisions/DL-99.md)). There are no thresholds. Ownership, a price moving on an
+already-priced match, a kick-off, a goal or a score starts nothing; a recapture of the same bytes
+starts nothing either, except through the settle cap below.
+
+`results` moves when a **matchday** of the gameweek in play becomes done, when the gameweek is
+marked finished, and when it is marked data-checked. A matchday is a gameweek's fixtures sharing a
+kick-off date in `schedule.matchday_zone` (UK time); it is done when every one of its fixtures has
+FPL's `finished` (bonus confirmed), or when `schedule.matchday_settle_hours` (three) have passed
+since its last kick-off, and is then published bonus pending, which the run reads from the same
+flags. A postponed fixture (no kick-off, or out of the gameweek) belongs to no matchday. The rule
+is `gameweek.py` `matchdays_done_since`, pure and source-free; each capture's time is its sidecar
+`fetched_at`. Comparing the restored capture with the new one, rather than reading the clock, moves
+each matchday once, at whichever firing first sees it done, however many GitHub drops (D-35). A
+`results` run is a full run that deploys; the guard lets it through for a gameweek in play and with
+no gameweek Open (the season's last weekend), and the freeze still binds it. The run banner names it
+a results refresh.
 
 **Scheduling caveat (R-09):** scheduled runs are best-effort and can be delayed under platform load.
 The day-before run and the deadline guard exist so a delayed cron is never the reason a deadline is

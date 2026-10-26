@@ -25,13 +25,14 @@ from fpl_dof.obs.logging import get_logger
 from fpl_dof.obs.manifest import utcnow
 from fpl_dof.silver.tables import Table, columns_for
 from fpl_dof.sources.base import (
+    ChangeContext,
     Conformed,
     IngestReport,
     IngestRequest,
     Resource,
     SourceAdapter,
-    Window,
 )
+from fpl_dof.sources.bronze import Snapshot
 from fpl_dof.sources.errors import SourceContractError
 from fpl_dof.sources.oddsapi.market import (
     MarketError,
@@ -207,9 +208,12 @@ class FdcoukAdapter(SourceAdapter):
 
     watched: ClassVar[tuple[tuple[str, str], ...]] = (("fixtures", "upcoming"),)
 
-    def changes(self, resource: str, before: bytes, after: bytes, window: Window) -> set[str]:
+    def changes(
+        self, resource: str, before: Snapshot, after: Snapshot, context: ChangeContext
+    ) -> set[str]:
         """``odds`` when a match kicking off in the Open gameweek is priced for the first time
         (ORC-02, D-35). A price that moves on a match already priced is not a first."""
+        window = context.window
         if window is None:
             return set()
         start = pd.Timestamp(window[0])
@@ -222,7 +226,7 @@ class FdcoukAdapter(SourceAdapter):
                 zip(inside["home_team"], inside["away_team"], inside["kickoff_time"], strict=True)
             )
 
-        return {"odds"} if priced(after) - priced(before) else set()
+        return {"odds"} if priced(after.read_bytes()) - priced(before.read_bytes()) else set()
 
     def parse_fixtures_csv(
         self, text: str, season: str, captured_at: pd.Timestamp | None

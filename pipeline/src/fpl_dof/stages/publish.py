@@ -36,7 +36,7 @@ from fpl_dof.factory import (
 )
 from fpl_dof.factory.registry import published_strategies
 from fpl_dof.frames import as_float, as_int
-from fpl_dof.gameweek import SilverTables, open_gameweek
+from fpl_dof.gameweek import SilverTables, gameweeks_in_play, open_gameweek
 from fpl_dof.gold import read_team_match_odds
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.obs.manifest import RunManifest, git_sha, read_manifest
@@ -423,7 +423,12 @@ def _next_odds_check(ctx: StageContext, gameweeks: pd.DataFrame) -> str | None:
     state = open_gameweek(SilverTables(gameweeks), (), ctx.as_of)
     if state is None:
         return None
-    check = next_fast_ingest(now=ctx.as_of, state=state, config=ctx.config.schedule)
+    check = next_fast_ingest(
+        now=ctx.as_of,
+        state=state,
+        config=ctx.config.schedule,
+        in_play=gameweeks_in_play(gameweeks, ctx.as_of),
+    )
     return None if check is None else _iso(check)
 
 
@@ -672,8 +677,13 @@ def _models(
         # ORC-07: an awaited source is next checked at the next fast-ingest firing that fetches.
         state = None if gameweeks is None else open_gameweek(SilverTables(gameweeks), (), ctx.as_of)
         check = None
-        if state is not None:
-            check = next_fast_ingest(now=ctx.as_of, state=state, config=ctx.config.schedule)
+        if gameweeks is not None and state is not None:
+            check = next_fast_ingest(
+                now=ctx.as_of,
+                state=state,
+                config=ctx.config.schedule,
+                in_play=gameweeks_in_play(gameweeks, ctx.as_of),
+            )
         payload = build_models(
             season=season,
             decisions=decisions,

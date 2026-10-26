@@ -6,7 +6,7 @@
 
 export const CONTRACT_VERSION = 1;
 
-export const CONTRACT_MINOR = 6;
+export const CONTRACT_MINOR = 7;
 
 /** What this publication is, when it was made, and what produced it. The browser reads this first and can render an honest 'as at' line without trusting anything else. */
 export interface Meta {
@@ -20,7 +20,7 @@ export interface Meta {
   run_id: string;
   /** UTC instant of the input snapshot the advice was decided on (ORC-03, DL-94). Absent before R1.3.0. */
   as_of?: string;
-  /** What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0. */
+  /** What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0. The results kind, a matchday of the gameweek in play done or the gameweek finished or data-checked, from contract minor 7 (LIVE-02). */
   trigger?: string;
   git_sha?: string | null;
   season: string;
@@ -223,7 +223,7 @@ export interface Week {
   run_id: string;
   /** UTC instant of the input snapshot the advice was decided on (ORC-03, DL-94). Absent before R1.3.0. */
   as_of?: string;
-  /** What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0. */
+  /** What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0. The results kind, a matchday of the gameweek in play done or the gameweek finished or data-checked, from contract minor 7 (LIVE-02). */
   trigger?: string;
   /** True when no squad could be established. Before the first gameweek is scored there is no picks endpoint to read (DL-20), so this is a normal state and not a failure. */
   skipped: boolean;
@@ -511,7 +511,7 @@ export interface Plan {
   run_id: string;
   /** UTC instant of the input snapshot the advice was decided on (ORC-03, DL-94). Absent before R1.3.0. */
   as_of?: string;
-  /** What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0. */
+  /** What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0. The results kind, a matchday of the gameweek in play done or the gameweek finished or data-checked, from contract minor 7 (LIVE-02). */
   trigger?: string;
   /** True when no squad could be established, or when no legal plan exists. Both are normal states before the season starts (DL-20) and neither is a failure. */
   skipped: boolean;
@@ -1059,7 +1059,7 @@ export interface ModelAdvice {
   starting: number[];
   /** UTC instant of the input snapshot the advice was decided on (ORC-03, DL-94). Absent before R1.3.0. */
   as_of?: string;
-  /** What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0. */
+  /** What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0. The results kind, a matchday of the gameweek in play done or the gameweek finished or data-checked, from contract minor 7 (LIVE-02). */
   trigger?: string;
   starting_names: string[];
   bench_order: number[];
@@ -1121,7 +1121,7 @@ export interface Models {
   season: string;
   /** UTC instant of the input snapshot the advice was decided on (ORC-03, DL-94). Absent before R1.3.0. */
   as_of?: string;
-  /** What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0. */
+  /** What started the run: the schedule, a change of the named kinds, a manual dispatch or the day-before refresh (ORC-03). Absent before R1.3.0. The results kind, a matchday of the gameweek in play done or the gameweek finished or data-checked, from contract minor 7 (LIVE-02). */
   trigger?: string;
   /** The model id whose advice is live. */
   champion: string;
