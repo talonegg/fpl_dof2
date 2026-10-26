@@ -21,8 +21,8 @@ from fpl_dof.obs.logging import get_logger
 from fpl_dof.pipeline import Output, StageContext, StageResult
 from fpl_dof.rules.build import build_game_rules
 from fpl_dof.rules.models import ApiRules, GameRules
-from fpl_dof.silver.store import append_table, write_table
-from fpl_dof.silver.tables import OPTIONAL_TABLES, Table
+from fpl_dof.silver.store import append_table, table_path, write_table
+from fpl_dof.silver.tables import LIVE_TABLES, OPTIONAL_TABLES, Table, require_past_deadline
 from fpl_dof.sources import (
     BronzeStore,
     Fetcher,
@@ -66,6 +66,8 @@ KEYS: dict[Table, list[str]] = {
     ],
     Table.PLAYER_METRIC: ["season", "as_of_gameweek", "player_code", "scope", "gameweek"],
     Table.TEAM_MATCH_EXPECTATION: ["season", "source", "captured_at", "home_team", "away_team"],
+    Table.PLAYER_LIVE: ["gameweek", "player_id", "fixture_id"],
+    Table.ENTRY_LIVE: ["entry_id", "gameweek"],
 }
 
 #: Tables that accumulate across runs instead of being rebuilt from the current snapshot.
@@ -185,6 +187,9 @@ def run(ctx: StageContext) -> StageResult:
 
     for table, frames in collected.items():
         if not frames:
+            if table in LIVE_TABLES:
+                # The last run's copy describes a gameweek that is no longer live (LIVE-01).
+                table_path(ctx.layout.silver, season, table).unlink(missing_ok=True)
             if table in OPTIONAL_TABLES:
                 # Normal: no team ID configured, a season not yet started, a club with no notes.
                 # Degrading here is what lets the weekly loop run at all in preseason (DP-15).
@@ -199,6 +204,10 @@ def run(ctx: StageContext) -> StageResult:
                 "transform.duplicates_dropped",
                 extra={"table": table.value, "dropped": before - len(merged)},
             )
+        if table in LIVE_TABLES:
+            # A live row whose deadline was not past is look-ahead; the run stops (Invariant 5).
+            known = gw_frame if gw_frame is not None else pd.DataFrame(columns=["gameweek"])
+            require_past_deadline(table, merged, known, pd.Timestamp(ctx.as_of))
         writer = append_table if table in APPENDED else write_table
         path = writer(ctx.layout.silver, season, table, merged)
         result.metrics[f"rows.{table.value}"] = len(merged)

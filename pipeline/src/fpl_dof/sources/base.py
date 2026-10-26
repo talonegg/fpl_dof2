@@ -73,6 +73,10 @@ class Resource:
     Distinct from ``immutable``: a retained resource is still re-fetched after its TTL (upcoming
     odds move), but each capture is evidence the backtest and the prospective record cannot recover.
     """
+    in_play: bool = False
+    """Whether the fast cadence fetches it too while a gameweek is in play, though it is off the
+    fast path otherwise (LIVE-01). One or two requests a firing, for the scores and table of the
+    gameweek being played; the adapter says which gameweek that is."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -275,15 +279,17 @@ class SourceAdapter(ABC):
                 return declared
         raise KeyError(f"{self.name} declares no resource named {name!r}")
 
-    def wants(self, name: str, request: IngestRequest) -> bool:
+    def wants(self, name: str, request: IngestRequest, *, in_play: bool = False) -> bool:
         """Whether ``name`` should be fetched under this request's cadence.
 
         Adapters guard their expensive resources with this rather than branching on
         ``request.fast_path_only`` themselves, so the cadence rule exists in exactly one place and
         a resource opts out by declaring ``fast_path=False`` — a fact about the resource, stated
-        next to its TTL, rather than a condition buried in an ingest method.
+        next to its TTL, rather than a condition buried in an ingest method. ``in_play`` says a
+        gameweek is in play, which brings in a resource declared ``in_play`` (LIVE-01).
         """
-        return not request.fast_path_only or self.resource(name).fast_path
+        resource = self.resource(name)
+        return not request.fast_path_only or resource.fast_path or (in_play and resource.in_play)
 
     def has_fast_path(self) -> bool:
         """Whether any of this source's resources belong on the frequent cadence at all.

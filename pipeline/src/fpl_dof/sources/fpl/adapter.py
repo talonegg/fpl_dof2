@@ -23,12 +23,20 @@ Public endpoints only. There is no authentication in this project and there neve
     see DL-19.
 
 ``event_live``, ``set_piece_notes``, ``league_standings``
-    Added in E2-S1. All three are empty or trivial in preseason, which is normal.
+    Added in E2-S1. All three are empty or trivial in preseason, which is normal. ``event_live``
+    for the gameweek in play is conformed as ``player_live``: per player and fixture, its
+    ``explain`` lines carry the fixture id (LIVE-01).
 
 ``entry``, ``entry_history``, ``entry_picks``, ``entry_transfers``
     The owner's own team, fetched only when a team ID is configured. Public endpoints, like
     everything else here — the authenticated ``my-team`` endpoint carries purchase prices and is
     deliberately not used (Invariant 4), so purchase prices are reconstructed instead.
+
+**The gameweek in play** is the latest past its deadline, until FPL data-checks it (LIVE-01). Its
+picks are fixed at the deadline, so each team's are fetched once after it, and once more when the
+gameweek is checked, for the game's final figures in their ``entry_history``. Its live scores and
+the league table are fetched on every firing of the fast cadence while it is in play, as fresh as
+the fixtures read with them.
 
 **Two paths in this file are not where the catalogue said they were.** Set-piece notes live at
 ``team/set-piece-notes/``; a bare ``set-piece-notes/`` returns 404. ``element-status/`` no longer
@@ -39,10 +47,13 @@ from __future__ import annotations
 
 import datetime as dt
 import json
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, ClassVar, cast
 
 import pandas as pd
 
+from fpl_dof.config.models import SourceOverride
 from fpl_dof.gameweek import matchdays_done_since
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.obs.manifest import utcnow
@@ -63,6 +74,7 @@ from fpl_dof.sources.errors import (
     SourceError,
     SourceNotFoundError,
 )
+from fpl_dof.sources.fetch import Fetcher
 from fpl_dof.sources.registry import register
 from fpl_dof.sources.replay import extract_price_history_rows
 
@@ -132,6 +144,109 @@ def _latest_finished_gameweek(bootstrap: dict[str, Any]) -> int | None:
     return max(finished) if finished else None
 
 
+@dataclass(frozen=True, slots=True)
+class _LiveGameweek:
+    """The latest gameweek past its deadline: in play until FPL data-checks it (LIVE-01)."""
+
+    gameweek: int
+    deadline: dt.datetime
+    checked: bool
+    """FPL has marked it finished and data-checked: its figures are final."""
+
+    @property
+    def key(self) -> str:
+        return str(self.gameweek)
+
+
+def _live_gameweek(bootstrap: dict[str, Any], moment: dt.datetime) -> _LiveGameweek | None:
+    """The latest gameweek whose deadline is at or before ``moment``, or None preseason.
+
+    The deadline, not the first kick-off, because the picks are what it governs: they are public
+    and fixed from then (CON-10). An event without a deadline is no gameweek anyone can be in.
+    """
+    past: list[tuple[dt.datetime, dict[str, Any]]] = []
+    for event in bootstrap.get("events") or []:
+        if not event.get("deadline_time"):
+            continue
+        deadline = pd.Timestamp(event["deadline_time"]).tz_convert("UTC").to_pydatetime()
+        if deadline <= moment:
+            past.append((deadline, event))
+    if not past:
+        return None
+    deadline, event = max(past, key=lambda item: item[0])
+    checked = bool(event.get("finished")) and bool(event.get("data_checked"))
+    return _LiveGameweek(gameweek=int(event["id"]), deadline=deadline, checked=checked)
+
+
+def _live_rows(
+    element: dict[str, Any], states: dict[int, tuple[bool, bool]]
+) -> list[dict[str, Any]]:
+    """One row per fixture FPL explains for this player, as it explains it.
+
+    ``explain`` is FPL's own per-fixture breakdown; a fixture's points are the sum of its lines.
+    BPS is reported for the whole gameweek, so it is the fixture's only when the player has one.
+    ``states`` is each fixture's (full time, bonus confirmed).
+    """
+    explain = element.get("explain") or []
+    stats = element.get("stats") or {}
+    rows = []
+    for item in explain:
+        lines = {str(line["identifier"]): line for line in item.get("stats") or []}
+        bps = lines["bps"].get("value") if "bps" in lines else None
+        if bps is None and len(explain) == 1:
+            bps = stats.get("bps")
+        rows.append(
+            {
+                "fixture_id": int(item["fixture"]),
+                "player_id": int(element["id"]),
+                "minutes": int((lines.get("minutes") or {}).get("value") or 0),
+                "points": sum(int(line.get("points") or 0) for line in lines.values()),
+                "bonus": int((lines.get("bonus") or {}).get("value") or 0),
+                "bps": None if bps is None else int(bps),
+                "finished": states.get(int(item["fixture"]), (False, False))[0],
+                "bonus_confirmed": states.get(int(item["fixture"]), (False, False))[1],
+            }
+        )
+    return rows
+
+
+def _unexplained_rows(
+    bootstrap: dict[str, Any],
+    fixtures: list[dict[str, Any]],
+    gameweek: int,
+    explained: set[tuple[int, int]],
+) -> list[dict[str, Any]]:
+    """A row of zeros for each fixture of the gameweek a player's club plays and FPL gives him no
+    line in: one still to kick off, or one he has not appeared in.
+
+    FPL's ``explain`` lists only fixtures a player has a line in, and no line means no minutes, so
+    this states what it reports rather than inferring anything; without it a player yet to play
+    would read as a blank, and be substituted (LIVE-03).
+    """
+    by_club: dict[int, list[dict[str, Any]]] = {}
+    for fixture in fixtures:
+        if fixture.get("event") != gameweek:
+            continue
+        for club in (fixture["team_h"], fixture["team_a"]):
+            by_club.setdefault(int(club), []).append(fixture)
+    return [
+        {
+            "fixture_id": int(fixture["id"]),
+            "player_id": int(element["id"]),
+            "minutes": 0,
+            "points": 0,
+            "bonus": 0,
+            "bps": None,
+            "finished": bool(fixture.get("finished_provisional")),
+            "bonus_confirmed": bool(fixture.get("finished")),
+        }
+        for element in bootstrap["elements"]
+        if not element.get("removed")
+        for fixture in by_club.get(int(element["team"]), [])
+        if (int(element["id"]), int(fixture["id"])) not in explained
+    ]
+
+
 def _latest_checked_gameweek(bootstrap: dict[str, Any]) -> int | None:
     """The most recent gameweek FPL has finished *and* checked: its per-player rows are final."""
     checked = [
@@ -179,10 +294,11 @@ class FplApiAdapter(SourceAdapter):
         Resource(
             name="event_live",
             summary="Per-gameweek actuals for every player, including BPS",
-            # A finished gameweek never changes. An in-progress one changes constantly, which the
-            # fetcher handles by TTL rather than by the adapter guessing which state it is in.
+            # A finished gameweek never changes. The one in play changes with every match, so the
+            # fast cadence fetches it too, as fresh as the fixtures read with it (LIVE-01).
             cache_ttl_seconds=_HOUR,
             fast_path=False,
+            in_play=True,
         ),
         Resource(
             name="set_piece_notes",
@@ -195,6 +311,7 @@ class FplApiAdapter(SourceAdapter):
             summary="Classic league standings, for rival analysis",
             cache_ttl_seconds=_HOUR,
             fast_path=False,
+            in_play=True,
         ),
         Resource(
             name="entry",
@@ -210,7 +327,8 @@ class FplApiAdapter(SourceAdapter):
         ),
         Resource(
             name="entry_picks",
-            summary="The owner's picks for a finished gameweek, with purchase and selling prices",
+            # Fixed from the deadline: the gameweek in play's are fetched once a team (LIVE-01).
+            summary="A team's picks for a gameweek past its deadline, with the game's own score",
             cache_ttl_seconds=_HOUR,
             fast_path=True,
         ),
@@ -221,6 +339,11 @@ class FplApiAdapter(SourceAdapter):
             fast_path=True,
         ),
     )
+
+    def __init__(self, fetcher: Fetcher, options: SourceOverride | None = None) -> None:
+        super().__init__(fetcher, options)
+        self._checked_at: dict[Path, frozenset[int]] = {}
+        """The gameweeks each bootstrap capture shows data-checked, read once per capture."""
 
     # --- fetch helpers -------------------------------------------------------------------
 
@@ -387,6 +510,7 @@ class FplApiAdapter(SourceAdapter):
         request: IngestRequest,
         *,
         stale_before: dt.datetime | None = None,
+        fresh_from: dt.datetime | None = None,
     ) -> Any:
         """Fetch, snapshot and parse one resource, checked against its contract (:meth:`_parse`).
 
@@ -395,6 +519,21 @@ class FplApiAdapter(SourceAdapter):
         notes and a team ID that is not configured are all normal, so whether emptiness is
         expected is decided at conformance.
         """
+        return self._capture(
+            resource_name, path, key, request, stale_before=stale_before, fresh_from=fresh_from
+        )[0]
+
+    def _capture(
+        self,
+        resource_name: str,
+        path: str,
+        key: str,
+        request: IngestRequest,
+        *,
+        stale_before: dt.datetime | None = None,
+        fresh_from: dt.datetime | None = None,
+    ) -> tuple[Any, Snapshot]:
+        """:meth:`_fetch_resource`, with the capture it read: its time stamps live rows."""
         resource = self.resource(resource_name)
         fetched = self.fetcher.fetch(
             self.url_for(path),
@@ -407,8 +546,9 @@ class FplApiAdapter(SourceAdapter):
             offline=request.offline,
             now=request.now,
             stale_before=stale_before,
+            fresh_from=fresh_from,
         )
-        return self._parse(resource.name, key, fetched.payload)
+        return self._parse(resource.name, key, fetched.payload), fetched.snapshot
 
     def fetch_bootstrap(self, request: IngestRequest) -> dict[str, Any]:
         data: dict[str, Any] = self._fetch_resource(
@@ -467,9 +607,11 @@ class FplApiAdapter(SourceAdapter):
             )
         return seen
 
-    def fetch_event_live(self, gameweek: int, request: IngestRequest) -> dict[str, Any]:
+    def fetch_event_live(
+        self, gameweek: int, request: IngestRequest, *, fresh_from: dt.datetime | None = None
+    ) -> dict[str, Any]:
         data: dict[str, Any] = self._fetch_resource(
-            "event_live", f"event/{gameweek}/live/", str(gameweek), request
+            "event_live", f"event/{gameweek}/live/", str(gameweek), request, fresh_from=fresh_from
         )
         return data
 
@@ -481,9 +623,15 @@ class FplApiAdapter(SourceAdapter):
         )
         return data
 
-    def fetch_league_standings(self, league_id: int, request: IngestRequest) -> dict[str, Any]:
+    def fetch_league_standings(
+        self, league_id: int, request: IngestRequest, *, fresh_from: dt.datetime | None = None
+    ) -> dict[str, Any]:
         data: dict[str, Any] = self._fetch_resource(
-            "league_standings", f"leagues-classic/{league_id}/standings/", str(league_id), request
+            "league_standings",
+            f"leagues-classic/{league_id}/standings/",
+            str(league_id),
+            request,
+            fresh_from=fresh_from,
         )
         return data
 
@@ -500,23 +648,104 @@ class FplApiAdapter(SourceAdapter):
         return data
 
     def fetch_entry_picks(
-        self, entry_id: int, gameweek: int, request: IngestRequest
+        self,
+        entry_id: int,
+        gameweek: int,
+        request: IngestRequest,
+        *,
+        fresh_from: dt.datetime | None = None,
     ) -> dict[str, Any] | None:
         """``None`` when the gameweek has no picks yet.
 
         Before a gameweek's deadline passes the endpoint 404s, which is the normal state of the
         world for most of the week and is not an error (DL-20).
         """
+        captured = self._picks_capture(entry_id, gameweek, request, fresh_from=fresh_from)
+        return None if captured is None else captured[0]
+
+    def _picks_capture(
+        self,
+        entry_id: int,
+        gameweek: int,
+        request: IngestRequest,
+        *,
+        fresh_from: dt.datetime | None = None,
+    ) -> tuple[dict[str, Any], Snapshot] | None:
+        """:meth:`fetch_entry_picks`, with the capture it read."""
         try:
-            data: dict[str, Any] = self._fetch_resource(
+            data, snapshot = self._capture(
                 "entry_picks",
                 f"entry/{entry_id}/event/{gameweek}/picks/",
                 f"{entry_id}-{gameweek}",
                 request,
+                fresh_from=fresh_from,
             )
         except SourceNotFoundError:
             return None
-        return data
+        return cast(dict[str, Any], data), snapshot
+
+    # --- the gameweek in play (LIVE-01) ----------------------------------------------------
+
+    def _settled(self, snapshot: Snapshot, gameweek: int) -> bool:
+        """Whether ``snapshot`` was captured once FPL had data-checked ``gameweek``: final.
+
+        Read from the bootstrap capture bronze held at that moment, because FPL publishes no time
+        a gameweek was checked; so a run on any later day stamps a capture as it was (DP-11). A
+        capture with no bootstrap before it cannot be shown final, and is not.
+        """
+        bootstrap = self.fetcher.bronze.latest(
+            self.name, "bootstrap_static", "all", as_of=snapshot.meta.fetched_at
+        )
+        if bootstrap is None:
+            return False
+        checked = self._checked_at.get(bootstrap.path)
+        if checked is None:
+            data = self._json(bootstrap.read_bytes(), resource="bootstrap_static", key="all")
+            checked = frozenset(
+                int(event["id"])
+                for event in data.get("events") or []
+                if event.get("finished") and event.get("data_checked")
+            )
+            self._checked_at[bootstrap.path] = checked
+        return gameweek in checked
+
+    def _fresh_from(
+        self,
+        resource: str,
+        key: str,
+        live: _LiveGameweek,
+        request: IngestRequest,
+        in_play_from: dt.datetime,
+    ) -> dt.datetime:
+        """From when a capture of the live gameweek's ``resource`` is current.
+
+        ``in_play_from`` while it is in play. Once it is checked, the first capture taken after
+        the check is current for good and every earlier one is not: the final figures are
+        fetched once, and never again.
+        """
+        if not live.checked:
+            return in_play_from
+        moment = request.now or utcnow()
+        latest = self.fetcher.bronze.latest(self.name, resource, key, as_of=moment)
+        if latest is not None and self._settled(latest, live.gameweek):
+            return latest.meta.fetched_at
+        return moment
+
+    def _scores_from(self, live: _LiveGameweek, request: IngestRequest) -> dt.datetime:
+        """From when live scores and the table are current while the gameweek is in play: the
+        fixtures capture read with them, never before the deadline. So a run never reads scores
+        older than the fixture states beside them."""
+        fixtures = self.fetcher.bronze.latest(self.name, "fixtures", "all", as_of=request.now)
+        captured = fixtures.meta.fetched_at if fixtures is not None else live.deadline
+        return max(captured, live.deadline)
+
+    def _live_picks(
+        self, entry_id: int, live: _LiveGameweek, request: IngestRequest
+    ) -> tuple[dict[str, Any], Snapshot] | None:
+        """One team's picks for the live gameweek: once after its deadline, once when checked."""
+        key = f"{entry_id}-{live.gameweek}"
+        fresh = self._fresh_from("entry_picks", key, live, request, live.deadline)
+        return self._picks_capture(entry_id, live.gameweek, request, fresh_from=fresh)
 
     def fetch_entry_transfers(self, entry_id: int, request: IngestRequest) -> list[dict[str, Any]]:
         data: list[dict[str, Any]] = self._fetch_resource(
@@ -693,6 +922,8 @@ class FplApiAdapter(SourceAdapter):
                     "home_difficulty": int(fixture["team_h_difficulty"]),
                     "away_difficulty": int(fixture["team_a_difficulty"]),
                     "finished": bool(fixture["finished"]),
+                    "finished_provisional": bool(fixture.get("finished_provisional")),
+                    "started": bool(fixture.get("started")),
                 }
             )
         frame = pd.DataFrame(rows)
@@ -1046,6 +1277,7 @@ class FplApiAdapter(SourceAdapter):
         observed = pd.Timestamp(
             snapshot.meta.fetched_at if snapshot else (request.now or utcnow())
         ).tz_convert("UTC")
+        live = _live_gameweek(bootstrap, request.now or utcnow())
 
         tables: dict[str, pd.DataFrame] = {
             Table.PLAYER.value: self._players(bootstrap),
@@ -1057,6 +1289,10 @@ class FplApiAdapter(SourceAdapter):
             Table.PLAYER_SEASON_HISTORY.value: self._season_history(bootstrap, request, warnings),
             Table.PLAYER_GAMEWEEK.value: self._player_gameweek(bootstrap, request, warnings),
         }
+        if live is not None:
+            tables[Table.PLAYER_LIVE.value] = self._player_live(
+                live, bootstrap, fixtures, request, warnings
+            )
 
         try:
             tables[Table.SET_PIECE_NOTE.value] = self._set_piece_notes(
@@ -1065,11 +1301,24 @@ class FplApiAdapter(SourceAdapter):
         except SourceNotFoundError, OfflineWithoutSnapshotError:
             warnings.append("no set-piece notes snapshot; continuing without them")
 
-        if request.entry_id is not None:
-            tables.update(self._conform_entry(request.entry_id, bootstrap, request, warnings))
-
-        if request.league_id is not None:
-            tables.update(self._conform_league(request.league_id, bootstrap, request, warnings))
+        # The owner first, so an owner who is also a published rival keeps one row (one capture).
+        entry_live: list[pd.DataFrame] = []
+        for part in (
+            self._conform_entry(request.entry_id, bootstrap, request, warnings, live)
+            if request.entry_id is not None
+            else {},
+            self._conform_league(request.league_id, bootstrap, request, warnings, live)
+            if request.league_id is not None
+            else {},
+        ):
+            entry_live.append(part.pop(Table.ENTRY_LIVE.value, pd.DataFrame()))
+            tables.update(part)
+        frames = [frame for frame in entry_live if not frame.empty]
+        if frames:
+            merged = pd.concat(frames, ignore_index=True)
+            tables[Table.ENTRY_LIVE.value] = merged.drop_duplicates(
+                subset=["entry_id", "gameweek"], keep="first"
+            ).reset_index(drop=True)
 
         return Conformed(
             tables=tables,
@@ -1078,17 +1327,91 @@ class FplApiAdapter(SourceAdapter):
             warnings=warnings,
         )
 
+    def _player_live(
+        self,
+        live: _LiveGameweek,
+        bootstrap: dict[str, Any],
+        fixtures: list[dict[str, Any]],
+        request: IngestRequest,
+        warnings: list[str],
+    ) -> pd.DataFrame:
+        """The live gameweek's scores per player and fixture, stamped provisional (LIVE-01).
+
+        Losing them costs the live view and nothing else (DP-15): no decision reads them, and the
+        feature store refuses them outright (Invariant 5).
+        """
+        empty = pd.DataFrame(columns=columns_for(Table.PLAYER_LIVE))
+        try:
+            payload, snapshot = self._capture(
+                "event_live", f"event/{live.key}/live/", live.key, request
+            )
+        except SourceNotFoundError, OfflineWithoutSnapshotError:
+            warnings.append(f"no live scores for gameweek {live.gameweek} yet")
+            return empty
+        if snapshot.meta.fetched_at < live.deadline:
+            warnings.append(f"the live scores for gameweek {live.gameweek} predate its deadline")
+            return empty
+        states = {
+            int(f["id"]): (bool(f.get("finished_provisional")), bool(f.get("finished")))
+            for f in fixtures
+        }
+        try:
+            rows, unexplained = [], 0
+            for element in payload.get("elements") or []:
+                lines = _live_rows(element, states)
+                total = (element.get("stats") or {}).get("total_points")
+                if total is not None and sum(r["points"] for r in lines) != int(total):
+                    unexplained += 1
+                rows.extend(lines)
+            explained = {(r["player_id"], r["fixture_id"]) for r in rows}
+            rows.extend(_unexplained_rows(bootstrap, fixtures, live.gameweek, explained))
+        except (KeyError, ValueError, TypeError) as exc:
+            warnings.append(f"the live scores for gameweek {live.gameweek} are malformed: {exc!r}")
+            return empty
+        if unexplained:
+            # Visible, not silent (DP-15): FPL's breakdown no longer adds up to its own totals.
+            warnings.append(
+                f"gameweek {live.gameweek}: {unexplained} players' explained points do not sum "
+                "to their total"
+            )
+        frame = pd.DataFrame(rows, columns=columns_for(Table.PLAYER_LIVE))
+        frame["gameweek"] = live.gameweek
+        frame["observed_at"] = pd.Timestamp(snapshot.meta.fetched_at).tz_convert("UTC")
+        frame["provisional"] = not self._settled(snapshot, live.gameweek)
+        return frame
+
+    def _entry_live(
+        self, entry_id: int, live: _LiveGameweek, payload: dict[str, Any], snapshot: Snapshot
+    ) -> dict[str, Any] | None:
+        """FPL's own figures for one team in the live gameweek, from its picks; None when the
+        picks carry none, which is not a score of zero (DL-18)."""
+        history = payload.get("entry_history")
+        if not isinstance(history, dict) or history.get("points") is None:
+            return None
+        return {
+            "gameweek": live.gameweek,
+            "observed_at": pd.Timestamp(snapshot.meta.fetched_at).tz_convert("UTC"),
+            "provisional": not self._settled(snapshot, live.gameweek),
+            "entry_id": entry_id,
+            "points": int(history["points"]),
+            "transfers_cost": int(history.get("event_transfers_cost") or 0),
+            "total_points": int(history.get("total_points") or 0),
+            "chip": payload.get("active_chip"),
+        }
+
     def _conform_league(
         self,
         league_id: int,
         bootstrap: dict[str, Any],
         request: IngestRequest,
         warnings: list[str],
+        live: _LiveGameweek | None = None,
     ) -> dict[str, pd.DataFrame]:
         """The mini-league table, and as many rivals' squads as the budget allowed.
 
         An unreadable league is a warning, never a failure: it enriches a comparison view and feeds
-        no decision, so losing it must cost exactly that view (NFR-15, DP-15).
+        no decision, so losing it must cost exactly that view (NFR-15, DP-15). So is one rival's
+        unreadable picks: that team loses its squad, and no other does.
         """
         try:
             standings = self.fetch_league_standings(league_id, request)
@@ -1096,28 +1419,46 @@ class FplApiAdapter(SourceAdapter):
             warnings.append(f"league {league_id} was not readable; continuing without it")
             return {}
 
+        rivals = _league_entry_ids(standings, request.league_rival_limit)
         gameweek = _latest_finished_gameweek(bootstrap)
-        picks: dict[int, dict[str, Any]] = {}
-        if gameweek is not None:
-            for entry_id in _league_entry_ids(standings, request.league_rival_limit):
+        picks: dict[tuple[int, int], dict[str, Any]] = {}
+        if gameweek is not None and (live is None or gameweek != live.gameweek):
+            for entry_id in rivals:
                 try:
                     payload = self.fetch_entry_picks(entry_id, gameweek, request)
-                except OfflineWithoutSnapshotError:
+                except SourceError:
                     warnings.append(f"no picks snapshot for league entry {entry_id}")
                     continue
                 if payload is not None:
-                    picks[entry_id] = payload
+                    picks[(entry_id, gameweek)] = payload
+
+        live_rows: list[dict[str, Any]] = []
+        if live is not None:
+            for entry_id in rivals:
+                try:
+                    captured = self._live_picks(entry_id, live, request)
+                except SourceError:
+                    warnings.append(
+                        f"no picks snapshot for league entry {entry_id} in gameweek {live.gameweek}"
+                    )
+                    continue
+                if captured is None:
+                    continue
+                picks[(entry_id, live.gameweek)] = captured[0]
+                row = self._entry_live(entry_id, live, *captured)
+                if row is not None:
+                    live_rows.append(row)
 
         moves: dict[int, tuple[dict[str, Any], list[dict[str, Any]]]] = {}
         if gameweek is not None:
-            for entry_id in _league_entry_ids(standings, request.league_rival_limit):
+            for entry_id in rivals:
                 try:
                     moves[entry_id] = self._rival_moves(entry_id, gameweek, request)
                 except SourceError as exc:
                     # Only this team's drill-down loses its moves (NFR-15); the reason is kept.
                     warnings.append(f"no moves for league entry {entry_id}: {exc}")
 
-        if request.league_rival_limit > 0 and not picks:
+        if request.league_rival_limit > 0 and not any(gw == gameweek for _, gw in picks):
             # Says which of the two reasons applies, because "no overlap shown" has a very
             # different meaning preseason than it does in October (DP-15: visible degradation).
             warnings.append(
@@ -1127,7 +1468,7 @@ class FplApiAdapter(SourceAdapter):
 
         return {
             Table.LEAGUE_STANDING.value: self._league_standings(league_id, standings),
-            Table.LEAGUE_PICK.value: self._league_picks(gameweek, picks),
+            Table.LEAGUE_PICK.value: self._league_picks(picks, warnings),
             Table.LEAGUE_GAMEWEEK.value: pd.DataFrame(
                 [
                     {"entry_id": e, "gameweek": gameweek, **row}
@@ -1143,6 +1484,7 @@ class FplApiAdapter(SourceAdapter):
                 ],
                 columns=columns_for(Table.LEAGUE_TRANSFER),
             ),
+            Table.ENTRY_LIVE.value: pd.DataFrame(live_rows, columns=columns_for(Table.ENTRY_LIVE)),
         }
 
     def _rival_moves(
@@ -1221,21 +1563,33 @@ class FplApiAdapter(SourceAdapter):
         )
 
     def _league_picks(
-        self, gameweek: int | None, picks_by_entry: dict[int, dict[str, Any]]
+        self, picks: dict[tuple[int, int], dict[str, Any]], warnings: list[str]
     ) -> pd.DataFrame:
-        rows = [
-            {
-                "entry_id": entry_id,
-                "gameweek": gameweek,
-                "player_id": int(pick["element"]),
-                "slot": int(pick["position"]),
-                "multiplier": int(pick["multiplier"]),
-                "is_captain": bool(pick.get("is_captain")),
-                "is_vice_captain": bool(pick.get("is_vice_captain")),
-            }
-            for entry_id, payload in sorted(picks_by_entry.items())
-            for pick in payload.get("picks") or []
-        ]
+        """Each rival's squad for each gameweek read, keyed by ``(entry_id, gameweek)``.
+
+        A team whose picks will not read loses its squad for that gameweek, with a warning; the
+        other teams keep theirs (NFR-15).
+        """
+        rows: list[dict[str, Any]] = []
+        for (entry_id, gameweek), payload in sorted(picks.items()):
+            try:
+                rows.extend(
+                    {
+                        "entry_id": entry_id,
+                        "gameweek": gameweek,
+                        "player_id": int(pick["element"]),
+                        "slot": int(pick["position"]),
+                        "multiplier": int(pick["multiplier"]),
+                        "is_captain": bool(pick.get("is_captain")),
+                        "is_vice_captain": bool(pick.get("is_vice_captain")),
+                    }
+                    for pick in payload.get("picks") or []
+                )
+            except (KeyError, ValueError, TypeError) as exc:
+                rows = [r for r in rows if (r["entry_id"], r["gameweek"]) != (entry_id, gameweek)]
+                warnings.append(
+                    f"malformed picks for league entry {entry_id} in gameweek {gameweek}: {exc!r}"
+                )
         return pd.DataFrame(
             rows,
             columns=[
@@ -1255,6 +1609,7 @@ class FplApiAdapter(SourceAdapter):
         bootstrap: dict[str, Any],
         request: IngestRequest,
         warnings: list[str],
+        live: _LiveGameweek | None = None,
     ) -> dict[str, pd.DataFrame]:
         """Everything about the owner's team, or nothing, with a reason.
 
@@ -1275,11 +1630,25 @@ class FplApiAdapter(SourceAdapter):
 
         picks: dict[int, dict[str, Any]] = {}
         for event in bootstrap["events"]:
-            if not event.get("finished"):
+            if not event.get("finished") or (live is not None and event["id"] == live.gameweek):
                 continue
             payload = self.fetch_entry_picks(entry_id, int(event["id"]), request)
             if payload is not None:
                 picks[int(event["id"])] = payload
+        live_rows: list[dict[str, Any]] = []
+        if live is not None:
+            try:
+                captured = self._live_picks(entry_id, live, request)
+            except SourceError:
+                # Squad state does not need them: the last finished picks and the transfers since
+                # reconstruct the same squad (DP-15).
+                warnings.append(f"no picks snapshot for gameweek {live.gameweek}")
+                captured = None
+            if captured is not None:
+                picks[live.gameweek] = captured[0]
+                row = self._entry_live(entry_id, live, *captured)
+                if row is not None:
+                    live_rows.append(row)
         if not picks:
             warnings.append(
                 f"entry {entry_id} has no published picks yet; squad state must be declared"
@@ -1291,6 +1660,7 @@ class FplApiAdapter(SourceAdapter):
             Table.ENTRY_TRANSFER.value: self._entry_transfers(entry_id, transfers, bootstrap),
             Table.ENTRY_CHIP.value: self._entry_chips(entry_id, history),
             Table.ENTRY_GAMEWEEK.value: self._entry_gameweeks(entry_id, history, bootstrap),
+            Table.ENTRY_LIVE.value: pd.DataFrame(live_rows, columns=columns_for(Table.ENTRY_LIVE)),
         }
 
     # --- ingest --------------------------------------------------------------------------
@@ -1306,6 +1676,7 @@ class FplApiAdapter(SourceAdapter):
         fixtures = self.fetch_fixtures(request)
         report.resources["fixtures"] = 1
         log.info("fpl.fixtures", extra={"count": len(fixtures)})
+        live = _live_gameweek(bootstrap, request.now or utcnow())
 
         # ~700 requests, several minutes. It is declared off the fast path, and the fast cadence
         # runs six times a day, so honouring that declaration is what keeps the frequent workflow
@@ -1364,26 +1735,38 @@ class FplApiAdapter(SourceAdapter):
 
         # Only gameweeks that have actually been played. Asking for a future one returns an empty
         # payload that would then be cached as if it meant something.
-        live = 0
+        played = 0
         if self.wants("event_live", request):
             for event in bootstrap["events"]:
-                if not event.get("finished"):
+                if not event.get("finished") or (live is not None and event["id"] == live.gameweek):
                     continue
                 try:
                     self.fetch_event_live(int(event["id"]), request)
-                    live += 1
+                    played += 1
                 except SourceNotFoundError, OfflineWithoutSnapshotError:
                     report.warnings.append(f"no live data for gameweek {event['id']}")
-        report.resources["event_live"] = live
+        if live is not None and self.wants("event_live", request, in_play=True):
+            fresh = self._fresh_from(
+                "event_live", live.key, live, request, self._scores_from(live, request)
+            )
+            try:
+                self.fetch_event_live(live.gameweek, request, fresh_from=fresh)
+                played += 1
+            except SourceError as exc:
+                # The live view loses its scores; nothing decided reads them (DP-15).
+                report.warnings.append(f"no live scores for gameweek {live.gameweek}: {exc}")
+        report.resources["event_live"] = played
 
-        if request.league_id is not None and self.wants("league_standings", request):
+        if request.league_id is not None and self.wants(
+            "league_standings", request, in_play=live is not None
+        ):
             report.resources.update(
-                self._ingest_league(request.league_id, bootstrap, request, report)
+                self._ingest_league(request.league_id, bootstrap, request, report, live)
             )
 
         if request.entry_id is not None:
             report.resources.update(
-                self._ingest_entry(request.entry_id, bootstrap, request, report)
+                self._ingest_entry(request.entry_id, bootstrap, request, report, live)
             )
 
         report.network_calls = self.fetcher.network_calls - before_calls
@@ -1404,34 +1787,58 @@ class FplApiAdapter(SourceAdapter):
         bootstrap: dict[str, Any],
         request: IngestRequest,
         report: IngestReport,
+        live: _LiveGameweek | None = None,
     ) -> dict[str, int]:
         """The configured mini-league: its table, and the squads of the entries near the top.
 
         Standings are one request. Squads are one request *per entry*, which is why the number of
         entries read is a configured budget rather than "everyone in the league" — a public league
-        can hold hundreds of thousands of them.
+        can hold hundreds of thousands of them. The last finished gameweek's squads and moves are
+        the full cadence's; the live gameweek's squads are fetched on either cadence, once a team.
         """
         counts: dict[str, int] = {}
+        fresh = (
+            None
+            if live is None
+            else self._fresh_from(
+                "league_standings", str(league_id), live, request, self._scores_from(live, request)
+            )
+        )
         try:
-            standings = self.fetch_league_standings(league_id, request)
+            standings = self.fetch_league_standings(league_id, request, fresh_from=fresh)
         except SourceNotFoundError, OfflineWithoutSnapshotError:
             report.warnings.append(f"league {league_id} unavailable")
             return counts
         counts["league_standings"] = 1
+        rivals = _league_entry_ids(standings, request.league_rival_limit)
+
+        if live is not None:
+            picked = 0
+            for entry_id in rivals:
+                try:
+                    if self._live_picks(entry_id, live, request) is not None:
+                        picked += 1
+                except SourceError as exc:
+                    # This team is not live; every other one is (NFR-15).
+                    report.warnings.append(
+                        f"no picks for league entry {entry_id} in gameweek {live.gameweek}: {exc}"
+                    )
+            counts["league_live_picks"] = picked
 
         gameweek = _latest_finished_gameweek(bootstrap)
-        if gameweek is None:
-            # Preseason. Nobody has picks yet, not even the owner (DL-20), so there is nothing to
-            # fetch and the standings alone are the honest answer.
+        if gameweek is None or not self.wants("league_standings", request):
+            # Preseason, nobody has picks yet, not even the owner (DL-20), so the standings alone
+            # are the honest answer; or the fast cadence, which leaves these to the full one.
             return counts
 
         fetched = moves = 0
-        for entry_id in _league_entry_ids(standings, request.league_rival_limit):
-            try:
-                if self.fetch_entry_picks(entry_id, gameweek, request) is not None:
-                    fetched += 1
-            except OfflineWithoutSnapshotError:
-                report.warnings.append(f"no picks snapshot for league entry {entry_id}")
+        for entry_id in rivals:
+            if live is None or gameweek != live.gameweek:
+                try:
+                    if self.fetch_entry_picks(entry_id, gameweek, request) is not None:
+                        fetched += 1
+                except SourceError as exc:
+                    report.warnings.append(f"no picks for league entry {entry_id}: {exc}")
             try:
                 self._rival_moves(entry_id, gameweek, request)
                 moves += 1
@@ -1447,6 +1854,7 @@ class FplApiAdapter(SourceAdapter):
         bootstrap: dict[str, Any],
         request: IngestRequest,
         report: IngestReport,
+        live: _LiveGameweek | None = None,
     ) -> dict[str, int]:
         counts: dict[str, int] = {}
         try:
@@ -1465,12 +1873,18 @@ class FplApiAdapter(SourceAdapter):
 
         picks = 0
         for event in bootstrap["events"]:
-            if not event.get("finished"):
+            if not event.get("finished") or (live is not None and event["id"] == live.gameweek):
                 continue
             try:
                 if self.fetch_entry_picks(entry_id, int(event["id"]), request) is not None:
                     picks += 1
             except OfflineWithoutSnapshotError:
                 report.warnings.append(f"no picks snapshot for gameweek {event['id']}")
+        if live is not None:
+            try:
+                if self._live_picks(entry_id, live, request) is not None:
+                    picks += 1
+            except SourceError as exc:
+                report.warnings.append(f"no picks for gameweek {live.gameweek}: {exc}")
         counts["entry_picks"] = picks
         return counts

@@ -38,6 +38,7 @@ import pandas as pd
 from fpl_dof.config.models import FeatureConfig, PriorSeasonConfig
 from fpl_dof.frames import as_int
 from fpl_dof.obs.logging import get_logger
+from fpl_dof.silver.tables import PROVISIONAL
 
 log = get_logger(__name__)
 
@@ -83,6 +84,20 @@ class LeakageError(RuntimeError):
     Never a warning. A leaked feature produces a model that scores brilliantly and is worthless,
     and it is the single easiest way to waste a season (Invariant 5).
     """
+
+
+def refuse_provisional(history: pd.DataFrame) -> None:
+    """Raise :class:`LeakageError` if ``history`` is a live table rather than ``player_gameweek``.
+
+    The live gameweek's rows carry a ``provisional`` stamp and nothing else does. Its points can
+    still move, and a feature built on them knows a result before the game has settled it, so a
+    frame with the stamp is refused whichever of its rows are final (LIVE-01, Invariant 5).
+    """
+    if PROVISIONAL in history.columns:
+        raise LeakageError(
+            "features were asked to read the live gameweek's provisional rows; the feature store "
+            "reads player_gameweek only (LIVE-01)"
+        )
 
 
 class Knowability(StrEnum):
@@ -348,12 +363,14 @@ def build_features(
 
     ``history`` is the per-gameweek table. **Only rows whose kickoff is strictly before ``as_of``
     are used**, and that filter happens here rather than in each caller, because a filter that each
-    caller has to remember is a filter that one caller eventually forgets.
+    caller has to remember is a filter that one caller eventually forgets. A live table is
+    refused outright (:func:`refuse_provisional`).
 
     ``metrics`` is the conformed advanced table. It contributes only completed *prior* seasons, and
     only when ``season`` says which season is being predicted; without that the question "is this
     row in the past" has no answer and the safe answer is taken instead.
     """
+    refuse_provisional(history)
     if history.empty:
         return pd.DataFrame(columns=["player_code", "as_of", *input_features(config)])
 
@@ -499,8 +516,9 @@ def assert_no_look_ahead(
 
     Checked rather than reasoned about. The leakage this catches is not exotic — it is an off-by-one
     on a gameweek boundary, or a merge that pulled in the row it was predicting — and both look
-    completely ordinary in a diff.
+    completely ordinary in a diff. A history that is a live table fails whatever the features.
     """
+    refuse_provisional(history)
     if features.empty:
         return
     moment = pd.Timestamp(as_of).tz_convert("UTC")
@@ -574,6 +592,7 @@ __all__ = [
     "input_features",
     "prior_season_feature_names",
     "prior_season_ratios",
+    "refuse_provisional",
     "rolling_feature_names",
     "season_start_year",
     "specs",

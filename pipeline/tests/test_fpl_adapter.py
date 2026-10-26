@@ -78,7 +78,9 @@ def adapter(tmp_path: Path) -> Iterator[FplApiAdapter]:
         yield FplApiAdapter(fetcher)
 
 
-REQUEST = IngestRequest(run_id="run-1")
+#: Preseason: no deadline has passed, so no gameweek is in play (the clock is pinned, not read).
+PRESEASON = pd.Timestamp("2026-08-15T12:00:00Z").to_pydatetime()
+REQUEST = IngestRequest(run_id="run-1", now=PRESEASON)
 
 
 def test_adapter_declares_its_resources() -> None:
@@ -117,7 +119,7 @@ def test_the_expensive_resource_is_marked_off_the_fast_path() -> None:
 
 
 #: What the four-hourly workflow asks for (E7-S1).
-FAST_REQUEST = IngestRequest(run_id="run-1", fast_path_only=True)
+FAST_REQUEST = IngestRequest(run_id="run-1", fast_path_only=True, now=PRESEASON)
 
 
 def test_the_fast_cadence_skips_every_resource_declared_off_the_fast_path(

@@ -38,7 +38,7 @@ from fpl_dof.optimise.captain import PricePositionLine
 from fpl_dof.optimise.frame import STRATEGY_COLUMN, STRATEGY_DIGEST_COLUMN
 from fpl_dof.rules.models import GameRules
 from fpl_dof.shadow import a, a_odds, c1
-from fpl_dof.silver.tables import Table
+from fpl_dof.silver.tables import LIVE_TABLES, Table
 
 log = get_logger(__name__)
 
@@ -114,6 +114,16 @@ class Strategy(_Entry):
     forecaster: Forecaster
     policy: Policy
     requires: tuple[Table, ...] = Field(description="Silver tables the strategy reads")
+
+    @field_validator("requires")
+    @classmethod
+    def _never_the_live_tables(cls, value: tuple[Table, ...]) -> tuple[Table, ...]:
+        """The live gameweek's provisional rows are never a forecast's input (LIVE-01,
+        Invariant 5)."""
+        live = sorted(table.value for table in value if table in LIVE_TABLES)
+        if live:
+            raise ValueError(f"a strategy may not read the live gameweek's tables: {live}")
+        return value
 
     def forecast(
         self,

@@ -188,7 +188,17 @@ class Fetcher:
         retain: bool = False,
         rebackfill: bool = False,
         stale_before: dt.datetime | None = None,
+        fresh_from: dt.datetime | None = None,
     ) -> Fetched:
+        """The bytes for one resource key: the latest bronze capture when it is current, else a
+        new capture, snapshotted before anything reads it.
+
+        A capture is current inside its TTL, or at any age if it is immutable, unless it was taken
+        before ``stale_before``. ``fresh_from`` is the moment from which a capture is current for
+        the caller: one taken at or after it is served whatever its age, and one taken before it is
+        refetched. Picks fetched once their deadline has passed, and live scores as fresh as the
+        fixtures read with them, are said this way (LIVE-01).
+        """
         moment = now or utcnow()
         ttl = (
             self.config.default_cache_ttl_seconds
@@ -200,10 +210,16 @@ class Fetcher:
         is_immutable = immutable or (
             getattr(cached.meta, "immutable", False) if cached is not None else False
         )
+        if fresh_from is not None:
+            stale_before = fresh_from if stale_before is None else max(stale_before, fresh_from)
         if (
             cached is not None
             and not (force_refresh or rebackfill)
-            and (is_immutable or cached.age_seconds(moment) < ttl)
+            and (
+                is_immutable
+                or cached.age_seconds(moment) < ttl
+                or (fresh_from is not None and cached.meta.fetched_at >= fresh_from)
+            )
             # A snapshot fetched before something the caller knows changed it is stale whatever
             # its age. Judged by the sidecar's fetch time, never file mtime (03 §12.6 F2).
             and (stale_before is None or cached.meta.fetched_at >= stale_before)
