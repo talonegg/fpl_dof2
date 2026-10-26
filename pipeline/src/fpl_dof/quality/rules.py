@@ -19,7 +19,9 @@ from enum import StrEnum
 import pandas as pd
 
 from fpl_dof.config.models import QualityConfig
+from fpl_dof.live import LiveTables, score_team
 from fpl_dof.quality.gates import GateSeverity
+from fpl_dof.rules.models import GameRules
 from fpl_dof.silver.tables import Table
 
 CheckResult = tuple[bool, str, dict[str, object]]
@@ -515,6 +517,72 @@ def _prices_are_never_null(frame: pd.DataFrame, context: Mapping[str, object]) -
     return missing == 0, f"{missing} player(s) have no price", {"missing": missing}
 
 
+# --- the scorer against FPL (LIVE-03) -------------------------------------------------------
+
+
+def _scorer_matches_game(frame: pd.DataFrame, context: Mapping[str, object]) -> CheckResult:
+    """The one realised scorer's gameweek points for each fetched team against FPL's own.
+
+    Checked once the live gameweek is finished and FPL's figures and the scores are both from the
+    data-checked capture: before that FPL's figures are the deadline's (the picks are fetched once
+    after it), and a comparison would only measure the clock. Both sides net of the gameweek's hit.
+
+    **A warning, not a block** (R1.4.3 §5 Q3): a scorer that disagrees with FPL publishes and says
+    so, here, on `/health` and against the team in `live.json`; the evaluation waits for
+    data-checked regardless (ORC-05). No tolerance: the scorer's claim is that it is the game's
+    rules (ORC-04), and a point either way is a rule written wrong, which is what DP-13 means by
+    a wrong answer that looks right.
+    """
+    tables = context.get("tables")
+    tbl_dict: Mapping[str, pd.DataFrame] = tables if isinstance(tables, Mapping) else {}
+    rules = context.get("rules")
+    gameweeks = tbl_dict.get(Table.GAMEWEEK.value)
+    if not isinstance(rules, GameRules) or gameweeks is None:
+        return True, "no rules or gameweek table to score with", {}
+    if frame.empty:
+        return True, "no team's figures were read for a gameweek in play", {}
+    gameweek = int(frame["gameweek"].iloc[0])
+    live = LiveTables(
+        gameweeks=gameweeks,
+        fixtures=tbl_dict.get(Table.FIXTURE.value),
+        players=tbl_dict.get(Table.PLAYER.value),
+        player_live=tbl_dict.get(Table.PLAYER_LIVE.value),
+        entry_live=frame,
+        entry_picks=tbl_dict.get(Table.ENTRY_PICK.value),
+        league_picks=tbl_dict.get(Table.LEAGUE_PICK.value),
+        entry_gameweeks=tbl_dict.get(Table.ENTRY_GAMEWEEK.value),
+        league_gameweeks=tbl_dict.get(Table.LEAGUE_GAMEWEEK.value),
+    )
+    teams = [score_team(live, gameweek, int(e), rules) for e in sorted(set(frame["entry_id"]))]
+    compared = [team for team in teams if team.matches_game is not None]
+    if not compared:
+        return (
+            True,
+            f"GW{gameweek} is not finished with FPL's final figures yet: nothing to compare",
+            {"gameweek": gameweek},
+        )
+    differ = {
+        team.entry_id: {"scorer": team.points, "game": team.game.net}
+        for team in compared
+        if not team.matches_game and team.points is not None and team.game is not None
+    }
+    unscored = sorted(team.entry_id for team in teams if team.points is None)
+    detail = "; ".join(
+        f"entry {entry}: scorer {d['scorer']}, FPL {d['game']}" for entry, d in differ.items()
+    )
+    return (
+        not differ,
+        f"GW{gameweek}: the scorer equals FPL for {len(compared) - len(differ)} of "
+        f"{len(compared)} teams" + (f"; differs for {detail}" if differ else ""),
+        {
+            "gameweek": gameweek,
+            "compared": len(compared),
+            "mismatched": {str(entry): d for entry, d in differ.items()},
+            "unscored": unscored,
+        },
+    )
+
+
 GATES: tuple[Gate, ...] = (
     Gate(
         name="player_volume",
@@ -686,6 +754,15 @@ GATES: tuple[Gate, ...] = (
         requirement="FR-08",
         summary="Every player has a price",
         check=_prices_are_never_null,
+    ),
+    Gate(
+        name="scorer_matches_game",
+        gate_class=GateClass.REFERENTIAL,
+        severity=GateSeverity.WARN,
+        table=Table.ENTRY_LIVE.value,
+        requirement="FR-32",
+        summary="On a finished gameweek the scorer's points equal FPL's for every fetched team",
+        check=_scorer_matches_game,
     ),
 )
 

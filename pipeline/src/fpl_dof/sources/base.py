@@ -19,12 +19,32 @@ from typing import ClassVar
 
 import pandas as pd
 
-from fpl_dof.config.models import SourceOverride
+from fpl_dof.config.models import ScheduleConfig, SourceOverride
 from fpl_dof.rules.models import ApiRules
+from fpl_dof.sources.bronze import Snapshot
 from fpl_dof.sources.fetch import Fetched, Fetcher
 
 #: When the Open gameweek's matches can kick off: its deadline, then the next deadline or ``None``.
 Window = tuple[dt.datetime, dt.datetime | None] | None
+
+
+@dataclass(frozen=True, slots=True)
+class ChangeContext:
+    """What a source reads the change between two captures against (ORC-02, LIVE-02)."""
+
+    window: Window
+    """When the Open gameweek's matches can kick off, or ``None`` when no gameweek is Open."""
+    matchday_zone: str
+    """The zone whose date groups a gameweek's fixtures into matchdays."""
+    settle: dt.timedelta
+    """How long after a matchday's last kick-off it counts as done, bonus confirmed or not."""
+
+    @classmethod
+    def of(cls, window: Window, schedule: ScheduleConfig) -> ChangeContext:
+        """The context for ``window``, with the matchday rule's tunables from config (DP-06)."""
+        return cls(
+            window, schedule.matchday_zone, dt.timedelta(hours=schedule.matchday_settle_hours)
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,9 +57,9 @@ class Resource:
     fast_path: bool = True
     """Whether this resource is cheap enough to refresh on the frequent ingest cadence.
 
-    ``element-summary`` is ~700 requests and must never run on the fast path
-    (Architecture §9). E0 has one cadence, but the declaration is made here now so the
-    distinction exists before E7 needs it.
+    ``element-summary`` is ~700 requests and is off the fast path (Architecture §9): the fast
+    cadence fetches it only in the one firing that sees a gameweek data-checked, by ``on_check``
+    below, never on any other.
     """
     immutable: bool = False
     """Whether this resource represents finalized historical data that never changes.
@@ -53,6 +73,16 @@ class Resource:
     Distinct from ``immutable``: a retained resource is still re-fetched after its TTL (upcoming
     odds move), but each capture is evidence the backtest and the prospective record cannot recover.
     """
+    in_play: bool = False
+    """Whether the fast cadence fetches it too while a gameweek is in play, though it is off the
+    fast path otherwise (LIVE-01). One or two requests a firing, for the scores and table of the
+    gameweek being played; the adapter says which gameweek that is."""
+    on_check: bool = False
+    """Whether the fast cadence fetches it too, once, when a gameweek is data-checked, though it
+    is off the fast path otherwise (LIVE-07). For the resource whose rows for that gameweek are
+    final only then, so the run the check starts reads them rather than the last daily sweep's.
+    Any gameweek, the live one or one checked after the next deadline; the adapter says when a
+    check is new, so the firings after it leave the resource alone."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -231,11 +261,14 @@ class SourceAdapter(ABC):
     watched: ClassVar[tuple[tuple[str, str], ...]] = ()
     """The ``(resource, key)`` captures the change manifest compares across an ingest (ORC-02)."""
 
-    def changes(self, resource: str, before: bytes, after: bytes, window: Window) -> set[str]:
+    def changes(
+        self, resource: str, before: Snapshot, after: Snapshot, context: ChangeContext
+    ) -> set[str]:
         """The change kinds (:data:`~fpl_dof.sources.changes.KINDS`) between two captures of one
-        watched resource. ``window`` is when the Open gameweek's matches can kick off, from its
-        deadline to the next one's (``None`` for no next), or ``None`` when no gameweek is Open.
-        The default sees none: a source changes nothing that starts a run unless it says so."""
+        watched resource, the earlier first. Each capture carries its bytes and when it was taken,
+        which a rule that counts time since a kick-off reads (LIVE-02's settle cap); ``context``
+        carries the Open gameweek's kick-off window and the matchday rule's tunables. The default
+        sees none: a source changes nothing that starts a run unless it says so."""
         return set()
 
     def note_observed(self, key: str, fetched: Fetched) -> None:
@@ -252,15 +285,26 @@ class SourceAdapter(ABC):
                 return declared
         raise KeyError(f"{self.name} declares no resource named {name!r}")
 
-    def wants(self, name: str, request: IngestRequest) -> bool:
+    def wants(
+        self, name: str, request: IngestRequest, *, in_play: bool = False, checked: bool = False
+    ) -> bool:
         """Whether ``name`` should be fetched under this request's cadence.
 
         Adapters guard their expensive resources with this rather than branching on
         ``request.fast_path_only`` themselves, so the cadence rule exists in exactly one place and
         a resource opts out by declaring ``fast_path=False`` — a fact about the resource, stated
-        next to its TTL, rather than a condition buried in an ingest method.
+        next to its TTL, rather than a condition buried in an ingest method. ``in_play`` says a
+        gameweek is in play, which brings in a resource declared ``in_play`` (LIVE-01); ``checked``
+        says a gameweek has just been data-checked, which brings in one declared ``on_check``
+        (LIVE-07).
         """
-        return not request.fast_path_only or self.resource(name).fast_path
+        resource = self.resource(name)
+        return (
+            not request.fast_path_only
+            or resource.fast_path
+            or (in_play and resource.in_play)
+            or (checked and resource.on_check)
+        )
 
     def has_fast_path(self) -> bool:
         """Whether any of this source's resources belong on the frequent cadence at all.

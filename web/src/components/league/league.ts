@@ -19,7 +19,7 @@
  *   owner owns is a bet. One number cannot say both, so they are never summed.
  */
 
-import type { League, LeagueEntry, LeagueSquad, Players, Rules } from "../../contract/types";
+import type { League, LeagueEntry, LeagueSquad, Live, LiveFigures, LiveTeam, Players, Rules } from "../../contract/types";
 
 /** Why a comparison could or could not be anchored. Drives the copy, and is not cosmetic. */
 export type AnchorState =
@@ -52,10 +52,25 @@ export interface SquadComparison {
 export interface LeagueRow {
   entry: LeagueEntry;
   isOwner: boolean;
-  /** Movement since the last update: positive is places gained. Null when not reported. */
+  /**
+   * The rank shown: the live rank while a gameweek is in play and this team has a live figure, the
+   * league table's own rank otherwise (LIVE-05).
+   */
+  shownRank: number;
+  /** Position in the view's order, from zero; what a re-ordered view falls back on. */
+  place: number;
+  /** Movement since FPL's last rank: positive is places gained. Null when not reported. */
   rankChange: number | null;
-  /** Points behind the leader. Zero for the leader; never negative. */
-  pointsBehindLeader: number;
+  /**
+   * Points behind the leader. Zero for the leader; never negative. Null for a team with no live
+   * figure in the live view, whose total is a gameweek behind the others and cannot be set
+   * against them.
+   */
+  pointsBehindLeader: number | null;
+  /** The team as `live.json` publishes it, or null in the plain table or when it is not in it. */
+  liveTeam: LiveTeam | null;
+  /** Its provisional gameweek; null in the plain table and for a team that is "not live". */
+  figures: LiveFigures | null;
   /**
    * The comparison against the owner, or null when there is none to make — because this row *is*
    * the owner, because this rival has no published squad, or because the anchor is missing.
@@ -64,6 +79,8 @@ export interface LeagueRow {
 }
 
 export interface LeagueView {
+  /** `live` while `live.json` is published (LIVE-05); `table` is the league table as FPL ranks it. */
+  mode: "live" | "table";
   rows: LeagueRow[];
   anchor: AnchorState;
   owner: LeagueEntry | null;
@@ -72,32 +89,66 @@ export interface LeagueView {
   comparableCount: number;
 }
 
-/** The whole view model, in rank order. */
-export function buildLeagueView(league: League): LeagueView {
-  const rows = [...league.entries].sort((a, b) => a.rank - b.rank || a.entry_id - b.entry_id);
-  const owner = rows.find((entry) => entry.is_owner) ?? null;
+/**
+ * The whole view model.
+ *
+ * Without `live` it is the league table in FPL's rank order. With `live.json` (LIVE-05) the rows
+ * are **ordered by live total**, each carrying its live rank (equal totals share one, as published)
+ * and the movement since FPL's last rank. A team with no live figure, because it is past
+ * `league_rival_limit` or its picks were not read, is not dropped and not guessed at: it keeps the
+ * league table's own figures, is marked "not live", and is listed **after every live team in the
+ * league table's own order**. Its total is the last finished gameweek's, so setting it against the
+ * others' live totals would rank it as though it had scored nothing this gameweek.
+ */
+export function buildLeagueView(league: League, live: Live | null = null): LeagueView {
+  const tableOrder = [...league.entries].sort((a, b) => a.rank - b.rank || a.entry_id - b.entry_id);
+  const liveOf = (entry: LeagueEntry): LiveTeam | null =>
+    live?.teams.find((team) => team.entry_id === entry.entry_id) ?? null;
+  // A stable sort over the table order: live teams by live rank, then the ones that are not live.
+  const rows = live
+    ? [...tableOrder].sort(
+        (a, b) => Number(!liveOf(a)?.live) - Number(!liveOf(b)?.live) || (liveOf(a)?.rank ?? 0) - (liveOf(b)?.rank ?? 0),
+      )
+    : tableOrder;
+  const owner = tableOrder.find((entry) => entry.is_owner) ?? null;
   const ownerSquad = owner?.squad ?? null;
-  const leaderTotal = rows.length > 0 ? Math.max(...rows.map((entry) => entry.total)) : 0;
+  const leaderTotal = tableOrder.length > 0 ? Math.max(...tableOrder.map((entry) => entry.total)) : 0;
+  const liveTotals = rows.flatMap((entry) => liveOf(entry)?.live?.live_total ?? []);
+  const liveLeader = liveTotals.length > 0 ? Math.max(...liveTotals) : 0;
 
   const anchor = anchorState(league, owner, ownerSquad);
 
   return {
+    mode: live ? "live" : "table",
     anchor,
     owner,
     ownerSquad,
-    comparableCount: rows.filter((entry) => !entry.is_owner && entry.squad).length,
-    rows: rows.map((entry) => ({
-      entry,
-      isOwner: entry.is_owner,
-      rankChange: rankChange(entry),
-      // Clamped at zero: `total` is the season total and the leader holds the maximum, but a table
-      // read mid-update could momentarily disagree, and a negative "behind" reads as nonsense.
-      pointsBehindLeader: Math.max(0, leaderTotal - entry.total),
-      comparison:
-        anchor === "anchored" && ownerSquad && !entry.is_owner && entry.squad
-          ? compareSquads(ownerSquad, entry.squad)
-          : null,
-    })),
+    comparableCount: tableOrder.filter((entry) => !entry.is_owner && entry.squad).length,
+    rows: rows.map((entry, place) => {
+      const team = liveOf(entry);
+      const figures = team?.live ?? null;
+      const liveRank = figures ? team?.rank : null;
+      return {
+        entry,
+        isOwner: entry.is_owner,
+        shownRank: liveRank ?? entry.rank,
+        place,
+        rankChange: movement(entry.last_rank, liveRank ?? entry.rank),
+        // Clamped at zero: `total` is the season total and the leader holds the maximum, but a table
+        // read mid-update could momentarily disagree, and a negative "behind" reads as nonsense.
+        pointsBehindLeader: live
+          ? figures
+            ? Math.max(0, liveLeader - figures.live_total)
+            : null
+          : Math.max(0, leaderTotal - entry.total),
+        liveTeam: team,
+        figures,
+        comparison:
+          anchor === "anchored" && ownerSquad && !entry.is_owner && entry.squad
+            ? compareSquads(ownerSquad, entry.squad)
+            : null,
+      };
+    }),
   };
 }
 
@@ -112,13 +163,11 @@ function anchorState(
   return "anchored";
 }
 
-function rankChange(entry: LeagueEntry): number | null {
+function movement(lastRank: number | null | undefined, rank: number): number | null {
   // Zero is the API's "had no previous rank", not a rank of zero — a new entry has not held
   // still, it has never been placed, and reporting it as "no movement" would invent a history.
-  if (entry.last_rank === null || entry.last_rank === undefined || entry.last_rank === 0) {
-    return null;
-  }
-  return entry.last_rank - entry.rank;
+  if (lastRank === null || lastRank === undefined || lastRank === 0) return null;
+  return lastRank - rank;
 }
 
 /** Set arithmetic over two fifteens. The whole of the overlap and differential story. */
@@ -186,6 +235,6 @@ export function byOverlapDescending(rows: LeagueRow[]): LeagueRow[] {
     // A row with no comparison sorts last in this order rather than as a zero overlap, for the
     // same reason a null mean sorts last in the fixture ticker: unknown is not extreme.
     if (left !== right) return right - left;
-    return a.entry.rank - b.entry.rank;
+    return a.place - b.place;
   });
 }

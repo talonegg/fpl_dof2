@@ -1,6 +1,9 @@
 import { Link, useParams } from "react-router-dom";
-import type { LeagueEntry, Player } from "../../contract/types";
+import type { LeagueEntry, Live, Player } from "../../contract/types";
 import { useData } from "../../data/DataProvider";
+import { isProvisional, liveFigures, liveTeam } from "../../data/live";
+import { NotLiveMark, ProvisionalMark, StatusMark, UpdatedAt } from "../live/LiveMarks";
+import { LiveSquadTable } from "../live/LiveSquadTable";
 import { pointsIn } from "../../data/season";
 import { unready, useArtefact } from "../../data/store";
 import { compareSquads, fieldedPoints } from "./league";
@@ -32,6 +35,62 @@ function PlayerLine({
 }
 
 /**
+ * The gameweek in play for one team (LIVE-05): each player's minutes, points so far and bonus
+ * (confirmed or pending), the captain's multiplied, and the projected substitutions. A team the
+ * pipeline has no live figure for says so and why; the sections below it are the league table's own.
+ */
+function LiveGameweek({ live, entryId, players }: { live: Live; entryId: number; players: Map<number, Player> }) {
+  const team = liveTeam(live, entryId);
+  const figures = liveFigures(team);
+  return (
+    <section aria-labelledby="lt-live" data-testid="league-team-live">
+      <h3 id="lt-live">Gameweek {live.gameweek}, live</h3>
+      {figures && team ? (
+        <>
+          <p className="live-summary">
+            <span className="live-marks">
+              <StatusMark status={figures.status} testId="league-team-live-status" />
+              {isProvisional(figures) && <ProvisionalMark testId="league-team-live-provisional" />}
+            </span>
+            <span data-testid="league-team-live-points">
+              {figures.points} points
+              {figures.hit_cost > 0 && ` after a ${figures.hit_cost}-point hit`}
+              {figures.chip_label && `, ${figures.chip_label} played`}
+            </span>
+            <span data-testid="league-team-live-total">
+              {figures.live_total} in total{team.rank !== null && `, rank ${team.rank} by live total`}
+            </span>
+            <UpdatedAt asOf={live.as_of} />
+          </p>
+          {team.matches_game === false && team.game && (
+            <p className="live-mismatch" data-testid="league-team-live-mismatch">
+              Differs from FPL: its own figure is {team.game.points} before a {team.game.hit_cost}-point hit;
+              this page has {figures.points} after it.
+            </p>
+          )}
+          {figures.vice_used && (
+            <p className="league-note">The captain has not played, so the armband counts for the vice-captain.</p>
+          )}
+          <LiveSquadTable
+            figures={figures}
+            players={players}
+            extra="bonus"
+            linkPlayers
+            rowTestId={(id) => `live-player-${id}`}
+            caption={`Gameweek ${live.gameweek} live points, minutes and bonus for each of the fifteen`}
+          />
+        </>
+      ) : (
+        <p className="league-note" data-testid="league-team-not-live">
+          <NotLiveMark reason={team?.reason ?? null} /> No live figure is published for this team
+          {team?.reason ? `: ${team.reason}` : ""}. The league table&apos;s own figures are shown instead.
+        </p>
+      )}
+    </section>
+  );
+}
+
+/**
  * One entry's last gameweek (WEB-09): XI, bench, captain and vice, and each player's points that
  * gameweek, from the league's published squad joined to `history.json`; the squad lists raw points.
  * ORC-14 adds the moves (transfers, hit, chip) and the differentials against the owner's squad,
@@ -43,8 +102,9 @@ export function LeagueTeam() {
   const { players, rules } = useData();
   const league = useArtefact("league").state;
   const history = useArtefact("history").state;
+  const liveState = useArtefact("live").state;
 
-  if (league.status === "loading") return <p data-testid="league-team-loading">Loading the team…</p>;
+  if (league.status === "loading" || liveState.status === "loading") return <p data-testid="league-team-loading">Loading the team…</p>;
   const back = <Link to="/league">Back to the league</Link>;
   if (league.status !== "ready") {
     return (
@@ -68,6 +128,7 @@ export function LeagueTeam() {
     );
   }
 
+  const live = liveState.status === "ready" ? liveState.data : null;
   const squad = entry.squad ?? null;
   const gw = data.gameweek;
   const hist = history.status === "ready" ? history.data : null;
@@ -121,6 +182,8 @@ export function LeagueTeam() {
         </p>
         <p>{back}</p>
       </header>
+
+      {live && <LiveGameweek live={live} entryId={entry.entry_id} players={byId} />}
 
       {squad === null ? (
         <p className="league-note" data-testid="league-team-unpublished">

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
-from fpl_dof.sources.base import SourceAdapter, Window
+from fpl_dof.sources.base import ChangeContext, SourceAdapter
 from fpl_dof.sources.bronze import BronzeStore, Snapshot
 from fpl_dof.triggers import CHANGE_KINDS as KINDS
 
@@ -28,21 +28,24 @@ def before_ingest(bronze: BronzeStore, adapters: Sequence[SourceAdapter]) -> Bef
 
 
 def changed_kinds(
-    bronze: BronzeStore, adapters: Sequence[SourceAdapter], before: Before, window: Window
+    bronze: BronzeStore, adapters: Sequence[SourceAdapter], before: Before, context: ChangeContext
 ) -> list[str]:
     """The kinds that moved since ``before``, in :data:`KINDS` order.
 
-    A resource with no earlier capture has nothing to compare with and moves nothing; one whose
-    latest capture is the same bytes (a 304, a cache hit, a quarantined capture) moves nothing.
+    A resource with no earlier capture has nothing to compare with and moves nothing; one with no
+    capture since (a cache hit, a quarantined capture) moves nothing. A recapture of the same bytes
+    (a 304, an unchanged payload) is still compared, since it is later: a matchday's settle cap
+    counts from its last kick-off to the capture, so the same fixtures can be done in the later
+    one and not in the earlier (LIVE-02).
     """
     kinds: set[str] = set()
     for adapter in adapters:
         for resource, key in adapter.watched:
             old = before.get((adapter.name, resource, key))
             new = bronze.latest(adapter.name, resource, key)
-            if old is None or new is None or new.meta.sha256 == old.meta.sha256:
+            if old is None or new is None or new.meta.fetched_at <= old.meta.fetched_at:
                 continue
-            kinds |= adapter.changes(resource, old.read_bytes(), new.read_bytes(), window)
+            kinds |= adapter.changes(resource, old, new, context)
     return [kind for kind in KINDS if kind in kinds]
 
 

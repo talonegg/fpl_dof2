@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { dataStore } from "./store";
 import { challengerWeek, meta, players, rules, squad, strategiesFixture, week } from "../test/fixtures";
+import { liveGameweek } from "../test/liveFixtures";
 
 const json = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
 
@@ -86,5 +87,82 @@ describe("dataStore.get", () => {
     await dataStore.get("log");
     stub(json({ contract_version: 1 }));
     await expect(dataStore.get("log")).resolves.toMatchObject({ status: "ready" });
+  });
+});
+
+describe("dataStore.get for live.json (LIVE-04, LIVE-06)", () => {
+  beforeEach(() => dataStore.reset());
+  afterEach(() => vi.unstubAllGlobals());
+
+  const stub = (response: Response) => vi.stubGlobal("fetch", vi.fn(() => Promise.resolve(response)));
+
+  it("reads the gameweek in play", async () => {
+    stub(json(liveGameweek("in_play")));
+    await expect(dataStore.get("live")).resolves.toMatchObject({ status: "ready", data: { gameweek: 4, status: "in_play" } });
+  });
+
+  it("is absent between gameweeks and preseason, as a 404 or a single-page host's HTML", async () => {
+    stub(new Response(null, { status: 404 }));
+    await expect(dataStore.get("live")).resolves.toEqual({ status: "absent" });
+    dataStore.reset();
+    stub(new Response("<!doctype html>", { status: 200, headers: { "Content-Type": "text/html" } }));
+    await expect(dataStore.get("live")).resolves.toEqual({ status: "absent" });
+  });
+
+  it("calls JSON without the fixtures and teams malformed", async () => {
+    stub(json({ contract_version: 1, gameweek: 4 }));
+    await expect(dataStore.get("live")).resolves.toEqual({ status: "malformed" });
+  });
+});
+
+/** The refresh on becoming visible (LIVE-06): what the store does; the views' side is in HomeRoute.test.tsx. */
+describe("dataStore.refresh", () => {
+  beforeEach(() => dataStore.reset());
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("drops what was loaded so the next read asks the network again, and counts the refresh", async () => {
+    const fetcher = vi.fn(() => Promise.resolve(json(liveGameweek("in_play"))));
+    vi.stubGlobal("fetch", fetcher);
+    await dataStore.get("live");
+    await dataStore.get("live");
+    expect(fetcher).toHaveBeenCalledTimes(1); // cached, as ever
+
+    const before = dataStore.generation();
+    dataStore.refresh();
+    expect(dataStore.generation()).toBe(before + 1);
+    await dataStore.get("live");
+    expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it("asks the origin to revalidate on a refresh's reads, and leaves first loads plain", async () => {
+    const fetcher = vi.fn((..._args: unknown[]) => Promise.resolve(json(liveGameweek("in_play"))));
+    vi.stubGlobal("fetch", fetcher);
+    await dataStore.get("live");
+    expect(fetcher.mock.calls[0][1]).toBeUndefined(); // a first load is a plain fetch
+
+    dataStore.refresh();
+    await dataStore.get("live");
+    expect(fetcher.mock.calls[1][1]).toEqual({ cache: "no-cache" }); // GitHub Pages serves max-age=600
+
+    dataStore.reset(); // a hard reset starts over: plain again
+    await dataStore.get("live");
+    expect(fetcher.mock.calls[2][1]).toBeUndefined();
+  });
+
+  it("tells subscribers, until they unsubscribe", () => {
+    const heard = vi.fn();
+    const unsubscribe = dataStore.subscribe(heard);
+    dataStore.refresh();
+    expect(heard).toHaveBeenCalledTimes(1);
+    unsubscribe();
+    dataStore.refresh();
+    expect(heard).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks for nothing by itself: a refresh is a drop, and the reads that follow are the views'", () => {
+    const fetcher = vi.fn();
+    vi.stubGlobal("fetch", fetcher);
+    dataStore.refresh();
+    expect(fetcher).not.toHaveBeenCalled();
   });
 });

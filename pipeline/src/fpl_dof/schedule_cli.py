@@ -1,7 +1,8 @@
 """``fpl-dof-schedule`` — the guard the scheduled workflows ask before doing anything.
 
 The effectful edge of :mod:`fpl_dof.week.schedule` (DP-03): load config, read one silver table,
-derive the Open gameweek's state from it (ORC-01), and print the decision. It writes nothing,
+derive the Open gameweek's state and the gameweeks in play from it (ORC-01), and print the
+decision. It writes nothing,
 fetches nothing, and never fails on missing data — a guard that errors out is a guard that stops
 the season.
 
@@ -16,6 +17,7 @@ Usage::
     fpl-dof-schedule --decide fast      # prints `true` or `false`, for a workflow `if:`
     fpl-dof-schedule --decide pipeline
     fpl-dof-schedule --decide pipeline --trigger change --kinds prices,odds --gameweek 9
+    fpl-dof-schedule --decide pipeline --trigger change --kinds results --gameweek 10
 
 Nothing here knows it is running in CI. The workflow captures stdout and turns it into a step
 output itself, so there is no CI-only branch anywhere in the pipeline source (NFR-09).
@@ -33,7 +35,7 @@ from collections.abc import Sequence
 import pandas as pd
 
 from fpl_dof.config import Config, ConfigError, layout_for, load_config
-from fpl_dof.gameweek import GameweekState, SilverTables, open_gameweek
+from fpl_dof.gameweek import GameweekState, SilverTables, gameweeks_in_play, open_gameweek
 from fpl_dof.paths import DataLayout
 from fpl_dof.silver.store import read_table_optional
 from fpl_dof.silver.tables import Table
@@ -80,7 +82,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--gameweek",
         default="",
-        help="The gameweek a dispatched run was started for; refused unless it is the Open one.",
+        help=(
+            "The gameweek a dispatched run was started for; refused unless it is the Open one, or "
+            "for a results change one in play."
+        ),
     )
     parser.add_argument(
         "--now",
@@ -105,12 +110,13 @@ def parse_now(raw: str | None) -> dt.datetime:
 
 def open_state(
     config: Config, layout: DataLayout, now: dt.datetime
-) -> tuple[GameweekState | None, str | None]:
-    """The Open gameweek's state, and why there is none, if none.
+) -> tuple[GameweekState | None, tuple[int, ...], str | None]:
+    """The Open gameweek's state, the gameweeks in play, and why there is no Open one, if none.
 
     Every failure is reported as "unknown" rather than raised. Both callers read unknown as "keep
     the fixed cadence and stand down from the deadline-relative behaviour", which degrades to the
     schedule this project had before it was deadline-aware rather than breaking it (DP-15).
+    Unknown is also no gameweek in play.
     """
     try:
         gameweeks: pd.DataFrame | None = read_table_optional(
@@ -120,7 +126,7 @@ def open_state(
         # Deliberately broad. Anything at all wrong with the silver tier — absent, half-written,
         # failing its schema — means the deadline is unknown, and unknown is a case both callers
         # already handle safely. It must never be the reason a workflow reports failure.
-        return None, f"the gameweek table could not be read: {type(exc).__name__}: {exc}"
+        return None, (), f"the gameweek table could not be read: {type(exc).__name__}: {exc}"
     if gameweeks is None or gameweeks.empty:
         try:
             from fpl_dof.sources import gameweeks_from_bronze
@@ -130,13 +136,18 @@ def open_state(
             pass
 
     if gameweeks is None or gameweeks.empty:
-        return None, "the gameweek table has not been ingested yet"
+        return None, (), "the gameweek table has not been ingested yet"
 
-    # Open depends on the deadlines alone, so neither the fixtures nor the ledger is read here.
+    # Open and in play depend on the deadlines and FPL's flags alone, so neither the fixtures nor
+    # the ledger is read here.
     state = open_gameweek(SilverTables(gameweeks), (), now)
+    try:
+        in_play = gameweeks_in_play(gameweeks, now)
+    except Exception:
+        in_play = ()  # unknown is none in play: the base cadence, never a failed guard (DP-15)
     if state is None:
-        return None, "every gameweek deadline has passed; the season is over"
-    return state, None
+        return None, in_play, "every gameweek deadline has passed; the season is over"
+    return state, in_play, None
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -153,8 +164,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"configuration error: {exc}", file=sys.stderr)
         return EXIT_CONFIG_ERROR
 
-    state, unknown_reason = open_state(config, layout_for(config), now)
-    fast = fast_ingest_decision(now=now, state=state, config=config.schedule)
+    state, in_play, unknown_reason = open_state(config, layout_for(config), now)
+    fast = fast_ingest_decision(now=now, state=state, config=config.schedule, in_play=in_play)
     try:
         pipeline = dispatch_decision(
             trigger=args.trigger,
@@ -163,6 +174,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             now=now,
             state=state,
             config=config.schedule,
+            in_play=in_play,
         )
     except ValueError as exc:
         print(f"refused: {exc}", file=sys.stderr)
@@ -183,6 +195,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 "now_utc": now.isoformat().replace("+00:00", "Z"),
                 "gameweek": None if state is None else state.gameweek,
                 "gameweek_state": None if state is None else state.phase.value,
+                "in_play": list(in_play),
                 "minutes_to_deadline": None if minutes is None else round(minutes, 2),
                 "hours_to_deadline": (
                     None if minutes is None else round(minutes / MINUTES_PER_HOUR, 3)

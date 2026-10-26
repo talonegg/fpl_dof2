@@ -158,6 +158,22 @@ def test_a_snapshot_fetched_before_stale_before_is_refetched_inside_its_ttl(tmp_
 
 
 @respx.mock
+def test_a_snapshot_taken_from_fresh_from_is_served_whatever_its_age(tmp_path: Path) -> None:
+    """LIVE-01: picks taken after their deadline are never refetched; ones taken before are."""
+    route = respx.get(URL).mock(return_value=httpx.Response(200, json={"ok": True}))
+    deadline = dt.datetime(2026, 10, 16, 17, 30, tzinfo=dt.UTC)
+    early = deadline - dt.timedelta(minutes=5)
+    week_later = deadline + dt.timedelta(days=7)
+    with _fetcher(tmp_path, _config(default_cache_ttl_seconds=3600)) as fetcher:
+        fetcher.fetch(URL, now=early, **FETCH_KWARGS)  # type: ignore[arg-type]
+        before = fetcher.fetch(URL, now=early, fresh_from=deadline, **FETCH_KWARGS)  # type: ignore[arg-type]
+        assert before.from_cache is False, "inside its TTL, but taken before the deadline"
+        after = fetcher.fetch(URL, now=week_later, fresh_from=early, **FETCH_KWARGS)  # type: ignore[arg-type]
+    assert after.from_cache is True, "a week past its TTL, but taken from fresh_from"
+    assert route.call_count == 2
+
+
+@respx.mock
 def test_offline_uses_a_stale_snapshot_rather_than_failing(tmp_path: Path) -> None:
     """DP-15: degrade, never break."""
     respx.get(URL).mock(return_value=httpx.Response(200, json={"ok": True}))

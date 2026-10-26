@@ -4,7 +4,7 @@ Work is delivered in releases numbered `Rx.y.z`. **R1.0** was the first build: e
 archived in [`../archive/R1.0/`](../archive/README.md) — all but E8, which stays live here as the
 ongoing in-season monitoring epic. **R1.1.0**, the data pipeline uplift, is closed and archived in
 [`../archive/R1.1.0/`](../archive/README.md), and **R1.1.1** verified it on `main`. **R1.2.0**, the
-first slice of the modular platform, is tagged; R1.2.1 is a hotfix and **R1.2.2**, the second slice, is tagged; **R1.3.0**, **R1.3.1** and **R1.3.2**, gameweek orchestration, are tagged and archived in [`../archive/R1.3.0/`](../archive/README.md), with their live checks on `main`; **R1.4.0** and **R1.4.1**, the UI redesign's two drops, are tagged and archived in [`../archive/R1.4.0/`](../archive/README.md), with their live checks on `main`; **R1.4.2** is open. Each release and epic records its outcome in its Status line and the decisions it took in [`docs/decisions/`](../../decisions/README.md).
+first slice of the modular platform, is tagged; R1.2.1 is a hotfix and **R1.2.2**, the second slice, is tagged; **R1.3.0**, **R1.3.1** and **R1.3.2**, gameweek orchestration, are tagged and archived in [`../archive/R1.3.0/`](../archive/README.md), with their live checks on `main`; **R1.4.0** and **R1.4.1**, the UI redesign's two drops, are tagged and archived in [`../archive/R1.4.0/`](../archive/README.md), with their live checks on `main`; **R1.4.2**, their close-out, is tagged; **R1.4.3**, the live gameweek, is open on `dev/R1.4.3`. Each release and epic records its outcome in its Status line and the decisions it took in [`docs/decisions/`](../../decisions/README.md).
 
 ## Register
 
@@ -20,7 +20,8 @@ first slice of the modular platform, is tagged; R1.2.1 is a hotfix and **R1.2.2*
 | **R1.3.2** — pipeline budget | The pipeline run within its 5-minute budget: the market grid cached, bronze read once, one ledger commit per run (ORC-09) | Tagged 2026-10-23: 224 s of 300 s on `main` |
 | **R1.4.0** — UI redesign, Drop A | [R1.4.0 UI redesign](../archive/R1.4.0/R1.4.0-ui-redesign.md): the app in eight sections on today's data, one horizon (D-29), chip ranking without the discount (DL-96) ([DL-95](../../decisions/DL-95.md)) | Tagged 2026-10-24: five horizons live, the models history and xP accuracy served; pipeline 232 s of 300 s; plan archived |
 | **R1.4.1** — UI redesign, Drop B | The same plan's Drop B: each model's options (ORC-11), underlying xP (ORC-12), the live season as if played (ORC-13), rivals' moves (ORC-14), odds (ORC-15) ([DL-97](../../decisions/DL-97.md)) | Tagged 2026-10-24: verified on `main` the same day, pipeline 240 s of 300 s, the in-sample replay 1 min 50 s of 120, every rival's moves served; odds wait for posted prices |
-| **R1.4.2** — R1.4.x close-out | The R1.4.x docs closed; rides with the next promotion | Open on `dev/R1.4.2`, 2026-10-24 |
+| **R1.4.2** — R1.4.x close-out | The R1.4.x docs closed; rides with the next promotion | Tagged 2026-10-24 |
+| **R1.4.3** — the live gameweek | [R1.4.3 live gameweek](R1.4.3-live-gameweek.md): LIVE-01 … LIVE-07, the app refreshed after each matchday and at gameweek completion, provisional points and a live league table ([DL-99](../../decisions/DL-99.md)) | Open on `dev/R1.4.3`: built and verified locally 2026-10-26; waits for the promotion and a real gameweek weekend |
 | Ongoing, every season | [E8 — ongoing in-season monitoring](E8-ongoing-in-season-monitoring.md): the season state and decision points (rewritten each gameweek), the weekly loop, the bar for changing the model mid-season | Live, GW1 → 30 May 2027; updated weekly |
 
 **Planning a release.** Write `Rx.y.z-<slug>.md` here — its stories, acceptance boxes and Status
@@ -45,7 +46,7 @@ hotfix: feature/<fix> from main ──PR──► pre-release ──PR──► 
 | --- | --- |
 | `main` | Production: scheduled workflows run its code and every merge deploys. Pull requests from `pre-release` only; one annotated tag per release |
 | `pre-release` | `main` plus the promotion under test; brought level with `main` before each promotion. CI and `pre-release.yml`'s smoke test run on it |
-| `dev/Rx.y.z` | The open release (now `dev/R1.4.2`), cut from `main` when the release starts; deleted after its tag exists |
+| `dev/Rx.y.z` | The open release (now `dev/R1.4.3`), cut from `main` when the release starts; deleted after its tag exists |
 | `feature/<description>` | One feature or fix, from the open `dev/Rx.y.z`, merged into it directly after the local checks pass; deleted once the release is tagged. A hotfix branches from `main` and goes by pull request into `pre-release` |
 
 `main` and `pre-release` accept changes only by pull request with passing checks. A release's number

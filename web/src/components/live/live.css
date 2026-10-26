@@ -1,0 +1,165 @@
+/**
+ * The live gameweek's marks and views (LIVE-05, LIVE-06).
+ *
+ * Colour comes only from `tokens.css`. Every mark is a word first: the status, "Provisional" and
+ * "not live" are legible with the colour taken away, and the border style differs per mark so the
+ * three do not read as one (NFR-14).
+ */
+
+.live-mark {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--bg-panel-alt);
+  color: var(--text);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.live-status-in_play {
+  border-color: var(--accent);
+  background: var(--row-selected-bg);
+}
+
+.live-status-bonus_pending {
+  border-color: var(--warn-border);
+  background: var(--warn-bg);
+}
+
+.live-status-complete,
+.live-status-final {
+  border-style: solid;
+}
+
+/* Dashed: "this can still move". */
+.live-provisional {
+  border-style: dashed;
+  border-color: var(--warn-border);
+  background: var(--warn-bg);
+}
+
+/* Dotted and muted: "this is not a live figure". */
+.live-not-live {
+  border-style: dotted;
+  color: var(--text-muted);
+  font-style: italic;
+  font-weight: 400;
+}
+
+.live-mismatch {
+  margin: var(--space-1) 0 0;
+  padding: var(--space-1) var(--space-2);
+  border-left: 3px solid var(--danger-border);
+  background: var(--danger-bg);
+  color: var(--text);
+  font-size: var(--font-size-xs);
+}
+
+/* Why a team is not live, in words: the same facts the mark's tooltip holds, which touch and keyboard cannot reach. */
+.live-reason {
+  margin: var(--space-1) 0 0;
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  white-space: normal;
+}
+
+.live-marks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+.live-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin: 0 0 var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.live-subs {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--border-strong);
+  background: var(--bg-panel-alt);
+  font-size: var(--font-size-sm);
+}
+
+.live-subs ul {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-5);
+}
+
+.live-pts-detail {
+  display: block;
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.live-bench {
+  color: var(--text-muted);
+}
+
+/*
+ * The table is laid out to fit its card at every width (below), so this scroller is only the safety
+ * net: if a very long word ever forced it wider, the table would scroll inside its card and the page
+ * would still not scroll sideways.
+ */
+.live-scroll {
+  overflow-x: auto;
+}
+
+.live-table {
+  width: 100%;
+  /* The global table's 42rem floor would scroll it; this one is sized by its content instead. */
+  min-width: 0;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.live-table th,
+.live-table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.live-table th {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+/*
+ * The global `th, td { white-space: nowrap }` is what pushed the points column off a 375 px screen:
+ * a player's name, team, position and notes ("on for X (projected)") ran as one line. Here the
+ * player and the secondary column wrap onto further lines instead, so the name and the live points
+ * (the main figure) are on screen at every width with no sideways scroll inside the card. The
+ * numbers stay on one line, and nothing is hidden: what wraps is still all there.
+ */
+.live-table tbody th,
+.live-table tbody td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 480px) {
+  .live-table th,
+  .live-table td {
+    padding: var(--space-2);
+  }
+}
+
+.live-table th.live-number,
+.live-table td.live-number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow-wrap: normal;
+}

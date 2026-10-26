@@ -1,4 +1,5 @@
-"""Which gameweek is being decided, and what state every gameweek is in: one definition of each.
+"""Which gameweek is being decided, what state every gameweek is in, when a matchday of the
+gameweek in play is done, and how far each team's gameweek in play has got: one definition of each.
 
 Lives outside ``week`` so the model factory and the squad core can use it without importing the
 orchestrator (MOD-01); :mod:`fpl_dof.week.cadence` re-exports it. Pure: frames and an instant in,
@@ -8,9 +9,10 @@ an answer out. The clock and the files are read at the edge (DP-03).
 from __future__ import annotations
 
 import datetime as dt
-from collections.abc import Collection, Mapping
+from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import cast
 
 import pandas as pd
 
@@ -104,8 +106,8 @@ DUE: Mapping[Phase, Due] = {
 @dataclass(frozen=True, slots=True)
 class SilverTables:
     """The silver tables the state reads: the gameweek table, and optionally the fixtures and the
-    owner's chips (entry history). Without fixtures nothing is Playing; without chips none is in
-    force."""
+    owner's chips (:func:`chips_played`). Without fixtures nothing is Playing; without chips none
+    is in force."""
 
     gameweeks: pd.DataFrame
     fixtures: pd.DataFrame | None = None
@@ -118,7 +120,8 @@ class GameweekState:
     phase: Phase
     deadline: dt.datetime
     chip: str | None
-    """The chip the owner played in this gameweek, from entry history; ``None`` when none was."""
+    """The chip the owner played in this gameweek, from :func:`chips_played`; ``None`` when none
+    was."""
 
     @property
     def due(self) -> Due:
@@ -126,10 +129,38 @@ class GameweekState:
 
 
 def chips_by_gameweek(entry_chips: pd.DataFrame | None) -> dict[int, str]:
-    """``gameweek -> chip`` the owner played, from entry history: the one reading of it."""
+    """``gameweek -> chip`` the owner played, from :func:`chips_played`: the one reading of it."""
     if entry_chips is None or entry_chips.empty:
         return {}
     return {as_int(row["gameweek"]): str(row["name"]) for _, row in entry_chips.iterrows()}
+
+
+def chips_played(
+    entry_chips: pd.DataFrame | None, entry_live: pd.DataFrame | None, entry_id: int | None
+) -> pd.DataFrame | None:
+    """The owner's chips played, in ``entry_chip``'s shape: entry history's, and the chip active
+    in the gameweek in play's own picks (``entry_live``) where history does not list one for it.
+
+    History is fetched on its own TTL and can predate the deadline, so for the gameweek just past
+    it a Free Hit may be in the picks and not yet in the history; read alone, the squad state would
+    build next gameweek's squad from the Free Hit's (D-33, LIVE-01). The picks carry FPL's own
+    active chip from the deadline, so they say it as surely as the history will.
+    """
+    if entry_live is None or entry_live.empty or entry_id is None:
+        return entry_chips
+    listed = set(chips_by_gameweek(entry_chips))
+    live = entry_live[(entry_live["entry_id"] == entry_id) & entry_live["chip"].notna()]
+    rows = [
+        {"entry_id": entry_id, "name": str(row["chip"]), "gameweek": as_int(row["gameweek"])}
+        for _, row in live.iterrows()
+        if as_int(row["gameweek"]) not in listed
+    ]
+    if not rows:
+        return entry_chips
+    added = pd.DataFrame(rows, columns=["entry_id", "name", "gameweek"])
+    if entry_chips is None or entry_chips.empty:
+        return added
+    return pd.concat([entry_chips, added], ignore_index=True)
 
 
 def gameweek_state(
@@ -176,6 +207,52 @@ def open_gameweek(
     return None if gameweek is None else gameweek_state(gameweek, silver, ledger, now)
 
 
+# --- A team's gameweek in play (LIVE-03) ------------------------------------------------------
+
+
+class TeamStatus(StrEnum):
+    """How far one team's gameweek in play has got (LIVE-03, DL-99). Derived, never stored.
+
+    Read over the fixtures the team's players have, so two teams in one gameweek can differ. Bonus
+    is FPL's to confirm and is never estimated from BPS: a team whose matches are over and whose
+    bonus is not yet confirmed is :attr:`BONUS_PENDING`, its points without that bonus.
+    """
+
+    IN_PLAY = "in_play"
+    """A fixture still to finish."""
+    BONUS_PENDING = "bonus_pending"
+    """Every fixture finished, a bonus not yet confirmed."""
+    COMPLETE = "complete"
+    """Every fixture finished with its bonus confirmed; the gameweek is not yet data-checked."""
+    FINAL = "final"
+    """FPL has data-checked the gameweek: its points are the record (ORC-05)."""
+
+
+@dataclass(frozen=True, slots=True)
+class FixtureProgress:
+    """One fixture of a team's gameweek, as far as it has got."""
+
+    finished: bool
+    """Full time: its minutes are final."""
+    bonus_confirmed: bool
+    """FPL has confirmed its bonus (FPL's fixture ``finished``). Implies :attr:`finished`."""
+
+
+def team_status(fixtures: Iterable[FixtureProgress], *, data_checked: bool) -> TeamStatus:
+    """A team's status from the fixtures its players have and the gameweek's data-checked flag.
+
+    A team with no fixture at all (every player blank) has nothing to come and nothing to confirm.
+    """
+    if data_checked:
+        return TeamStatus.FINAL
+    progress = list(fixtures)
+    if not all(f.finished or f.bonus_confirmed for f in progress):
+        return TeamStatus.IN_PLAY
+    if not all(f.bonus_confirmed for f in progress):
+        return TeamStatus.BONUS_PENDING
+    return TeamStatus.COMPLETE
+
+
 def _first_kickoff(fixtures: pd.DataFrame | None, gameweek: int) -> pd.Timestamp | None:
     """The gameweek's earliest scheduled kick-off. A postponed fixture has left the gameweek (no
     gameweek, or no kick-off), so it no longer counts."""
@@ -183,3 +260,110 @@ def _first_kickoff(fixtures: pd.DataFrame | None, gameweek: int) -> pd.Timestamp
         return None
     times = fixtures.loc[fixtures["gameweek"] == gameweek, "kickoff_time"].dropna()
     return None if times.empty else _utc(times.min())
+
+
+#: The phases a gameweek is *in play* in: from its deadline until FPL marks it finished and
+#: data-checked (ORC-01, LIVE-02).
+IN_PLAY: frozenset[Phase] = frozenset({Phase.RECORDED, Phase.PLAYING})
+
+
+def gameweeks_in_play(gameweeks: pd.DataFrame, now: dt.datetime) -> tuple[int, ...]:
+    """The gameweeks in play at ``now``, in gameweek order: past their deadline, not yet finished
+    and data-checked. Usually one; two when a midweek deadline passes before the gameweek before
+    it is data-checked; none preseason, between data-checked and the next deadline, and after the
+    season."""
+    if gameweeks.empty:
+        return ()
+    states = season_states(SilverTables(gameweeks), (), now)
+    return tuple(state.gameweek for state in states if state.phase in IN_PLAY)
+
+
+# --- Matchdays (LIVE-02) ----------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class Matchday:
+    """One gameweek's fixtures that share a kick-off date in the matchday zone (R1.4.3 §1).
+
+    **Done** once every one of its fixtures is finished with bonus confirmed (the fixture's
+    ``finished``), or once the settle cap has passed since its last kick-off. Done by the cap with
+    a bonus still unconfirmed, it is **bonus pending**: the run that publishes it derives that from
+    the same flags, so the change that starts the run carries nothing but its kind.
+    """
+
+    gameweek: int
+    day: dt.date
+    fixtures: int
+    finished: int
+    last_kickoff: dt.datetime
+    done: bool
+
+    @property
+    def bonus_pending(self) -> bool:
+        return self.done and self.finished < self.fixtures
+
+
+def matchdays(
+    fixtures: pd.DataFrame | None, at: dt.datetime, *, zone: str, settle: dt.timedelta
+) -> list[Matchday]:
+    """Every matchday in ``fixtures`` (silver's fixture shape: ``gameweek``, ``kickoff_time``,
+    ``finished``) as it stands at ``at``, in gameweek and date order.
+
+    A postponed fixture has left its gameweek (no gameweek, or no kick-off), so it belongs to no
+    matchday and holds none open. ``zone`` groups the dates and is used for nothing else: every
+    instant stays UTC (DL-11).
+    """
+    if fixtures is None or fixtures.empty:
+        return []
+    frame = fixtures.dropna(subset=["gameweek", "kickoff_time"])
+    if frame.empty:
+        return []
+    kickoffs = pd.to_datetime(frame["kickoff_time"], utc=True)
+    days = kickoffs.dt.tz_convert(zone).dt.date
+    finished = frame["finished"].eq(True)  # an unknown flag is not a confirmed bonus
+    moment = _utc(at)
+    result = []
+    for (gameweek, day), group in frame.groupby([frame["gameweek"].astype(int), days]):
+        last = kickoffs[group.index].max()
+        played = int(finished[group.index].sum())
+        result.append(
+            Matchday(
+                gameweek=as_int(gameweek),
+                day=cast(dt.date, day),
+                fixtures=len(group),
+                finished=played,
+                last_kickoff=last.to_pydatetime(),
+                done=played == len(group) or moment >= last + settle,
+            )
+        )
+    return sorted(result, key=lambda matchday: (matchday.gameweek, matchday.day))
+
+
+def matchdays_done_since(
+    before: pd.DataFrame | None,
+    before_at: dt.datetime,
+    after: pd.DataFrame | None,
+    after_at: dt.datetime,
+    *,
+    zone: str,
+    settle: dt.timedelta,
+) -> list[Matchday]:
+    """The matchdays done in ``after`` at ``after_at`` that were not done in ``before`` at
+    ``before_at``: what moves the ``results`` change (LIVE-02).
+
+    Comparing two captures, not reading the clock alone, is what makes each matchday move once:
+    whichever capture first sees it done moves it, however many firings GitHub drops or delays
+    before that one (D-35), and every later capture sees it done on both sides. In practice only
+    the gameweek in play has one: every earlier matchday is done on both sides, every later one on
+    neither.
+    """
+    was = {
+        (matchday.gameweek, matchday.day)
+        for matchday in matchdays(before, before_at, zone=zone, settle=settle)
+        if matchday.done
+    }
+    return [
+        matchday
+        for matchday in matchdays(after, after_at, zone=zone, settle=settle)
+        if matchday.done and (matchday.gameweek, matchday.day) not in was
+    ]

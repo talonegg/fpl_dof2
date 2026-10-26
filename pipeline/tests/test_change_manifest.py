@@ -1,23 +1,34 @@
 """The change manifest (ORC-02, DL-94 item 4): each kind that starts a run, on fixture bronze, and
-nothing else."""
+nothing else; and the `results` kind over a simulated gameweek in play (LIVE-02)."""
 
 from __future__ import annotations
 
 import copy
 import datetime as dt
+import functools
 import json
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 import httpx
+import pandas as pd
 import pytest
 import respx
 
 from conftest import FIXTURES
 from fpl_dof.cli import EXIT_OK, main
 from fpl_dof.config import load_config
-from fpl_dof.sources import BronzeStore, Fetcher, SourceAdapter, before_ingest, changed_kinds
+from fpl_dof.config.models import ScheduleConfig
+from fpl_dof.gameweek import matchdays
+from fpl_dof.sources import (
+    BronzeStore,
+    ChangeContext,
+    Fetcher,
+    SourceAdapter,
+    before_ingest,
+    changed_kinds,
+)
 from fpl_dof.sources.fdcouk.adapter import FdcoukAdapter
 from fpl_dof.sources.fpl.adapter import FplApiAdapter
 
@@ -70,16 +81,18 @@ def _kinds(bronze: BronzeStore, ingest: Callable[[BronzeStore], None]) -> list[s
         adapters: list[SourceAdapter] = [FplApiAdapter(fetcher), FdcoukAdapter(fetcher)]
         before = before_ingest(bronze, adapters)
         ingest(bronze)
-        return changed_kinds(bronze, adapters, before, WINDOW)
+        return changed_kinds(bronze, adapters, before, ChangeContext.of(WINDOW, config.schedule))
 
 
 LATER = T0 + dt.timedelta(hours=1)
 
 
-def _bootstrap(edit: Callable[[dict[str, Any]], None]) -> Callable[[BronzeStore], None]:
+def _bootstrap(
+    edit: Callable[[dict[str, Any]], None], part: str = "elements"
+) -> Callable[[BronzeStore], None]:
     def ingest(bronze: BronzeStore) -> None:
         payload = copy.deepcopy(_json("bootstrap_static.json"))
-        edit(payload["elements"][0])
+        edit(payload[part][0])
         _write(bronze, "fpl", "bootstrap_static", "all", json.dumps(payload).encode(), LATER)
 
     return ingest
@@ -115,6 +128,13 @@ def _odds(text: str) -> Callable[[BronzeStore], None]:
         (_fixtures(lambda f: f.update(team_h_difficulty=5)), []),
         (_odds(ODDS_HEAD + GW1_MATCH), ["odds"]),  # the first odds for the Open gameweek
         (_odds(ODDS_HEAD + GW2_MATCH), []),  # a later gameweek's odds are not the Open one's
+        # LIVE-02: a match's bonus confirmed is its matchday done; a start or a goal is nothing.
+        (_fixtures(lambda f: f.update(finished=True)), ["results"]),
+        (_fixtures(lambda f: f.update(started=True, minutes=30, team_h_score=1)), []),
+        (_fixtures(lambda f: f.update(finished_provisional=True, minutes=90)), []),
+        (_bootstrap(lambda e: e.update(finished=True), "events"), ["results"]),
+        (_bootstrap(lambda e: e.update(data_checked=True), "events"), ["results"]),
+        (_bootstrap(lambda e: e.update(most_captained=7), "events"), []),
     ],
     ids=[
         "price",
@@ -126,6 +146,12 @@ def _odds(text: str) -> Callable[[BronzeStore], None]:
         "difficulty",
         "odds",
         "later-odds",
+        "bonus",
+        "goal",
+        "full-time",
+        "gameweek-finished",
+        "data-checked",
+        "gameweek-other",
     ],
 )
 def test_each_kind_produces_its_entry_and_nothing_else(
@@ -175,3 +201,282 @@ def test_the_ingest_stage_writes_the_manifest_the_workflows_dispatch_on(
     assert main(["--data-dir", str(data_dir), "ingest", "--fast"]) == EXIT_OK
     second = json.loads(changes.read_text(encoding="utf-8"))
     assert second["kinds"] == ["prices"] and second["gameweek"] == 1
+
+
+# --- results: matchdays and completion (LIVE-02) ----------------------------------------------
+#
+# A simulated gameweek in play, fetched by the fast ingest's hourly firings. Each match starts,
+# scores and reaches full time (none of which moves anything) and has its bonus confirmed, FPL's
+# fixture `finished`, a while after. Dates are after the clocks go back, so UK time is UTC here; the
+# zone itself is tested on the pure rule in test_matchdays.py.
+
+SCHEDULE = ScheduleConfig()
+BONUS_AFTER = dt.timedelta(hours=2, minutes=40)  # a match, then FPL confirming its bonus
+FIRING_MINUTE = SCHEDULE.fast_ingest_cron_minute
+
+
+def _utc(text: str) -> dt.datetime:
+    return dt.datetime.fromisoformat(text).replace(tzinfo=dt.UTC)
+
+
+def _match(
+    fixture_id: int,
+    kickoff: str | None,
+    *,
+    bonus: dt.timedelta | None = BONUS_AFTER,
+    event: int | None = 9,
+) -> dict[str, Any]:
+    """One fixture: its kick-off (UTC) and how long after it FPL confirms its bonus, ``None`` for a
+    match whose bonus never comes."""
+    return {
+        "id": fixture_id,
+        "event": event,
+        "kickoff_time": kickoff,
+        "team_h": fixture_id,
+        "team_a": fixture_id + 10,
+        "team_h_difficulty": 3,
+        "team_a_difficulty": 3,
+        "bonus_after": bonus,
+    }
+
+
+def _as_fetched(matches: list[dict[str, Any]], at: dt.datetime) -> bytes:
+    """The fixtures endpoint as a firing at ``at`` reads it: started, scoring, at full time, then
+    finished once the bonus is in."""
+    payload = []
+    for match in matches:
+        fixture = {k: v for k, v in match.items() if k != "bonus_after"}
+        kickoff = None if match["kickoff_time"] is None else _utc(match["kickoff_time"][:-1])
+        played = (
+            0 if kickoff is None else max(0, min(90, int((at - kickoff).total_seconds() // 60)))
+        )
+        bonus = match["bonus_after"]
+        fixture |= {
+            "started": played > 0,
+            "minutes": played,
+            "team_h_score": None if played == 0 else played // 30,
+            "team_a_score": None if played == 0 else played // 45,
+            "finished_provisional": played >= 90,
+            "finished": kickoff is not None and bonus is not None and at >= kickoff + bonus,
+        }
+        payload.append(fixture)
+    return json.dumps(payload).encode()
+
+
+@functools.cache
+def _bootstrap_for(finished: bool, data_checked: bool) -> bytes:
+    """The game-state capture a firing sees: only the gameweek's two flags vary, so each pair is
+    built once, and a few players stand in for the squad list the results kind never reads (an
+    hourly walk over days writes this ~100 times, ORC-09's test budget)."""
+    payload = copy.deepcopy(_json("bootstrap_static.json"))
+    payload["elements"] = payload["elements"][:3]
+    payload["events"] = [
+        {
+            "id": 9,
+            "name": "Gameweek 9",
+            "deadline_time": "2026-10-30T18:30:00Z",
+            "finished": finished,
+            "is_next": False,
+            "data_checked": data_checked,
+        }
+    ]
+    return json.dumps(payload).encode()
+
+
+def _hourly(start: str, end: str) -> list[dt.datetime]:
+    """The fast ingest's firings from ``start`` to ``end`` (UTC), hourly at its cron minute."""
+    first, last = _utc(start), _utc(end)
+    moment = first.replace(minute=FIRING_MINUTE)
+    firings = []
+    while moment <= last:
+        firings.append(moment)
+        moment += dt.timedelta(hours=1)
+    return firings
+
+
+def _moves(
+    tmp_path: Path,
+    matches: list[dict[str, Any]],
+    firings: list[dt.datetime],
+    *,
+    flags: Callable[[dt.datetime], tuple[bool, bool]] | None = None,
+) -> dict[dt.datetime, list[str]]:
+    """Each firing's change manifest, ingest after ingest on one bronze, as CI's `data` branch
+    carries it from firing to firing. ``flags`` is the gameweek's finished and data-checked at a
+    firing; without it, only the fixtures are fetched."""
+    bronze = BronzeStore(tmp_path / "bronze")
+    context = ChangeContext.of(None, SCHEDULE)  # no gameweek Open: results needs none
+    config, _ = load_config(environ={}, local_override=None)
+    manifests: dict[dt.datetime, list[str]] = {}
+    with Fetcher(config=config.http, bronze=bronze) as fetcher:
+        adapters: list[SourceAdapter] = [FplApiAdapter(fetcher)]
+        for at in firings:
+            before = before_ingest(bronze, adapters)
+            _write(bronze, "fpl", "fixtures", "all", _as_fetched(matches, at), at)
+            if flags is not None:
+                _write(bronze, "fpl", "bootstrap_static", "all", _bootstrap_for(*flags(at)), at)
+            manifests[at] = changed_kinds(bronze, adapters, before, context)
+    return manifests
+
+
+def _results(manifests: dict[dt.datetime, list[str]]) -> list[dt.datetime]:
+    """The firings whose manifest moved ``results``; every other firing must have moved nothing."""
+    for kinds in manifests.values():
+        assert kinds in ([], ["results"]), kinds
+    return [at for at, kinds in manifests.items() if kinds]
+
+
+#: Saturday 31 October 2026: three kick-off times, five matches.
+SATURDAY = [
+    _match(1, "2026-10-31T12:30:00Z"),
+    _match(2, "2026-10-31T15:00:00Z"),
+    _match(3, "2026-10-31T15:00:00Z"),
+    _match(4, "2026-10-31T15:00:00Z"),
+    _match(5, "2026-10-31T17:30:00Z"),
+]
+
+
+def test_a_saturday_of_three_kick_off_times_moves_results_once_after_the_last_bonus(
+    tmp_path: Path,
+) -> None:
+    """Twelve hours of firings through kick-offs, goals and full times move nothing; the first
+    firing after the 17:30 match's bonus is confirmed (20:10) moves `results`, and only that one."""
+    moves = _results(_moves(tmp_path, SATURDAY, _hourly("2026-10-31T11:00", "2026-11-01T02:00")))
+    assert moves == [_utc(f"2026-10-31T21:{FIRING_MINUTE:02d}")]
+
+
+#: Gameweek 9, Friday to Monday: one matchday a day.
+FRIDAY_TO_MONDAY = [
+    _match(1, "2026-10-30T20:00:00Z"),
+    _match(2, "2026-10-31T12:30:00Z"),
+    _match(3, "2026-10-31T15:00:00Z"),
+    _match(4, "2026-10-31T17:30:00Z"),
+    _match(5, "2026-11-01T14:00:00Z"),
+    _match(6, "2026-11-01T16:30:00Z"),
+    _match(7, "2026-11-02T20:00:00Z"),
+]
+FINISHED_AT = _utc("2026-11-03T09:30")
+DATA_CHECKED_AT = _utc("2026-11-03T13:30")
+
+
+def _gameweek_flags(at: dt.datetime) -> tuple[bool, bool]:
+    return at >= FINISHED_AT, at >= DATA_CHECKED_AT
+
+
+def test_a_friday_to_monday_gameweek_moves_results_four_times_then_finished_then_checked(
+    tmp_path: Path,
+) -> None:
+    manifests = _moves(
+        tmp_path,
+        FRIDAY_TO_MONDAY,
+        _hourly("2026-10-30T18:00", "2026-11-03T20:00"),
+        flags=_gameweek_flags,
+    )
+    minute = f"{FIRING_MINUTE:02d}"
+    assert _results(manifests) == [
+        _utc(f"2026-10-30T23:{minute}"),  # Friday's match, its bonus at 22:40
+        _utc(f"2026-10-31T21:{minute}"),  # Saturday's last, at 20:10
+        _utc(f"2026-11-01T20:{minute}"),  # Sunday's last, at 19:10
+        _utc(f"2026-11-02T23:{minute}"),  # Monday's, at 22:40
+        _utc(f"2026-11-03T10:{minute}"),  # the gameweek marked finished
+        _utc(f"2026-11-03T14:{minute}"),  # ...and data-checked (LIVE-07's run)
+    ]
+
+
+def test_dropped_firings_move_each_matchday_at_the_next_firing_and_never_twice(
+    tmp_path: Path,
+) -> None:
+    """D-35: GitHub drops firings. Saturday evening's are lost, so the first firing after them
+    sees Saturday done and moves it, and Sunday moves on its own later; nothing moves twice."""
+    firings = [
+        at
+        for at in _hourly("2026-10-30T18:00", "2026-11-02T02:00")
+        if not _utc("2026-10-31T19:00") <= at <= _utc("2026-11-01T09:30")
+    ]
+    minute = f"{FIRING_MINUTE:02d}"
+    assert _results(_moves(tmp_path, FRIDAY_TO_MONDAY, firings)) == [
+        _utc(f"2026-10-30T23:{minute}"),
+        _utc(f"2026-11-01T10:{minute}"),  # Saturday, seen at the first firing back
+        _utc(f"2026-11-01T20:{minute}"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "postponed",
+    [
+        _match(6, None, event=None, bonus=None),  # postponed: no kick-off, out of the gameweek
+        _match(6, "2026-10-31T15:00:00Z", event=None, bonus=None),  # moved out, kick-off kept
+        _match(6, None, bonus=None),  # in the gameweek, its kick-off to be confirmed
+    ],
+    ids=["no-kickoff-no-gameweek", "out-of-the-gameweek", "no-kickoff"],
+)
+def test_a_postponed_fixture_leaves_its_matchday_done_without_it(
+    tmp_path: Path, postponed: dict[str, Any]
+) -> None:
+    moves = _results(
+        _moves(tmp_path, [*SATURDAY, postponed], _hourly("2026-10-31T11:00", "2026-11-01T02:00"))
+    )
+    assert moves == [_utc(f"2026-10-31T21:{FIRING_MINUTE:02d}")]
+
+
+def test_a_fixture_postponed_after_the_rest_have_finished_moves_results_as_it_leaves(
+    tmp_path: Path,
+) -> None:
+    """The matchday was held open by a match that was never played; the capture in which FPL takes
+    it out of the gameweek is the one that sees the matchday done."""
+    bronze = BronzeStore(tmp_path / "bronze")
+    config, _ = load_config(environ={}, local_override=None)
+    stuck = _match(6, "2026-10-31T19:45:00Z", bonus=None)
+    earlier, later = _utc("2026-10-31T21:07"), _utc("2026-10-31T22:07")
+    _write(bronze, "fpl", "fixtures", "all", _as_fetched([*SATURDAY, stuck], earlier), earlier)
+    with Fetcher(config=config.http, bronze=bronze) as fetcher:
+        adapters: list[SourceAdapter] = [FplApiAdapter(fetcher)]
+        before = before_ingest(bronze, adapters)
+        out = {**stuck, "event": None, "kickoff_time": None}
+        _write(bronze, "fpl", "fixtures", "all", _as_fetched([*SATURDAY, out], later), later)
+        kinds = changed_kinds(bronze, adapters, before, ChangeContext.of(None, SCHEDULE))
+    assert kinds == ["fixtures", "results"]
+
+
+def test_a_fixture_stuck_short_of_bonus_moves_results_once_at_the_settle_cap_bonus_pending(
+    tmp_path: Path,
+) -> None:
+    """The 17:30 match's bonus never comes. The settle cap, three hours after the last kick-off
+    (20:30), moves `results` at the first firing past it, once, from captures whose bytes no longer
+    change; the run that firing starts reads the matchday as bonus pending."""
+    stuck = [*SATURDAY[:-1], _match(5, "2026-10-31T17:30:00Z", bonus=None)]
+    firings = _hourly("2026-10-31T11:00", "2026-11-01T06:00")
+    moves = _results(_moves(tmp_path, stuck, firings))
+    cap = _utc("2026-10-31T17:30") + dt.timedelta(hours=SCHEDULE.matchday_settle_hours)
+    assert moves == [_utc(f"2026-10-31T21:{FIRING_MINUTE:02d}")]
+    assert moves[0] - cap < dt.timedelta(hours=1)
+    assert _as_fetched(stuck, firings[-2]) == _as_fetched(stuck, firings[-1])  # same bytes
+
+    [saturday] = matchdays(
+        _silver_fixtures(_as_fetched(stuck, moves[0])),
+        moves[0],
+        zone=SCHEDULE.matchday_zone,
+        settle=dt.timedelta(hours=SCHEDULE.matchday_settle_hours),
+    )
+    assert saturday.done and saturday.bonus_pending
+    assert (saturday.fixtures, saturday.finished) == (5, 4)
+
+
+def test_a_bonus_confirmed_after_the_cap_moves_nothing_more(tmp_path: Path) -> None:
+    """The cap has already published the matchday; the late bonus waits for the next `results`
+    change (the next matchday, or finished and data-checked) to be read."""
+    late = [*SATURDAY[:-1], _match(5, "2026-10-31T17:30:00Z", bonus=dt.timedelta(hours=6))]
+    moves = _results(_moves(tmp_path, late, _hourly("2026-10-31T11:00", "2026-11-01T06:00")))
+    assert moves == [_utc(f"2026-10-31T21:{FIRING_MINUTE:02d}")]
+
+
+def _silver_fixtures(payload: bytes) -> pd.DataFrame:
+    """The fixtures in silver's shape, as the run conforms them."""
+    rows = json.loads(payload)
+    return pd.DataFrame(
+        {
+            "gameweek": [row["event"] for row in rows],
+            "kickoff_time": pd.to_datetime([row["kickoff_time"] for row in rows], utc=True),
+            "finished": [row["finished"] for row in rows],
+        }
+    )
