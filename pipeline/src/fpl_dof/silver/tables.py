@@ -48,6 +48,8 @@ class Table(StrEnum):
     PLAYER_ADVANCED = "player_advanced"
     PLAYER_METRIC = "player_metric"
     TEAM_MATCH_EXPECTATION = "team_match_expectation"
+    PLAYER_LIVE = "player_live"
+    ENTRY_LIVE = "entry_live"
 
 
 #: Advanced per-player measures a source may contribute, in canonical names and canonical units.
@@ -133,6 +135,11 @@ class FixtureSchema(pa.DataFrameModel):
     home_difficulty: Series[int] = pa.Field(ge=1, le=5)
     away_difficulty: Series[int] = pa.Field(ge=1, le=5)
     finished: Series[bool]
+    """FPL's own flag: the match is over and its bonus is confirmed."""
+    # Optional so a fixture table written before LIVE-01 still reads; absent means not known.
+    finished_provisional: Series[bool] | None
+    """Full time has been played; the bonus may not yet be confirmed."""
+    started: Series[bool] | None
 
     class Config:
         strict = True
@@ -639,6 +646,86 @@ class LeagueGameweekSchema(pa.DataFrameModel):
         unique = ["entry_id", "gameweek"]  # noqa: RUF012 - pandera Config
 
 
+#: The column that marks a live row provisional: FPL had not data-checked its gameweek when the row
+#: was captured. A frame carrying it is a live table, and the feature store refuses one (LIVE-01,
+#: Invariant 5): provisional points are never features.
+PROVISIONAL = "provisional"
+
+
+class _LiveGameweek(pa.DataFrameModel):
+    """What the two live tables share: one gameweek, past its deadline, and when it was seen.
+
+    The gameweek is the latest whose deadline has passed: the gameweek in play until FPL
+    data-checks it, then the same gameweek, final, until the next deadline (LIVE-01). Whether each
+    row's deadline had passed when it was observed needs the gameweek table, which a schema cannot
+    see, so :func:`require_past_deadline` checks it at transform.
+    """
+
+    gameweek: Series[int] = pa.Field(ge=1, le=38)
+    observed_at: Series[pd.DatetimeTZDtype] = pa.Field(dtype_kwargs={"unit": "ns", "tz": "UTC"})
+    """When the capture the row came from was fetched."""
+    provisional: Series[bool]
+    """True until a capture taken once FPL data-checked the gameweek: its figures can move."""
+
+    class Config:
+        strict = True
+        coerce = True
+
+    @pa.dataframe_check
+    def one_gameweek(cls, df: pd.DataFrame) -> Any:  # type: ignore[misc]  # noqa: N805
+        return df["gameweek"].nunique() <= 1
+
+
+class PlayerLiveSchema(_LiveGameweek):
+    """The live gameweek's scores, one row per player per fixture of his club's (LIVE-01).
+
+    Never ``player_gameweek``, and never a feature: these rows are what FPL showed at
+    ``observed_at``, provisional until the gameweek is data-checked, and the feature store refuses a
+    frame stamped ``provisional`` (Invariant 5). A fixture still to kick off, or one a player has no
+    line in, is a row of zeros, so a player yet to play is never read as a blank (LIVE-03).
+    """
+
+    fixture_id: Series[int]
+    player_id: Series[int] = pa.Field(ge=1)
+    minutes: Series[int] = pa.Field(ge=0, le=120)
+    points: Series[int]
+    """The fixture's points as FPL explains them, bonus included."""
+    bonus: Series[int] = pa.Field(ge=0)
+    bps: Series[int] = pa.Field(nullable=True)
+    """Null when FPL reports BPS only for the gameweek and the player has two fixtures in it."""
+    finished: Series[bool]
+    """Full time has been played: the minutes are final (the fixture's ``finished_provisional``).
+    What the scorer substitutes on (LIVE-03)."""
+    bonus_confirmed: Series[bool]
+    """FPL has confirmed the fixture's bonus (the fixture's ``finished``): the points are final."""
+
+    class Config:
+        strict = True
+        coerce = True
+        unique = ["gameweek", "player_id", "fixture_id"]  # noqa: RUF012 - pandera Config
+
+
+class EntryLiveSchema(_LiveGameweek):
+    """FPL's own figures for each fetched team in the live gameweek, from its picks (LIVE-01).
+
+    The owner's and each published rival's. Their hits and chip are fixed at the deadline; their
+    ``points`` and ``total_points`` are as of ``observed_at``, final once ``provisional`` is false,
+    which is what the scorer is checked against (LIVE-03). Not ``entry_gameweek``: the season log
+    reads that, and it holds finished gameweeks only (DL-69).
+    """
+
+    entry_id: Series[int] = pa.Field(ge=1)
+    points: Series[int]
+    transfers_cost: Series[int] = pa.Field(ge=0)
+    total_points: Series[int]
+    chip: Series[str] = pa.Field(nullable=True)
+
+    class Config:
+        strict = True
+        coerce = True
+        unique = ["entry_id", "gameweek"]  # noqa: RUF012 - pandera Config
+
+
 SCHEMAS: dict[Table, type[pa.DataFrameModel]] = {
     Table.PLAYER: PlayerSchema,
     Table.TEAM: TeamSchema,
@@ -662,7 +749,13 @@ SCHEMAS: dict[Table, type[pa.DataFrameModel]] = {
     Table.PLAYER_ADVANCED: PlayerAdvancedSchema,
     Table.PLAYER_METRIC: PlayerMetricSchema,
     Table.TEAM_MATCH_EXPECTATION: TeamMatchExpectationSchema,
+    Table.PLAYER_LIVE: PlayerLiveSchema,
+    Table.ENTRY_LIVE: EntryLiveSchema,
 }
+
+#: Tables about the live gameweek only (LIVE-01). Rebuilt every transform, and removed when no
+#: source produces them, so no run reads a gameweek that has passed as the live one.
+LIVE_TABLES: frozenset[Table] = frozenset({Table.PLAYER_LIVE, Table.ENTRY_LIVE})
 
 #: Tables that only exist when the owner has configured a team ID, or when the season has started.
 #: Their absence is normal, not a failure — the pipeline degrades rather than breaks (DP-15).
@@ -687,6 +780,8 @@ OPTIONAL_TABLES: frozenset[Table] = frozenset(
         Table.PLAYER_ADVANCED,
         Table.PLAYER_METRIC,
         Table.TEAM_MATCH_EXPECTATION,
+        # Only once a deadline has passed and its scores have been fetched (LIVE-01).
+        *LIVE_TABLES,
     }
 )
 
@@ -703,6 +798,42 @@ def columns_for(table: Table) -> list[str]:
 
 class SchemaViolationError(RuntimeError):
     """A conformed table did not match its schema. The run stops here."""
+
+
+def require_past_deadline(
+    table: Table, frame: pd.DataFrame, gameweeks: pd.DataFrame, now: pd.Timestamp
+) -> None:
+    """Raise :class:`SchemaViolationError` if a live row's gameweek was not past its deadline.
+
+    Past it both when the row was observed and at ``now``: a row for a gameweek whose deadline is
+    still ahead, or captured before it, is the look-ahead Invariant 5 forbids (LIVE-01). Here, not
+    in the schema, because the deadline is in the gameweek table.
+    """
+    if frame.empty:
+        return
+    deadlines = (
+        dict(
+            zip(
+                gameweeks["gameweek"].astype(int),
+                pd.to_datetime(gameweeks["deadline_time"], utc=True),
+                strict=True,
+            )
+        )
+        if "deadline_time" in gameweeks.columns
+        else {}
+    )
+    moment = pd.Timestamp(now)
+    moment = moment.tz_localize("UTC") if moment.tzinfo is None else moment.tz_convert("UTC")
+    for gameweek, observed in zip(
+        frame["gameweek"].astype(int), pd.to_datetime(frame["observed_at"], utc=True), strict=True
+    ):
+        deadline = deadlines.get(gameweek)
+        if deadline is None or observed < deadline or moment < deadline:
+            raise SchemaViolationError(
+                f"silver table {table.value!r} has a row for gameweek {gameweek} observed at "
+                f"{observed}, before its deadline ({deadline}) had passed; a gameweek is live only "
+                "once its deadline is behind both the capture and the run"
+            )
 
 
 def validate(table: Table, frame: pd.DataFrame) -> pd.DataFrame:
