@@ -2,10 +2,12 @@
 
 One reading of the live tables for the two places that need it: the publish stage's ``live.json``
 and the quality gate that checks the scorer against FPL once the gameweek is finished. Both reach
-the scorer through here, and the scorer is :func:`fpl_dof.rules.realised.live_score` itself
+the scorer through here, and the scorer is :func:`fpl_dof.rules.realised.live_score` itself, or
+for a team with no total to stand on the :func:`~fpl_dof.rules.realised.score_lineup` it wraps
 (ORC-04): nothing in this module adds, multiplies or substitutes. What it does is read a team's
-picks, its fixtures and FPL's own figures for it out of silver, and say plainly when one of them is
-missing, so that team alone goes without a live figure (NFR-15).
+picks, its fixtures, its total after the gameweek before and FPL's own figures for it out of
+silver, and say plainly when one of them is missing, so that team alone goes without a live figure
+(NFR-15).
 
 Pure (DP-03): frames and an instant in, an answer out. Source-free (Invariant 1): it reads the
 conformed silver shapes and nothing else.
@@ -30,7 +32,7 @@ from fpl_dof.gameweek import (
     team_status,
 )
 from fpl_dof.rules.models import GameRules, Position
-from fpl_dof.rules.realised import Lineup, LiveScore, live_score, performances
+from fpl_dof.rules.realised import Lineup, LiveScore, live_score, performances, score_lineup
 
 
 @dataclass(frozen=True, slots=True)
@@ -45,6 +47,10 @@ class LiveTables:
     entry_live: pd.DataFrame | None = None
     entry_picks: pd.DataFrame | None = None
     league_picks: pd.DataFrame | None = None
+    entry_gameweeks: pd.DataFrame | None = None
+    """The owner's season log (``entry_gameweek``): his total after the gameweek before."""
+    league_gameweeks: pd.DataFrame | None = None
+    """Each rival's per-gameweek history (``league_gameweek``, ORC-14): theirs."""
 
 
 def live_gameweek(gameweeks: pd.DataFrame, now: dt.datetime) -> int | None:
@@ -90,13 +96,6 @@ class GameFigures:
         """The gameweek's points net of its hit: what :attr:`LiveScore.gameweek_points` claims."""
         return self.points - self.hit
 
-    @property
-    def last_total(self) -> int:
-        """The total after the last finished gameweek. Read from the same capture as the
-        gameweek's points, so whichever moment the capture is from, this gameweek is taken out of
-        it once, hit included, and :func:`live_score` adds it back once (LIVE-03)."""
-        return self.total - self.net
-
 
 @dataclass(frozen=True, slots=True)
 class LivePlayer:
@@ -132,22 +131,27 @@ class LiveTeam:
     comparable: bool
     """The gameweek is finished and FPL's figures and the scores are both final: the one moment
     the scorer can be checked against FPL (LIVE-03, R1.4.3 §5 Q3)."""
+    points: int | None = None
+    """The scorer's gameweek points net of the hit, whenever the team could be scored: also for a
+    team without a live total (no total after the gameweek before), so the check still has it."""
 
     @property
     def matches_game(self) -> bool | None:
         """Whether the scorer's gameweek points equal FPL's, net of the hit on both sides; ``None``
         until they can be compared."""
-        if not self.comparable or self.score is None or self.game is None:
+        if not self.comparable or self.points is None or self.game is None:
             return None
-        return self.score.gameweek_points == self.game.net
+        return self.points == self.game.net
 
 
 def score_team(tables: LiveTables, gameweek: int, entry_id: int, rules: GameRules) -> LiveTeam:
     """One team's gameweek ``gameweek``, scored by the one scorer from silver.
 
     Its picks are the owner's ``entry_pick`` or a rival's ``league_pick`` for the gameweek, its
-    chip and hit are FPL's own for it (``entry_live``), and its players' gameweeks are
-    ``player_live``. Any of those missing leaves this team without a live figure, and no other.
+    chip and hit are FPL's own for it (``entry_live``), its players' gameweeks are
+    ``player_live``, and its live total stands on its total after the gameweek before, from the
+    game's per-gameweek history (:func:`last_total`). Any of those missing leaves this team
+    without a live figure, and no other.
     """
     game = _game_figures(tables.entry_live, gameweek, entry_id)
     picks = _picks(tables, gameweek, entry_id)
@@ -182,10 +186,27 @@ def score_team(tables: LiveTables, gameweek: int, entry_id: int, rules: GameRule
         ),
         positions={pid: positions[pid] for pid in ids},
     )
-    score = live_score(lineup, perfs, rules, last_total=game.last_total)
-    checked = _checked(tables.gameweeks, gameweek)
-    progress = _progress(mine)
-    status = team_status(progress.values(), data_checked=checked)
+    comparable = _finished(tables.gameweeks, gameweek) and game.final and _scores_final(live)
+    before = last_total(tables, gameweek, entry_id)
+    if before is None:
+        # The gameweek's points are still the scorer's to check; only the total has nothing to
+        # stand on, and a guessed one would rank the team plausibly and wrongly (DP-13).
+        return LiveTeam(
+            entry_id,
+            game,
+            None,
+            None,
+            (),
+            f"its season total after gameweek {gameweek - 1} was not read",
+            comparable,
+            score_lineup(lineup, perfs, rules).net_points,
+        )
+    score = live_score(lineup, perfs, rules, last_total=before)
+    # Final only on the figures FPL checked: the gameweek data-checked, and both the scores and
+    # this team's own figures from captures taken after the check. A refetch that failed leaves
+    # the team complete, provisional, rather than "final" over the figures before (DP-13).
+    final = _checked(tables.gameweeks, gameweek) and _scores_final(live) and game.final
+    status = team_status(_progress(mine).values(), data_checked=final)
 
     armband = rules.chips.armband(lineup.chip)
     fielded = set(score.scored.fielded)
@@ -208,21 +229,44 @@ def score_team(tables: LiveTables, gameweek: int, entry_id: int, rules: GameRule
                 is_vice_captain=bool(pick.is_vice_captain),
             )
         )
-    comparable = (
-        _finished(tables.gameweeks, gameweek)
-        and game.final
-        and not live["provisional"].astype(bool).any()
+    return LiveTeam(
+        entry_id, game, score, status, tuple(players), None, comparable, score.gameweek_points
     )
-    return LiveTeam(entry_id, game, score, status, tuple(players), None, comparable)
+
+
+def last_total(tables: LiveTables, gameweek: int, entry_id: int) -> int | None:
+    """The team's season total after the gameweek before ``gameweek``: 0 before GW1, else the
+    game's own figure from its per-gameweek history, the owner's season log first and then the
+    league's; ``None`` when neither has the row.
+
+    Not FPL's total in the picks capture less the gameweek's points: whether that total already
+    counts this gameweek's points, or its hit, depends on the moment the capture was taken, and
+    the picks are captured once, just after the deadline (LIVE-01). The history row is the total
+    after a gameweek finished, every hit to then taken; :func:`live_score` adds this gameweek's
+    points, its hit taken once, from the gameweek (LIVE-03).
+    """
+    previous = gameweek - 1
+    if previous < 1:
+        return 0
+    for frame in (tables.entry_gameweeks, tables.league_gameweeks):
+        rows = _rows(frame, previous)
+        if rows is None:
+            continue
+        totals = rows.loc[rows["entry_id"] == entry_id, "total_points"].dropna()
+        if not totals.empty:
+            return as_int(totals.iloc[0])
+    return None
 
 
 def gameweek_status(tables: LiveTables, gameweek: int) -> TeamStatus:
     """How far the whole gameweek has got, on the same rule as a team's, over every fixture it
-    has: in play, bonus pending, complete, or final once data-checked."""
-    return team_status(
-        fixture_progress(tables.fixtures, gameweek).values(),
-        data_checked=_checked(tables.gameweeks, gameweek),
+    has: in play, bonus pending, complete, or final once data-checked and the live scores
+    published with it are the capture taken after the check. Until then a checked gameweek is
+    complete, and provisional: the scores beside it are not the ones FPL checked."""
+    final = _checked(tables.gameweeks, gameweek) and _scores_final(
+        _rows(tables.player_live, gameweek)
     )
+    return team_status(fixture_progress(tables.fixtures, gameweek).values(), data_checked=final)
 
 
 def fixture_progress(fixtures: pd.DataFrame | None, gameweek: int) -> dict[int, FixtureProgress]:
@@ -251,6 +295,11 @@ def _rows(frame: pd.DataFrame | None, gameweek: int) -> pd.DataFrame | None:
         return None
     rows = frame[frame["gameweek"] == gameweek]
     return None if rows.empty else rows
+
+
+def _scores_final(rows: pd.DataFrame | None) -> bool:
+    """The live scores are from a capture taken once FPL had data-checked the gameweek."""
+    return rows is not None and not rows["provisional"].astype(bool).any()
 
 
 def _game_figures(
@@ -354,6 +403,7 @@ __all__ = [
     "fixture_progress",
     "gameweek_status",
     "has_kicked_off",
+    "last_total",
     "live_gameweek",
     "score_team",
 ]

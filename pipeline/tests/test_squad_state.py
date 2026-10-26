@@ -8,22 +8,32 @@ which is precisely the failure DP-13 says to test hardest for.
 
 from __future__ import annotations
 
+from typing import Any
+
 import pandas as pd
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
+from fpl_dof.config import Config
 from fpl_dof.config.models import DeclaredPick, EntryConfig
+from fpl_dof.gameweek import chips_by_gameweek, chips_played
+from fpl_dof.paths import DataLayout
+from fpl_dof.pipeline import StageContext
 from fpl_dof.rules.legality import selling_price
 from fpl_dof.rules.models import GameRules
+from fpl_dof.silver.store import write_table
+from fpl_dof.silver.tables import Table
 from fpl_dof.squad.state import (
     Provenance,
+    SquadState,
     SquadStateError,
     _free_transfers,
     free_transfers_after,
     gameweek_price_index,
     load_squad_state,
 )
+from fpl_dof.stages import week
 from squads import legal_declaration, same_position_swap
 from squads import players as _players
 
@@ -442,3 +452,116 @@ def test_free_transfers_stay_inside_the_published_bounds(
     """Whatever happened last week, the allowance is between one and the published maximum."""
     result = free_transfers_after(previous, made, game_rules)
     assert 1 <= result <= game_rules.transfers.max_free_transfers
+
+
+# --- a Free Hit in the gameweek in play (LIVE-01, D-33) -----------------------------------------
+
+
+def test_the_chip_in_force_adds_the_in_play_picks_chip_only_where_history_has_none() -> None:
+    live = pd.DataFrame(
+        [
+            {"entry_id": 1234, "gameweek": 2, "chip": "freehit"},
+            {"entry_id": 1234, "gameweek": 3, "chip": None},
+            {"entry_id": 99, "gameweek": 3, "chip": "bboost"},  # a rival's: not the owner's chip
+        ]
+    )
+    assert chips_by_gameweek(chips_played(None, live, 1234)) == {2: "freehit"}
+    assert chips_by_gameweek(chips_played(FREE_HIT_IN_GW2, live, 1234)) == {2: "freehit"}
+    assert len(chips_played(FREE_HIT_IN_GW2, live, 1234)) == 1, "listed once"  # type: ignore[arg-type]
+    assert chips_played(FREE_HIT_IN_GW2, live, None) is FREE_HIT_IN_GW2
+
+
+class _BuiltError(Exception):
+    """Raised by the spy once the week stage has built its squad state: the rest is not tested."""
+
+
+def test_a_free_hit_in_play_is_not_the_squad_the_next_gameweeks_advice_starts_from(
+    config: Config, layout: DataLayout, game_rules: GameRules, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """GW2 is in play on a Free Hit. Its picks are in silver from the deadline (LIVE-01), and the
+    owner's history, captured before the deadline, does not list the chip yet; the in-play picks'
+    own active chip does. The advice for GW3 starts from the squad the Free Hit reverts to, the
+    Free Hit's transfer is no purchase and costs no allowance, and the chip is spent."""
+    season = config.rules.season
+    players = _players()
+    held = [pick.player_id for pick in legal_declaration(players)]
+    sold, bought = same_position_swap(players, held)
+    on_free_hit = [bought if pid == sold else pid for pid in held]
+    deadlines = {1: "2026-08-14T17:30:00Z", 2: "2026-08-21T17:30:00Z", 3: "2026-08-28T17:30:00Z"}
+    frames = {
+        Table.GAMEWEEK: pd.DataFrame(
+            {
+                "gameweek": gw,
+                "name": f"Gameweek {gw}",
+                "deadline_time": pd.Timestamp(deadline),
+                "finished": gw == 1,
+                "is_next": gw == 3,
+                "data_checked": gw == 1,
+            }
+            for gw, deadline in deadlines.items()
+        ),
+        Table.PLAYER: players.assign(
+            code=players["player_id"] + 1000, full_name=players["web_name"]
+        ),
+        Table.ENTRY_PICK: pd.concat([_picks_frame(held, 1), _picks_frame(on_free_hit, 2)]),
+        Table.ENTRY_TRANSFER: pd.DataFrame(
+            [_transfer(2, bought, 3.7, sold, "2026-08-21T10:00:00Z")]
+        ),
+        Table.ENTRY: pd.DataFrame(
+            [
+                {
+                    "entry_id": 1234,
+                    "name": "Owner FC",
+                    "started_event": 1,
+                    "current_event": 2,
+                    "bank": 0.0,
+                    "squad_value": 100.0,
+                    "total_transfers": 1,
+                    "summary_overall_points": 50,
+                    "summary_overall_rank": 1000,
+                }
+            ]
+        ),
+        # Entry history captured before the deadline: no chip played yet.
+        Table.ENTRY_CHIP: pd.DataFrame(columns=["entry_id", "name", "gameweek"]),
+        # The in-play picks, captured after it: the Free Hit is their active chip.
+        Table.ENTRY_LIVE: pd.DataFrame(
+            [
+                {
+                    "gameweek": 2,
+                    "observed_at": pd.Timestamp("2026-08-21T18:00:00Z"),
+                    "provisional": True,
+                    "entry_id": 1234,
+                    "points": 0,
+                    "transfers_cost": 0,
+                    "total_points": 50,
+                    "chip": "freehit",
+                }
+            ]
+        ),
+    }
+    for table, frame in frames.items():
+        write_table(layout.silver, season, table, frame)
+
+    built: list[SquadState] = []
+
+    def spy(**kwargs: Any) -> SquadState:
+        built.append(load_squad_state(**kwargs))
+        raise _BuiltError
+
+    monkeypatch.setattr(
+        week, "read_rules", lambda *_: game_rules.model_copy(update={"season": season})
+    )
+    monkeypatch.setattr(week, "evaluate", lambda *_: [])
+    monkeypatch.setattr(week, "load_squad_state", spy)
+    owned = config.model_copy(update={"entry": EntryConfig(team_id=1234)})
+    as_of = pd.Timestamp("2026-08-23T12:00:00Z").to_pydatetime()
+    with pytest.raises(_BuiltError):
+        week.run(StageContext(config=owned, layout=layout, run_id="r", as_of=as_of))
+
+    [state] = built
+    assert state.gameweek == 3
+    assert state.player_ids() == frozenset(held), "the squad the Free Hit reverts to"
+    assert state.as_of_gameweek == 1
+    assert "freehit" in state.chips_used
+    assert state.free_transfers == 2, "a Free Hit's transfer uses none of the allowance"

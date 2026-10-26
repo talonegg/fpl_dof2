@@ -295,8 +295,8 @@ class FplApiAdapter(SourceAdapter):
             # gameweek and is where player_gameweek comes from. So the week-long TTL (~670
             # requests a sweep) holds only until a gameweek is checked: ingest then treats every
             # summary fetched before that as stale (`_summaries_stale_before`). The fast ingest
-            # that sees the check does that sweep itself, once, so the run the check starts
-            # evaluates the gameweek on its final rows (LIVE-07).
+            # whose capture is the first to show a check does that sweep itself, once, so the run
+            # the check starts evaluates the gameweek on its final rows (LIVE-07).
             cache_ttl_seconds=_WEEK,
             fast_path=False,
             on_check=True,
@@ -616,6 +616,30 @@ class FplApiAdapter(SourceAdapter):
                 self.name, "bootstrap_static", "all", as_of=seen - dt.timedelta(microseconds=1)
             )
         return seen
+
+    def _newly_checked(self, bootstrap: dict[str, Any], capture: Snapshot) -> bool:
+        """Whether ``capture`` is the first bootstrap capture to show its latest checked gameweek
+        data-checked: the per-player summaries in bronze then all predate the check (LIVE-07).
+
+        Any gameweek, not only the live one: FPL can check a gameweek after the next deadline has
+        passed (a Monday match, a Tuesday deadline), when the live gameweek is already the next.
+        One read of the capture before, so the firings after the first neither fetch nor walk the
+        summaries. With no capture before it there is no telling when the check came, so it counts
+        as new: a sweep of cached summaries is cheap, and a missed one is a wrong evaluation.
+        """
+        latest = _latest_checked_gameweek(bootstrap)
+        if latest is None:
+            return False
+        before = self.fetcher.bronze.latest(
+            self.name,
+            "bootstrap_static",
+            "all",
+            as_of=capture.meta.fetched_at - dt.timedelta(microseconds=1),
+        )
+        if before is None:
+            return True
+        then = self._json(before.read_bytes(), resource="bootstrap_static", key="all")
+        return (_latest_checked_gameweek(then) or 0) < latest
 
     def fetch_event_live(
         self, gameweek: int, request: IngestRequest, *, fresh_from: dt.datetime | None = None
@@ -1459,11 +1483,12 @@ class FplApiAdapter(SourceAdapter):
                 if row is not None:
                     live_rows.append(row)
 
-        moves: dict[int, tuple[dict[str, Any], list[dict[str, Any]]]] = {}
+        finished = {int(e["id"]) for e in bootstrap["events"] if e.get("finished")}
+        moves: dict[int, tuple[list[dict[str, Any]], list[dict[str, Any]]]] = {}
         if gameweek is not None:
             for entry_id in rivals:
                 try:
-                    moves[entry_id] = self._rival_moves(entry_id, gameweek, request)
+                    moves[entry_id] = self._rival_moves(entry_id, gameweek, request, finished)
                 except SourceError as exc:
                     # Only this team's drill-down loses its moves (NFR-15); the reason is kept.
                     warnings.append(f"no moves for league entry {entry_id}: {exc}")
@@ -1480,10 +1505,7 @@ class FplApiAdapter(SourceAdapter):
             Table.LEAGUE_STANDING.value: self._league_standings(league_id, standings),
             Table.LEAGUE_PICK.value: self._league_picks(picks, warnings),
             Table.LEAGUE_GAMEWEEK.value: pd.DataFrame(
-                [
-                    {"entry_id": e, "gameweek": gameweek, **row}
-                    for e, (row, _) in sorted(moves.items())
-                ],
+                [{"entry_id": e, **row} for e, (rows, _) in sorted(moves.items()) for row in rows],
                 columns=columns_for(Table.LEAGUE_GAMEWEEK),
             ),
             Table.LEAGUE_TRANSFER.value: pd.DataFrame(
@@ -1498,9 +1520,14 @@ class FplApiAdapter(SourceAdapter):
         }
 
     def _rival_moves(
-        self, entry_id: int, gameweek: int, request: IngestRequest
-    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-        """One rival's hit, chip and transfers for ``gameweek``, from the public entry endpoints.
+        self,
+        entry_id: int,
+        gameweek: int,
+        request: IngestRequest,
+        finished: frozenset[int] | set[int] = frozenset(),
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """One rival's per-gameweek history and his transfers for ``gameweek``, from the public
+        entry endpoints: a row for ``gameweek`` and each of the ``finished`` ones his history has.
 
         The fetch checks each payload's shape, not its rows, so a malformed row is raised here as
         a contract error: the callers then degrade only this team, as for a failed fetch (DP-15).
@@ -1508,7 +1535,7 @@ class FplApiAdapter(SourceAdapter):
         history = self.fetch_entry_history(entry_id, request)
         transfers = self.fetch_entry_transfers(entry_id, request)
         try:
-            return self._read_rival_moves(history, transfers, gameweek)
+            return self._read_rival_moves(history, transfers, gameweek, finished)
         except (KeyError, ValueError, TypeError) as exc:
             raise SourceContractError(
                 f"malformed history or transfers row: {exc!r}",
@@ -1519,26 +1546,36 @@ class FplApiAdapter(SourceAdapter):
 
     @staticmethod
     def _read_rival_moves(
-        history: dict[str, Any], transfers: list[dict[str, Any]], gameweek: int
-    ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-        current = next(
-            (r for r in history.get("current") or [] if int(r["event"]) == gameweek), None
-        )
-        chip = next(
-            (str(c["name"]) for c in history.get("chips") or [] if int(c["event"]) == gameweek),
-            None,
-        )
-        row = {
-            "transfers": int((current or {}).get("event_transfers") or 0),
-            "transfers_cost": int((current or {}).get("event_transfers_cost") or 0),
-            "chip": chip,
-        }
+        history: dict[str, Any],
+        transfers: list[dict[str, Any]],
+        gameweek: int,
+        finished: frozenset[int] | set[int] = frozenset(),
+    ) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+        """His row for ``gameweek`` (zeros and no total when his history has none) and for each
+        finished gameweek his history has: the total after it is what the gameweek after it
+        stands on live (LIVE-03). Only finished ones, as the owner's season log: the row for the
+        gameweek in play moves with every kick-off."""
+        current = {int(r["event"]): r for r in history.get("current") or []}
+        chips = {int(c["event"]): str(c["name"]) for c in history.get("chips") or []}
+
+        def row(event: int) -> dict[str, Any]:
+            found = current.get(event) or {}
+            total = found.get("total_points")
+            return {
+                "gameweek": event,
+                "transfers": int(found.get("event_transfers") or 0),
+                "transfers_cost": int(found.get("event_transfers_cost") or 0),
+                "chip": chips.get(event),
+                "total_points": None if total is None else int(total),
+            }
+
+        rows = [row(event) for event in sorted({gameweek} | (set(current) & set(finished)))]
         moved = [
             {"player_in_id": int(t["element_in"]), "player_out_id": int(t["element_out"])}
             for t in transfers
             if int(t["event"]) == gameweek
         ]
-        return row, moved
+        return rows, moved
 
     def _league_standings(self, league_id: int, standings: dict[str, Any]) -> pd.DataFrame:
         name = str((standings.get("league") or {}).get("name") or "")
@@ -1680,7 +1717,8 @@ class FplApiAdapter(SourceAdapter):
         before_calls = self.fetcher.network_calls
         before_hits = self.fetcher.cache_hits
 
-        bootstrap = self.fetch_bootstrap(request)
+        bootstrap, capture = self._capture("bootstrap_static", "bootstrap-static/", "all", request)
+        bootstrap = cast(dict[str, Any], bootstrap)
         report.resources["bootstrap_static"] = 1
 
         fixtures = self.fetch_fixtures(request)
@@ -1689,12 +1727,16 @@ class FplApiAdapter(SourceAdapter):
         live = _live_gameweek(bootstrap, request.now or utcnow())
 
         # ~700 requests, several minutes. It is declared off the fast path, and the fast cadence
-        # runs six times a day, so honouring that declaration is what keeps the frequent workflow
-        # measured in seconds (Architecture §9). The one exception is the firing that sees the live
-        # gameweek data-checked: its rows are final only now, and the run that firing starts
-        # evaluates it, so it sweeps the summaries that predate the check, and only those (LIVE-07).
+        # fires every four hours, hourly within a day of a deadline and while a gameweek is in
+        # play, so honouring that declaration is what keeps the frequent workflow measured in
+        # seconds (Architecture §9). The one exception is the firing whose capture is the first to
+        # show a gameweek data-checked: its rows are final only now, and the run that firing starts
+        # evaluates it, so it sweeps the summaries that predate the check, and only those
+        # (LIVE-07). Keyed on the gameweek checked, not the live one: a gameweek checked after the
+        # next deadline has passed is no longer the live gameweek, and is still evaluated by that
+        # run. Every later firing leaves the summaries alone, without walking them.
         fetched = 0
-        checked = live is not None and live.checked
+        checked = self._newly_checked(bootstrap, capture)
         if not self.wants("element_summary", request, checked=checked):
             log.info("fpl.element_summary.skipped", extra={"reason": "off the fast path"})
         else:

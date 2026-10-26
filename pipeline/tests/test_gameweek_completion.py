@@ -497,6 +497,15 @@ def test_a_data_checked_gameweek_is_evaluated_by_the_run_its_change_started(
     assert main([*cli, "run", "--only", *RUN]) == EXIT_OK
     assert _evaluation_path(data_dir).read_bytes() == written
 
+    # Swept once: the next fast firing, the gameweek still final until GW2's deadline, neither
+    # fetches a summary nor walks the cached ones.
+    monkeypatch.setenv("FPL_DOF_AS_OF", "2026-08-25T13:00:00+00:00")
+    swept = _summary_requests(api)
+    capsys.readouterr()
+    assert main([*cli, "ingest", "--fast"]) == EXIT_OK
+    assert _summary_requests(api) == swept
+    assert _ingested(capsys, data_dir)["fpl.element_summary"] == 0
+
 
 def test_a_results_change_starts_a_run_with_no_gameweek_open(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
@@ -526,3 +535,76 @@ def test_a_results_change_starts_a_run_with_no_gameweek_open(
 
     assert decide("--kinds", "results") == "true"
     assert decide("--kinds", "prices") == "false"
+
+
+#: GW2's deadline (28 August 17:30) has passed when FPL checks GW1: a Monday match, a Tuesday
+#: deadline. The live gameweek is GW2 by then, in play and unchecked.
+LATE_CHECK = "2026-08-28T19:00:00+00:00"
+
+
+def _ingested(capsys: pytest.CaptureFixture[str], data_dir: Path) -> dict[str, Any]:
+    """The ingest stage's metrics from the run whose output ``capsys`` holds."""
+    [run_id] = re.findall(r"run (\S+) succeeded", capsys.readouterr().out)
+    manifest = json.loads((data_dir / "runs" / run_id / "manifest.json").read_text("utf-8"))
+    [stage] = [s for s in manifest["stages"] if s["name"] == "ingest"]
+    metrics: dict[str, Any] = stage["metrics"]
+    return metrics
+
+
+def test_a_gameweek_checked_after_the_next_deadline_is_evaluated_on_its_final_rows(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    isolated_env: dict[str, str],
+    world: World,
+    api: respx.MockRouter,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The sweep keys on the gameweek FPL checked, not on the live one. GW1 is checked after GW2's
+    deadline, so the live gameweek is GW2, unchecked; the fast ingest that sees GW1's check still
+    fetches the per-player rows that predate it, once, and the run its `results` change starts
+    evaluates GW1 on the corrected figure rather than storing the pre-check one for good. A fast
+    firing after that walks no summary at all."""
+    monkeypatch.setenv("FPL_DOF_CONFIG_FILE", isolated_env["FPL_DOF_CONFIG_FILE"])
+    monkeypatch.setenv("FPL_DOF_TEAM_ID", str(TEST_ENTRY_ID))
+    _configure(world, Path(isolated_env["FPL_DOF_CONFIG_FILE"]))
+    data_dir = tmp_path / "data"
+    cli = ["--data-dir", str(data_dir)]
+    pinned = pd.Timestamp(BEFORE_DEADLINE).to_pydatetime()
+    advice, predictions = record_advice, record_predictions
+    monkeypatch.setattr(
+        week_stage, "record_advice", lambda *a, now, **k: advice(*a, now=pinned, **k)
+    )
+    monkeypatch.setattr(
+        week_stage, "record_predictions", lambda *a, now, **k: predictions(*a, now=pinned, **k)
+    )
+    monkeypatch.setenv("FPL_DOF_AS_OF", BEFORE_DEADLINE)
+    assert main([*cli, "run"]) == EXIT_OK
+    world.stage = "finished"
+    monkeypatch.setenv("FPL_DOF_AS_OF", FINISHED)
+    assert main([*cli, "ingest", "--force-refresh"]) == EXIT_OK
+
+    world.stage = "checked"
+    monkeypatch.setenv("FPL_DOF_AS_OF", LATE_CHECK)
+    swept = _summary_requests(api)
+    assert main([*cli, "ingest", "--fast"]) == EXIT_OK
+    changes = json.loads((data_dir / "runs" / "changes.json").read_text(encoding="utf-8"))
+    assert changes["kinds"] == ["results"]
+    assert _summary_requests(api) - swept == len(world.bootstrap["elements"]), "swept, once"
+
+    monkeypatch.setenv("FPL_DOF_TRIGGER", "change:results")
+    assert main([*cli, "run", "--only", *RUN]) == EXIT_OK
+    silver = data_dir / "silver"
+    season = next(silver.glob("season=*")).name.removeprefix("season=")
+    rows = read_table(silver, season, Table.PLAYER_GAMEWEEK)
+    assert _bonus(rows, world.corrected) == 1, "the rows FPL corrected at the check"
+    evaluation = json.loads(_evaluation_path(data_dir).read_text(encoding="utf-8"))
+    assert evaluation["gameweek"] == GW
+    assert evaluation["log"]["score"]["points"] == CHECKED_POINTS
+
+    # An hour on: no request, and no walk over the cached summaries either.
+    monkeypatch.setenv("FPL_DOF_AS_OF", "2026-08-28T20:00:00+00:00")
+    swept = _summary_requests(api)
+    capsys.readouterr()
+    assert main([*cli, "ingest", "--fast"]) == EXIT_OK
+    assert _summary_requests(api) == swept
+    assert _ingested(capsys, data_dir)["fpl.element_summary"] == 0

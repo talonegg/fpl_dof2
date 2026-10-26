@@ -17,8 +17,10 @@ Three provenances, in descending order of how much they should be trusted:
     the start.
 
     A Free Hit gameweek's squad reverts at the next deadline, so its picks are never the base and
-    its transfers never a purchase (D-33): the chip in force comes from entry history, read as the
-    gameweek state reads it (:func:`fpl_dof.gameweek.chips_by_gameweek`).
+    its transfers never a purchase (D-33): the chip in force comes from entry history and from the
+    gameweek in play's own picks, whose Free Hit history may not list yet
+    (:func:`fpl_dof.gameweek.chips_played`), read as the gameweek state reads it
+    (:func:`fpl_dof.gameweek.chips_by_gameweek`).
 
 ``DECLARED``
     Stated in configuration. Before GW1 is scored this is the *only* possible answer (DL-20), so it

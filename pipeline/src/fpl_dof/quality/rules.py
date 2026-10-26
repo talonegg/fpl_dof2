@@ -550,6 +550,8 @@ def _scorer_matches_game(frame: pd.DataFrame, context: Mapping[str, object]) -> 
         entry_live=frame,
         entry_picks=tbl_dict.get(Table.ENTRY_PICK.value),
         league_picks=tbl_dict.get(Table.LEAGUE_PICK.value),
+        entry_gameweeks=tbl_dict.get(Table.ENTRY_GAMEWEEK.value),
+        league_gameweeks=tbl_dict.get(Table.LEAGUE_GAMEWEEK.value),
     )
     teams = [score_team(live, gameweek, int(e), rules) for e in sorted(set(frame["entry_id"]))]
     compared = [team for team in teams if team.matches_game is not None]
@@ -560,11 +562,11 @@ def _scorer_matches_game(frame: pd.DataFrame, context: Mapping[str, object]) -> 
             {"gameweek": gameweek},
         )
     differ = {
-        team.entry_id: {"scorer": team.score.gameweek_points, "game": team.game.net}
+        team.entry_id: {"scorer": team.points, "game": team.game.net}
         for team in compared
-        if not team.matches_game and team.score is not None and team.game is not None
+        if not team.matches_game and team.points is not None and team.game is not None
     }
-    unscored = sorted(team.entry_id for team in teams if team.score is None)
+    unscored = sorted(team.entry_id for team in teams if team.points is None)
     detail = "; ".join(
         f"entry {entry}: scorer {d['scorer']}, FPL {d['game']}" for entry, d in differ.items()
     )
