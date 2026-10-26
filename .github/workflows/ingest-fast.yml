@@ -7,10 +7,10 @@
 # pipeline/src/fpl_dof/week/schedule.py for the decision and why it is safe to ask often. A gameweek
 # is in play from its deadline until FPL marks it data-checked (LIVE-02).
 #
-# `element-summary` belongs here only in the firing that sees the gameweek in play marked
-# data-checked (LIVE-07): ~700 requests, once a gameweek, so the run that firing starts evaluates the
-# gameweek on its final rows. Otherwise see ingest-slow.yml; hourly, it would be the exact cost
-# problem DL-12 closed.
+# `element-summary` belongs here only in the firing that first sees a gameweek marked data-checked,
+# the live one or one checked after the next deadline (LIVE-07): ~700 requests, once a gameweek, so
+# the run that firing starts evaluates the gameweek on its final rows. Otherwise see
+# ingest-slow.yml; hourly, it would be the exact cost problem DL-12 closed.
 #
 # The rolling `data` branch (E7-S4, R-13) is rebuilt and force-pushed at the end of every ingest
 # that actually fetched, by pipeline/scripts/retention.py — see pipeline/src/fpl_dof/retention.py

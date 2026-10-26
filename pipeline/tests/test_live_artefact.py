@@ -2,10 +2,12 @@
 
 Where being wrong here is invisible (DP-13), and so where the tests go:
 
-* **The live total.** It is the last finished total plus the gameweek's points. FPL's figures
-  from the picks are the deadline's capture until the gameweek is checked, and a hit is in both
-  the season total and the gameweek; taking it twice, or the gameweek's points twice, is a
-  plausible number one hit or one gameweek out.
+* **The live total.** It is the game's total after the gameweek before, from each team's
+  per-gameweek history, plus the gameweek's points. FPL's total in the picks capture counts this
+  gameweek's points and hit or not depending on when it was taken; standing on it, or taking the
+  hit twice, is a plausible number one hit or one gameweek out.
+* **Final.** Only on the figures FPL checked: a checked gameweek still read from the captures
+  before the check stays complete, and provisional.
 * **One scorer.** Every figure comes from ``live_score``; the published multipliers must add up
   to what it scored, so a view never shows a second arithmetic.
 * **Degrade one team.** A rival with no picks is published without a live figure, says why, and
@@ -36,7 +38,7 @@ from fpl_dof.cli import EXIT_OK, main
 from fpl_dof.config.models import Config
 from fpl_dof.frames import as_int
 from fpl_dof.gameweek import SilverTables, open_gameweek
-from fpl_dof.live import LiveTables, has_kicked_off, live_gameweek, score_team
+from fpl_dof.live import LiveTables, has_kicked_off, last_total, live_gameweek, score_team
 from fpl_dof.paths import DataLayout
 from fpl_dof.pipeline import StageContext
 from fpl_dof.publish.contract import ARTEFACTS, Contract, find_contracts_root
@@ -213,6 +215,40 @@ def _entry_live(
 #: The deadline's capture: no points yet; the rival's hit is already off his total. Both teams had
 #: 300 after GW4.
 AT_DEADLINE: dict[str, Any] = {"owner": (0, 0, 300), "rival": (0, 4, 296), "final": False}
+#: Each team's season total after GW4, from the game's per-gameweek history: the owner's season
+#: log, and the rival's history (ORC-14). What the live total stands on.
+AFTER_GW4 = 300
+
+
+def _entry_gameweeks(total: int = AFTER_GW4) -> pd.DataFrame:
+    """The owner's season log: GW3 and GW4, the total after GW4 ``total``."""
+    return validate(
+        Table.ENTRY_GAMEWEEK,
+        pd.DataFrame(
+            [
+                {
+                    "entry_id": OWNER,
+                    "gameweek": gameweek,
+                    "points": 50,
+                    "total_points": total - 50 * (4 - gameweek),
+                    "rank": None,
+                    "overall_rank": None,
+                    "bank": 0.0,
+                    "squad_value": 100.0,
+                    "transfers": 0,
+                    "transfers_cost": 0,
+                    "points_on_bench": 0,
+                }
+                for gameweek in (3, 4)
+            ]
+        ),
+    )
+
+
+def _league_gameweeks(total: int = AFTER_GW4) -> pd.DataFrame:
+    """The rival's history: his GW4 row, the total after it ``total``."""
+    row = {"entry_id": RIVAL, "gameweek": 4, "transfers": 0, "transfers_cost": 0, "chip": None}
+    return validate(Table.LEAGUE_GAMEWEEK, pd.DataFrame([{**row, "total_points": total}]))
 
 
 def _standings() -> pd.DataFrame:
@@ -253,6 +289,8 @@ def _tables(
         entry_live=_entry_live(**(entry_live or AT_DEADLINE)),
         entry_picks=_entry_picks(),
         league_picks=_league_picks(),
+        entry_gameweeks=_entry_gameweeks(),
+        league_gameweeks=_league_gameweeks(),
     )
 
 
@@ -371,6 +409,58 @@ def test_equal_live_totals_share_a_rank(game_rules: GameRules) -> None:
     assert _team(payload, RIVAL)["rank"] == _team(payload, OWNER)["rank"] == 1
 
 
+def _without(tables: LiveTables, **frames: pd.DataFrame | None) -> LiveTables:
+    return LiveTables(
+        **{**{f: getattr(tables, f) for f in LiveTables.__dataclass_fields__}, **frames}
+    )
+
+
+def test_the_live_total_stands_on_each_teams_history_and_takes_the_hit_once(
+    game_rules: GameRules,
+) -> None:
+    """The owner's from his season log, the rival's from his history; a different total after GW4
+    moves each live total by exactly that, and the rival's 4-point hit comes off once."""
+    tables = _without(
+        _tables(), entry_gameweeks=_entry_gameweeks(310), league_gameweeks=_league_gameweeks(280)
+    )
+    payload = _build(tables, game_rules, SATURDAY_EVENING)
+    owner, rival = _team(payload, OWNER)["live"], _team(payload, RIVAL)["live"]
+    assert (owner["last_total"], owner["live_total"]) == (310, 310 + 27)
+    assert (rival["last_total"], rival["points"], rival["live_total"]) == (280, 33, 280 + 33)
+
+
+def test_a_team_without_a_total_after_the_gameweek_before_degrades_alone(
+    contract: Contract, game_rules: GameRules
+) -> None:
+    """No row in its history for GW4: no live figure, a reason, and nobody else's lost. Its
+    gameweek points are still the scorer's to check against FPL once the gameweek is final."""
+    for tables, as_of in ((_tables(), SATURDAY_EVENING), (_final(), MONDAY)):
+        payload = _build(_without(tables, league_gameweeks=None), game_rules, as_of)
+        contract.validate("live", payload)
+        rival = _team(payload, RIVAL)
+        assert rival["live"] is None and rival["rank"] is None
+        assert "total after gameweek 4" in str(rival["reason"])
+        assert _team(payload, OWNER)["live"] is not None and _team(payload, OWNER)["rank"] == 1
+    assert rival["matches_game"] is True
+    _, result = _scorer_gate(_without(_final(), league_gameweeks=None), game_rules)
+    assert result.outcome is GateOutcome.PASSED and result.observed["compared"] == 2
+
+
+def test_before_gw1_the_last_total_is_nought(game_rules: GameRules) -> None:
+    """GW1 has no gameweek before it: every team stands on 0, with no history row to read."""
+    tables = _tables()
+    first = {
+        name: frame.assign(gameweek=frame["gameweek"] - (GW - 1))
+        for name in ("gameweeks", "fixtures", "player_live", "entry_live", "entry_picks")
+        if (frame := getattr(tables, name)) is not None
+    }
+    first["gameweeks"] = first["gameweeks"][first["gameweeks"]["gameweek"] >= 1]
+    shifted = _without(tables, **first, entry_gameweeks=None, league_gameweeks=None)
+    assert last_total(shifted, 1, OWNER) == 0
+    team = score_team(shifted, 1, OWNER, game_rules)
+    assert team.score is not None and team.score.live_total == team.score.gameweek_points == 27
+
+
 def test_a_team_whose_game_figures_were_not_read_has_no_live_figure(
     game_rules: GameRules,
 ) -> None:
@@ -432,6 +522,57 @@ def test_a_final_gameweek_validates_and_the_scorer_equals_fpl_for_every_team(
         assert team["live"]["status"] == "final"
 
 
+def test_a_checked_gameweek_read_from_pre_check_captures_is_not_final(
+    contract: Contract, game_rules: GameRules
+) -> None:
+    """Silver says data-checked, but the refetch of the live scores and the picks after the check
+    failed (the ingest warns and carries on): the figures are the pre-check captures, so neither
+    the gameweek nor any team may read ``final``. It stays complete, and provisional."""
+    fixtures = _fixtures(sunday=True)
+    tables = LiveTables(
+        gameweeks=_gameweeks(finished=True, checked=True),
+        fixtures=fixtures,
+        players=_players(),
+        player_live=_player_live(fixtures, sunday=True, final=False),
+        entry_live=_entry_live(**AT_DEADLINE),
+        entry_picks=_entry_picks(),
+        league_picks=_league_picks(),
+        entry_gameweeks=_entry_gameweeks(),
+        league_gameweeks=_league_gameweeks(),
+    )
+    payload = _build(tables, game_rules, MONDAY)
+    contract.validate("live", payload)
+    assert (payload["status"], payload["provisional"]) == ("complete", True)
+    for entry_id in (OWNER, RIVAL):
+        team = _team(payload, entry_id)
+        assert team["live"]["status"] == "complete", entry_id
+        assert team["game"]["final"] is False and team["matches_game"] is None
+
+
+def test_a_team_whose_picks_were_not_refetched_after_the_check_is_not_final(
+    contract: Contract, game_rules: GameRules
+) -> None:
+    """The scores are the post-check capture, so the gameweek is final; the rival's picks refetch
+    failed, so his FPL figures are the deadline's and his team stays complete, alone."""
+    tables = _final()
+    assert tables.entry_live is not None
+    entry_live = tables.entry_live.copy()
+    rival = entry_live["entry_id"] == RIVAL
+    entry_live.loc[rival, ["points", "total_points", "provisional"]] = [0, 296, True]
+    tables = LiveTables(
+        **{
+            **{f: getattr(tables, f) for f in LiveTables.__dataclass_fields__},
+            "entry_live": validate(Table.ENTRY_LIVE, entry_live),
+        }
+    )
+    payload = _build(tables, game_rules, MONDAY)
+    contract.validate("live", payload)
+    assert (payload["status"], payload["provisional"]) == ("final", False)
+    assert _team(payload, OWNER)["live"]["status"] == "final"
+    assert _team(payload, RIVAL)["live"]["status"] == "complete"
+    assert _team(payload, RIVAL)["matches_game"] is None
+
+
 # --- the scorer check gate (LIVE-03) ------------------------------------------------------------
 
 
@@ -444,6 +585,8 @@ def _gate_tables(tables: LiveTables) -> dict[str, pd.DataFrame]:
         Table.ENTRY_LIVE: tables.entry_live,
         Table.ENTRY_PICK: tables.entry_picks,
         Table.LEAGUE_PICK: tables.league_picks,
+        Table.ENTRY_GAMEWEEK: tables.entry_gameweeks,
+        Table.LEAGUE_GAMEWEEK: tables.league_gameweeks,
     }
     return {t.value: f for t, f in frames.items() if f is not None}
 
@@ -568,6 +711,7 @@ def _silver(layout: DataLayout, season: str, *, last_gameweek: int) -> pd.DataFr
         (Table.PLAYER_LIVE, tables.player_live),
         (Table.ENTRY_LIVE, tables.entry_live),
         (Table.ENTRY_PICK, tables.entry_picks),
+        (Table.ENTRY_GAMEWEEK, tables.entry_gameweeks),
     ):
         assert frame is not None
         write_table(layout.silver, season, table, frame)
@@ -591,6 +735,30 @@ def test_the_stage_writes_live_on_the_seasons_last_weekend_with_no_gameweek_open
     assert payload["gameweek"] == GW
     assert [t["entry_id"] for t in payload["teams"]] == [OWNER]
     assert payload["teams"][0]["live"]["live_total"] == 327
+
+
+def test_the_last_total_is_the_games_total_after_the_previous_gameweek_whatever_the_picks_say(
+    config: Config, layout: DataLayout, game_rules: GameRules, contract: Contract
+) -> None:
+    """The live total stands on the owner's season log, the total after GW4, and not on the
+    picks capture's own ``total_points``: whether FPL's total in that capture already counts this
+    gameweek's points, or its hit, depends on the moment it was taken, which nothing here knows.
+    This capture counts 20 points of the gameweek and not its 4-point hit; taking the gameweek
+    back out of it would stand the live total on 304. The hit is still taken once."""
+    season = config.rules.season
+    gameweeks = _silver(layout, season, last_gameweek=6)
+    mid_gameweek = _entry_live(owner=(20, 4, 320), rival=(0, 4, 296), final=False)
+    write_table(layout.silver, season, Table.ENTRY_LIVE, mid_gameweek)
+    owned = config.model_copy(update={"entry": config.entry.model_copy(update={"team_id": OWNER})})
+    ctx = StageContext(config=owned, layout=layout, run_id="r", as_of=SATURDAY_EVENING)
+
+    payload = publish_stage._live(ctx, season, gameweeks, game_rules)
+    assert payload is not None
+    contract.validate("live", payload)
+    owner = payload["teams"][0]["live"]
+    # 27 before the hit, 23 after it; on 300 after GW4.
+    assert (owner["points"], owner["hit_cost"]) == (23, 4)
+    assert (owner["last_total"], owner["live_total"]) == (300, 323)
 
 
 def test_the_stage_publishes_nothing_before_the_live_gameweek_kicks_off(

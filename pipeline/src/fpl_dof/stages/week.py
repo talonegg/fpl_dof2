@@ -54,7 +54,7 @@ from fpl_dof.factory.registry import (
     stamp,
 )
 from fpl_dof.frames import as_float, as_int
-from fpl_dof.gameweek import Due, SilverTables, season_states
+from fpl_dof.gameweek import Due, SilverTables, chips_played, season_states
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.optimise.captain import PricePositionLine
 from fpl_dof.optimise.plan import DecisionPlan, as_dict
@@ -123,7 +123,13 @@ def run(ctx: StageContext) -> StageResult:
     published = published_strategies()
 
     gameweeks = read_table(silver, season, Table.GAMEWEEK)
-    entry_chips = read_table_optional(silver, season, Table.ENTRY_CHIP)
+    # The chip in force, from history and from the gameweek in play's own picks: a Free Hit in
+    # play is never the squad next gameweek's advice starts from, whatever history says yet (D-33).
+    entry_chips = chips_played(
+        read_table_optional(silver, season, Table.ENTRY_CHIP),
+        read_table_optional(silver, season, Table.ENTRY_LIVE),
+        ctx.config.entry.team_id,
+    )
     tables = SilverTables(
         gameweeks, read_table_optional(silver, season, Table.FIXTURE), entry_chips
     )

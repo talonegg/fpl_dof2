@@ -33,8 +33,10 @@ STANDINGS = {
 }
 HISTORY = {
     "current": [
-        {"event": 1, "event_transfers": 0, "event_transfers_cost": 0},
-        {"event": 2, "event_transfers": 3, "event_transfers_cost": 8},
+        {"event": 1, "event_transfers": 0, "event_transfers_cost": 0, "total_points": 60},
+        {"event": 2, "event_transfers": 3, "event_transfers_cost": 8, "total_points": 103},
+        # The gameweek in play: its row moves with every kick-off, so it is not kept.
+        {"event": 3, "event_transfers": 0, "event_transfers_cost": 0, "total_points": 110},
     ],
     "chips": [{"name": "wildcard", "event": 2}],
 }
@@ -93,6 +95,7 @@ def test_a_rivals_finished_gameweek_moves_are_conformed(adapter: FplApiAdapter) 
 
     weeks = validate(Table.LEAGUE_GAMEWEEK, tables["league_gameweek"])
     assert sorted(weeks["entry_id"]) == [7, 8]
+    assert set(weeks["gameweek"]) == {2}, "finished gameweeks only"
     row = weeks.iloc[0]
     assert (row["gameweek"], row["transfers"], row["transfers_cost"], row["chip"]) == (
         2,
@@ -100,6 +103,8 @@ def test_a_rivals_finished_gameweek_moves_are_conformed(adapter: FplApiAdapter) 
         8,
         "wildcard",
     )
+    # The total after it, net of every hit: what the gameweek after it stands on live (LIVE-03).
+    assert row["total_points"] == 103
     moved = validate(Table.LEAGUE_TRANSFER, tables["league_transfer"])
     assert len(moved) == 4  # gameweek 1's transfer is not the published gameweek's
     assert warnings == []

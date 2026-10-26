@@ -647,6 +647,8 @@ def _live(
         entry_live=read_table_optional(silver, season, Table.ENTRY_LIVE),
         entry_picks=read_table_optional(silver, season, Table.ENTRY_PICK),
         league_picks=read_table_optional(silver, season, Table.LEAGUE_PICK),
+        entry_gameweeks=read_table_optional(silver, season, Table.ENTRY_GAMEWEEK),
+        league_gameweeks=read_table_optional(silver, season, Table.LEAGUE_GAMEWEEK),
     )
     if not has_kicked_off(tables, gameweek, ctx.as_of):
         return None

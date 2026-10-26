@@ -632,13 +632,17 @@ class LeagueTransferSchema(pa.DataFrameModel):
 
 
 class LeagueGameweekSchema(pa.DataFrameModel):
-    """A rival's transfer count, hit cost and chip for the published gameweek (ORC-14)."""
+    """A rival's transfer count, hit cost, chip and season total per finished gameweek, from his
+    history (ORC-14). The published gameweek's moves are read from its row; the total after the
+    gameweek before the live one is what that team's live total stands on (LIVE-03)."""
 
     entry_id: Series[int] = pa.Field(ge=1)
     gameweek: Series[int] = pa.Field(ge=1, le=38)
     transfers: Series[int] = pa.Field(ge=0)
     transfers_cost: Series[int] = pa.Field(ge=0)
     chip: Series[str] = pa.Field(nullable=True)
+    total_points: Series[int] = pa.Field(nullable=True)
+    """The season total after the gameweek, net of every hit; null when his history has no row."""
 
     class Config:
         strict = True

@@ -6,9 +6,10 @@ points, hit, chip, live total, rank by live total and their fifteen as the score
 figure comes from :func:`fpl_dof.live.score_team`, and so from the one realised scorer (ORC-04);
 this module arranges and ranks, and never scores.
 
-**Provisional, and says so.** Until FPL data-checks the gameweek the figures can move, and
-``provisional`` is true. ``log.json`` and the evaluation are the record (ORC-05): nothing reads this
-artefact back, and nothing here writes to the ledger (DP-14).
+**Provisional, and says so.** Until FPL data-checks the gameweek, and the scores published are the
+capture taken after the check, the figures can move, and ``provisional`` is true. ``log.json``
+and the evaluation are the record (ORC-05): nothing reads this artefact back, and nothing here
+writes to the ledger (DP-14).
 
 **Absent, not empty.** Preseason, and from a deadline until that gameweek's first kick-off, this
 builder is not called and no ``live.json`` is written; the publish stage removes a stale one, as

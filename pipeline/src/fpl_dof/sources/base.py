@@ -57,9 +57,9 @@ class Resource:
     fast_path: bool = True
     """Whether this resource is cheap enough to refresh on the frequent ingest cadence.
 
-    ``element-summary`` is ~700 requests and must never run on the fast path
-    (Architecture §9). E0 has one cadence, but the declaration is made here now so the
-    distinction exists before E7 needs it.
+    ``element-summary`` is ~700 requests and is off the fast path (Architecture §9): the fast
+    cadence fetches it only in the one firing that sees a gameweek data-checked, by ``on_check``
+    below, never on any other.
     """
     immutable: bool = False
     """Whether this resource represents finalized historical data that never changes.
@@ -78,10 +78,11 @@ class Resource:
     fast path otherwise (LIVE-01). One or two requests a firing, for the scores and table of the
     gameweek being played; the adapter says which gameweek that is."""
     on_check: bool = False
-    """Whether the fast cadence fetches it too, once, when the gameweek in play is data-checked,
-    though it is off the fast path otherwise (LIVE-07). For the resource whose rows for that
-    gameweek are final only then, so the run the check starts reads them rather than the last
-    daily sweep's. The adapter's own staleness rule keeps it to the one fetch."""
+    """Whether the fast cadence fetches it too, once, when a gameweek is data-checked, though it
+    is off the fast path otherwise (LIVE-07). For the resource whose rows for that gameweek are
+    final only then, so the run the check starts reads them rather than the last daily sweep's.
+    Any gameweek, the live one or one checked after the next deadline; the adapter says when a
+    check is new, so the firings after it leave the resource alone."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -294,7 +295,8 @@ class SourceAdapter(ABC):
         a resource opts out by declaring ``fast_path=False`` — a fact about the resource, stated
         next to its TTL, rather than a condition buried in an ingest method. ``in_play`` says a
         gameweek is in play, which brings in a resource declared ``in_play`` (LIVE-01); ``checked``
-        says the one in play is data-checked, which brings in one declared ``on_check`` (LIVE-07).
+        says a gameweek has just been data-checked, which brings in one declared ``on_check``
+        (LIVE-07).
         """
         resource = self.resource(name)
         return (

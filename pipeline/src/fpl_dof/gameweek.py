@@ -106,8 +106,8 @@ DUE: Mapping[Phase, Due] = {
 @dataclass(frozen=True, slots=True)
 class SilverTables:
     """The silver tables the state reads: the gameweek table, and optionally the fixtures and the
-    owner's chips (entry history). Without fixtures nothing is Playing; without chips none is in
-    force."""
+    owner's chips (:func:`chips_played`). Without fixtures nothing is Playing; without chips none
+    is in force."""
 
     gameweeks: pd.DataFrame
     fixtures: pd.DataFrame | None = None
@@ -120,7 +120,8 @@ class GameweekState:
     phase: Phase
     deadline: dt.datetime
     chip: str | None
-    """The chip the owner played in this gameweek, from entry history; ``None`` when none was."""
+    """The chip the owner played in this gameweek, from :func:`chips_played`; ``None`` when none
+    was."""
 
     @property
     def due(self) -> Due:
@@ -128,10 +129,38 @@ class GameweekState:
 
 
 def chips_by_gameweek(entry_chips: pd.DataFrame | None) -> dict[int, str]:
-    """``gameweek -> chip`` the owner played, from entry history: the one reading of it."""
+    """``gameweek -> chip`` the owner played, from :func:`chips_played`: the one reading of it."""
     if entry_chips is None or entry_chips.empty:
         return {}
     return {as_int(row["gameweek"]): str(row["name"]) for _, row in entry_chips.iterrows()}
+
+
+def chips_played(
+    entry_chips: pd.DataFrame | None, entry_live: pd.DataFrame | None, entry_id: int | None
+) -> pd.DataFrame | None:
+    """The owner's chips played, in ``entry_chip``'s shape: entry history's, and the chip active
+    in the gameweek in play's own picks (``entry_live``) where history does not list one for it.
+
+    History is fetched on its own TTL and can predate the deadline, so for the gameweek just past
+    it a Free Hit may be in the picks and not yet in the history; read alone, the squad state would
+    build next gameweek's squad from the Free Hit's (D-33, LIVE-01). The picks carry FPL's own
+    active chip from the deadline, so they say it as surely as the history will.
+    """
+    if entry_live is None or entry_live.empty or entry_id is None:
+        return entry_chips
+    listed = set(chips_by_gameweek(entry_chips))
+    live = entry_live[(entry_live["entry_id"] == entry_id) & entry_live["chip"].notna()]
+    rows = [
+        {"entry_id": entry_id, "name": str(row["chip"]), "gameweek": as_int(row["gameweek"])}
+        for _, row in live.iterrows()
+        if as_int(row["gameweek"]) not in listed
+    ]
+    if not rows:
+        return entry_chips
+    added = pd.DataFrame(rows, columns=["entry_id", "name", "gameweek"])
+    if entry_chips is None or entry_chips.empty:
+        return added
+    return pd.concat([entry_chips, added], ignore_index=True)
 
 
 def gameweek_state(
