@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ARTEFACTS } from "../contract/types";
 import type { ArtefactKey, ArtefactMap, Health, Meta, Models, Plan, Players, Rules, Squad, Week } from "../contract/types";
 import { buildRegistry, normaliseAccuracy, normaliseHistory, normaliseModels } from "./registry";
@@ -88,6 +88,7 @@ const GUARDS: Partial<Record<ArtefactKey, (body: unknown) => boolean>> = {
   as_if_played: hasArrays("summary", "gameweeks"),
   xp_accuracy: hasArrays("seasons"),
   health: looksLikeHealth,
+  live: hasArrays("fixtures", "teams"),
 };
 
 /** Artefacts keyed by strategy id, mapped onto the registry's ids as they load. */
@@ -137,6 +138,8 @@ class DataStore {
   private files = new Map<string, Promise<Loaded<unknown>>>();
   private publishedPromise: Promise<PublishedData> | null = null;
   private registryPromise: Promise<Registry> | null = null;
+  private generationCount = 0;
+  private listeners = new Set<() => void>();
 
   /** One artefact. Only a ready one is kept; anything else is asked for again next time. */
   get<K extends ArtefactKey>(key: K): Promise<Loaded<ArtefactMap[K]>> {
@@ -254,6 +257,31 @@ class DataStore {
     this.cache.delete(key);
   }
 
+  /**
+   * Drop everything loaded so the next read asks the network again, and tell the views that read
+   * the store (LIVE-06). Unlike a hard `reset`, this is for an app that is already showing data:
+   * the views keep what they have until the new files arrive, so a refresh updates in place and
+   * never blanks the screen.
+   */
+  refresh(): void {
+    this.reset();
+    this.generationCount += 1;
+    for (const listener of [...this.listeners]) listener();
+  }
+
+  /** How many times `refresh` has run: a view's cue to read again. */
+  generation(): number {
+    return this.generationCount;
+  }
+
+  /** Be told after each `refresh`; returns the unsubscribe. The shape `useSyncExternalStore` takes. */
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
+  }
+
   /** Warm the offline cache with the registry's warmed artefacts and every file each strategy publishes. */
   async warm(options?: Partial<WarmOptions>): Promise<WarmResult> {
     const registry = await this.registry();
@@ -290,26 +318,49 @@ export function resetPublishedDataCache(): void {
   dataStore.reset();
 }
 
+/** Re-read every published file; the views that read the store update in place (LIVE-06). */
+export function refreshPublishedData(): void {
+  dataStore.refresh();
+}
+
+const subscribeToRefresh = (onChange: () => void) => dataStore.subscribe(onChange);
+const currentGeneration = () => dataStore.generation();
+
+/** The store's refresh count, as state: a view that loads files reads again when it changes. */
+export function useRefreshGeneration(): number {
+  return useSyncExternalStore(subscribeToRefresh, currentGeneration);
+}
+
 /**
  * The one loading hook (WEB-04): any artefact by its registry key, as `loading`, `ready`, `absent`,
  * `malformed` or `error`. The promise is cached in the store, so remounting costs a render and
  * not a request; `retry` asks again.
+ *
+ * When the store refreshes (the app became visible again, LIVE-06) the hook reads again **without
+ * going back to `loading`**: the view keeps what it shows until the new file arrives, and a refresh
+ * that fails keeps it too, since stale and honest beats a blank screen. A file that has since gone
+ * absent, or turned malformed, replaces it.
  */
 export function useArtefact<K extends ArtefactKey>(key: K): { state: ArtefactState<ArtefactMap[K]>; retry: () => void } {
   const [state, setState] = useState<ArtefactState<ArtefactMap[K]>>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
+  const generation = useRefreshGeneration();
+  const shown = useRef<{ key: K; attempt: number } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    setState({ status: "loading" });
+    const refreshing = shown.current?.key === key && shown.current.attempt === attempt;
+    shown.current = { key, attempt };
+    if (!refreshing) setState({ status: "loading" });
     void dataStore.get(key).then((loaded) => {
       // A view unmounted mid-flight must not be written to.
-      if (!cancelled) setState(loaded);
+      if (cancelled) return;
+      setState((previous) => (refreshing && loaded.status === "error" && previous.status === "ready" ? previous : loaded));
     });
     return () => {
       cancelled = true;
     };
-  }, [key, attempt]);
+  }, [key, attempt, generation]);
 
   const retry = useCallback(() => {
     dataStore.resetKey(key);

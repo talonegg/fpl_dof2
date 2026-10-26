@@ -30,7 +30,7 @@ export interface FetchStubOptions {
    * Absent artefacts are served as 404, which is the normal preseason answer (DL-20) — and, for
    * the lazily fetched ones, the answer a bundle deployed against older published data gets.
    */
-  missing?: Array<"week" | "plan" | "fixtures" | "league" | "health" | "log">;
+  missing?: Array<"week" | "plan" | "fixtures" | "league" | "health" | "log" | "live">;
   /** Artefacts that should fail outright, for the error path. */
   failing?: Array<
     | "meta"
@@ -43,6 +43,7 @@ export interface FetchStubOptions {
     | "league"
     | "health"
     | "log"
+    | "live"
   >;
   /** Override a body, for the variants a route needs (a preseason league, and so on). */
   bodies?: Record<string, unknown>;
@@ -86,6 +87,8 @@ export function installFetchStub(options: FetchStubOptions = {}) {
     if (failing.has(name as never)) return Promise.resolve(new Response(null, { status: 500 }));
     if (missing.has(name as never)) return Promise.resolve(new Response(null, { status: 404 }));
     if (name in bodies) return Promise.resolve(jsonResponse(bodies[name]));
+    // `live.json` is absent unless a test publishes one: between gameweeks and preseason it is (LIVE-04).
+    if (name === "live") return Promise.resolve(new Response(null, { status: 404 }));
     return Promise.reject(new Error(`Unexpected fetch: ${url}`));
   });
 

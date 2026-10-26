@@ -711,8 +711,8 @@ Each section's views as they stand; WEB-08 to WEB-14 rebuild them to the R1.4.0 
 
 | Route | Content |
 | --- | --- |
-| `/` Home | Deadline countdown, alerts, this week's move with the roll option beside it, squad and bench, plan and ownership bet |
-| `/league` League | Standings, overlap, differentials, captain divergence (DL-40) |
+| `/` Home | Deadline countdown, alerts, this week's move with the roll option beside it, squad and bench, plan and ownership bet. While a gameweek is in play (`live.json`) the squad card is that gameweek's: minutes and points so far per player (the captain's multiplied), the projected substitutions, the gameweek total, its status, "Provisional" until FPL data-checks it, and when it was last refreshed, with next gameweek's xP beside each player (LIVE-06, DL-99) |
+| `/league` League | Standings, overlap, differentials, captain divergence (DL-40). While a gameweek is in play: ordered by live total, with live rank, movement since FPL's last rank, each team's gameweek points and status, "Provisional" until final, a note where the scorer differs from FPL, and teams without a live figure last, marked "not live" on the league table's own figures; a team's page (`/league/:entryId`) adds each player's live points, minutes, bonus (confirmed or pending) and the projected substitutions (LIVE-05, DL-99) |
 | `/models` Models | A multi-select comparison of the registry's published strategies against the champion (advice differences, xP on the players they disagree on, historical performance), then summary, details and xP accuracy |
 | `/models/season` | Every model's live season to date: points per gameweek, the cumulative chart, the latest advice |
 | `/models/2025-26` | The 2025/26 playthrough of every frozen model (`/history` redirects) |
