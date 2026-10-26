@@ -147,7 +147,7 @@ export function LeagueTable({
                 row={row}
                 comparing={comparing}
                 inPlay={inPlay}
-                lastScoredGameweek={league.gameweek}
+                tableGameweek={inPlay ? live.gameweek : league.gameweek}
                 names={names}
                 isExpanded={expanded === row.entry.entry_id}
                 onToggle={() =>
@@ -167,7 +167,7 @@ function Row({
   row,
   comparing,
   inPlay,
-  lastScoredGameweek,
+  tableGameweek,
   names,
   isExpanded,
   onToggle,
@@ -177,8 +177,11 @@ function Row({
   comparing: boolean;
   /** `live.json` is published: the gameweek and status columns are shown. */
   inPlay: boolean;
-  /** The gameweek the league table's own `event_total` is for. */
-  lastScoredGameweek: number | null;
+  /**
+   * The gameweek the league table's own `event_total` is for: the one in play while `live.json` is
+   * published, since FPL's table is read after its deadline and moves as it is scored.
+   */
+  tableGameweek: number | null;
   names: Map<number, string>;
   isExpanded: boolean;
   onToggle: () => void;
@@ -187,8 +190,8 @@ function Row({
   const { entry, comparison, figures, liveTeam } = row;
   const expandable = comparing && comparison !== null;
   const highlighted = row.isOwner || matchesEntered;
-  // Teams the pipeline has no live figure for show the league table's own: the last scored
-  // gameweek's points and the total after it, marked "not live".
+  // Teams the pipeline has no live figure for show the league table's own: FPL's points for the
+  // gameweek in play and the total with them, marked "not live".
   const notLive = inPlay && figures === null;
   const columns = (inPlay ? 6 : 5) + (comparing ? 4 : 0);
   const game = liveTeam?.game ?? null;
@@ -226,8 +229,8 @@ function Row({
             <span className="live-pts-detail">after a {figures.hit_cost}-point hit</span>
           )}
           {inPlay && figures?.chip_label && <span className="live-pts-detail">{figures.chip_label}</span>}
-          {notLive && lastScoredGameweek !== null && (
-            <span className="live-pts-detail">GW{lastScoredGameweek}, last scored</span>
+          {notLive && tableGameweek !== null && (
+            <span className="live-pts-detail">GW{tableGameweek}, from FPL&apos;s table</span>
           )}
         </td>
         {inPlay && (

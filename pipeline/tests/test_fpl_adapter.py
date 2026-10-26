@@ -14,6 +14,7 @@ import json
 import re
 from collections.abc import Iterator
 from pathlib import Path
+from typing import Any
 
 import httpx
 import pandas as pd
@@ -299,6 +300,42 @@ def test_a_gameweek_checked_after_a_summary_was_fetched_makes_it_stale(
 
     ingest_at(21)  # fetched after it was checked: inside the TTL and current
     assert summaries_fetched() == 4
+
+
+def test_a_summary_fetched_mid_gameweek_keeps_only_the_finished_gameweeks(
+    recorded_api: respx.MockRouter, adapter: FplApiAdapter
+) -> None:
+    """A summary fetched while a gameweek is in play holds a partial row for it; kept, the
+    in-play gameweek read as played (history.json's `gameweeks_played`, GW8 of 2026/27)."""
+    bootstrap = load("bootstrap_static")
+    assert isinstance(bootstrap, dict)
+    bootstrap["events"][0].update(finished=True, data_checked=True)
+    element = bootstrap["elements"][0]
+
+    def row(gameweek: int) -> dict[str, Any]:
+        counts = ["assists", "clean_sheets", "own_goals", "penalties_saved", "penalties_missed"]
+        counts += ["yellow_cards", "red_cards", "saves", "bps", "goals_scored", "goals_conceded"]
+        return {
+            "element": element["id"],
+            "fixture": gameweek,
+            "opponent_team": 2,
+            "was_home": True,
+            "kickoff_time": f"2026-08-{14 + 7 * gameweek}T14:00:00Z",
+            "round": gameweek,
+            "minutes": 90 if gameweek == 1 else 0,
+            "starts": 1,
+            "bonus": 0,
+            "total_points": 2 if gameweek == 1 else 0,
+            "value": element["now_cost"],
+            "selected": 1000,
+            **dict.fromkeys(counts, 0),
+        }
+
+    recorded_api.get(f"{BASE}/element-summary/{element['id']}/").mock(
+        return_value=httpx.Response(200, json={"history": [row(1), row(2)], "history_past": []})
+    )
+    frame = adapter._player_gameweek(bootstrap, IngestRequest(run_id="run-1", player_limit=1), [])
+    assert frame["gameweek"].tolist() == [1], "the gameweek in play is not a result"
 
 
 def test_player_limit_is_honoured_and_warned_about(
