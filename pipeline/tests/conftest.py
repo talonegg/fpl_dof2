@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import datetime as dt
+import functools
 import json
 import os
 import socket
+import statistics
+import time
 import zlib
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -219,6 +222,40 @@ def layout(config: Config) -> Iterator[DataLayout]:
     yield built
 
 
+def built_once(
+    tmp_path_factory: pytest.TempPathFactory, name: str, build: Callable[[Path], None]
+) -> Path:
+    """A directory ``build`` fills once a test run, however many xdist workers ask for it (ORC-09).
+
+    For a state several tests start from and none may change: each copies it. The first worker to
+    ask builds it while the others wait, so it is built once rather than once a worker; a failed
+    build fails every test that waits on it, with the builder's own test carrying the traceback.
+    """
+    root = tmp_path_factory.getbasetemp()
+    if os.environ.get("PYTEST_XDIST_WORKER"):
+        root = root.parent  # the base the workers share
+    built, failed = root / f"{name}.built", root / f"{name}.failed"
+    try:
+        (root / f"{name}.lock").mkdir()
+    except FileExistsError:
+        deadline = time.monotonic() + 600
+        while not built.exists():
+            if failed.exists():
+                raise RuntimeError(f"building {name} failed in another worker") from None
+            if time.monotonic() > deadline:
+                raise TimeoutError(f"{name} was not built within 600 s") from None
+            time.sleep(0.1)
+        return built
+    staging = root / f"{name}.staging"
+    try:
+        build(staging)
+    except BaseException:
+        failed.touch()
+        raise
+    staging.rename(built)
+    return built
+
+
 def pytest_configure(config: pytest.Config) -> None:
     """One OpenMP thread per test process (ORC-09).
 
@@ -285,10 +322,41 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[Any]) -> No
         items[:] = kept
 
 
+#: Each test module's measured seconds, the weights CI's shards are balanced on (ORC-09, DL-103).
+#: Rewritten from a full run's JUnit report by ``scripts/shard_weights.py``, deliberately, when the
+#: shards drift apart; a module it does not name yet weighs the median.
+SHARD_WEIGHTS = Path(__file__).parent / "shard_weights.json"
+
+
 def in_shard(module: str, index: int, count: int) -> bool:
     """Whether a test module runs in shard ``index`` of ``count``: by module, so a module's shared
-    fixtures are built in one shard only, and stable across runs and machines (ORC-09)."""
+    fixtures are built in one shard only, and stable across runs and machines (ORC-09). A module
+    outside this folder falls back to its name's hash, so the shards still partition what runs."""
+    plan = shard_plan(count)
+    if module in plan:
+        return plan[module] == index
     return zlib.crc32(module.encode()) % count == index
+
+
+@functools.cache
+def shard_plan(count: int) -> dict[str, int]:
+    """Each test module of this folder's shard of ``count``, balanced by :data:`SHARD_WEIGHTS`.
+
+    Heaviest first, each onto the shard with the least so far (ties to the lower index): the same
+    plan from the same files, whichever shard computes it and whatever was collected.
+    """
+    weights: dict[str, float] = json.loads(SHARD_WEIGHTS.read_text(encoding="utf-8"))
+    modules = sorted(path.name for path in Path(__file__).parent.glob("test_*.py"))
+    measured = [weights[m] for m in modules if m in weights]
+    default = statistics.median(measured) if measured else 1.0
+    weight = {m: weights.get(m, default) for m in modules}
+    loads = [0.0] * count
+    plan: dict[str, int] = {}
+    for module in sorted(modules, key=lambda m: (-weight[m], m)):
+        lightest = min(range(count), key=lambda shard: (loads[shard], shard))
+        plan[module] = lightest
+        loads[lightest] += weight[module]
+    return plan
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
