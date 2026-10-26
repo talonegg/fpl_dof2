@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import json
 import socket
 from pathlib import Path
 
 import pytest
 
-from conftest import in_shard
+from conftest import SHARD_WEIGHTS, in_shard, shard_plan
 
 
 def test_an_internet_connection_is_refused() -> None:
@@ -26,8 +27,18 @@ def test_a_local_unix_socket_is_not_the_network(tmp_path: Path) -> None:
 
 
 def test_the_shards_partition_the_suite() -> None:
-    """ORC-09: CI's two shards together run every test module exactly once."""
+    """ORC-09: CI's shards together run every test module exactly once."""
     modules = [path.name for path in Path(__file__).parent.glob("test_*.py")]
     for count in (1, 2, 3):
         for module in modules:
             assert sum(in_shard(module, index, count) for index in range(count)) == 1
+
+
+def test_the_shards_carry_equal_measured_work() -> None:
+    """DL-103: on the recorded weights, CI's three shards are within a tenth of each other, so
+    the suite waits on no one shard. Rewrite the weights when a new module tips them."""
+    weights = json.loads(SHARD_WEIGHTS.read_text(encoding="utf-8"))
+    loads = [0.0] * 3
+    for module, shard in shard_plan(3).items():
+        loads[shard] += weights.get(module, 0.0)
+    assert max(loads) <= 1.1 * min(loads), loads

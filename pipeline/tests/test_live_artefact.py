@@ -36,6 +36,7 @@ import yaml
 from conftest import FIXTURES
 from fpl_dof.cli import EXIT_OK, main
 from fpl_dof.config.models import Config
+from fpl_dof.factory.registry import published_strategies
 from fpl_dof.frames import as_int
 from fpl_dof.gameweek import SilverTables, open_gameweek
 from fpl_dof.live import LiveTables, has_kicked_off, last_total, live_gameweek, score_team
@@ -891,6 +892,13 @@ def test_a_matchday_run_changes_no_ledger_file(
     monkeypatch.setattr(
         week_stage, "record_predictions", lambda *a, now, **k: predictions(*a, now=pinned, **k)
     )
+    # The champion, which plans, the engine and one that advises a gameweek at a time: each writes
+    # the ledger the same way, and the other published models only multiplied each run's forecasts
+    # and solves (ORC-09's test budget).
+    walked = tuple(s for s in published_strategies() if s.id in {"c3", "c3_e2", "engine"})
+    assert len(walked) == 3
+    for stage in (week_stage, publish_stage):
+        monkeypatch.setattr(stage, "published_strategies", lambda: walked)
     data_dir = tmp_path / "data"
     stages = ["quality", "forecast", "optimise", "week", "publish"]
     assert main(["--data-dir", str(data_dir), "run"]) == EXIT_OK
