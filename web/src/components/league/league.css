@@ -101,8 +101,34 @@
   white-space: nowrap;
 }
 
-.league-row.owner {
+.league-row.owner,
+.league-sub.owner {
   background: var(--row-selected-bg);
+}
+
+/*
+ * The sentences about a row (why it is not live, a mismatch with FPL, the comparison on a phone)
+ * sit in a row of their own under it, across the whole table, so the row and its note read as one.
+ */
+.league-attached > td {
+  border-bottom: 0;
+}
+
+.league-sub > td {
+  padding-top: 0;
+}
+
+.league-sub p {
+  margin: 0;
+}
+
+.league-sub p + p {
+  margin-top: var(--space-1);
+}
+
+/* The comparison line alone: the columns say the same where they are shown. */
+.league-sub-compare {
+  display: none;
 }
 
 .league-rank {
@@ -168,6 +194,15 @@
   font-variant-numeric: tabular-nums;
   text-decoration: underline;
   cursor: pointer;
+}
+
+/* The comparison columns as one line under the team: shown only where the columns are hidden (below). */
+.league-compare-inline {
+  display: none;
+  margin: var(--space-1) 0 0;
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  white-space: normal;
 }
 
 .league-captain {
@@ -279,12 +314,101 @@
   border: 0;
 }
 
-@media (max-width: 640px) {
-  .league-grid th,
-  .league-grid td {
-    padding: var(--space-2);
+/*
+ * The table at phone width (LIVE-05, NFR-03). The global `table { min-width: 42rem }` and
+ * `th, td { white-space: nowrap }` held the table at about 600 px, so in a 351 px card the status
+ * and the live total (the figure the table is ordered by) were off-screen: the cause the live
+ * squad tables had too (`live.css`). Here the table is laid out to fit its card. The team and
+ * manager, the gameweek's detail ("after a 4-point hit", a chip) and the status marks wrap onto
+ * further lines, the figures stay on one line, and the padding tightens. Nothing is hidden: what
+ * wraps is still all there. Above this width the table already fits and is untouched.
+ */
+@media (max-width: 700px) {
+  .league-grid {
+    min-width: 0;
   }
 
+  .league-grid th,
+  .league-grid td {
+    padding: var(--space-2) var(--space-1);
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .league-grid .league-rank,
+  .league-grid .league-number {
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
+
+  /* A heading is one short word: it may take two lines ("Live total") but is never broken inside a word. */
+  .league-grid th {
+    font-size: var(--font-size-xs);
+    overflow-wrap: normal;
+  }
+
+  /*
+   * Squad overlap, differentials and captain: four more columns would put the live total off-screen
+   * again, so on a phone they are one line under the team (`CompareInline`), with the same names
+   * opened from it.
+   */
+  .league-grid .league-compare {
+    display: none;
+  }
+
+  .league-grid .league-compare-inline {
+    display: block;
+  }
+
+  .league-grid .league-sub-compare {
+    display: table-row;
+  }
+
+  .league-grid .league-attached-compare > td,
+  .league-grid .league-attached > td {
+    border-bottom: 0;
+  }
+
+  .league-grid .league-sub > td {
+    padding-top: 0;
+  }
+
+  /*
+   * The gameweek's detail and the status marks are narrow stacks: left to their natural width they
+   * would claim most of the row and squeeze the team name and the figures.
+   */
+  .league-grid .live-pts-detail {
+    max-width: 5rem;
+    margin-left: auto;
+    white-space: normal;
+    /* Not "anywhere": its words ("Captain", "scored") stay whole, which sets this column's floor. */
+    overflow-wrap: break-word;
+  }
+
+  .league-grid .live-marks {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .league-grid .live-mark {
+    padding: 0 var(--space-1);
+  }
+
+  /* The rank's movement sits under the number rather than beside it, which frees a column's width for the team. */
+  .league-grid .league-move {
+    display: block;
+    margin-left: 0;
+  }
+}
+
+/* The narrowest phones (320 px): one size down, so a team name keeps a few words' width beside the figures. */
+@media (max-width: 360px) {
+  .league-grid {
+    font-size: var(--font-size-xs);
+  }
+}
+
+@media (max-width: 640px) {
   .league-controls {
     flex-direction: column;
     align-items: flex-start;

@@ -69,6 +69,29 @@ describe("LeagueTable", () => {
     expect(row.queryByText("differs")).toBeNull();
   });
 
+  it("also gives the comparison as one line under the team, for the width where the columns are hidden", async () => {
+    await renderLeague();
+    // jsdom applies no stylesheet, so both forms are in the DOM; `league.css` shows one at a time.
+    const inline = within(screen.getByTestId("league-compare-inline-100"));
+
+    expect(screen.getByTestId("league-compare-inline-100").textContent).toBe(
+      "2 shared players with Roy Race XI; show the names, 1 only they have, 1 only you have. Captain Raya, differs from yours.",
+    );
+    // The line's own button opens the same names as the column's.
+    const expand = inline.getByRole("button", { name: /shared players with Roy Race XI/ });
+    expect(expand.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(expand);
+    expect(expand.getAttribute("aria-expanded")).toBe("true");
+    expect(within(screen.getByTestId("league-detail-100")).getByText(/Raya, Watkins/)).toBeTruthy();
+    // The comparison cells carry the class that hides them on a phone.
+    expect(screen.getByRole("columnheader", { name: "Shared" }).className).toContain("league-compare");
+    // An unpublished squad is said, not shown as zero; the owner's own row has no line.
+    expect(screen.getByTestId("league-compare-inline-300").textContent).toBe("No squad published");
+    expect(screen.queryByTestId("league-compare-inline-200")).toBeNull();
+    expect(within(screen.getByTestId("league-compare-inline-400")).queryByText(/same|differs/)).toBeNull();
+    expect(screen.getByTestId("league-compare-inline-400").textContent).toContain("Captain not published");
+  });
+
   it("names the shared and differential players on demand", async () => {
     await renderLeague();
     fireEvent.click(

@@ -68,9 +68,29 @@ describe("reading live.json (LIVE-05, LIVE-06)", () => {
   });
 
   it("puts a bonus in words: confirmed, pending, or none", () => {
-    expect(bonusText({ bonus: 3, bonus_confirmed: true })).toBe("+3 bonus, confirmed");
-    expect(bonusText({ bonus: 0, bonus_confirmed: true })).toBe("no bonus");
-    expect(bonusText({ bonus: 1, bonus_confirmed: false })).toBe("+1 bonus, pending");
-    expect(bonusText({ bonus: 0, bonus_confirmed: false })).toBe("bonus pending");
+    const over = { complete: true, minutes: 90 };
+    expect(bonusText({ bonus: 3, bonus_confirmed: true, ...over })).toBe("+3 bonus, confirmed");
+    expect(bonusText({ bonus: 0, bonus_confirmed: true, ...over })).toBe("no bonus");
+    // Pending is only said once his match is over and FPL has not confirmed the bonus.
+    expect(bonusText({ bonus: 1, bonus_confirmed: false, ...over })).toBe("+1 bonus, pending");
+    expect(bonusText({ bonus: 0, bonus_confirmed: false, ...over })).toBe("bonus pending");
+  });
+
+  it("does not call a bonus pending for a player whose match is not over", () => {
+    // Yet to play: no fixture of his has finished, so there is nothing to be pending.
+    expect(bonusText({ bonus: 0, bonus_confirmed: false, complete: false, minutes: 0 })).toBe("yet to play");
+    // The pipeline reads a player with no fixture rows yet as "confirmed"; he is still yet to play.
+    expect(bonusText({ bonus: 0, bonus_confirmed: true, complete: false, minutes: 0 })).toBe("yet to play");
+    // Playing now: his match is not over, and FPL's bonus so far can still move.
+    expect(bonusText({ bonus: 0, bonus_confirmed: false, complete: false, minutes: 67 })).toBe("match not over");
+    expect(bonusText({ bonus: 2, bonus_confirmed: false, complete: false, minutes: 67 })).toBe(
+      "+2 bonus so far, match not over",
+    );
+    for (const text of [
+      bonusText({ bonus: 0, bonus_confirmed: false, complete: false, minutes: 0 }),
+      bonusText({ bonus: 0, bonus_confirmed: false, complete: false, minutes: 67 }),
+    ]) {
+      expect(text).not.toContain("pending");
+    }
   });
 });

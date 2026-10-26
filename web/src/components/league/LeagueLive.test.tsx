@@ -78,6 +78,11 @@ describe("LeagueTable with the gameweek in play (LIVE-05)", () => {
     expect(status.textContent).toBe("not live");
     // The reason is on the mark for anyone who asks for it.
     expect(status.getAttribute("title")).toContain("past the rival limit");
+    // ...and in words in the row, where a keyboard or a touch screen can read it (NFR-14).
+    expect(screen.getByTestId("league-not-live-reason-300").textContent).toBe(
+      "Not live: past the rival limit, so its picks were not read. Showing the league table's own figures.",
+    );
+    expect(screen.queryByTestId("league-not-live-reason-200")).toBeNull();
     // The league table's own total and last scored gameweek, the latter labelled as such.
     expect(screen.getByTestId("league-total-300").textContent).toBe("175");
     expect(screen.getByTestId("league-gw-300").textContent).toContain("41");
@@ -214,8 +219,10 @@ describe("LeagueTeam with the gameweek in play (LIVE-05)", () => {
     expect(cells(2)[1]).toContain("16");
     expect(cells(2)[1]).toContain("8 × 2");
     expect(cells(2)[2]).toBe("+2 bonus, confirmed");
-    // Mbeumo is still playing: his bonus is pending, not zero.
-    expect(cells(3)).toEqual(["67", "5", "bonus pending"]);
+    // Mbeumo is still playing: his match is not over, so there is no bonus to be pending yet.
+    expect(cells(3)).toEqual(["67", "5", "match not over"]);
+    // Player 6 has not played: he is yet to play, which "bonus pending" would misstate.
+    expect(cells(6)).toEqual(["0", "0", "yet to play"]);
     // Squad man 10 earned three bonus points, confirmed.
     expect(cells(10)[2]).toBe("+3 bonus, confirmed");
     expect(live.getAllByTestId(/^live-player-\d+$/)).toHaveLength(15);
@@ -225,12 +232,50 @@ describe("LeagueTeam with the gameweek in play (LIVE-05)", () => {
     await open(200);
 
     expect(screen.getByTestId("live-player-12").textContent).toContain("on for Squad man 8 (projected)");
-    expect(screen.getByTestId("live-player-8").textContent).toContain("off for Squad man 12 (projected)");
+    // A starter substituted off is a starting-XI player, not "bench" (which would say he never started).
+    expect(screen.getByTestId("live-player-8").textContent).toContain(
+      "starting XI, substituted off for Squad man 12 (projected)",
+    );
+    expect(screen.getByTestId("live-player-8").textContent).not.toMatch(/\bbench\b/);
     expect(screen.getByTestId("live-subs").textContent).toContain("Squad man 12 on for Squad man 8");
     expect(screen.getByTestId("live-player-6").textContent).toContain("yet to play");
     expect(screen.getByTestId("live-player-6").textContent).not.toContain("projected");
     // The bench player who stays on the bench is labelled so.
     expect(screen.getByTestId("live-player-13").textContent).toContain("bench");
+  });
+
+  it("says a substitution has happened, not that it is projected, once the gameweek is final", async () => {
+    await open(200, liveGameweek("final"));
+
+    expect(screen.getByTestId("live-player-8").textContent).toContain("starting XI, substituted off for Squad man 12");
+    expect(screen.getByTestId("live-player-8").textContent).not.toContain("projected");
+    expect(screen.getByTestId("live-player-12").textContent).toContain("on for Squad man 8");
+    expect(screen.getByTestId("live-player-12").textContent).not.toContain("projected");
+  });
+
+  it("says bonus pending only for a player whose match is over with the bonus unconfirmed", async () => {
+    const live = liveGameweek("bonus_pending");
+    const bonusPending: Live = {
+      ...live,
+      teams: live.teams.map((t) =>
+        t.entry_id === 200 && t.live
+          ? {
+              ...t,
+              live: {
+                ...t.live,
+                // Mbeumo's match is over and FPL has not confirmed the bonus; player 6 is still yet to play.
+                players: t.live.players.map((p) =>
+                  p.player_id === 3 ? { ...p, minutes: 90, complete: true, bonus: 1, bonus_confirmed: false } : p,
+                ),
+              },
+            }
+          : t,
+      ),
+    };
+    await open(200, bonusPending);
+
+    expect(cells(3)[2]).toBe("+1 bonus, pending");
+    expect(cells(6)[2]).toBe("yet to play");
   });
 
   it("states the team's status, points, hit, live total and rank, provisional until final", async () => {
