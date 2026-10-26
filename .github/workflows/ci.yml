@@ -54,13 +54,14 @@ jobs:
         working-directory: pipeline
         run: lint-imports
 
-  # Two shards side by side (ORC-09): every test module runs in exactly one (`--shard`, conftest),
-  # so the suite's wall clock is the slower shard's, held to schedule.python_tests_budget_seconds.
+  # Three shards side by side (ORC-09): every test module runs in exactly one (`--shard`, conftest),
+  # so the suite's wall clock is the slowest shard's, held to schedule.python_tests_budget_seconds.
+  # Two held it until R1.4.3's tests put the first at the budget; a third keeps the budget as set.
   pipeline-test-shard:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        shard: [0, 1]
+        shard: [0, 1, 2]
     steps:
       - uses: actions/checkout@v4
 
@@ -79,14 +80,14 @@ jobs:
         run: uv pip install --system -c pipeline/requirements.lock -e "pipeline[dev]"
 
       # In parallel (ORC-09), then held to schedule.python_tests_budget_seconds. The coverage gate
-      # is its own run of the rules test files, exactly as CLAUDE.md states it, in the first shard:
-      # measured over the whole suite it would pass on coverage those files do not give, and
-      # tracing every worker cost the suite more than this second run takes.
-      - name: pytest (shard ${{ matrix.shard }} of 2) & rules coverage gate (must be 100%)
+      # is its own run of the rules test files, exactly as CLAUDE.md states it, in the first shard,
+      # the lightest of the three: measured over the whole suite it would pass on coverage those
+      # files do not give, and tracing every worker cost the suite more than this second run takes.
+      - name: pytest (shard ${{ matrix.shard }} of 3) & rules coverage gate (must be 100%)
         working-directory: pipeline
         run: |
           started="$(date -u +%FT%TZ)"
-          python -m pytest -q -n auto --shard ${{ matrix.shard }}/2
+          python -m pytest -q -n auto --shard ${{ matrix.shard }}/3
           if [ "${{ matrix.shard }}" = "0" ]; then
             python -m pytest -q --cov=fpl_dof.rules --cov-fail-under=100 tests/test_rules_build.py tests/test_rules_scoring.py tests/test_rules_legality.py tests/test_rules_realised.py
           fi
