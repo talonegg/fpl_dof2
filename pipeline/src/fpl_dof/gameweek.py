@@ -1,4 +1,5 @@
-"""Which gameweek is being decided, and what state every gameweek is in: one definition of each.
+"""Which gameweek is being decided, what state every gameweek is in, and how far each team's
+gameweek in play has got: one definition of each.
 
 Lives outside ``week`` so the model factory and the squad core can use it without importing the
 orchestrator (MOD-01); :mod:`fpl_dof.week.cadence` re-exports it. Pure: frames and an instant in,
@@ -8,7 +9,7 @@ an answer out. The clock and the files are read at the edge (DP-03).
 from __future__ import annotations
 
 import datetime as dt
-from collections.abc import Collection, Mapping
+from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -174,6 +175,52 @@ def open_gameweek(
     """The one Open gameweek, the next deadline's; ``None`` once the last deadline has passed."""
     gameweek = gameweek_ahead(silver.gameweeks, now)
     return None if gameweek is None else gameweek_state(gameweek, silver, ledger, now)
+
+
+# --- A team's gameweek in play (LIVE-03) ------------------------------------------------------
+
+
+class TeamStatus(StrEnum):
+    """How far one team's gameweek in play has got (LIVE-03, DL-99). Derived, never stored.
+
+    Read over the fixtures the team's players have, so two teams in one gameweek can differ. Bonus
+    is FPL's to confirm and is never estimated from BPS: a team whose matches are over and whose
+    bonus is not yet confirmed is :attr:`BONUS_PENDING`, its points without that bonus.
+    """
+
+    IN_PLAY = "in_play"
+    """A fixture still to finish."""
+    BONUS_PENDING = "bonus_pending"
+    """Every fixture finished, a bonus not yet confirmed."""
+    COMPLETE = "complete"
+    """Every fixture finished with its bonus confirmed; the gameweek is not yet data-checked."""
+    FINAL = "final"
+    """FPL has data-checked the gameweek: its points are the record (ORC-05)."""
+
+
+@dataclass(frozen=True, slots=True)
+class FixtureProgress:
+    """One fixture of a team's gameweek, as far as it has got."""
+
+    finished: bool
+    """Full time: its minutes are final."""
+    bonus_confirmed: bool
+    """FPL has confirmed its bonus (FPL's fixture ``finished``). Implies :attr:`finished`."""
+
+
+def team_status(fixtures: Iterable[FixtureProgress], *, data_checked: bool) -> TeamStatus:
+    """A team's status from the fixtures its players have and the gameweek's data-checked flag.
+
+    A team with no fixture at all (every player blank) has nothing to come and nothing to confirm.
+    """
+    if data_checked:
+        return TeamStatus.FINAL
+    progress = list(fixtures)
+    if not all(f.finished or f.bonus_confirmed for f in progress):
+        return TeamStatus.IN_PLAY
+    if not all(f.bonus_confirmed for f in progress):
+        return TeamStatus.BONUS_PENDING
+    return TeamStatus.COMPLETE
 
 
 def _first_kickoff(fixtures: pd.DataFrame | None, gameweek: int) -> pd.Timestamp | None:

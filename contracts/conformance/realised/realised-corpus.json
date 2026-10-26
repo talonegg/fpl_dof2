@@ -1,5 +1,5 @@
 {
- "about": "Real 2026/27 entries scored by FPL. See contracts/conformance/README.md.",
+ "about": "Real 2026/27 entries scored by FPL, and in-play cases constructed from them. See contracts/conformance/README.md.",
  "cases": [
   {"name": "entry-1197950-gw1", "tags": ["bboost"], "entry_id": 1197950, "gameweek": 1, "chip": "bboost", "transfers": 0, "free_transfers": null, "captain": 411, "vice_captain": 226,
    "picks": [
@@ -1020,6 +1020,146 @@
     {"player_id": 26, "position": "FWD", "fixtures": [[65, 2]]}
    ],
    "expected": {"points": 59, "transfers_cost": 0, "automatic_subs": [[260, 502]]}
+  },
+  {"name": "in-play-a-starter-yet-to-play", "tags": ["constructed", "in-play", "starter-yet-to-play"], "from": "entry-1197950-gw7", "why": "399 has not kicked off: he keeps his place, so 15 stays on the bench (FPL's 65 less 15's 3).", "entry_id": 1197950, "gameweek": 7, "chip": null, "transfers": 2, "free_transfers": 2, "captain": 411, "vice_captain": 165,
+   "picks": [
+    {"player_id": 496, "position": "GKP", "fixtures": [[90, 2, true]]},
+    {"player_id": 356, "position": "DEF", "fixtures": [[90, 4, true]]},
+    {"player_id": 8, "position": "DEF", "fixtures": [[90, 6, true]]},
+    {"player_id": 31, "position": "DEF", "fixtures": [[90, 9, true]]},
+    {"player_id": 391, "position": "DEF", "fixtures": [[29, 0, true]]},
+    {"player_id": 115, "position": "DEF", "fixtures": [[90, 6, true]]},
+    {"player_id": 40, "position": "MID", "fixtures": [[90, 2, true]]},
+    {"player_id": 399, "position": "MID", "fixtures": [[0, 0, false]]},
+    {"player_id": 124, "position": "MID", "fixtures": [[70, 5, true]]},
+    {"player_id": 165, "position": "FWD", "fixtures": [[90, 2, true]]},
+    {"player_id": 411, "position": "FWD", "fixtures": [[90, 13, true]]},
+    {"player_id": 226, "position": "GKP", "fixtures": [[90, 2, true]]},
+    {"player_id": 15, "position": "MID", "fixtures": [[90, 3, true]]},
+    {"player_id": 346, "position": "FWD", "fixtures": [[90, 9, true]]},
+    {"player_id": 244, "position": "MID", "fixtures": [[84, 1, true]]}
+   ],
+   "expected": {"points": 62, "transfers_cost": 0, "automatic_subs": [], "armband": 411}
+  },
+  {"name": "in-play-a-captain-yet-to-kick-off", "tags": ["constructed", "in-play", "captain-yet-to-play"], "from": "entry-1197950-gw7", "why": "411 has not kicked off: the armband stays with him and his 0 so far, not with vice 165.", "entry_id": 1197950, "gameweek": 7, "chip": null, "transfers": 2, "free_transfers": 2, "captain": 411, "vice_captain": 165,
+   "picks": [
+    {"player_id": 496, "position": "GKP", "fixtures": [[90, 2, true]]},
+    {"player_id": 356, "position": "DEF", "fixtures": [[90, 4, true]]},
+    {"player_id": 8, "position": "DEF", "fixtures": [[90, 6, true]]},
+    {"player_id": 31, "position": "DEF", "fixtures": [[90, 9, true]]},
+    {"player_id": 391, "position": "DEF", "fixtures": [[29, 0, true]]},
+    {"player_id": 115, "position": "DEF", "fixtures": [[90, 6, true]]},
+    {"player_id": 40, "position": "MID", "fixtures": [[90, 2, true]]},
+    {"player_id": 399, "position": "MID", "fixtures": [[0, 0, true]]},
+    {"player_id": 124, "position": "MID", "fixtures": [[70, 5, true]]},
+    {"player_id": 165, "position": "FWD", "fixtures": [[90, 2, true]]},
+    {"player_id": 411, "position": "FWD", "fixtures": [[0, 0, false]]},
+    {"player_id": 226, "position": "GKP", "fixtures": [[90, 2, true]]},
+    {"player_id": 15, "position": "MID", "fixtures": [[90, 3, true]]},
+    {"player_id": 346, "position": "FWD", "fixtures": [[90, 9, true]]},
+    {"player_id": 244, "position": "MID", "fixtures": [[84, 1, true]]}
+   ],
+   "expected": {"points": 39, "transfers_cost": 0, "automatic_subs": [[399, 15]], "armband": 411}
+  },
+  {"name": "in-play-a-captain-playing", "tags": ["constructed", "in-play", "captain-yet-to-play"], "from": "entry-1197950-gw7", "why": "411 is mid-match on 8: his points so far are multiplied by the armband.", "entry_id": 1197950, "gameweek": 7, "chip": null, "transfers": 2, "free_transfers": 2, "captain": 411, "vice_captain": 165,
+   "picks": [
+    {"player_id": 496, "position": "GKP", "fixtures": [[90, 2, true]]},
+    {"player_id": 356, "position": "DEF", "fixtures": [[90, 4, true]]},
+    {"player_id": 8, "position": "DEF", "fixtures": [[90, 6, true]]},
+    {"player_id": 31, "position": "DEF", "fixtures": [[90, 9, true]]},
+    {"player_id": 391, "position": "DEF", "fixtures": [[29, 0, true]]},
+    {"player_id": 115, "position": "DEF", "fixtures": [[90, 6, true]]},
+    {"player_id": 40, "position": "MID", "fixtures": [[90, 2, true]]},
+    {"player_id": 399, "position": "MID", "fixtures": [[0, 0, true]]},
+    {"player_id": 124, "position": "MID", "fixtures": [[70, 5, true]]},
+    {"player_id": 165, "position": "FWD", "fixtures": [[90, 2, true]]},
+    {"player_id": 411, "position": "FWD", "fixtures": [[55, 8, false]]},
+    {"player_id": 226, "position": "GKP", "fixtures": [[90, 2, true]]},
+    {"player_id": 15, "position": "MID", "fixtures": [[90, 3, true]]},
+    {"player_id": 346, "position": "FWD", "fixtures": [[90, 9, true]]},
+    {"player_id": 244, "position": "MID", "fixtures": [[84, 1, true]]}
+   ],
+   "expected": {"points": 55, "transfers_cost": 0, "automatic_subs": [[399, 15]], "armband": 411}
+  },
+  {"name": "in-play-a-blank-starter-substituted-at-once", "tags": ["constructed", "in-play", "blank-in-play"], "from": "entry-1197950-gw7", "why": "399's club has no fixture: he is substituted while 124 is still playing.", "entry_id": 1197950, "gameweek": 7, "chip": null, "transfers": 2, "free_transfers": 2, "captain": 411, "vice_captain": 165,
+   "picks": [
+    {"player_id": 496, "position": "GKP", "fixtures": [[90, 2, true]]},
+    {"player_id": 356, "position": "DEF", "fixtures": [[90, 4, true]]},
+    {"player_id": 8, "position": "DEF", "fixtures": [[90, 6, true]]},
+    {"player_id": 31, "position": "DEF", "fixtures": [[90, 9, true]]},
+    {"player_id": 391, "position": "DEF", "fixtures": [[29, 0, true]]},
+    {"player_id": 115, "position": "DEF", "fixtures": [[90, 6, true]]},
+    {"player_id": 40, "position": "MID", "fixtures": [[90, 2, true]]},
+    {"player_id": 399, "position": "MID", "fixtures": []},
+    {"player_id": 124, "position": "MID", "fixtures": [[70, 5, false]]},
+    {"player_id": 165, "position": "FWD", "fixtures": [[90, 2, true]]},
+    {"player_id": 411, "position": "FWD", "fixtures": [[90, 13, true]]},
+    {"player_id": 226, "position": "GKP", "fixtures": [[90, 2, true]]},
+    {"player_id": 15, "position": "MID", "fixtures": [[90, 3, true]]},
+    {"player_id": 346, "position": "FWD", "fixtures": [[90, 9, true]]},
+    {"player_id": 244, "position": "MID", "fixtures": [[84, 1, true]]}
+   ],
+   "expected": {"points": 65, "transfers_cost": 0, "automatic_subs": [[399, 15]], "armband": 411}
+  },
+  {"name": "in-play-a-double-gameweek-half-played", "tags": ["constructed", "in-play", "double-gameweek-in-play"], "from": "entry-1197950-gw7", "why": "399 missed his first fixture and has a second to come, so he stays; captain 411 has 13 from his first and the armband doubles them.", "entry_id": 1197950, "gameweek": 7, "chip": null, "transfers": 2, "free_transfers": 2, "captain": 411, "vice_captain": 165,
+   "picks": [
+    {"player_id": 496, "position": "GKP", "fixtures": [[90, 2, true]]},
+    {"player_id": 356, "position": "DEF", "fixtures": [[90, 4, true]]},
+    {"player_id": 8, "position": "DEF", "fixtures": [[90, 6, true]]},
+    {"player_id": 31, "position": "DEF", "fixtures": [[90, 9, true]]},
+    {"player_id": 391, "position": "DEF", "fixtures": [[29, 0, true]]},
+    {"player_id": 115, "position": "DEF", "fixtures": [[90, 6, true]]},
+    {"player_id": 40, "position": "MID", "fixtures": [[90, 2, true]]},
+    {"player_id": 399, "position": "MID", "fixtures": [[0, 0, true], [0, 0, false]]},
+    {"player_id": 124, "position": "MID", "fixtures": [[70, 5, true]]},
+    {"player_id": 165, "position": "FWD", "fixtures": [[90, 2, true]]},
+    {"player_id": 411, "position": "FWD", "fixtures": [[90, 13, true], [0, 0, false]]},
+    {"player_id": 226, "position": "GKP", "fixtures": [[90, 2, true]]},
+    {"player_id": 15, "position": "MID", "fixtures": [[90, 3, true]]},
+    {"player_id": 346, "position": "FWD", "fixtures": [[90, 9, true]]},
+    {"player_id": 244, "position": "MID", "fixtures": [[84, 1, true]]}
+   ],
+   "expected": {"points": 62, "transfers_cost": 0, "automatic_subs": [], "armband": 411}
+  },
+  {"name": "in-play-a-substitute-yet-to-play", "tags": ["constructed", "in-play", "substitute-yet-to-play"], "from": "entry-1197950-gw7", "why": "399 did not play; first substitute 15 has not kicked off, so 346, who played, comes on.", "entry_id": 1197950, "gameweek": 7, "chip": null, "transfers": 2, "free_transfers": 2, "captain": 411, "vice_captain": 165,
+   "picks": [
+    {"player_id": 496, "position": "GKP", "fixtures": [[90, 2, true]]},
+    {"player_id": 356, "position": "DEF", "fixtures": [[90, 4, true]]},
+    {"player_id": 8, "position": "DEF", "fixtures": [[90, 6, true]]},
+    {"player_id": 31, "position": "DEF", "fixtures": [[90, 9, true]]},
+    {"player_id": 391, "position": "DEF", "fixtures": [[29, 0, true]]},
+    {"player_id": 115, "position": "DEF", "fixtures": [[90, 6, true]]},
+    {"player_id": 40, "position": "MID", "fixtures": [[90, 2, true]]},
+    {"player_id": 399, "position": "MID", "fixtures": [[0, 0, true]]},
+    {"player_id": 124, "position": "MID", "fixtures": [[70, 5, true]]},
+    {"player_id": 165, "position": "FWD", "fixtures": [[90, 2, true]]},
+    {"player_id": 411, "position": "FWD", "fixtures": [[90, 13, true]]},
+    {"player_id": 226, "position": "GKP", "fixtures": [[90, 2, true]]},
+    {"player_id": 15, "position": "MID", "fixtures": [[0, 0, false]]},
+    {"player_id": 346, "position": "FWD", "fixtures": [[90, 9, true]]},
+    {"player_id": 244, "position": "MID", "fixtures": [[84, 1, true]]}
+   ],
+   "expected": {"points": 71, "transfers_cost": 0, "automatic_subs": [[399, 346]], "armband": 411}
+  },
+  {"name": "finished-gameweek-unchanged", "tags": ["constructed", "finished"], "from": "entry-1197950-gw7", "why": "Every fixture finished: the in-play rules give FPL's own answer for the case it is from.", "entry_id": 1197950, "gameweek": 7, "chip": null, "transfers": 2, "free_transfers": 2, "captain": 411, "vice_captain": 165,
+   "picks": [
+    {"player_id": 496, "position": "GKP", "fixtures": [[90, 2, true]]},
+    {"player_id": 356, "position": "DEF", "fixtures": [[90, 4, true]]},
+    {"player_id": 8, "position": "DEF", "fixtures": [[90, 6, true]]},
+    {"player_id": 31, "position": "DEF", "fixtures": [[90, 9, true]]},
+    {"player_id": 391, "position": "DEF", "fixtures": [[29, 0, true]]},
+    {"player_id": 115, "position": "DEF", "fixtures": [[90, 6, true]]},
+    {"player_id": 40, "position": "MID", "fixtures": [[90, 2, true]]},
+    {"player_id": 399, "position": "MID", "fixtures": [[0, 0, true]]},
+    {"player_id": 124, "position": "MID", "fixtures": [[70, 5, true]]},
+    {"player_id": 165, "position": "FWD", "fixtures": [[90, 2, true]]},
+    {"player_id": 411, "position": "FWD", "fixtures": [[90, 13, true]]},
+    {"player_id": 226, "position": "GKP", "fixtures": [[90, 2, true]]},
+    {"player_id": 15, "position": "MID", "fixtures": [[90, 3, true]]},
+    {"player_id": 346, "position": "FWD", "fixtures": [[90, 9, true]]},
+    {"player_id": 244, "position": "MID", "fixtures": [[84, 1, true]]}
+   ],
+   "expected": {"points": 65, "transfers_cost": 0, "automatic_subs": [[399, 15]], "armband": 411}
   }
  ]
 }

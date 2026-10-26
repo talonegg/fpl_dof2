@@ -311,7 +311,8 @@ bank and chips:
 
 Results are stored per gameweek under `evaluation/` on `ledger` and recomputed only when the
 evaluation's version changes; the season log is assembled from them. One realised-points scorer, in
-`core` and pinned by a conformance corpus, serves evaluation, the backtest and the models history.
+`core` and pinned by a conformance corpus, serves evaluation, the backtest, the models history and
+the provisional points of a gameweek in play (LIVE-03).
 Each strategy's own-path season simulation stays available as a secondary, labelled view.
 
 ---
