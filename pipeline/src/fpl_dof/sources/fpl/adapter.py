@@ -82,6 +82,13 @@ log = get_logger(__name__)
 
 _HOUR = 3600
 _WEEK = 7 * 24 * _HOUR
+#: The fast-path captures' TTL (LIVE-02, DL-99). The fast ingest fires hourly (ingest-fast.yml,
+#: `7 * * * *`), and a capture still inside its TTL at the next firing is read, not refetched. A
+#: full hour would let a firing a few seconds short of an hour after the last fetch read that
+#: capture, so a done matchday or a deadline's price move would wait for the firing after. 50
+#: minutes makes every hourly firing refetch, including one whose previous fetch ran up to ten
+#: minutes late (a queued run). Tied to that cron: a test holds the two together.
+_FAST_PATH_TTL = 50 * 60
 
 #: Fields downstream code depends on. Their absence is a contract breach, not a missing value.
 REQUIRED_BOOTSTRAP_KEYS = ("elements", "teams", "element_types", "events", "game_settings")
@@ -272,13 +279,13 @@ class FplApiAdapter(SourceAdapter):
         Resource(
             name="bootstrap_static",
             summary="Players, teams, gameweeks, chips, game settings and the scoring table",
-            cache_ttl_seconds=_HOUR,
+            cache_ttl_seconds=_FAST_PATH_TTL,
             fast_path=True,
         ),
         Resource(
             name="fixtures",
             summary="All fixtures with per-side difficulty",
-            cache_ttl_seconds=_HOUR,
+            cache_ttl_seconds=_FAST_PATH_TTL,
             fast_path=True,
         ),
         Resource(

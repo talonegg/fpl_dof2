@@ -11,6 +11,7 @@ and is the drift detector; the recorded tests are the regression net.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -116,6 +117,26 @@ def test_the_expensive_resource_is_marked_off_the_fast_path() -> None:
     assert summary.fast_path is False
     assert summary.cache_ttl_seconds is not None
     assert summary.cache_ttl_seconds >= 24 * 3600
+
+
+FAST_INGEST_WORKFLOW = (
+    Path(__file__).resolve().parents[2] / ".github" / "workflows" / "ingest-fast.yml"
+)
+
+
+@pytest.mark.parametrize("name", ["bootstrap_static", "fixtures"])
+def test_the_fast_path_captures_expire_inside_the_hourly_firing(name: str) -> None:
+    """LIVE-02, DL-99: a capture is refetched by every hourly firing, never read from the last one.
+
+    ingest-fast.yml fires hourly. A TTL at or above an hour lets a firing read the capture the
+    previous one made a few seconds earlier, so a done matchday waits for the firing after.
+    """
+    assert re.search(r'cron: "\d+ \* \* \* \*"', FAST_INGEST_WORKFLOW.read_text("utf-8")), (
+        "ingest-fast.yml no longer fires hourly; revisit the fast-path TTL"
+    )
+    resource = next(r for r in FplApiAdapter.resources if r.name == name)
+    assert resource.cache_ttl_seconds is not None
+    assert resource.cache_ttl_seconds < 3600
 
 
 #: What the four-hourly workflow asks for (E7-S1).
