@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import type { LiveFigures, Player } from "../../contract/types";
-import { bonusText, countedPoints, fieldedAndBench, substitutions } from "../../data/live";
+import { bonusText, countedPoints, fieldedAndBench, isProvisional, substitutions } from "../../data/live";
 import { formatPoints } from "../../format";
 import "./live.css";
 
@@ -35,15 +35,25 @@ export function LiveSquadTable({
   const off = new Map(subs.map((s) => [s.off, s.on]));
   const nameOf = (id: number) => players.get(id)?.name ?? `#${id}`;
 
+  // The substitutions are projections while the gameweek can still move; once final they are what happened.
+  const projected = isProvisional(figures) ? " (projected)" : "";
+
   const row = (p: LiveFigures["players"][number], onBench: boolean) => {
     const player = players.get(p.player_id);
+    // A player off the field who is in `autosubs_out` is a starter who was substituted off; calling
+    // him "bench" would say he never started. The published substitutions name who, so no count of
+    // starters is restated here (Invariant 9).
+    const placing = onBench
+      ? off.has(p.player_id)
+        ? `starting XI, substituted off for ${nameOf(off.get(p.player_id)!)}${projected}`
+        : "bench"
+      : null;
     const notes = [
       p.is_captain ? "captain" : null,
       p.is_vice_captain ? "vice" : null,
       p.player_id === figures.captain_id && figures.vice_used ? "armband" : null,
-      onBench ? "bench" : null,
-      on.has(p.player_id) ? `on for ${nameOf(on.get(p.player_id)!)} (projected)` : null,
-      off.has(p.player_id) ? `off for ${nameOf(off.get(p.player_id)!)} (projected)` : null,
+      placing,
+      on.has(p.player_id) ? `on for ${nameOf(on.get(p.player_id)!)}${projected}` : null,
       !p.complete && p.minutes === 0 ? "yet to play" : null,
     ].filter((note): note is string => note !== null);
     return (

@@ -58,6 +58,14 @@
   font-size: var(--font-size-xs);
 }
 
+/* Why a team is not live, in words: the same facts the mark's tooltip holds, which touch and keyboard cannot reach. */
+.live-reason {
+  margin: var(--space-1) 0 0;
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+  white-space: normal;
+}
+
 .live-marks {
   display: flex;
   flex-wrap: wrap;

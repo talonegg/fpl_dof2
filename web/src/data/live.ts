@@ -79,8 +79,16 @@ export function fieldedAndBench(figures: LiveFigures): { fielded: LiveFigures["p
   return { fielded: bySlot.filter((p) => p.multiplier > 0), bench: bySlot.filter((p) => p.multiplier === 0) };
 }
 
-/** A player's bonus in words: confirmed, pending, or none yet. */
-export function bonusText(player: { bonus: number; bonus_confirmed: boolean }): string {
+/**
+ * A player's bonus in words, by how far his own fixtures have got. "Bonus pending" is only true once
+ * his match is over (`complete`) and FPL has not yet confirmed the bonus; before that he is yet to
+ * play, or his match is not over, and there is no bonus to be pending (LIVE-05, LIVE-06).
+ */
+export function bonusText(player: { bonus: number; bonus_confirmed: boolean; complete: boolean; minutes: number }): string {
+  // First, whatever the bonus flag says: a player with no fixture started has no bonus of any kind
+  // (the pipeline reads "no rows yet" as confirmed, which "no bonus" would misreport as a verdict).
+  if (!player.complete && player.minutes === 0) return "yet to play";
   if (player.bonus_confirmed) return player.bonus > 0 ? `+${player.bonus} bonus, confirmed` : "no bonus";
+  if (!player.complete) return player.bonus > 0 ? `+${player.bonus} bonus so far, match not over` : "match not over";
   return player.bonus > 0 ? `+${player.bonus} bonus, pending` : "bonus pending";
 }

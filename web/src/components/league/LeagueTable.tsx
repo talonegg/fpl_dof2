@@ -118,10 +118,26 @@ export function LeagueTable({
               {inPlay && <th scope="col">Status</th>}
               <th scope="col">{inPlay ? "Live total" : "Total"}</th>
               <th scope="col">Behind</th>
-              {comparing && <th scope="col">Shared</th>}
-              {comparing && <th scope="col">They have</th>}
-              {comparing && <th scope="col">You have</th>}
-              {comparing && <th scope="col">Captain</th>}
+              {comparing && (
+                <th scope="col" className="league-compare">
+                  Shared
+                </th>
+              )}
+              {comparing && (
+                <th scope="col" className="league-compare">
+                  They have
+                </th>
+              )}
+              {comparing && (
+                <th scope="col" className="league-compare">
+                  You have
+                </th>
+              )}
+              {comparing && (
+                <th scope="col" className="league-compare">
+                  Captain
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -176,11 +192,15 @@ function Row({
   const notLive = inPlay && figures === null;
   const columns = (inPlay ? 6 : 5) + (comparing ? 4 : 0);
   const game = liveTeam?.game ?? null;
+  const mismatch = figures !== null && liveTeam?.matches_game === false && game !== null;
+  const compareLine = comparing && !row.isOwner;
+  const hasNotes = notLive || mismatch;
+  const hasSub = hasNotes || compareLine;
 
   return (
     <>
       <tr
-        className={highlighted ? "league-row owner" : "league-row"}
+        className={`league-row${highlighted ? " owner" : ""}${hasNotes ? " league-attached" : compareLine ? " league-attached-compare" : ""}`}
         data-testid={`league-row-${entry.entry_id}`}
       >
         <td className="league-rank">
@@ -198,12 +218,6 @@ function Row({
             <span className="league-you" data-testid={`league-you-entered-${entry.entry_id}`}>
               Your team ID
             </span>
-          )}
-          {figures && liveTeam?.matches_game === false && game && (
-            <p className="live-mismatch" data-testid={`league-mismatch-${entry.entry_id}`}>
-              Differs from FPL: its own figure is {game.points} before a {game.hit_cost}-point hit; this
-              table has {figures.points} after it.
-            </p>
           )}
         </td>
         <td className="league-number" data-testid={`league-gw-${entry.entry_id}`}>
@@ -238,18 +252,18 @@ function Row({
         {comparing && !row.isOwner && !comparison && (
           // Not a zero. A rival outside the fetch budget has no squad published, and rendering
           // that as "0 shared" would state a fact nobody measured (DP-09).
-          <td className="league-unknown" colSpan={4}>
+          <td className="league-unknown league-compare" colSpan={4}>
             Squad not published for this entry
           </td>
         )}
         {comparing && row.isOwner && (
-          <td className="league-unknown" colSpan={4}>
+          <td className="league-unknown league-compare" colSpan={4}>
             Your squad — the comparison is measured against this row
           </td>
         )}
         {comparing && comparison && !row.isOwner && (
           <>
-            <td className="league-number">
+            <td className="league-number league-compare">
               <button
                 type="button"
                 className="league-expand"
@@ -263,9 +277,9 @@ function Row({
                 </span>
               </button>
             </td>
-            <td className="league-number risk">{comparison.rivalOnlyIds.length}</td>
-            <td className="league-number bet">{comparison.ownerOnlyIds.length}</td>
-            <td>
+            <td className="league-number league-compare risk">{comparison.rivalOnlyIds.length}</td>
+            <td className="league-number league-compare bet">{comparison.ownerOnlyIds.length}</td>
+            <td className="league-compare">
               <CaptainCell
                 captain={
                   comparison.captainId === null ? undefined : names.get(comparison.captainId)
@@ -277,6 +291,39 @@ function Row({
           </>
         )}
       </tr>
+
+      {hasSub && (
+        // The sentences about a row sit under it across the whole table, not squeezed into the team
+        // cell, which on a phone is a few words wide. A row with only the comparison line shows it on
+        // a phone alone (the columns say the same at desktop width).
+        <tr className={`league-sub${highlighted ? " owner" : ""}${hasNotes ? "" : " league-sub-compare"}`}>
+          <td colSpan={columns}>
+            {compareLine && (
+              <CompareInline
+                comparison={comparison}
+                names={names}
+                entryId={entry.entry_id}
+                teamName={entry.entry_name}
+                isExpanded={isExpanded}
+                onToggle={onToggle}
+              />
+            )}
+            {notLive && (
+              // The reason in words, in the row: a tooltip is out of reach of the keyboard and of touch (NFR-14).
+              <p className="live-reason" data-testid={`league-not-live-reason-${entry.entry_id}`}>
+                Not live: {liveTeam?.reason ?? "no live figure was published for this team"}. Showing the league
+                table&apos;s own figures.
+              </p>
+            )}
+            {mismatch && game && figures && (
+              <p className="live-mismatch" data-testid={`league-mismatch-${entry.entry_id}`}>
+                Differs from FPL: its own figure is {game.points} before a {game.hit_cost}-point hit; this
+                table has {figures.points} after it.
+              </p>
+            )}
+          </td>
+        </tr>
+      )}
 
       {expandable && isExpanded && comparison && (
         <tr className="league-detail" data-testid={`league-detail-${entry.entry_id}`}>
@@ -299,6 +346,53 @@ function Row({
         </tr>
       )}
     </>
+  );
+}
+
+/**
+ * The comparison columns' content as one line under the team, for a phone, where the four columns
+ * are hidden (`league.css`) because there is no room for them beside the figures the table is
+ * ordered by. It says everything the columns do, in words, and opens the same names below the row.
+ * Hidden at desktop width, where the columns are shown instead.
+ */
+function CompareInline({
+  comparison,
+  names,
+  entryId,
+  teamName,
+  isExpanded,
+  onToggle,
+}: {
+  comparison: LeagueRow["comparison"];
+  names: Map<number, string>;
+  entryId: number;
+  teamName: string;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  if (comparison === null) {
+    return (
+      <p className="league-compare-inline league-unknown" data-testid={`league-compare-inline-${entryId}`}>
+        No squad published
+      </p>
+    );
+  }
+  const { captainId, captainDiverges } = comparison;
+  const captain = captainId === null ? undefined : (names.get(captainId) ?? `#${captainId}`);
+  const captainText =
+    captain === undefined
+      ? "Captain not published"
+      : captainDiverges === null
+        ? `Captain ${captain}, unknown against yours`
+        : `Captain ${captain}, ${captainDiverges ? "differs from yours" : "same as yours"}`;
+  return (
+    <p className="league-compare-inline" data-testid={`league-compare-inline-${entryId}`}>
+      <button type="button" className="league-expand" onClick={onToggle} aria-expanded={isExpanded}>
+        {comparison.overlapIds.length} shared
+        <span className="visually-hidden"> players with {teamName}; show the names</span>
+      </button>
+      {`, ${comparison.rivalOnlyIds.length} only they have, ${comparison.ownerOnlyIds.length} only you have. ${captainText}.`}
+    </p>
   );
 }
 
