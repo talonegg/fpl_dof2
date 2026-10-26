@@ -250,6 +250,53 @@ def test_once_checked_each_teams_picks_and_the_scores_are_fetched_once_more_for_
     assert api.requests("/standings/") == 2
 
 
+def test_the_check_refetches_each_rivals_history_once_so_corrections_reach_his_total(
+    api: Api, adapter: FplApiAdapter
+) -> None:
+    """The rivals' histories are the daily ingest's; FPL's corrections at the data-check would
+    otherwise reach the total the next gameweek's live total stands on only at the next daily
+    ingest. The fast ingest that first sees the check refetches each published rival's history
+    once (LIVE-04, as LIVE-07's sweep), and no firing after it does."""
+    totals = {7: 50, 8: 60}
+
+    def history(request: httpx.Request) -> httpx.Response:
+        entry_id = int(request.url.path.split("/")[-3])
+        current = [
+            {
+                "event": 1,
+                "points": totals.get(entry_id, 40),
+                "total_points": totals.get(entry_id, 40),
+                "event_transfers": 0,
+                "event_transfers_cost": 0,
+            }
+        ]
+        return httpx.Response(200, json={"current": current, "past": [], "chips": []})
+
+    api.mock.get(url__regex=rf"{BASE}/entry/\d+/history/").mock(side_effect=history)
+    adapter.ingest(request(AFTER_DEADLINE))
+    # GW1 finished, not yet checked: the daily ingest reads each rival's history.
+    finished = bootstrap()
+    finished["events"][0].update(finished=True, data_checked=False)
+    api.mock.get(f"{BASE}/bootstrap-static/").mock(return_value=httpx.Response(200, json=finished))
+    api.mock.get(f"{BASE}/fixtures/").mock(
+        return_value=httpx.Response(200, json=fixtures(played=True))
+    )
+    adapter.ingest(request(at("2026-08-24T03:00:00Z"), fast=False))
+    assert (api.requests("/entry/7/history/"), api.requests("/entry/8/history/")) == (1, 1)
+
+    totals[7] = 51  # FPL's check gives rival 7 a point
+    api.serve(checked=True, played=True)
+    report = adapter.ingest(request(CHECKED))
+    assert (api.requests("/entry/7/history/"), api.requests("/entry/8/history/")) == (2, 2)
+    assert report.resources["league_entry_history"] == 2
+    tables, _ = conform(adapter, CHECKED)
+    weeks = validate(Table.LEAGUE_GAMEWEEK, tables[Table.LEAGUE_GAMEWEEK.value])
+    assert weeks.set_index("entry_id").loc[7, "total_points"] == 51
+
+    adapter.ingest(request(LATER))
+    assert (api.requests("/entry/7/history/"), api.requests("/entry/8/history/")) == (2, 2)
+
+
 def test_preseason_fetches_nothing_for_a_gameweek_in_play(api: Api, adapter: FplApiAdapter) -> None:
     adapter.ingest(request(at("2026-08-15T12:00:00Z")))
     assert api.requests("/picks/") == 0

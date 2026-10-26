@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import datetime as dt
+import json
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -78,9 +80,31 @@ def _mock(mock: respx.MockRouter, *, failing: int | None, malformed: int | None 
         )
 
 
+def _hold(adapter: FplApiAdapter, bootstrap: dict[str, Any]) -> None:
+    """A bootstrap capture in bronze a minute before the histories are: what FPL said then."""
+    adapter.fetcher.bronze.write(
+        json.dumps(bootstrap).encode(),
+        source=adapter.name,
+        source_version=adapter.version,
+        resource="bootstrap_static",
+        key="all",
+        url="u",
+        http_status=200,
+        now=dt.datetime.now(dt.UTC) - dt.timedelta(minutes=1),
+    )
+
+
 def _conform(
-    adapter: FplApiAdapter, failing: int | None = None, malformed: int | None = None
+    adapter: FplApiAdapter,
+    failing: int | None = None,
+    malformed: int | None = None,
+    *,
+    held: dict[str, Any] | None = BOOTSTRAP,
 ) -> tuple[dict[str, pd.DataFrame], list[str]]:
+    """Conform the league over today's bootstrap, the histories captured now, while bronze holds
+    ``held`` as the bootstrap of the moment (none when ``None``)."""
+    if held is not None:
+        _hold(adapter, held)
     warnings: list[str] = []
     with respx.mock(assert_all_called=False) as mock:
         _mock(mock, failing=failing, malformed=malformed)
@@ -107,6 +131,35 @@ def test_a_rivals_finished_gameweek_moves_are_conformed(adapter: FplApiAdapter) 
     assert row["total_points"] == 103
     moved = validate(Table.LEAGUE_TRANSFER, tables["league_transfer"])
     assert len(moved) == 4  # gameweek 1's transfer is not the published gameweek's
+    assert warnings == []
+
+
+@pytest.mark.parametrize(
+    "held",
+    [
+        # Captured on the Sunday, GW2 still in play: its row was the total so far.
+        {"events": [{"id": 2, "finished": False}, {"id": 3, "finished": False}]},
+        # No bootstrap before it: it cannot be shown finished, so it is not.
+        None,
+    ],
+    ids=["captured-before-it-finished", "no-bootstrap-before-it"],
+)
+def test_a_history_captured_before_its_gameweek_finished_gives_no_total(
+    adapter: FplApiAdapter, held: dict[str, Any] | None
+) -> None:
+    """The rivals' histories are the daily ingest's, so the capture conform reads can predate a
+    gameweek's finishing, while today's bootstrap says it is finished. A row is a finished
+    gameweek's total only if FPL had finished it when the history was captured; otherwise its
+    total is unknown, so that team goes without a live figure next gameweek, said, rather than
+    standing on a total from mid-gameweek. Its moves were fixed at the deadline, and stay."""
+    tables, warnings = _conform(adapter, held=held)
+
+    weeks = validate(Table.LEAGUE_GAMEWEEK, tables["league_gameweek"])
+    assert sorted(weeks["entry_id"]) == [7, 8]
+    assert set(weeks["gameweek"]) == {2}
+    assert weeks["total_points"].isna().all()
+    row = weeks.iloc[0]
+    assert (row["transfers"], row["transfers_cost"], row["chip"]) == (3, 8, "wildcard")
     assert warnings == []
 
 

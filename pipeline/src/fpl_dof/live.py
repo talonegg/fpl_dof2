@@ -237,7 +237,9 @@ def score_team(tables: LiveTables, gameweek: int, entry_id: int, rules: GameRule
 def last_total(tables: LiveTables, gameweek: int, entry_id: int) -> int | None:
     """The team's season total after the gameweek before ``gameweek``: 0 before GW1, else the
     game's own figure from its per-gameweek history, the owner's season log first and then the
-    league's; ``None`` when neither has the row.
+    league's; ``None`` when neither has the row. The owner first because he is in his league too,
+    and his own history is fetched on every fast firing where the league's is the daily ingest's:
+    where the two disagree, his is the later word.
 
     Not FPL's total in the picks capture less the gameweek's points: whether that total already
     counts this gameweek's points, or its hit, depends on the moment the capture was taken, and
@@ -250,7 +252,9 @@ def last_total(tables: LiveTables, gameweek: int, entry_id: int) -> int | None:
         return 0
     for frame in (tables.entry_gameweeks, tables.league_gameweeks):
         rows = _rows(frame, previous)
-        if rows is None:
+        if rows is None or "total_points" not in rows.columns:
+            # A league history written before LIVE-03 carries no totals: unknown, so this team
+            # degrades alone rather than failing the read (DP-15).
             continue
         totals = rows.loc[rows["entry_id"] == entry_id, "total_points"].dropna()
         if not totals.empty:

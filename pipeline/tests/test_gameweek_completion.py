@@ -35,12 +35,15 @@ import yaml
 
 from conftest import FIXTURES, TEST_ENTRY_ID
 from fpl_dof.cli import EXIT_OK, main
+from fpl_dof.config.models import HttpConfig, RateLimitConfig, RetryConfig
 from fpl_dof.frames import as_int
 from fpl_dof.gameweek import Due, Phase, SilverTables, season_states
 from fpl_dof.schedule_cli import main as schedule_main
 from fpl_dof.silver.store import read_table, write_table
 from fpl_dof.silver.tables import Table
 from fpl_dof.sources.base import IngestRequest
+from fpl_dof.sources.bronze import BronzeStore
+from fpl_dof.sources.fetch import Fetcher
 from fpl_dof.sources.fpl.adapter import FplApiAdapter
 from fpl_dof.stages import week as week_stage
 from fpl_dof.week.ledger import record_advice, record_predictions
@@ -551,19 +554,11 @@ def _ingested(capsys: pytest.CaptureFixture[str], data_dir: Path) -> dict[str, A
     return metrics
 
 
-def test_a_gameweek_checked_after_the_next_deadline_is_evaluated_on_its_final_rows(
-    tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
-    isolated_env: dict[str, str],
-    world: World,
-    api: respx.MockRouter,
-    capsys: pytest.CaptureFixture[str],
-) -> None:
-    """The sweep keys on the gameweek FPL checked, not on the live one. GW1 is checked after GW2's
-    deadline, so the live gameweek is GW2, unchecked; the fast ingest that sees GW1's check still
-    fetches the per-player rows that predate it, once, and the run its `results` change starts
-    evaluates GW1 on the corrected figure rather than storing the pre-check one for good. A fast
-    firing after that walks no summary at all."""
+def _advised_then_finished(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_env: dict[str, str], world: World
+) -> Path:
+    """A and B of the module docstring: GW1 advised before its deadline, then a full ingest once
+    FPL has marked it finished, not checked. The data root."""
     monkeypatch.setenv("FPL_DOF_CONFIG_FILE", isolated_env["FPL_DOF_CONFIG_FILE"])
     monkeypatch.setenv("FPL_DOF_TEAM_ID", str(TEST_ENTRY_ID))
     _configure(world, Path(isolated_env["FPL_DOF_CONFIG_FILE"]))
@@ -582,6 +577,24 @@ def test_a_gameweek_checked_after_the_next_deadline_is_evaluated_on_its_final_ro
     world.stage = "finished"
     monkeypatch.setenv("FPL_DOF_AS_OF", FINISHED)
     assert main([*cli, "ingest", "--force-refresh"]) == EXIT_OK
+    return data_dir
+
+
+def test_a_gameweek_checked_after_the_next_deadline_is_evaluated_on_its_final_rows(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    isolated_env: dict[str, str],
+    world: World,
+    api: respx.MockRouter,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """The sweep keys on the gameweek FPL checked, not on the live one. GW1 is checked after GW2's
+    deadline, so the live gameweek is GW2, unchecked; the fast ingest that sees GW1's check still
+    fetches the per-player rows that predate it, once, and the run its `results` change starts
+    evaluates GW1 on the corrected figure rather than storing the pre-check one for good. A fast
+    firing after that walks no summary at all."""
+    data_dir = _advised_then_finished(tmp_path, monkeypatch, isolated_env, world)
+    cli = ["--data-dir", str(data_dir)]
 
     world.stage = "checked"
     monkeypatch.setenv("FPL_DOF_AS_OF", LATE_CHECK)
@@ -608,3 +621,87 @@ def test_a_gameweek_checked_after_the_next_deadline_is_evaluated_on_its_final_ro
     assert main([*cli, "ingest", "--fast"]) == EXIT_OK
     assert _summary_requests(api) == swept
     assert _ingested(capsys, data_dir)["fpl.element_summary"] == 0
+
+
+#: Thirty minutes before GW2's deadline (28 August 17:30): inside the 45-minute freeze (R-09).
+IN_FREEZE = "2026-08-28T17:00:00+00:00"
+#: The slow ingest's daily refresh the next morning, and the `schedule` run it dispatches.
+DAILY_REFRESH = "2026-08-29T03:00:00+00:00"
+
+
+def test_a_check_inside_the_freeze_is_evaluated_by_the_next_run_outside_it(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    isolated_env: dict[str, str],
+    world: World,
+    api: respx.MockRouter,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """FPL checks GW1 inside GW2's freeze. The `results` run its change dispatches is refused,
+    the freeze binding every trigger, and no later fast firing moves `results` again: the change
+    is spent. The gameweek is still Finished and unevaluated, so it is due EVALUATE in any run
+    (ORC-05): the next one outside the freeze, at the latest the daily refresh's `schedule` run,
+    evaluates it on the rows FPL checked."""
+    data_dir = _advised_then_finished(tmp_path, monkeypatch, isolated_env, world)
+    cli = ["--data-dir", str(data_dir)]
+
+    def guard(now: str, *args: str) -> str:
+        capsys.readouterr()
+        argv = ["--data-dir", str(data_dir), "--now", now, "--decide", "pipeline", *args]
+        assert schedule_main(argv) == 0
+        return capsys.readouterr().out.strip()
+
+    world.stage = "checked"
+    monkeypatch.setenv("FPL_DOF_AS_OF", IN_FREEZE)
+    assert main([*cli, "ingest", "--fast"]) == EXIT_OK
+    changes = json.loads((data_dir / "runs" / "changes.json").read_text(encoding="utf-8"))
+    assert changes["kinds"] == ["results"]
+    sent = ["--trigger", "change", "--kinds", "results", "--gameweek", str(changes["gameweek"])]
+    assert guard(IN_FREEZE, *sent) == "false", "the freeze binds a results run too"
+
+    monkeypatch.setenv("FPL_DOF_AS_OF", "2026-08-28T18:00:00+00:00")
+    assert main([*cli, "ingest", "--fast"]) == EXIT_OK
+    changes = json.loads((data_dir / "runs" / "changes.json").read_text(encoding="utf-8"))
+    assert changes["kinds"] == [], "the check's change is spent"
+    assert not _evaluation_path(data_dir).exists()
+
+    monkeypatch.setenv("FPL_DOF_AS_OF", DAILY_REFRESH)
+    assert main([*cli, "ingest"]) == EXIT_OK
+    assert guard(DAILY_REFRESH, "--trigger", "schedule") == "true"
+    monkeypatch.setenv("FPL_DOF_TRIGGER", "schedule")
+    capsys.readouterr()
+    assert main([*cli, "run", "--only", *RUN]) == EXIT_OK
+    [run_id] = re.findall(r"run (\S+) succeeded", capsys.readouterr().out)
+    evaluation = json.loads(_evaluation_path(data_dir).read_text(encoding="utf-8"))
+    assert (evaluation["gameweek"], evaluation["run_id"]) == (GW, run_id)
+    assert evaluation["log"]["score"]["points"] == CHECKED_POINTS
+
+
+def test_a_fresh_bronze_whose_first_capture_shows_the_check_sweeps_once(
+    tmp_path: Path, world: World, api: respx.MockRouter
+) -> None:
+    """With no bootstrap capture before it there is no telling when the check came, so the first
+    capture counts as new and the fast ingest sweeps the summaries (`_newly_checked`): a sweep of
+    cached ones is cheap, and a missed one is an evaluation stored on the rows before the check.
+    The firing after it reads that capture, sees the check is not new, and fetches none."""
+    world.stage = "checked"
+    http = HttpConfig(
+        rate_limit=RateLimitConfig(requests_per_second=1000.0),
+        retry=RetryConfig(max_attempts=1, backoff_base_seconds=0.001),
+    )
+    players = len(world.bootstrap["elements"])
+
+    def fast(at: str) -> IngestRequest:
+        return IngestRequest(run_id="r", now=pd.Timestamp(at).to_pydatetime(), fast_path_only=True)
+
+    bronze = BronzeStore(tmp_path / "bronze")
+    with Fetcher(config=http, bronze=bronze, run_id="r", sleep=lambda _s: None) as fetcher:
+        adapter = FplApiAdapter(fetcher)
+        report = adapter.ingest(fast(CHECKED))
+        assert report.resources["element_summary"] == players
+        assert _summary_requests(api) == players, "swept, once"
+
+        report = adapter.ingest(fast("2026-08-25T13:00:00+00:00"))
+        assert len(list(bronze.resource_dir("fpl", "bootstrap_static").rglob("*.json.gz"))) == 2
+        assert report.resources["element_summary"] == 0
+        assert _summary_requests(api) == players

@@ -46,7 +46,7 @@ from fpl_dof.publish.live import build_live
 from fpl_dof.quality.gates import GateOutcome, GateSeverity, run_gates
 from fpl_dof.quality.rules import GATES
 from fpl_dof.rules.models import GameRules
-from fpl_dof.silver.store import read_table, write_table
+from fpl_dof.silver.store import read_table, table_path, write_table
 from fpl_dof.silver.tables import Table, validate
 from fpl_dof.stages import publish as publish_stage
 from fpl_dof.stages import week as week_stage
@@ -427,6 +427,46 @@ def test_the_live_total_stands_on_each_teams_history_and_takes_the_hit_once(
     owner, rival = _team(payload, OWNER)["live"], _team(payload, RIVAL)["live"]
     assert (owner["last_total"], owner["live_total"]) == (310, 310 + 27)
     assert (rival["last_total"], rival["points"], rival["live_total"]) == (280, 33, 280 + 33)
+
+
+def test_the_owners_own_history_wins_over_the_leagues_when_they_disagree(
+    game_rules: GameRules,
+) -> None:
+    """The owner is in his league, so the league's history holds a row for him too. His own
+    season log is fetched on every fast firing, the league's only by the daily ingest, so where
+    the two disagree (FPL corrected his total since the league's was captured) his own is the one
+    his live total stands on."""
+    league = pd.concat(
+        [_league_gameweeks(), _league_gameweeks(290).assign(entry_id=OWNER)], ignore_index=True
+    )
+    tables = _without(_tables(), entry_gameweeks=_entry_gameweeks(310), league_gameweeks=league)
+    assert last_total(tables, GW, OWNER) == 310
+    assert last_total(_without(tables, entry_gameweeks=None), GW, OWNER) == 290
+    payload = _build(tables, game_rules, SATURDAY_EVENING)
+    owner = _team(payload, OWNER)["live"]
+    assert (owner["last_total"], owner["live_total"]) == (310, 310 + 27)
+
+
+def test_a_league_history_written_before_the_totals_still_reads_and_its_teams_degrade_alone(
+    config: Config, layout: DataLayout, game_rules: GameRules, contract: Contract
+) -> None:
+    """A ``league_gameweek`` file from before LIVE-03 has no ``total_points``, and is not rewritten
+    while the league is unreadable. It still reads, the totals unknown: each rival in it goes
+    without a live figure and says why, the owner's stands, and no silver rebuild is needed."""
+    season = config.rules.season
+    path = table_path(layout.silver, season, Table.LEAGUE_GAMEWEEK)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    _league_gameweeks().drop(columns="total_points").to_parquet(path, index=False)
+
+    old = read_table(layout.silver, season, Table.LEAGUE_GAMEWEEK)
+    assert "total_points" not in old.columns
+    tables = _without(_tables(), league_gameweeks=old)
+    assert last_total(tables, GW, RIVAL) is None
+    payload = _build(tables, game_rules, SATURDAY_EVENING)
+    contract.validate("live", payload)
+    rival = _team(payload, RIVAL)
+    assert rival["live"] is None and "total after gameweek 4" in str(rival["reason"])
+    assert _team(payload, OWNER)["live"]["live_total"] == 327
 
 
 def test_a_team_without_a_total_after_the_gameweek_before_degrades_alone(
