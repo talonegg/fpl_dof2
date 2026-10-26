@@ -146,4 +146,5 @@ by hand.
 | [DL-96](DL-96.md) | 2026-10-24 | Accepted | The re-rank's percentile is taken without the horizon discount |
 | [DL-97](DL-97.md) | 2026-10-24 | Accepted | "As if played" is today's models replayed in-sample on the season's past gameweeks |
 | [DL-98](DL-98.md) | 2026-10-24 | Accepted | E2 runs live in shadow, one gameweek at a time, to earn its six shadow gameweeks |
+| [DL-99](DL-99.md) | 2026-10-26 | Proposed | R1.4.3 refreshes the app after each matchday and at gameweek completion, with provisional points and a live l… |
 <!-- index:end -->
