@@ -36,6 +36,7 @@ import yaml
 from conftest import FIXTURES, TEST_ENTRY_ID
 from fpl_dof.cli import EXIT_OK, main
 from fpl_dof.config.models import HttpConfig, RateLimitConfig, RetryConfig
+from fpl_dof.factory.registry import published_strategies
 from fpl_dof.frames import as_int
 from fpl_dof.gameweek import Due, Phase, SilverTables, season_states
 from fpl_dof.schedule_cli import main as schedule_main
@@ -45,6 +46,7 @@ from fpl_dof.sources.base import IngestRequest
 from fpl_dof.sources.bronze import BronzeStore
 from fpl_dof.sources.fetch import Fetcher
 from fpl_dof.sources.fpl.adapter import FplApiAdapter
+from fpl_dof.stages import publish as publish_stage
 from fpl_dof.stages import week as week_stage
 from fpl_dof.week.ledger import record_advice, record_predictions
 from squads import legal_declaration
@@ -295,6 +297,21 @@ def _json_response(build: Callable[[], Any]) -> Callable[[httpx.Request], httpx.
     return lambda _request: httpx.Response(200, json=build())
 
 
+#: The models these walks advise and evaluate: the champion, which plans, the engine and one that
+#: advises a gameweek at a time. What is asserted is the evaluation, the log and ``live.json``,
+#: which every model reaches the same way; the other published models only multiplied each run's
+#: forecasts and solves (ORC-09's test budget).
+WALKED = {"c3", "c3_e2", "engine"}
+
+
+@pytest.fixture(autouse=True)
+def _two_models(monkeypatch: pytest.MonkeyPatch) -> None:
+    walked = tuple(s for s in published_strategies() if s.id in WALKED)
+    assert {s.id for s in walked} == WALKED
+    for stage in (week_stage, publish_stage):
+        monkeypatch.setattr(stage, "published_strategies", lambda: walked)
+
+
 @pytest.fixture
 def world() -> World:
     return World()
@@ -358,6 +375,9 @@ def _configure(world: World, config_file: Path) -> None:
     GW1 picks are."""
     override = yaml.safe_load(config_file.read_text(encoding="utf-8"))
     override["quality"]["expected_fixtures"] = 14
+    # Two gameweeks of plan, not five: nothing here reads the plan, and its solves were most of
+    # each run's decide time (ORC-09's test budget).
+    override.setdefault("decision", {})["horizon"] = {"gameweeks": 2}
     override["entry"] = {"declared_squad": [p.model_dump() for p in world.squad]}
     config_file.write_text(yaml.safe_dump(override), encoding="utf-8")
 
