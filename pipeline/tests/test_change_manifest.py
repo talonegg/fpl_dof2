@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import copy
 import datetime as dt
+import functools
 import json
 from collections.abc import Callable
 from pathlib import Path
@@ -262,8 +263,13 @@ def _as_fetched(matches: list[dict[str, Any]], at: dt.datetime) -> bytes:
     return json.dumps(payload).encode()
 
 
+@functools.cache
 def _bootstrap_for(finished: bool, data_checked: bool) -> bytes:
+    """The game-state capture a firing sees: only the gameweek's two flags vary, so each pair is
+    built once, and a few players stand in for the squad list the results kind never reads (an
+    hourly walk over days writes this ~100 times, ORC-09's test budget)."""
     payload = copy.deepcopy(_json("bootstrap_static.json"))
+    payload["elements"] = payload["elements"][:3]
     payload["events"] = [
         {
             "id": 9,

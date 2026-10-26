@@ -26,7 +26,7 @@ def test_a_local_unix_socket_is_not_the_network(tmp_path: Path) -> None:
 
 
 def test_the_shards_partition_the_suite() -> None:
-    """ORC-09: CI's two shards together run every test module exactly once."""
+    """ORC-09: CI's shards together run every test module exactly once, for any count it uses."""
     modules = [path.name for path in Path(__file__).parent.glob("test_*.py")]
     for count in (1, 2, 3):
         for module in modules:
