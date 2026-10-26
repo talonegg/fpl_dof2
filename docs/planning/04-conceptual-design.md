@@ -221,8 +221,10 @@ Under `paths.DataLayout`; what persists between CI runs is
 Declarative gates (`GATES` in `quality/rules.py`, run by `quality/gates.py`) in four classes:
 **schema** (no player without position or price); **range** (prices, ownership, FPL difficulty);
 **referential** (clubs exist for players and fixtures; history references players; the crosswalk is
-one-to-one, for this season, under the unmatched threshold); **freshness and volume** (player, club
-and fixture counts, player count against the previous run, snapshot age, a deadline still ahead).
+one-to-one, for this season, under the unmatched threshold; on a finished gameweek with FPL's
+final figures, the realised scorer's points equal FPL's for every fetched team, a warning that names
+each team that differs, LIVE-03); **freshness and volume** (player, club and fixture counts, player
+count against the previous run, snapshot age, a deadline still ahead).
 
 `ERROR` blocks publication (Invariant 7); `WARN` publishes and shows on `/health`; `INFO` is unused.
 Every gate names the requirement it protects; thresholds are configuration. Gates read the run's

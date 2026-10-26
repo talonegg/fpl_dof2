@@ -324,7 +324,7 @@ flowchart LR
 
 The single most important seam in the system: the boundary between DL-04's two languages (DP-04).
 
-- **One definition.** `contracts/v1/*.schema.json` — fifteen schemas, all `additionalProperties:
+- **One definition.** `contracts/v1/*.schema.json` — sixteen schemas, all `additionalProperties:
   false`. `publish/contract.py` holds the artefact registry (`ARTEFACTS`) and **validates every
   artefact before writing it**; each entry also says whether every publication writes it
   (`required`) and whether the app warms it for offline use (`warm`). `fpl-dof contract types`
@@ -341,8 +341,12 @@ The single most important seam in the system: the boundary between DL-04's two l
   `models_history` (the latest archive season the weekly backtest simulated, from
   `ledger:models_history/`, ORC-06), and `as_if_played` (today's published models replayed
   in-sample on the live season, `kind` `in_sample`, in the same schema, from
-  `ledger:as_if_played/`, ORC-13, DL-97). Every one goes through `Contract.write`. All JSON: ~700 rows
-  needs no query engine.
+  `ledger:as_if_played/`, ORC-13, DL-97), and `live` (the gameweek in play, from its first kick-off
+  until the next deadline: each fixture's state, the matchdays done and to come, and the owner's
+  and every league team's provisional points from the one realised scorer, live total and rank,
+  with FPL's own figures and whether the scorer matches them; absent otherwise; provisional, never
+  read back into the ledger; `publish/live.py` over `fpl_dof/live.py`, LIVE-04, DL-99). Every one
+  goes through `Contract.write`. All JSON: ~700 rows needs no query engine.
 - **Versioned.** `/data/v1/`. A breaking change bumps to `v2` and publishes both during the transition.
 - **Behaviour pinned in both languages** by shared corpora in `contracts/conformance/`, read by pytest
   and vitest and never copied (DL-39): squad legality, and the XI, armbands and bench order

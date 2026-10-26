@@ -31,7 +31,7 @@ CONTRACT_VERSION = 1
 #: additive change** (a new optional field, a new artefact): the schemas' ``const`` stays the major,
 #: so an old app still accepts the data, and an app needing a newer minor than the data carries
 #: shows a warning and renders what it can. Reset to 1 when the major is bumped.
-CONTRACT_MINOR = 7
+CONTRACT_MINOR = 8
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,6 +87,11 @@ ARTEFACTS: dict[str, Artefact] = {
     # The strategy registry as published (MOD-03): every strategy's id, label, role and digest,
     # generated from config/strategies/.
     "strategies": Artefact("strategies.schema.json", warm=True),
+    # The gameweek in play (LIVE-04, DL-99): provisional points for the owner and each rival.
+    # Absent preseason and until the gameweek kicks off, so not required; warmed, because it is
+    # what Home and League show all weekend, and a reader who loses signal at the ground still
+    # has the last matchday's figures.
+    "live": Artefact("live.schema.json", warm=True),
 }
 
 

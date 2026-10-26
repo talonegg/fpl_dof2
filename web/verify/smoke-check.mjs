@@ -39,9 +39,9 @@ const EXPECTED_CONTRACT_VERSION = CONTRACT_VERSION;
  * Artefacts every successful publication writes, so any one of them missing is a real fault: those the
  * generated registry marks `required` (WEB-04, `ARTEFACTS` in publish/contract.py).
  *
- * `week.json`, `plan.json` and `league.json` are not required: each is legitimately missing in a
- * normal published state (DL-20, DL-40), and a smoke test that failed on them would fail every
- * deploy made before the first gameweek is scored.
+ * `week.json`, `plan.json`, `league.json` and `live.json` are not required: each is legitimately
+ * missing in a normal published state (DL-20, DL-40, LIVE-04), and a smoke test that failed on them
+ * would fail every deploy made before the first gameweek is scored.
  */
 const REQUIRED_ARTEFACTS = Object.keys(ARTEFACTS).filter((key) => ARTEFACTS[key].required);
 
