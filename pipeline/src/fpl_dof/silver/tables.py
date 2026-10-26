@@ -641,8 +641,12 @@ class LeagueGameweekSchema(pa.DataFrameModel):
     transfers: Series[int] = pa.Field(ge=0)
     transfers_cost: Series[int] = pa.Field(ge=0)
     chip: Series[str] = pa.Field(nullable=True)
-    total_points: Series[int] = pa.Field(nullable=True)
-    """The season total after the gameweek, net of every hit; null when his history has no row."""
+    # Optional so a table written before LIVE-03 still reads (one the transform has not rewritten
+    # because the league was unreadable since); absent means not known, and that team goes
+    # without a live figure, said, rather than the read failing.
+    total_points: Series[int] | None = pa.Field(nullable=True)
+    """The season total after the gameweek, net of every hit; null when his history has no row,
+    or none that FPL had finished when the history was captured."""
 
     class Config:
         strict = True

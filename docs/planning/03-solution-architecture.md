@@ -448,7 +448,13 @@ LIVE-07), the `results` run it starts evaluates the gameweek on its final rows, 
 ingest. It keys on the gameweek checked, not the live one, so a gameweek FPL checks after the next
 deadline (a Monday match, a Tuesday deadline) is swept too. Every other fast firing leaves the
 summaries alone: it reads the bootstrap capture before its own to see the check is not new, and
-neither fetches nor walks them. The warning gate `player_gameweek_current` flags any player whose club played that gameweek but who
+neither fetches nor walks them. With no capture before its own (a fresh bronze), the check counts
+as new. The same firing refetches each published rival's history once, as fresh as its capture,
+otherwise the slow ingest's daily read, so the totals FPL corrected at the check are what the next
+gameweek's live totals stand on (LIVE-04): one request a rival, within `league_rival_limit`. A
+rival's history row counts as a finished gameweek's total only if the bootstrap capture bronze held
+when that history was captured shows the gameweek finished; otherwise the total is unknown and
+that team goes without a live figure, said. The warning gate `player_gameweek_current` flags any player whose club played that gameweek but who
 has no row for it.
 
 **2. An ingest starts a pipeline run only when something material moved** (ORC-02,
@@ -470,8 +476,10 @@ is `gameweek.py` `matchdays_done_since`, pure and source-free; each capture's ti
 `fetched_at`. Comparing the restored capture with the new one, rather than reading the clock, moves
 each matchday once, at whichever firing first sees it done, however many GitHub drops (D-35). A
 `results` run is a full run that deploys; the guard lets it through for a gameweek in play and with
-no gameweek Open (the season's last weekend), and the freeze still binds it. The run banner names it
-a results refresh.
+no gameweek Open (the season's last weekend), and the freeze still binds it: a check inside the
+freeze spends its change on a refused run, and the gameweek, Finished and unevaluated, is evaluated
+by the next run outside the freeze, whatever started it (ORC-05). The run banner names it a results
+refresh.
 
 **Scheduling caveat (R-09):** scheduled runs are best-effort and can be delayed under platform load.
 The day-before run and the deadline guard exist so a delayed cron is never the reason a deadline is

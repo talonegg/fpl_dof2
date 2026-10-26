@@ -352,8 +352,9 @@ class FplApiAdapter(SourceAdapter):
 
     def __init__(self, fetcher: Fetcher, options: SourceOverride | None = None) -> None:
         super().__init__(fetcher, options)
-        self._checked_at: dict[Path, frozenset[int]] = {}
-        """The gameweeks each bootstrap capture shows data-checked, read once per capture."""
+        self._events: dict[Path, tuple[frozenset[int], frozenset[int]]] = {}
+        """The gameweeks each bootstrap capture shows finished, and data-checked, read once per
+        capture."""
 
     # --- fetch helpers -------------------------------------------------------------------
 
@@ -675,9 +676,19 @@ class FplApiAdapter(SourceAdapter):
         )
         return data
 
-    def fetch_entry_history(self, entry_id: int, request: IngestRequest) -> dict[str, Any]:
+    def fetch_entry_history(
+        self,
+        entry_id: int,
+        request: IngestRequest,
+        *,
+        stale_before: dt.datetime | None = None,
+    ) -> dict[str, Any]:
         data: dict[str, Any] = self._fetch_resource(
-            "entry_history", f"entry/{entry_id}/history/", str(entry_id), request
+            "entry_history",
+            f"entry/{entry_id}/history/",
+            str(entry_id),
+            request,
+            stale_before=stale_before,
         )
         return data
 
@@ -727,21 +738,31 @@ class FplApiAdapter(SourceAdapter):
         a gameweek was checked; so a run on any later day stamps a capture as it was (DP-11). A
         capture with no bootstrap before it cannot be shown final, and is not.
         """
+        return gameweek in self._events_at(snapshot)[1]
+
+    def _finished_at(self, snapshot: Snapshot) -> frozenset[int]:
+        """The gameweeks FPL had marked finished when ``snapshot`` was captured, read the way
+        :meth:`_settled` reads the check; none when no bootstrap capture came before it."""
+        return self._events_at(snapshot)[0]
+
+    def _events_at(self, snapshot: Snapshot) -> tuple[frozenset[int], frozenset[int]]:
+        """The gameweeks finished, and finished and data-checked, in the bootstrap capture bronze
+        held when ``snapshot`` was taken: both empty when it held none."""
         bootstrap = self.fetcher.bronze.latest(
             self.name, "bootstrap_static", "all", as_of=snapshot.meta.fetched_at
         )
         if bootstrap is None:
-            return False
-        checked = self._checked_at.get(bootstrap.path)
-        if checked is None:
+            return frozenset(), frozenset()
+        flags = self._events.get(bootstrap.path)
+        if flags is None:
             data = self._json(bootstrap.read_bytes(), resource="bootstrap_static", key="all")
-            checked = frozenset(
-                int(event["id"])
-                for event in data.get("events") or []
-                if event.get("finished") and event.get("data_checked")
+            events = [event for event in data.get("events") or [] if event.get("finished")]
+            flags = (
+                frozenset(int(event["id"]) for event in events),
+                frozenset(int(event["id"]) for event in events if event.get("data_checked")),
             )
-            self._checked_at[bootstrap.path] = checked
-        return gameweek in checked
+            self._events[bootstrap.path] = flags
+        return flags
 
     def _fresh_from(
         self,
@@ -1529,13 +1550,22 @@ class FplApiAdapter(SourceAdapter):
         """One rival's per-gameweek history and his transfers for ``gameweek``, from the public
         entry endpoints: a row for ``gameweek`` and each of the ``finished`` ones his history has.
 
+        Finished when the history was captured, too: the rivals' histories are the daily
+        ingest's, so the capture read here can predate a gameweek's finishing, and its row for
+        that gameweek is then the total so far. So only a gameweek the bootstrap capture held at
+        that moment shows finished (:meth:`_finished_at`) is read as one; any other is unknown
+        (LIVE-04), as :meth:`_settled` reads the check.
+
         The fetch checks each payload's shape, not its rows, so a malformed row is raised here as
         a contract error: the callers then degrade only this team, as for a failed fetch (DP-15).
         """
-        history = self.fetch_entry_history(entry_id, request)
+        history, capture = self._capture(
+            "entry_history", f"entry/{entry_id}/history/", str(entry_id), request
+        )
         transfers = self.fetch_entry_transfers(entry_id, request)
+        then = set(finished) & self._finished_at(capture)
         try:
-            return self._read_rival_moves(history, transfers, gameweek, finished)
+            return self._read_rival_moves(cast(dict[str, Any], history), transfers, gameweek, then)
         except (KeyError, ValueError, TypeError) as exc:
             raise SourceContractError(
                 f"malformed history or transfers row: {exc!r}",
@@ -1554,13 +1584,14 @@ class FplApiAdapter(SourceAdapter):
         """His row for ``gameweek`` (zeros and no total when his history has none) and for each
         finished gameweek his history has: the total after it is what the gameweek after it
         stands on live (LIVE-03). Only finished ones, as the owner's season log: the row for the
-        gameweek in play moves with every kick-off."""
+        gameweek in play moves with every kick-off. So ``gameweek``'s own row, whose moves were
+        fixed at its deadline, carries its total only when it is one of the ``finished``."""
         current = {int(r["event"]): r for r in history.get("current") or []}
         chips = {int(c["event"]): str(c["name"]) for c in history.get("chips") or []}
 
         def row(event: int) -> dict[str, Any]:
             found = current.get(event) or {}
-            total = found.get("total_points")
+            total = found.get("total_points") if event in finished else None
             return {
                 "gameweek": event,
                 "transfers": int(found.get("event_transfers") or 0),
@@ -1816,7 +1847,14 @@ class FplApiAdapter(SourceAdapter):
             "league_standings", request, in_play=live is not None
         ):
             report.resources.update(
-                self._ingest_league(request.league_id, bootstrap, request, report, live)
+                self._ingest_league(
+                    request.league_id,
+                    bootstrap,
+                    request,
+                    report,
+                    live,
+                    checked_from=capture.meta.fetched_at if checked else None,
+                )
             )
 
         if request.entry_id is not None:
@@ -1843,6 +1881,8 @@ class FplApiAdapter(SourceAdapter):
         request: IngestRequest,
         report: IngestReport,
         live: _LiveGameweek | None = None,
+        *,
+        checked_from: dt.datetime | None = None,
     ) -> dict[str, int]:
         """The configured mini-league: its table, and the squads of the entries near the top.
 
@@ -1850,6 +1890,12 @@ class FplApiAdapter(SourceAdapter):
         entries read is a configured budget rather than "everyone in the league" — a public league
         can hold hundreds of thousands of them. The last finished gameweek's squads and moves are
         the full cadence's; the live gameweek's squads are fetched on either cadence, once a team.
+
+        ``checked_from`` is the fetch time of the bootstrap capture that is the first to show a
+        gameweek data-checked (LIVE-07's `_newly_checked`). Then each rival's history, otherwise
+        the daily ingest's, is fetched once more on either cadence, as fresh as that capture: the
+        totals FPL corrected at the check are what the next gameweek's live totals stand on
+        (LIVE-04). One request a rival, within ``league_rival_limit``.
         """
         counts: dict[str, int] = {}
         fresh = (
@@ -1879,6 +1925,17 @@ class FplApiAdapter(SourceAdapter):
                         f"no picks for league entry {entry_id} in gameweek {live.gameweek}: {exc}"
                     )
             counts["league_live_picks"] = picked
+
+        if checked_from is not None:
+            refetched = 0
+            for entry_id in rivals:
+                try:
+                    self.fetch_entry_history(entry_id, request, stale_before=checked_from)
+                    refetched += 1
+                except SourceError as exc:
+                    # This team's total waits for the daily ingest; every other one is current.
+                    report.warnings.append(f"no history for league entry {entry_id}: {exc}")
+            counts["league_entry_history"] = refetched
 
         gameweek = _latest_finished_gameweek(bootstrap)
         if gameweek is None or not self.wants("league_standings", request):
