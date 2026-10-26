@@ -88,7 +88,8 @@ A case that the scorer cannot reproduce is a failing test, not an expectation to
 way through a gameweek. The cases tagged `constructed` take one real case (`from`) and rewind some
 of its fixtures to unfinished, and their `expected` is the in-play rule worked by hand: a starter or
 captain yet to play keeps his place and the armband, a blank is substituted at once, a substitute
-yet to play cannot come on. Each says why in `why`. One constructed case has every fixture finished
+yet to play cannot come on and holds the place against those below him while he could enter (the
+plan's LIVE-03 states the rule). Each says why in `why`. One constructed case has every fixture finished
 and keeps FPL's own answer for the case it is from. The builder writes no constructed case and a
 rebuild keeps them.
 

@@ -87,14 +87,25 @@ def test_the_scorer_reproduces_fpl(case: dict[str, Any], game_rules: GameRules) 
         assert scored.captain_id == expected["armband"]
 
 
-def test_the_corpus_builder_reads_the_transfer_rules_from_config() -> None:
-    """The builder's free transfers come from the rules config: the cap, the weekly allowance and
-    the chips that keep the bank (Invariant 2), so a rule change reaches the corpus input."""
+def _builder() -> Any:
     path = CORPUS.parents[3] / "scripts" / "realised_corpus.py"
     spec = importlib.util.spec_from_file_location("realised_corpus", path)
     assert spec and spec.loader
     builder = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(builder)
+    return builder
+
+
+def test_the_corpus_is_what_the_builder_writes() -> None:
+    """The hand-written constructed cases are in the builder's own layout, so a rebuild, which
+    keeps them, rewrites the file byte for byte apart from what FPL changed."""
+    assert _builder().render(CASES) == CORPUS.read_text(encoding="utf-8")
+
+
+def test_the_corpus_builder_reads_the_transfer_rules_from_config() -> None:
+    """The builder's free transfers come from the rules config: the cap, the weekly allowance and
+    the chips that keep the bank (Invariant 2), so a rule change reaches the corpus input."""
+    builder = _builder()
     history = {
         "chips": [{"event": 3, "name": "wildcard"}],
         "current": [{"event": gw, "event_transfers": 0} for gw in range(1, 6)],
@@ -116,7 +127,11 @@ def test_the_corpus_covers_what_the_story_names() -> None:
         "captain-yet-to-play",
         "blank-in-play",
         "double-gameweek-in-play",
+        "unfinished-fixture-first",
         "substitute-yet-to-play",
+        "substitute-did-not-play",
+        "substitute-yet-to-play-formation-skip",
+        "reserve-goalkeeper-yet-to-play",
     }
     assert in_play <= tags  # LIVE-03
     gw4 = next(c for c in CASES if c["name"] == "owner-gw4")
@@ -446,10 +461,62 @@ def test_a_goalkeeper_yet_to_play_keeps_his_place(game_rules: GameRules) -> None
     assert scored.autosubs_in == () and 1 in scored.final_starting
 
 
-def test_a_substitute_yet_to_play_cannot_come_on(game_rules: GameRules) -> None:
+def test_a_substitute_yet_to_play_holds_the_place_against_those_below_him(
+    game_rules: GameRules,
+) -> None:
+    """R1 of the LIVE-03 verification: projecting 14 on now would be undone if 13 then plays,
+    since FPL takes the first in bench order who played. So nobody comes on until 13's gameweek
+    is over, and then it is whichever FPL would choose."""
     perfs = _team(p2=_perf(2, Position.DEF, 0, 0), p13=_yet(13, Position.DEF))
+    waiting = score_lineup(_XI, perfs, game_rules)
+    assert waiting.autosubs_in == () and 2 in waiting.final_starting
+    assert waiting.points_before_hits == 10 * 2 + 2 * (game_rules.chips.captain_multiplier - 1)
+    played = score_lineup(_XI, {**perfs, 13: _perf(13, Position.DEF, 90, 2)}, game_rules)
+    assert (played.autosubs_out, played.autosubs_in) == ((2,), (13,))
+    missed = score_lineup(_XI, {**perfs, 13: _perf(13, Position.DEF, 0, 0)}, game_rules)
+    assert (missed.autosubs_out, missed.autosubs_in) == ((2,), (14,))
+
+
+def test_a_substitute_yet_to_play_with_minutes_so_far_comes_on(game_rules: GameRules) -> None:
+    perfs = _team(p2=_perf(2, Position.DEF, 0, 0), p13=_yet(13, Position.DEF, 30, 1))
     scored = score_lineup(_XI, perfs, game_rules)
-    assert (scored.autosubs_out, scored.autosubs_in) == ((2,), (14,))  # 13 waits; 14 played
+    assert (scored.autosubs_out, scored.autosubs_in) == ((2,), (13,))  # he has played: certain
+
+
+def test_a_substitute_whose_gameweek_is_over_without_a_minute_is_passed_over(
+    game_rules: GameRules,
+) -> None:
+    perfs = _team(p2=_perf(2, Position.DEF, 0, 0), p13=_perf(13, Position.DEF, 0, 0))
+    perfs[15] = _yet(15, Position.FWD)  # below 14: holds nothing
+    scored = score_lineup(_XI, perfs, game_rules)
+    assert (scored.autosubs_out, scored.autosubs_in) == ((2,), (14,))
+
+
+def test_a_substitute_yet_to_play_who_could_not_come_on_holds_nothing(
+    game_rules: GameRules,
+) -> None:
+    """In a three-defender XI the midfielder first on the bench can never replace a defender, so
+    his fixture to come decides nothing and the defender behind him comes on now."""
+    xi = Lineup(
+        starting=(1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 15),
+        bench_gkp=12,
+        bench_order=(14, 13, 5),
+        captain=6,
+        vice_captain=7,
+    )
+    perfs = _team(p2=_perf(2, Position.DEF, 0, 0), p14=_yet(14, Position.MID))
+    scored = score_lineup(xi, perfs, game_rules)
+    assert (scored.autosubs_out, scored.autosubs_in) == ((2,), (13,))
+
+
+def test_a_reserve_goalkeeper_yet_to_play_holds_the_goalkeepers_place(
+    game_rules: GameRules,
+) -> None:
+    perfs = _team(p1=_perf(1, Position.GKP, 0, 0), p12=_yet(12, Position.GKP))
+    waiting = score_lineup(_XI, perfs, game_rules)
+    assert waiting.autosubs_in == () and 1 in waiting.final_starting
+    played = score_lineup(_XI, {**perfs, 12: _perf(12, Position.GKP, 90, 3)}, game_rules)
+    assert (played.autosubs_out, played.autosubs_in) == ((1,), (12,))
 
 
 def test_a_captain_yet_to_play_keeps_the_armband_on_his_points_so_far(
@@ -489,6 +556,27 @@ def test_a_double_gameweek_is_complete_only_when_both_fixtures_are_finished(
     scored = score_lineup(_XI, _team(p2=perfs[2], p6=perfs[6], p7=perfs[7]), game_rules)
     assert scored.autosubs_in == () and scored.captain_id == 6
     assert scored.armband_points == 6 * game_rules.chips.captain_multiplier
+
+
+@pytest.mark.parametrize(
+    "flags", [[True, False], [False, True]], ids=["to-come-last", "to-come-first"]
+)
+def test_a_double_gameweek_is_incomplete_whichever_order_its_fixtures_come_in(
+    flags: list[bool],
+) -> None:
+    """R3 of the LIVE-03 verification: a fixture to come in either row keeps the player
+    incomplete, so taking only the last row's flag fails one of these orders."""
+    rows = pd.DataFrame(
+        {
+            "player_id": [2, 2],
+            "position": ["DEF", "DEF"],
+            "minutes": [0, 0],
+            "total_points": [0, 0],
+            "finished": flags,
+        }
+    )
+    assert not performances(rows)[2].complete
+    assert performances(rows.assign(finished=[True, True]))[2].complete
 
 
 def test_without_a_finished_column_every_row_is_finished() -> None:
@@ -543,6 +631,57 @@ def test_nobody_goes_off_or_loses_the_armband_before_his_gameweek_is_over(
     assert scored.vice_used == (
         captain.complete and captain.minutes == 0 and perfs[_XI.vice_captain].minutes > 0
     )
+
+
+#: How far a player's gameweek has got: over with minutes or without, yet to play, playing, blank.
+_STATES = ("played", "did_not_play", "yet_to_play", "playing", "no_fixture")
+_SO_FAR = {"played": 90, "did_not_play": 0, "yet_to_play": 0, "playing": 30}
+
+
+@settings(max_examples=500, deadline=None)
+@given(data=st.data())
+def test_a_substitution_projected_now_is_never_undone_by_the_fixtures_to_come(
+    data: st.DataObject, game_rules: GameRules
+) -> None:
+    """DP-13, R1 of the LIVE-03 verification: for any legal XI, bench order and state of play,
+    play out every fixture still to come with or without minutes, and each substitute projected
+    on now is still brought on in the final scoring. Whom he replaces may change, and a fixture to
+    come may bring more on, but none goes back to the bench.
+
+    Most of an XI plays, so the draw unsettles a few starters and the whole bench: the rule is
+    tried where a substitution is a near thing, not where the bench is used up regardless."""
+    squad = game_rules.squad
+    formation = data.draw(st.sampled_from(squad.legal_formations()), label="formation")
+    xi = [pos for pos in Position for _ in range(formation[pos])]
+    outfield = [p for p in Position if p != Position.GKP]
+    spare = [p for p in outfield for _ in range(squad.composition[p] - formation[p])]
+    shape = [*xi, Position.GKP, *data.draw(st.permutations(spare), label="bench")]
+    size = len(shape)
+    unsettled = data.draw(st.sets(st.sampled_from(range(1, len(xi) + 1)), max_size=4))
+    states = data.draw(st.lists(st.sampled_from(_STATES), min_size=size, max_size=size))
+    plays_later = data.draw(st.lists(st.booleans(), min_size=size, max_size=size))
+    now: dict[int, PlayerPerformance] = {}
+    final: dict[int, PlayerPerformance] = {}
+    for pid, pos in enumerate(shape, start=1):
+        state = states[pid - 1] if pid in unsettled or pid > len(xi) else "played"
+        if state == "no_fixture":
+            continue
+        complete = state in ("played", "did_not_play")
+        minutes = _SO_FAR[state]
+        now[pid] = PlayerPerformance(pid, pos, minutes, minutes // 30, complete)
+        if not complete and plays_later[pid - 1]:
+            minutes += 90
+        final[pid] = PlayerPerformance(pid, pos, minutes, minutes // 30)
+    lineup = Lineup(
+        starting=tuple(range(1, len(xi) + 1)),
+        bench_gkp=len(xi) + 1,
+        bench_order=tuple(range(len(xi) + 2, size + 1)),
+        captain=2,
+        vice_captain=3,
+    )
+    projected = score_lineup(lineup, now, game_rules)
+    played_out = score_lineup(lineup, final, game_rules)
+    assert set(projected.autosubs_in) <= set(played_out.autosubs_in)
 
 
 def _positions() -> dict[int, Position]:
