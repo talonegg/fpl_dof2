@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import json
 import re
+import shutil
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
@@ -33,7 +34,7 @@ import pytest
 import respx
 import yaml
 
-from conftest import FIXTURES, TEST_ENTRY_ID
+from conftest import FIXTURES, TEST_ENTRY_ID, built_once
 from fpl_dof.cli import EXIT_OK, main
 from fpl_dof.config.models import HttpConfig, RateLimitConfig, RetryConfig
 from fpl_dof.factory.registry import published_strategies
@@ -420,6 +421,7 @@ def _guard(capsys: pytest.CaptureFixture[str], data_dir: Path, *args: str) -> st
 
 
 def test_a_data_checked_gameweek_is_evaluated_by_the_run_its_change_started(
+    tmp_path_factory: pytest.TempPathFactory,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     isolated_env: dict[str, str],
@@ -427,25 +429,9 @@ def test_a_data_checked_gameweek_is_evaluated_by_the_run_its_change_started(
     api: respx.MockRouter,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    monkeypatch.setenv("FPL_DOF_CONFIG_FILE", isolated_env["FPL_DOF_CONFIG_FILE"])
-    monkeypatch.setenv("FPL_DOF_TEAM_ID", str(TEST_ENTRY_ID))
-    _configure(world, Path(isolated_env["FPL_DOF_CONFIG_FILE"]))
-    data_dir = tmp_path / "data"
+    # A. Before the deadline: GW1 was Open and its advice of record was made.
+    data_dir = _advised_then_finished(tmp_path_factory, tmp_path, monkeypatch, isolated_env, world)
     cli = ["--data-dir", str(data_dir)]
-
-    # The ledger closes by the real clock (ORC-03); stood at the moment the advice was given.
-    pinned = pd.Timestamp(BEFORE_DEADLINE).to_pydatetime()
-    advice, predictions = record_advice, record_predictions
-    monkeypatch.setattr(
-        week_stage, "record_advice", lambda *a, now, **k: advice(*a, now=pinned, **k)
-    )
-    monkeypatch.setattr(
-        week_stage, "record_predictions", lambda *a, now, **k: predictions(*a, now=pinned, **k)
-    )
-
-    # A. Before the deadline: GW1 is Open and its advice of record is made.
-    monkeypatch.setenv("FPL_DOF_AS_OF", BEFORE_DEADLINE)
-    assert main([*cli, "run"]) == EXIT_OK
     assert (data_dir / "ledger" / "advice" / f"gw{GW:02d}.json").exists()
     assert not _evaluation_path(data_dir).exists()
 
@@ -453,9 +439,6 @@ def test_a_data_checked_gameweek_is_evaluated_by_the_run_its_change_started(
     # refresh of the per-player rows lands here), and the run it starts. Everything an evaluation
     # needs is in silver, and still nothing is evaluated: the gameweek is Playing until FPL has
     # checked it (ORC-01).
-    world.stage = "finished"
-    monkeypatch.setenv("FPL_DOF_AS_OF", FINISHED)
-    assert main([*cli, "ingest", "--force-refresh"]) == EXIT_OK
     assert main([*cli, "run", "--only", *RUN]) == EXIT_OK
     silver = data_dir / "silver"
     season = next(silver.glob("season=*")).name.removeprefix("season=")
@@ -515,9 +498,10 @@ def test_a_data_checked_gameweek_is_evaluated_by_the_run_its_change_started(
     [owner] = [team for team in live["teams"] if team["is_owner"]]
     assert owner["live"]["points"] == CHECKED_POINTS and owner["matches_game"] is True
 
-    # Evaluated once: the gameweek is Evaluated now, and the next run does not judge it again.
+    # Evaluated once: the gameweek is Evaluated now, and the next run's evaluation step, in the
+    # week stage, does not judge it again.
     written = _evaluation_path(data_dir).read_bytes()
-    assert main([*cli, "run", "--only", *RUN]) == EXIT_OK
+    assert main([*cli, "run", "--only", "week"]) == EXIT_OK
     assert _evaluation_path(data_dir).read_bytes() == written
 
     # Swept once: the next fast firing, the gameweek still final until GW2's deadline, neither
@@ -575,15 +559,19 @@ def _ingested(capsys: pytest.CaptureFixture[str], data_dir: Path) -> dict[str, A
 
 
 def _advised_then_finished(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, isolated_env: dict[str, str], world: World
+    tmp_path_factory: pytest.TempPathFactory,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    isolated_env: dict[str, str],
+    world: World,
 ) -> Path:
     """A and B of the module docstring: GW1 advised before its deadline, then a full ingest once
-    FPL has marked it finished, not checked. The data root."""
+    FPL has marked it finished, not checked. The data root, a copy of the one every walk here
+    starts from, built once a test run (ORC-09's test budget); the world and the clock at B."""
     monkeypatch.setenv("FPL_DOF_CONFIG_FILE", isolated_env["FPL_DOF_CONFIG_FILE"])
     monkeypatch.setenv("FPL_DOF_TEAM_ID", str(TEST_ENTRY_ID))
     _configure(world, Path(isolated_env["FPL_DOF_CONFIG_FILE"]))
-    data_dir = tmp_path / "data"
-    cli = ["--data-dir", str(data_dir)]
+    # The ledger closes by the real clock (ORC-03); stood at the moment the advice was given.
     pinned = pd.Timestamp(BEFORE_DEADLINE).to_pydatetime()
     advice, predictions = record_advice, record_predictions
     monkeypatch.setattr(
@@ -592,15 +580,25 @@ def _advised_then_finished(
     monkeypatch.setattr(
         week_stage, "record_predictions", lambda *a, now, **k: predictions(*a, now=pinned, **k)
     )
-    monkeypatch.setenv("FPL_DOF_AS_OF", BEFORE_DEADLINE)
-    assert main([*cli, "run"]) == EXIT_OK
+
+    def build(data_dir: Path) -> None:
+        cli = ["--data-dir", str(data_dir)]
+        monkeypatch.setenv("FPL_DOF_AS_OF", BEFORE_DEADLINE)
+        assert main([*cli, "run"]) == EXIT_OK
+        world.stage = "finished"
+        monkeypatch.setenv("FPL_DOF_AS_OF", FINISHED)
+        assert main([*cli, "ingest", "--force-refresh"]) == EXIT_OK
+
+    template = built_once(tmp_path_factory, "gw1-advised-then-finished", build)
     world.stage = "finished"
     monkeypatch.setenv("FPL_DOF_AS_OF", FINISHED)
-    assert main([*cli, "ingest", "--force-refresh"]) == EXIT_OK
+    data_dir = tmp_path / "data"
+    shutil.copytree(template, data_dir)
     return data_dir
 
 
 def test_a_gameweek_checked_after_the_next_deadline_is_evaluated_on_its_final_rows(
+    tmp_path_factory: pytest.TempPathFactory,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     isolated_env: dict[str, str],
@@ -613,7 +611,7 @@ def test_a_gameweek_checked_after_the_next_deadline_is_evaluated_on_its_final_ro
     fetches the per-player rows that predate it, once, and the run its `results` change starts
     evaluates GW1 on the corrected figure rather than storing the pre-check one for good. A fast
     firing after that walks no summary at all."""
-    data_dir = _advised_then_finished(tmp_path, monkeypatch, isolated_env, world)
+    data_dir = _advised_then_finished(tmp_path_factory, tmp_path, monkeypatch, isolated_env, world)
     cli = ["--data-dir", str(data_dir)]
 
     world.stage = "checked"
@@ -650,6 +648,7 @@ DAILY_REFRESH = "2026-08-29T03:00:00+00:00"
 
 
 def test_a_check_inside_the_freeze_is_evaluated_by_the_next_run_outside_it(
+    tmp_path_factory: pytest.TempPathFactory,
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     isolated_env: dict[str, str],
@@ -662,7 +661,7 @@ def test_a_check_inside_the_freeze_is_evaluated_by_the_next_run_outside_it(
     is spent. The gameweek is still Finished and unevaluated, so it is due EVALUATE in any run
     (ORC-05): the next one outside the freeze, at the latest the daily refresh's `schedule` run,
     evaluates it on the rows FPL checked."""
-    data_dir = _advised_then_finished(tmp_path, monkeypatch, isolated_env, world)
+    data_dir = _advised_then_finished(tmp_path_factory, tmp_path, monkeypatch, isolated_env, world)
     cli = ["--data-dir", str(data_dir)]
 
     def guard(now: str, *args: str) -> str:

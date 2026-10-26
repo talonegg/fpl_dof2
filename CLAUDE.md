@@ -6,7 +6,7 @@ artefacts; a React SPA reads them. No server, no database, no runtime backend.
 
 **`docs/README.md` maps where every fact lives** — read it when you need context beyond this file.
 Work ships in releases `Rx.y.z`: R1.0 was epics E0–E14; R1.1.0 was the data pipeline uplift;
-R1.1.1 verified it on `main` (DL-85); R1.2.0 and R1.2.2, the first two slices of the modular platform (DL-86, DL-88), are tagged; R1.3.0, R1.3.1 and R1.3.2, gameweek orchestration, are tagged; R1.4.0 and R1.4.1, the UI redesign (DL-95, DL-97), are tagged; R1.4.2, their close-out, is tagged; R1.4.3, the live gameweek (DL-99), is open on `dev/R1.4.3`.
+R1.1.1 verified it on `main` (DL-85); R1.2.0 and R1.2.2, the first two slices of the modular platform (DL-86, DL-88), are tagged; R1.3.0, R1.3.1 and R1.3.2, gameweek orchestration, are tagged; R1.4.0 and R1.4.1, the UI redesign (DL-95, DL-97), are tagged; R1.4.2, their close-out, is tagged; R1.4.3, the live gameweek (DL-99), is tagged; R1.4.4, its fixes and CI test speed (DL-102), is open on `dev/R1.4.4`.
 The plan of record is the release register, `docs/planning/epics/README.md`. A decision cited as
 `DL-nn` is the file `docs/decisions/DL-nn.md`: open it directly rather than searching.
 `docs/planning/archive/` holds closed epics and superseded plans as records; plain searches skip it
@@ -52,6 +52,7 @@ Python lives in `.venv` at the repo root, created with `uv`. `uv` is installed a
 | Live-API drift tests | `cd pipeline && ..\.venv\Scripts\python -m pytest -q --network` |
 | Slow tests — the historical chip replay (D-18/DL-28), ~16 min | `cd pipeline && ..\.venv\Scripts\python -m pytest -q --slow tests/test_chip_replay.py`. Needs the archive backfill in silver; writes its finding to `data/gold/chip-replay.json` |
 | Rules coverage gate (must be 100%) | `cd pipeline && ..\.venv\Scripts\python -m pytest --cov=fpl_dof.rules --cov-fail-under=100 tests/test_rules_build.py tests/test_rules_scoring.py tests/test_rules_legality.py tests/test_rules_realised.py` |
+| Rebalance CI's three test shards (DL-103) — when the shard check names a tipped split, not every run | `cd pipeline && ..\.venv\Scripts\python -m pytest -q -n auto --junitxml=..\junit.xml` then `..\.venv\Scripts\python scripts\shard_weights.py ..\junit.xml` — rewrites `tests/shard_weights.json`, which `--shard i/3` balances on |
 | Lint + format + type check | `cd pipeline && ..\.venv\Scripts\python -m ruff check . && ..\.venv\Scripts\python -m ruff format --check . && ..\.venv\Scripts\python -m mypy && ..\.venv\Scripts\lint-imports` |
 | Web dev server (LAN-accessible for mobile testing) | `cd web && npm run dev` — `vite.config.ts` sets `host: true` |
 | Web tests | `cd web && npm run test -- --run` |
