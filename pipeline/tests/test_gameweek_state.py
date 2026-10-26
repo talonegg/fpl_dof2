@@ -18,11 +18,14 @@ import pytest
 from fpl_dof.config import Config
 from fpl_dof.gameweek import (
     Due,
+    FixtureProgress,
     Phase,
     SilverTables,
+    TeamStatus,
     gameweek_state,
     open_gameweek,
     season_states,
+    team_status,
 )
 from fpl_dof.paths import DataLayout
 from fpl_dof.pipeline import StageContext
@@ -243,3 +246,30 @@ def test_the_week_stage_evaluates_finished_gameweeks_and_advises_nothing_once_no
     assert seen == [37]  # GW36 and GW38 are not finished; GW37 is, and is not yet evaluated
     assert result.metrics["status"] == "skipped" and not result.outputs
     assert "no gameweek is open" in str(result.metrics[week.SKIPPED_REASON_KEY])
+
+
+# --- A team's gameweek in play (LIVE-03) ----------------------------------------------------------
+
+_KICKED_OFF = FixtureProgress(finished=False, bonus_confirmed=False)
+_FULL_TIME = FixtureProgress(finished=True, bonus_confirmed=False)
+_CONFIRMED = FixtureProgress(finished=True, bonus_confirmed=True)
+
+
+@pytest.mark.parametrize(
+    ("fixtures", "data_checked", "status"),
+    [
+        ([_CONFIRMED, _KICKED_OFF], False, TeamStatus.IN_PLAY),
+        ([_CONFIRMED, _FULL_TIME], False, TeamStatus.BONUS_PENDING),
+        ([_CONFIRMED, _CONFIRMED], False, TeamStatus.COMPLETE),
+        ([FixtureProgress(finished=False, bonus_confirmed=True)], False, TeamStatus.COMPLETE),
+        ([], False, TeamStatus.COMPLETE),  # every player blank: nothing to come or confirm
+        ([_CONFIRMED], True, TeamStatus.FINAL),
+    ],
+    ids=["in-play", "bonus-pending", "complete", "confirmed-is-finished", "all-blank", "final"],
+)
+def test_a_teams_status_follows_its_fixtures_and_fpls_data_check(
+    fixtures: list[FixtureProgress], data_checked: bool, status: TeamStatus
+) -> None:
+    """LIVE-03 design 3: bonus is never estimated, so a match over without it is bonus pending."""
+    assert team_status(fixtures, data_checked=data_checked) is status
+    assert [s.value for s in TeamStatus] == ["in_play", "bonus_pending", "complete", "final"]

@@ -11,6 +11,7 @@ and is the drift detector; the recorded tests are the regression net.
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterator
 from pathlib import Path
 
@@ -78,7 +79,9 @@ def adapter(tmp_path: Path) -> Iterator[FplApiAdapter]:
         yield FplApiAdapter(fetcher)
 
 
-REQUEST = IngestRequest(run_id="run-1")
+#: Preseason: no deadline has passed, so no gameweek is in play (the clock is pinned, not read).
+PRESEASON = pd.Timestamp("2026-08-15T12:00:00Z").to_pydatetime()
+REQUEST = IngestRequest(run_id="run-1", now=PRESEASON)
 
 
 def test_adapter_declares_its_resources() -> None:
@@ -116,8 +119,28 @@ def test_the_expensive_resource_is_marked_off_the_fast_path() -> None:
     assert summary.cache_ttl_seconds >= 24 * 3600
 
 
+FAST_INGEST_WORKFLOW = (
+    Path(__file__).resolve().parents[2] / ".github" / "workflows" / "ingest-fast.yml"
+)
+
+
+@pytest.mark.parametrize("name", ["bootstrap_static", "fixtures"])
+def test_the_fast_path_captures_expire_inside_the_hourly_firing(name: str) -> None:
+    """LIVE-02, DL-99: a capture is refetched by every hourly firing, never read from the last one.
+
+    ingest-fast.yml fires hourly. A TTL at or above an hour lets a firing read the capture the
+    previous one made a few seconds earlier, so a done matchday waits for the firing after.
+    """
+    assert re.search(r'cron: "\d+ \* \* \* \*"', FAST_INGEST_WORKFLOW.read_text("utf-8")), (
+        "ingest-fast.yml no longer fires hourly; revisit the fast-path TTL"
+    )
+    resource = next(r for r in FplApiAdapter.resources if r.name == name)
+    assert resource.cache_ttl_seconds is not None
+    assert resource.cache_ttl_seconds < 3600
+
+
 #: What the four-hourly workflow asks for (E7-S1).
-FAST_REQUEST = IngestRequest(run_id="run-1", fast_path_only=True)
+FAST_REQUEST = IngestRequest(run_id="run-1", fast_path_only=True, now=PRESEASON)
 
 
 def test_the_fast_cadence_skips_every_resource_declared_off_the_fast_path(

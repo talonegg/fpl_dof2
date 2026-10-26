@@ -8,10 +8,16 @@ interface HeaderProps {
   children?: ReactNode;
 }
 
-/** `schedule`, `manual`, `day-before` or `change:<kinds>` in words. */
+/** `schedule`, `manual`, `day-before` or `change:<kinds>` in words. A change that carries `results`
+ * (a matchday done, the gameweek finished or data-checked) is a results refresh (LIVE-02). */
 export function describeTrigger(trigger: string): string {
   if (trigger.startsWith("change:")) {
-    return `after a ${trigger.slice("change:".length).split(",").join(", ")} change`;
+    const kinds = trigger.slice("change:".length).split(",");
+    const others = kinds.filter((kind) => kind !== "results");
+    if (others.length < kinds.length) {
+      return others.length ? `results refresh, with a ${others.join(", ")} change` : "results refresh";
+    }
+    return `after a ${kinds.join(", ")} change`;
   }
   const words: Record<string, string> = {
     schedule: "scheduled run",

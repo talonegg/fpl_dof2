@@ -16,16 +16,23 @@ import "../components/league/league.css";
  * different fetch — Invariant 8 means the browser still only ever reads what the pipeline already
  * published. When it names a league other than the one published here, that is said plainly rather
  * than silently ignored (DP-09, DP-15, consistent with DL-40's treatment of the absent league).
+ *
+ * `live.json` rides on top (LIVE-05): the same standings ordered by live total while a gameweek is
+ * in play. It is optional, so its being absent, or unreadable, never takes the table away.
  */
 export function LeagueRoute() {
   const { state, retry } = useArtefact("league");
+  // The gameweek in play, when one is published (LIVE-05): absent is the ordinary state between
+  // gameweeks and preseason, and then this is the league table as it always was.
+  const { state: liveState } = useArtefact("live");
   const identity = useOwnerIdentity();
   const leagueMismatch =
     state.status === "ready" &&
     identity.leagueId !== null &&
     identity.leagueId !== state.data.league.id;
 
-  if (state.status === "loading") {
+  // Wait for both, so the table does not render in the league's order and then re-order itself.
+  if (state.status === "loading" || liveState.status === "loading") {
     return (
       <section className="league-status" data-testid="league-loading">
         <p>Loading the mini-league…</p>
@@ -93,7 +100,17 @@ export function LeagueRoute() {
           page shows the published league regardless.
         </p>
       )}
-      <LeagueTable league={state.data} enteredTeamId={identity.teamId} />
+      {(liveState.status === "error" || liveState.status === "malformed") && (
+        <p className="league-note league-note-warn" data-testid="league-live-unavailable">
+          The live gameweek could not be read, so this is the league table as at the last finished
+          gameweek.
+        </p>
+      )}
+      <LeagueTable
+        league={state.data}
+        live={liveState.status === "ready" ? liveState.data : null}
+        enteredTeamId={identity.teamId}
+      />
     </>
   );
 }

@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/talonegg/fpl_dof2/contracts/v1/live.schema.json",
+  "title": "Live",
+  "description": "The gameweek in play (LIVE-04, DL-99): the latest gameweek past its deadline, from its first kick-off until the next deadline moves the live tables on. Its status, its matchdays and fixtures, and for the owner and each mini-league rival their provisional points from the one realised scorer (ORC-04), live total and rank among the published teams. **Provisional, and says so**: until FPL data-checks the gameweek the figures can move; `log.json` and the evaluation are the record, and nothing reads this file back (DP-14). Absent preseason and between a deadline and that gameweek's first kick-off, never empty (DP-15). From contract minor 8.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contract_version", "gameweek", "status", "provisional", "as_of", "observed_at", "matchdays", "fixtures", "teams"],
+  "properties": {
+    "contract_version": { "type": "integer", "const": 1 },
+    "gameweek": { "type": "integer", "minimum": 1, "maximum": 38 },
+    "status": {
+      "type": "string",
+      "enum": ["in_play", "bonus_pending", "complete", "final"],
+      "description": "How far a gameweek, or one team's part of it, has got (LIVE-03): `in_play` a fixture still to finish; `bonus_pending` every fixture at full time, a bonus not yet confirmed (bonus is never estimated from BPS); `complete` every bonus confirmed, not yet data-checked; `final` FPL has data-checked it."
+    },
+    "provisional": { "type": "boolean", "description": "True until FPL data-checks the gameweek (`status` is `final`): every figure here can still move." },
+    "as_of": { "type": "string", "format": "date-time", "description": "UTC instant of the run's snapshot (ORC-03)." },
+    "observed_at": { "type": ["string", "null"], "format": "date-time", "description": "UTC instant the live scores were captured; null when none were read, and then no team has a live figure." },
+    "matchdays": { "type": "array", "items": { "$ref": "#/$defs/live_matchday" }, "description": "The gameweek's matchdays in date order, done and to come (LIVE-02)." },
+    "fixtures": { "type": "array", "items": { "$ref": "#/$defs/live_fixture" }, "description": "The gameweek's fixtures in kick-off order. A postponed fixture has left the gameweek and is not here." },
+    "teams": { "type": "array", "items": { "$ref": "#/$defs/live_team" }, "description": "The owner and every team in the mini-league table, ranked by live total first; teams without a live figure follow, by entry id." }
+  },
+  "$defs": {
+    "live_matchday": {
+      "type": "object",
+      "description": "The gameweek's fixtures that share a kick-off date in the configured matchday zone (UK time, R1.4.3 §5 Q1).",
+      "additionalProperties": false,
+      "required": ["date", "fixtures", "fixtures_confirmed", "last_kickoff", "done", "bonus_pending"],
+      "properties": {
+        "date": { "type": "string", "format": "date", "description": "The kick-off date in the matchday zone." },
+        "fixtures": { "type": "integer", "minimum": 1 },
+        "fixtures_confirmed": { "type": "integer", "minimum": 0, "description": "Fixtures finished with their bonus confirmed." },
+        "last_kickoff": { "type": "string", "format": "date-time", "description": "UTC (DL-11)." },
+        "done": { "type": "boolean", "description": "Every fixture's bonus confirmed, or the settle cap passed since the last kick-off." },
+        "bonus_pending": { "type": "boolean", "description": "Done by the settle cap with a bonus still unconfirmed: its points are without that bonus." }
+      }
+    },
+    "live_fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fixture_id", "kickoff_time", "matchday", "home_team_id", "away_team_id", "state"],
+      "properties": {
+        "fixture_id": { "type": "integer" },
+        "kickoff_time": { "type": ["string", "null"], "format": "date-time", "description": "UTC (DL-11)." },
+        "matchday": { "type": ["string", "null"], "format": "date", "description": "The `date` of the matchday it belongs to." },
+        "home_team_id": { "type": "integer", "minimum": 1 },
+        "away_team_id": { "type": "integer", "minimum": 1 },
+        "state": {
+          "type": "string",
+          "enum": ["to_come", "playing", "full_time", "bonus_confirmed"],
+          "description": "FPL's flags: not started; started; full time (minutes final, bonus not yet confirmed); finished with bonus confirmed."
+        }
+      }
+    },
+    "live_team": {
+      "type": "object",
+      "description": "One team's gameweek in play. A team whose picks, FPL figures or live scores were not read has `live: null` and a `reason`; that team alone degrades (NFR-15).",
+      "additionalProperties": false,
+      "required": ["entry_id", "entry_name", "player_name", "is_owner", "rank", "live", "reason", "game", "matches_game"],
+      "properties": {
+        "entry_id": { "type": "integer", "minimum": 1 },
+        "entry_name": { "type": "string" },
+        "player_name": { "type": ["string", "null"], "description": "The manager's display name from the league table; null for an owner outside the league." },
+        "is_owner": { "type": "boolean" },
+        "rank": { "type": ["integer", "null"], "minimum": 1, "description": "Rank by live total among the published teams with one; equal totals share a rank. Null without a live figure." },
+        "live": { "oneOf": [{ "$ref": "#/$defs/live_figures" }, { "type": "null" }] },
+        "reason": { "type": ["string", "null"], "description": "Why `live` is null; null when it is not." },
+        "game": { "oneOf": [{ "$ref": "#/$defs/live_game" }, { "type": "null" }] },
+        "matches_game": {
+          "type": ["boolean", "null"],
+          "description": "Once the gameweek is finished and FPL's figures are final: whether the scorer's gameweek points equal FPL's, both net of the hit (LIVE-03's check, a warning gate, R1.4.3 §5 Q3). Null until then, or without a live figure."
+        }
+      }
+    },
+    "live_figures": {
+      "type": "object",
+      "description": "The team's provisional gameweek, from the one realised scorer (ORC-04).",
+      "additionalProperties": false,
+      "required": ["points", "points_before_hits", "hit_cost", "chip", "chip_label", "last_total", "live_total", "status", "captain_id", "vice_used", "autosubs_in", "autosubs_out", "players"],
+      "properties": {
+        "points": { "type": "integer", "description": "Provisional gameweek points, net of the hit." },
+        "points_before_hits": { "type": "integer" },
+        "hit_cost": { "type": "integer", "minimum": 0, "description": "This gameweek's hit, as FPL reports it, taken once." },
+        "chip": { "type": ["string", "null"], "description": "The chip played this gameweek, by the API's own name. Null when none." },
+        "chip_label": { "type": ["string", "null"], "description": "The chip's name as the game shows it. Null when none." },
+        "last_total": { "type": "integer", "description": "The season total after the last finished gameweek." },
+        "live_total": { "type": "integer", "description": "`last_total` plus `points`." },
+        "status": { "type": "string", "enum": ["in_play", "bonus_pending", "complete", "final"], "description": "The team's own status, on the gameweek's rule, over the fixtures its fifteen have (LIVE-03)." },
+        "captain_id": { "type": "integer", "minimum": 1, "description": "The player the armband counts for: the captain, or the vice-captain once the captain's gameweek is over without a minute." },
+        "vice_used": { "type": "boolean" },
+        "autosubs_in": { "type": "array", "items": { "type": "integer", "minimum": 1 }, "description": "Projected substitutes coming on: only for a starter whose gameweek is over without a minute." },
+        "autosubs_out": { "type": "array", "items": { "type": "integer", "minimum": 1 } },
+        "players": { "type": "array", "items": { "$ref": "#/$defs/live_player" }, "description": "The fifteen in slot order." }
+      }
+    },
+    "live_player": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["player_id", "slot", "minutes", "points", "bonus", "bonus_confirmed", "complete", "multiplier", "is_captain", "is_vice_captain"],
+      "properties": {
+        "player_id": { "type": "integer", "minimum": 1 },
+        "slot": { "type": "integer", "minimum": 1, "maximum": 15, "description": "As submitted: 1-11 start, 12-15 bench in order." },
+        "minutes": { "type": "integer", "minimum": 0 },
+        "points": { "type": "integer", "description": "His gameweek so far, every fixture summed, bonus included as FPL has it." },
+        "bonus": { "type": "integer", "minimum": 0, "description": "FPL's bonus so far; never estimated from BPS." },
+        "bonus_confirmed": { "type": "boolean", "description": "Every fixture he has has its bonus confirmed (true for a player with none)." },
+        "complete": { "type": "boolean", "description": "Every fixture he has is at full time: his minutes are final. False for a player yet to play." },
+        "multiplier": { "type": "integer", "minimum": 0, "description": "As applied: 0 off the field, 1 on it, the armband's multiplier on `captain_id`." },
+        "is_captain": { "type": "boolean" },
+        "is_vice_captain": { "type": "boolean" }
+      }
+    },
+    "live_game": {
+      "type": "object",
+      "description": "FPL's own figures for the team, from its picks. Before the gameweek is data-checked they are the deadline's capture, so they are not the gameweek's points (`final` false).",
+      "additionalProperties": false,
+      "required": ["points", "hit_cost", "total", "final"],
+      "properties": {
+        "points": { "type": "integer", "description": "The gameweek's points before the hit, as FPL showed them." },
+        "hit_cost": { "type": "integer", "minimum": 0 },
+        "total": { "type": "integer", "description": "The season total, this gameweek included." },
+        "final": { "type": "boolean", "description": "Captured once FPL had data-checked the gameweek." }
+      }
+    }
+  }
+}

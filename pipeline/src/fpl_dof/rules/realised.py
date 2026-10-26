@@ -1,16 +1,27 @@
 """What a lineup actually scored: the one realised-points scorer (ORC-04).
 
 Every realised score in the repository comes from :func:`score_lineup` — the season log, the models
-comparison and the chip replay — so the game's substitution, armband, chip and hit rules are written
-once. It is pinned against FPL's own published scores by the corpus in
-``contracts/conformance/realised/`` (DL-39), which is the test that the rules below are the game's.
+comparison, the chip replay and the provisional points of a gameweek in play (LIVE-03, DL-99) — so
+the game's substitution, armband, chip and hit rules are written once. It is pinned against FPL's
+own published scores by the corpus in ``contracts/conformance/realised/`` (DL-39), which is the test
+that the rules below are the game's; the corpus's constructed cases pin the gameweek in play, for
+which FPL publishes no answer.
 
-- **Auto-substitutions**: a starter who did not play (no minutes in any fixture, which includes a
-  player whose club had no fixture) is replaced by the reserve goalkeeper if he is the goalkeeper,
-  otherwise by the first outfield substitute, in bench order, who played and whose arrival keeps
-  the XI within the formation bounds.
+- **A gameweek in play**: a player's gameweek is *complete* once every fixture he has is finished,
+  or at once if he has none (a blank). Only a complete gameweek with no minutes is did-not-play; a
+  starter yet to play keeps his place and scores what he has so far. When every fixture is
+  finished, which is every gameweek the record holds, every performance is complete.
+- **Auto-substitutions**: a starter who did not play (his gameweek complete with no minutes, which
+  includes a player whose club had no fixture) is replaced by the reserve goalkeeper if he is the
+  goalkeeper, otherwise by the first outfield substitute, in bench order, who played and whose
+  arrival keeps the XI within the formation bounds. In play, a substitute yet to play cannot come
+  on, and he holds the place while he could: if the first substitute whose arrival would keep the
+  formation is yet to play, nobody is projected on until his gameweek is over, because if he plays
+  he is FPL's choice. A reserve goalkeeper yet to play holds the goalkeeper's place the same way. So
+  a substitution projected now is never undone by the fixtures still to come.
 - **Double gameweeks**: a performance is the player's whole gameweek, every fixture summed.
-- **The armband** multiplies the captain, or the vice-captain if the captain did not play.
+- **The armband** multiplies the captain, or the vice-captain if the captain did not play. A captain
+  yet to play keeps it, and his points so far are multiplied.
 - **Chips**: one that lets the bench score fields all fifteen and makes no substitutions; one that
   sets the armband's multiplier overrides it; one that makes transfers free charges no hit.
 - **Hits**: the recorded hit if there is one, else the transfers beyond the free ones at the
@@ -41,6 +52,9 @@ class PlayerPerformance:
     position: Position
     minutes: int
     points: int
+    complete: bool = True
+    """Every fixture he has is finished, or he has none: his minutes can no longer grow. Only a
+    gameweek in play has a performance that is not (LIVE-03)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,6 +88,10 @@ class ScoredLineup:
     autosubs_out: tuple[int, ...]
     expected_points: float
     prediction_delta: float
+    fielded: tuple[int, ...] = ()
+    """Everyone whose points count: the final XI, or all fifteen with a chip that lets the bench
+    score. What a view needs to show each player's multiplier as applied (LIVE-04); not part of
+    :meth:`as_dict`, so no recorded evaluation changes."""
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -96,14 +114,19 @@ def score_lineup(
     perfs: Mapping[int, PlayerPerformance],
     rules: GameRules,
 ) -> ScoredLineup:
-    """Score one lineup against the gameweek's performances. A player absent from ``perfs`` did
-    not play; build ``perfs`` with :func:`performances` and its ``positions`` so his position is
-    still known to the formation check."""
+    """Score one lineup against the gameweek's performances, finished or in play. A player absent
+    from ``perfs`` had no fixture and did not play; build ``perfs`` with :func:`performances` and
+    its ``positions`` so his position is still known to the formation check."""
     chips = rules.chips
 
     def played(pid: int) -> bool:
         perf = perfs.get(pid)
         return perf is not None and perf.minutes > 0
+
+    def did_not_play(pid: int) -> bool:
+        """His gameweek is over without a minute; a player yet to play has not failed to."""
+        perf = perfs.get(pid)
+        return perf is None or (perf.complete and perf.minutes == 0)
 
     starting = list(lineup.starting)
     subs_in: list[int] = []
@@ -117,30 +140,34 @@ def score_lineup(
     else:
         gkp = lineup.bench_gkp
         for i, pid in enumerate(starting):
-            if played(pid):
+            if not did_not_play(pid):
                 continue
             perf = perfs.get(pid)
             if perf is not None and perf.position == Position.GKP:
-                if gkp is not None and played(gkp):
+                if gkp is not None and played(gkp):  # one yet to play holds the place
                     starting[i] = gkp
                     subs_out.append(pid)
                     subs_in.append(gkp)
                 continue
             for sub in lineup.bench_order:
-                if sub in subs_in or not played(sub):
+                if sub in subs_in or did_not_play(sub):
                     continue
                 trial = [*starting[:i], sub, *starting[i + 1 :]]
-                if _formation_ok(trial, perfs, rules):
+                if not _formation_ok(trial, perfs, rules):
+                    continue
+                if played(sub):
                     starting[i] = sub
                     subs_out.append(pid)
                     subs_in.append(sub)
-                    break
+                # One yet to play who could come on holds the place: if he plays, he is FPL's
+                # choice, so nobody below him is projected on until his gameweek is over.
+                break
         fielded = starting
 
     multiplier = chips.armband(lineup.chip)
     vice_used = False
     captain_id = lineup.captain
-    if not played(lineup.captain) and played(lineup.vice_captain):
+    if did_not_play(lineup.captain) and played(lineup.vice_captain):
         captain_id, vice_used = lineup.vice_captain, True
     captain_points = perfs[captain_id].points if played(captain_id) else 0
 
@@ -160,7 +187,37 @@ def score_lineup(
         autosubs_out=tuple(subs_out),
         expected_points=lineup.expected_points,
         prediction_delta=round(net_points - lineup.expected_points, 2),
+        fielded=tuple(fielded),
     )
+
+
+@dataclass(frozen=True, slots=True)
+class LiveScore:
+    """One team's gameweek in play, scored (LIVE-03)."""
+
+    scored: ScoredLineup
+    gameweek_points: int
+    """The provisional gameweek points: the score so far less the gameweek's hits."""
+    live_total: int
+    """The total after the last finished gameweek plus :attr:`gameweek_points`."""
+
+
+def live_score(
+    lineup: Lineup,
+    perfs: Mapping[int, PlayerPerformance],
+    rules: GameRules,
+    *,
+    last_total: int,
+) -> LiveScore:
+    """A team's provisional gameweek points and live total, from :func:`score_lineup` itself.
+
+    ``last_total`` is the team's total after the last finished gameweek, which has that
+    gameweek's hits and every earlier one's already taken. The hit charged here is this gameweek's
+    alone, the lineup's recorded ``hit_points`` when it has one, and is taken once: from the
+    gameweek points, which the total then adds.
+    """
+    scored = score_lineup(lineup, perfs, rules)
+    return LiveScore(scored, scored.net_points, last_total + scored.net_points)
 
 
 def _formation_ok(
@@ -189,11 +246,16 @@ def performances(
     key: str = "player_id",
     positions: Mapping[int, Position] | None = None,
 ) -> dict[int, PlayerPerformance]:
-    """One gameweek's ``player_gameweek`` rows as per-player performances, keyed by ``key``.
+    """One gameweek's per-fixture rows as per-player performances, keyed by ``key``.
 
-    The table has one row per fixture, so a double gameweek's points and minutes are summed. A
-    player in ``positions`` with no row had no fixture: he is entered with no minutes, so the
-    formation check still knows his position.
+    The rows are one per fixture, so a double gameweek's points and minutes are summed. A player in
+    ``positions`` with no row had no fixture: he is entered with no minutes and complete, so the
+    formation check still knows his position and he is substituted at once.
+
+    A gameweek in play gives each row a ``finished`` flag (its minutes are final), and a row for
+    every fixture the player has, one yet to kick off included, with no minutes: the player is
+    complete only when every row is finished. Without the column every row is finished, as
+    ``player_gameweek``'s are (LIVE-03).
     """
     perfs: dict[int, PlayerPerformance] = {
         pid: PlayerPerformance(pid, position, 0, 0) for pid, position in (positions or {}).items()
@@ -209,9 +271,15 @@ def performances(
             raise ValueError(f"player {pid} has no position the rules know: {raw!r}") from None
         minutes = as_int(getattr(r, "minutes", 0))
         points = as_int(getattr(r, "total_points", 0))
+        finished = getattr(r, "finished", True)
+        if finished is None or pd.isna(finished):
+            # Either guess decides a substitution silently: a data fault, said (DP-15's limit).
+            raise ValueError(f"player {pid} has a fixture with no finished flag")
+        complete = bool(finished)
         if pid in seen:
             minutes += perfs[pid].minutes
             points += perfs[pid].points
+            complete = complete and perfs[pid].complete
         seen.add(pid)
-        perfs[pid] = PlayerPerformance(pid, position, minutes, points)
+        perfs[pid] = PlayerPerformance(pid, position, minutes, points, complete)
     return perfs

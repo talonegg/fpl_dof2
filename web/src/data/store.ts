@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ARTEFACTS } from "../contract/types";
 import type { ArtefactKey, ArtefactMap, Health, Meta, Models, Plan, Players, Rules, Squad, Week } from "../contract/types";
 import { buildRegistry, normaliseAccuracy, normaliseHistory, normaliseModels } from "./registry";
@@ -88,6 +88,7 @@ const GUARDS: Partial<Record<ArtefactKey, (body: unknown) => boolean>> = {
   as_if_played: hasArrays("summary", "gameweeks"),
   xp_accuracy: hasArrays("seasons"),
   health: looksLikeHealth,
+  live: hasArrays("fixtures", "teams"),
 };
 
 /** Artefacts keyed by strategy id, mapped onto the registry's ids as they load. */
@@ -104,9 +105,16 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
  * One published file. A 404, or a single-page host's HTML fallback for a missing path, is absent
  * (DL-37); a body that fails its guard is malformed. Never rejects.
  */
-async function load<T>(path: string, looksRight: (body: unknown) => boolean = isObject): Promise<Loaded<T>> {
+async function load<T>(
+  path: string,
+  looksRight: (body: unknown) => boolean = isObject,
+  revalidate = false,
+): Promise<Loaded<T>> {
   try {
-    const res = await fetch(`${DATA_BASE}/${path}`);
+    // A read made after a refresh asks the origin whether the file changed (`no-cache` revalidates, and
+    // answers 304 when it did not): GitHub Pages serves `max-age=600`, so a plain fetch could hand back
+    // the copy the HTTP cache already held for up to ten minutes. First loads are plain fetches.
+    const res = await fetch(`${DATA_BASE}/${path}`, revalidate ? { cache: "no-cache" } : undefined);
     if (res.status === 404) return { status: "absent" };
     if (!res.ok) return { status: "error", message: `Failed to load ${path}: ${res.status} ${res.statusText}` };
     const contentType = res.headers.get("content-type") ?? "";
@@ -137,6 +145,10 @@ class DataStore {
   private files = new Map<string, Promise<Loaded<unknown>>>();
   private publishedPromise: Promise<PublishedData> | null = null;
   private registryPromise: Promise<Registry> | null = null;
+  private generationCount = 0;
+  /** True from the first `refresh` until a hard `reset`: reads made then revalidate with the origin. */
+  private revalidating = false;
+  private listeners = new Set<() => void>();
 
   /** One artefact. Only a ready one is kept; anything else is asked for again next time. */
   get<K extends ArtefactKey>(key: K): Promise<Loaded<ArtefactMap[K]>> {
@@ -172,7 +184,7 @@ class DataStore {
     const key = `${kind}:${path}`;
     let promise = this.files.get(key);
     if (!promise) {
-      promise = load(path, GUARDS[kind]);
+      promise = load(path, GUARDS[kind], this.revalidating);
       this.files.set(key, promise);
     }
     return optional(await promise) as (K extends "week" ? Week : Plan) | null;
@@ -244,6 +256,7 @@ class DataStore {
   }
 
   reset(): void {
+    this.revalidating = false;
     this.cache.clear();
     this.files.clear();
     this.publishedPromise = null;
@@ -252,6 +265,32 @@ class DataStore {
 
   resetKey(key: ArtefactKey): void {
     this.cache.delete(key);
+  }
+
+  /**
+   * Drop everything loaded so the next read asks the network again, and tell the views that read
+   * the store (LIVE-06). Unlike a hard `reset`, this is for an app that is already showing data:
+   * the views keep what they have until the new files arrive, so a refresh updates in place and
+   * never blanks the screen. The reads that follow revalidate rather than trust the HTTP cache.
+   */
+  refresh(): void {
+    this.reset();
+    this.revalidating = true;
+    this.generationCount += 1;
+    for (const listener of [...this.listeners]) listener();
+  }
+
+  /** How many times `refresh` has run: a view's cue to read again. */
+  generation(): number {
+    return this.generationCount;
+  }
+
+  /** Be told after each `refresh`; returns the unsubscribe. The shape `useSyncExternalStore` takes. */
+  subscribe(listener: () => void): () => void {
+    this.listeners.add(listener);
+    return () => {
+      this.listeners.delete(listener);
+    };
   }
 
   /** Warm the offline cache with the registry's warmed artefacts and every file each strategy publishes. */
@@ -267,9 +306,9 @@ class DataStore {
       // The champion's, at the path the registry publishes; nothing is published without one.
       const registry = await this.registry();
       const path = registry.entries.find((e) => e.id === registry.champion)?.artefacts[key];
-      return path ? load(path, GUARDS[key]) : { status: "absent" };
+      return path ? load(path, GUARDS[key], this.revalidating) : { status: "absent" };
     }
-    const loaded = await load(ARTEFACTS[key].path, GUARDS[key]);
+    const loaded = await load(ARTEFACTS[key].path, GUARDS[key], this.revalidating);
     const fix = NORMALISE[key] as ((registry: Registry, body: unknown) => unknown) | undefined;
     if (loaded.status !== "ready" || !fix) return loaded;
     try {
@@ -290,26 +329,49 @@ export function resetPublishedDataCache(): void {
   dataStore.reset();
 }
 
+/** Re-read every published file; the views that read the store update in place (LIVE-06). */
+export function refreshPublishedData(): void {
+  dataStore.refresh();
+}
+
+const subscribeToRefresh = (onChange: () => void) => dataStore.subscribe(onChange);
+const currentGeneration = () => dataStore.generation();
+
+/** The store's refresh count, as state: a view that loads files reads again when it changes. */
+export function useRefreshGeneration(): number {
+  return useSyncExternalStore(subscribeToRefresh, currentGeneration);
+}
+
 /**
  * The one loading hook (WEB-04): any artefact by its registry key, as `loading`, `ready`, `absent`,
  * `malformed` or `error`. The promise is cached in the store, so remounting costs a render and
  * not a request; `retry` asks again.
+ *
+ * When the store refreshes (the app became visible again, LIVE-06) the hook reads again **without
+ * going back to `loading`**: the view keeps what it shows until the new file arrives, and a refresh
+ * that fails keeps it too, since stale and honest beats a blank screen. A file that has since gone
+ * absent, or turned malformed, replaces it.
  */
 export function useArtefact<K extends ArtefactKey>(key: K): { state: ArtefactState<ArtefactMap[K]>; retry: () => void } {
   const [state, setState] = useState<ArtefactState<ArtefactMap[K]>>({ status: "loading" });
   const [attempt, setAttempt] = useState(0);
+  const generation = useRefreshGeneration();
+  const shown = useRef<{ key: K; attempt: number } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    setState({ status: "loading" });
+    const refreshing = shown.current?.key === key && shown.current.attempt === attempt;
+    shown.current = { key, attempt };
+    if (!refreshing) setState({ status: "loading" });
     void dataStore.get(key).then((loaded) => {
       // A view unmounted mid-flight must not be written to.
-      if (!cancelled) setState(loaded);
+      if (cancelled) return;
+      setState((previous) => (refreshing && loaded.status === "error" && previous.status === "ready" ? previous : loaded));
     });
     return () => {
       cancelled = true;
     };
-  }, [key, attempt]);
+  }, [key, attempt, generation]);
 
   const retry = useCallback(() => {
     dataStore.resetKey(key);

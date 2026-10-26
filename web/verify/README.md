@@ -19,6 +19,10 @@ npm run verify:browser -- http://127.0.0.1:4173              # in another
 
 A plain `npm run build` is password-gated and the check stops at the gate, so build an unlocked site for verification with `VITE_FPL_PASSWORD_HASH` set to the SHA-256 the check unlocks with (by default the hash of `hello`, as CI uses: `2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824`), and set the same variable for the check if you use a different password.
 
+The check drives whatever the served site publishes. `live.json` exists only while a gameweek is in play, so the live League and Home views (LIVE-05, LIVE-06) are checked in the browser only when one is served; their ordering, marks, drill-down and visibility re-read are pinned by the component tests (`LeagueLive.test.tsx`, `HomeRoute.test.tsx`), which jsdom can run without a gameweek in play.
+
+The live squad tables' **layout** has no jsdom equivalent, so it has its own small check, `live-layout-check.mjs` (`npm run verify:live -- http://127.0.0.1:4173`). It needs a served build whose `live.json` holds a figure for the owner and for another team, and at 320 px, 375 px and 1440 px, on Home, on a team's page and on the League table (with `live.json`, and again with it withheld), it fails unless the page does not scroll sideways, the table needs no sideways scroll inside its card, and every row's player name and live points (squad tables), or rank, team name, live total, gameweek points and status (League table), lie inside the card's visible box. Set `PLAYWRIGHT_CHROMIUM_PATH` to use a Chromium that is not in Playwright's own cache.
+
 Screenshots land in `verify/screenshots/` — one per viewport at load, one after interacting, and
 `offline.png`, which is the app rendering with the network switched off.
 
@@ -52,7 +56,7 @@ prefix and the app is built with that prefix as its base; the origin alone would
 | --- | --- |
 | A separate script, not a fifth phase inside `browser-check.mjs` | It runs at a different time — after a deploy, from a workflow with no build directory — and must stay fast, because a post-deploy check that takes four minutes is one that gets skipped |
 | Parses the JSON rather than trusting the status code | A single-page host answers a missing path with `index.html` and a **200**. Status alone would pass on an artefact that was never deployed; a failed parse is what actually catches it |
-| `week.json`, `plan.json` and `league.json` are not required | Each is legitimately absent in a normal published state (DL-20, DL-40). Requiring them would fail every deploy made before the first gameweek is scored |
+| `week.json`, `plan.json`, `league.json` and `live.json` are not required | Each is legitimately absent in a normal published state (DL-20, DL-40, LIVE-04): `live.json` exists only from a gameweek's first kick-off to the next deadline. Requiring them would fail every deploy made before the first gameweek is scored |
 | Routes named by the `data-testid` of the component that fills them | Checking for a non-empty body passes on an error page, which is precisely the failure a smoke test exists to catch |
 | No layout, accessibility, PWA or performance checks | Those belong on a build before it ships. Repeating them per deploy doubles the cost to re-answer a settled question |
 

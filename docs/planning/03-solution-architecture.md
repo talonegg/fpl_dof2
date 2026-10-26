@@ -324,7 +324,7 @@ flowchart LR
 
 The single most important seam in the system: the boundary between DL-04's two languages (DP-04).
 
-- **One definition.** `contracts/v1/*.schema.json` — fifteen schemas, all `additionalProperties:
+- **One definition.** `contracts/v1/*.schema.json` — sixteen schemas, all `additionalProperties:
   false`. `publish/contract.py` holds the artefact registry (`ARTEFACTS`) and **validates every
   artefact before writing it**; each entry also says whether every publication writes it
   (`required`) and whether the app warms it for offline use (`warm`). `fpl-dof contract types`
@@ -341,8 +341,15 @@ The single most important seam in the system: the boundary between DL-04's two l
   `models_history` (the latest archive season the weekly backtest simulated, from
   `ledger:models_history/`, ORC-06), and `as_if_played` (today's published models replayed
   in-sample on the live season, `kind` `in_sample`, in the same schema, from
-  `ledger:as_if_played/`, ORC-13, DL-97). Every one goes through `Contract.write`. All JSON: ~700 rows
-  needs no query engine.
+  `ledger:as_if_played/`, ORC-13, DL-97), and `live` (the gameweek in play, from its first kick-off
+  until the next deadline: each fixture's state, the matchdays done and to come, and the owner's
+  and every league team's provisional points from the one realised scorer, live total (the
+  game's total after the gameweek before, from `entry_gameweek` or the rival's `league_gameweek`,
+  plus those points) and rank, with FPL's own figures and whether the scorer matches them;
+  absent otherwise; provisional, never read back into the ledger, and `final` only once the
+  gameweek is data-checked and the scores (and, for a team, its own figures) are the captures
+  taken after the check; `publish/live.py` over `fpl_dof/live.py`, LIVE-04, DL-99). Every one
+  goes through `Contract.write`. All JSON: ~700 rows needs no query engine.
 - **Versioned.** `/data/v1/`. A breaking change bumps to `v2` and publishes both during the transition.
 - **Behaviour pinned in both languages** by shared corpora in `contracts/conformance/`, read by pytest
   and vitest and never copied (DL-39): squad legality, and the XI, armbands and bench order
@@ -351,7 +358,12 @@ The single most important seam in the system: the boundary between DL-04's two l
   `useArtefact(key)`: `loading`, `ready`, `absent`, `malformed` or `error`. A per-artefact guard
   catches a body that is not the artefact, a floor rather than schema validation (§12, W1); the
   contract major is checked once, on `meta` (WEB-02). The data layer imports no component
-  (`data/layering.test.ts`).
+  (`data/layering.test.ts`). An open app that becomes visible again (`visibilitychange` to
+  visible) calls `DataStore.refresh()`, which drops every cached file and bumps a generation the
+  views subscribe to: they read again and update in place, keeping what they show if the read
+  fails, so a matchday refresh is seen without a reload. Nothing is fetched while the document is
+  hidden and there is no timer (`data/refresh.ts`, LIVE-06, R1.4.3 §5 Q5); the files stay
+  `NetworkFirst` in the service worker.
 
 #### `rules.json` — why the contract carries the rules ([DL-14](../decisions/DL-14.md))
 
@@ -410,9 +422,9 @@ manually dispatchable.
 | Workflow | Trigger | Does |
 | --- | --- | --- |
 | `ci.yml` | Push to `main`, `pre-release`, `dev/**`; every pull request | Lint, type-check, unit, property and contract tests; `scripts/docs.py check` |
-| `ingest-fast.yml` | Hourly; a guard (`fpl-dof-schedule --decide fast`) decides whether to fetch | `bootstrap-static`, `fixtures` and the upcoming odds — prices, status, ownership. Rebuilds `data`, then dispatches `pipeline.yml` with `trigger=change` and the kinds its change manifest moved, if any (ORC-02) |
+| `ingest-fast.yml` | Hourly; a guard (`fpl-dof-schedule --decide fast`) decides whether to fetch: four-hourly, but every hour within a day of the Open gameweek's deadline and while a gameweek is in play, from its deadline until data-checked (LIVE-02) | `bootstrap-static`, `fixtures` and the upcoming odds — prices, status, ownership; while a gameweek is in play, also its live scores and the league standings every firing, and each team's picks for it once after the deadline and once after data-check (LIVE-01), and, in the firing that first sees a gameweek data-checked (the live one, or one FPL checks after the next deadline), the per-player summaries once (LIVE-07). Rebuilds `data`, then dispatches `pipeline.yml` with `trigger=change` and the kinds its change manifest moved, if any (ORC-02) |
 | `ingest-slow.yml` | Daily, with a fallback slot (each scheduled firing is a no-op once today's ingest succeeded); dispatch, with `must_publish` from `day-before.yml` | Full ingest including per-player summaries; updates `data`; dispatches `pipeline.yml` (`day-before` when `must_publish`, else `change` with its kinds, else the daily `schedule` refresh); archives each newly closed gameweek's bronze to `snapshots`, once, and fails if bronze has no gameweek schedule |
-| `pipeline.yml` | One tick four times an hour (`7,23,41,53 * * * *`); dispatch with typed inputs `trigger` (`manual`, `change`, `schedule`, `day-before`), `kinds`, `gameweek`, `must_publish` (ORC-02) | `guard` (`fpl-dof-schedule --decide pipeline`: the tick runs only in a pre-deadline window; every trigger is refused inside the freeze or for a gameweek no longer Open, and an unknown input fails the step) → `run` (restores the retired frozen harness's last record from `ledger`, read-only, so `models.json` keeps its history up to the switch; `fpl-dof bronze verify --quarantine`, then `fpl-dof run --only transform…publish`; advice appended to `ledger` — the champion's as soon as its week exists, before its plan and the challengers run — contract uploaded, `data` rebuilt with the new price history) → `deploy` (calls `deploy.yml` only when `run` published, ORC-03) |
+| `pipeline.yml` | One tick four times an hour (`7,23,41,53 * * * *`); dispatch with typed inputs `trigger` (`manual`, `change`, `schedule`, `day-before`), `kinds`, `gameweek`, `must_publish` (ORC-02) | `guard` (`fpl-dof-schedule --decide pipeline`: the tick runs only in a pre-deadline window; every trigger is refused inside the freeze or for a gameweek no longer Open, except that a `results` change may be for a gameweek in play and needs none Open; an unknown input fails the step) → `run` (restores the retired frozen harness's last record from `ledger`, read-only, so `models.json` keeps its history up to the switch; `fpl-dof bronze verify --quarantine`, then `fpl-dof run --only transform…publish`; advice appended to `ledger` — the champion's as soon as its week exists, before its plan and the challengers run — contract uploaded, `data` rebuilt with the new price history) → `deploy` (calls `deploy.yml` only when `run` published, ORC-03) |
 | `day-before.yml` | Every 20 minutes in a nightly UTC window | On the day before a deadline, dispatches `ingest-slow` with `must_publish=true` once (deduplicated by the run's `workflow_dispatch` event since midnight Sydney, never its title); that ingest dispatches the pipeline, whose deploy then requires a fresh contract |
 | `deploy.yml` | Called by Pipeline as its last job when the run published; push to `main`; dispatch | Builds the SPA with the calling run's own contract (a push or dispatch takes the newest pipeline run's, until WEB-01), deploys to Pages (ORC-03, [DL-94](../decisions/DL-94.md)) |
 | `backtest.yml` | Weekly; dispatch | Archive ingest under `config/ci-backtest.yaml` (DL-68), then the walk-forward regression; beside it, its own job replays today's models in-sample on the live season (`fpl-dof as-if-played`, ORC-13) |
@@ -422,23 +434,52 @@ manually dispatchable.
 
 ### Two cadence rules that are easy to get wrong
 
-**1. Per-player summaries never run on the fast path.** They are ~700 requests; at a polite two a
-second that is six minutes. The fast workflow exists to keep *prices, status and ownership* inside the
-NFR-05 freshness window, and those all live in `bootstrap-static` — two requests, seconds.
+**1. Per-player summaries run on the fast path once a gameweek, at its data-check, and never
+otherwise.** They are ~700 requests; at a polite two a second that is six minutes. The fast workflow
+exists to keep *prices, status and ownership* inside the NFR-05 freshness window, and those all live
+in `bootstrap-static` — two requests, seconds.
 A summary is cached for a week, except that one fetched before the latest gameweek was checked
 (`finished` and `data_checked`) is stale whatever its age: its `history` is where `player_gameweek`
 comes from, and it lacks that gameweek. FPL publishes no finish time, so "checked" dates from the
 oldest bronze `bootstrap-static` snapshot that shows it, by sidecar `fetched_at`, never file mtime
-(F2). The first slow ingest after each gameweek is checked therefore re-fetches the whole sweep once;
-the warning gate `player_gameweek_current` flags any player whose club played that gameweek but who
+(F2). The first ingest after each gameweek is checked therefore re-fetches the whole sweep once. If
+that is the fast ingest whose capture is the first to show the flag flip (the resource's `on_check`,
+LIVE-07), the `results` run it starts evaluates the gameweek on its final rows, not at the next slow
+ingest. It keys on the gameweek checked, not the live one, so a gameweek FPL checks after the next
+deadline (a Monday match, a Tuesday deadline) is swept too. Every other fast firing leaves the
+summaries alone: it reads the bootstrap capture before its own to see the check is not new, and
+neither fetches nor walks them. With no capture before its own (a fresh bronze), the check counts
+as new. The same firing refetches each published rival's history once, as fresh as its capture,
+otherwise the slow ingest's daily read, so the totals FPL corrected at the check are what the next
+gameweek's live totals stand on (LIVE-04): one request a rival, within `league_rival_limit`. A
+rival's history row counts as a finished gameweek's total only if the bootstrap capture bronze held
+when that history was captured shows the gameweek finished; otherwise the total is unknown and
+that team goes without a live figure, said. The warning gate `player_gameweek_current` flags any player whose club played that gameweek but who
 has no row for it.
 
 **2. An ingest starts a pipeline run only when something material moved** (ORC-02,
 [DL-94](../decisions/DL-94.md)). Ingest compares the bronze it restored with the bronze it fetched
 (`sources/changes.py`, each source diffing its own captures) and writes the kinds that moved to
-`data/runs/changes.json`: any price, any status or news line, any fixture's kick-off or gameweek, and
-a match of the Open gameweek priced for the first time. There are no thresholds. Ownership, a price
-moving on an already-priced match, or a recapture of the same bytes starts nothing.
+`data/runs/changes.json`: any price, any status or news line, any fixture's kick-off or gameweek, a
+match of the Open gameweek priced for the first time, and `results` (LIVE-02,
+[DL-99](../decisions/DL-99.md)). There are no thresholds. Ownership, a price moving on an
+already-priced match, a kick-off, a goal or a score starts nothing; a recapture of the same bytes
+starts nothing either, except through the settle cap below.
+
+`results` moves when a **matchday** of the gameweek in play becomes done, when the gameweek is
+marked finished, and when it is marked data-checked. A matchday is a gameweek's fixtures sharing a
+kick-off date in `schedule.matchday_zone` (UK time); it is done when every one of its fixtures has
+FPL's `finished` (bonus confirmed), or when `schedule.matchday_settle_hours` (three) have passed
+since its last kick-off, and is then published bonus pending, which the run reads from the same
+flags. A postponed fixture (no kick-off, or out of the gameweek) belongs to no matchday. The rule
+is `gameweek.py` `matchdays_done_since`, pure and source-free; each capture's time is its sidecar
+`fetched_at`. Comparing the restored capture with the new one, rather than reading the clock, moves
+each matchday once, at whichever firing first sees it done, however many GitHub drops (D-35). A
+`results` run is a full run that deploys; the guard lets it through for a gameweek in play and with
+no gameweek Open (the season's last weekend), and the freeze still binds it: a check inside the
+freeze spends its change on a refused run, and the gameweek, Finished and unevaluated, is evaluated
+by the next run outside the freeze, whatever started it (ORC-05). The run banner names it a results
+refresh.
 
 **Scheduling caveat (R-09):** scheduled runs are best-effort and can be delayed under platform load.
 The day-before run and the deadline guard exist so a delayed cron is never the reason a deadline is

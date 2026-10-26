@@ -31,6 +31,7 @@ from fpl_dof.silver.store import write_table
 from fpl_dof.silver.tables import Table
 from fpl_dof.week.schedule import (
     ScheduleDecision,
+    dispatch_decision,
     fast_ingest_decision,
     next_fast_ingest,
     pipeline_decision,
@@ -118,6 +119,29 @@ def test_the_decision_is_the_same_instant_however_the_clock_is_expressed() -> No
     for moment in (utc, sydney):
         decision = fast_ingest_decision(now=moment, state=None, config=CONFIG)
         assert decision.should_run is True
+
+
+@pytest.mark.parametrize("hour", range(24))
+def test_every_hour_runs_while_a_gameweek_is_in_play(hour: int) -> None:
+    """LIVE-02: from the deadline until data-checked, so a done matchday is seen within the hour,
+    the next deadline days away or no gameweek Open at all (the season's last weekend)."""
+    now = _at(hour)
+    for state in (_state(now, 6 * 24 * 60), None):
+        decision = fast_ingest_decision(now=now, state=state, config=CONFIG, in_play=(9,))
+        assert decision.should_run is True
+        assert "in play" in decision.reason
+
+
+def test_the_four_hourly_cadence_returns_once_nothing_is_in_play() -> None:
+    now = _at(13)
+    state = _state(now, 6 * 24 * 60)
+    assert fast_ingest_decision(now=now, state=state, config=CONFIG, in_play=()).should_run is False
+    assert next_fast_ingest(now=_at(12, 30), state=state, config=CONFIG, in_play=(9,)) == _at(
+        13, CONFIG.fast_ingest_cron_minute
+    )
+    assert next_fast_ingest(now=_at(12, 30), state=state, config=CONFIG) == _at(
+        16, CONFIG.fast_ingest_cron_minute
+    )
 
 
 # --- pipeline ---------------------------------------------------------------------------------
@@ -211,6 +235,65 @@ def test_the_reason_names_the_window_so_a_skipped_run_is_never_a_mystery() -> No
 
 def test_days_out_from_a_deadline_the_pipeline_leaves_it_to_the_nightly_run() -> None:
     assert _pipeline(5 * 24 * 60) is False
+
+
+# --- results runs (LIVE-02) -------------------------------------------------------------------
+
+
+def _results_run(
+    state: GameweekState | None, in_play: tuple[int, ...], *, gameweek: int | None = None
+) -> ScheduleDecision:
+    return dispatch_decision(
+        trigger="change",
+        kinds=["results"],
+        gameweek=gameweek,
+        now=NOW,
+        state=state,
+        config=CONFIG,
+        in_play=in_play,
+    )
+
+
+def test_gw38s_matchday_run_is_not_refused_for_want_of_an_open_gameweek() -> None:
+    """The season's last weekend: every deadline has passed, so nothing is Open, but its matchdays
+    and its completion still start runs, the data-checked one included (LIVE-07), when nothing is
+    in play any more. Any other change still has nothing to advise."""
+    assert _results_run(None, (38,)).should_run is True
+    assert _results_run(None, (38,), gameweek=38).should_run is True
+    assert _results_run(None, ()).should_run is True  # GW38 just data-checked
+    prices = dispatch_decision(
+        trigger="change", kinds=["prices"], gameweek=None, now=NOW, state=None, config=CONFIG
+    )
+    assert prices.should_run is False and "nothing to advise" in prices.reason
+
+
+def test_a_results_run_may_be_for_the_gameweek_in_play_and_no_other() -> None:
+    """Dispatched while gameweek 9 was Open, it queued across the deadline: 9 is in play, its
+    results are what it is about. A gameweek neither Open nor in play is still a wiring fault."""
+    open_10 = GameweekState(10, Phase.OPEN, NOW + dt.timedelta(days=3), None)
+    assert _results_run(open_10, (9,), gameweek=9).should_run is True
+    assert _results_run(open_10, (9,), gameweek=10).should_run is True
+    refused = _results_run(open_10, (9,), gameweek=7)
+    assert refused.should_run is False and "in play" in refused.reason
+    mixed = dispatch_decision(
+        trigger="change",
+        kinds=["prices"],
+        gameweek=9,
+        now=NOW,
+        state=open_10,
+        config=CONFIG,
+        in_play=(9,),
+    )
+    assert mixed.should_run is False  # a prices change for a gameweek past its deadline
+
+
+def test_any_run_inside_45_minutes_of_a_deadline_is_still_refused_results_included() -> None:
+    """R-09 binds a results run: a midweek gameweek's last matchday done while the next deadline is
+    minutes away waits for the freeze to pass (the next change, or the daily refresh)."""
+    for minutes in range(1, int(CONFIG.deadline_freeze_minutes)):
+        decision = _results_run(_state(NOW, minutes), (9,), gameweek=9)
+        assert decision.should_run is False and "freeze" in decision.reason, minutes
+    assert _results_run(_state(NOW, CONFIG.deadline_freeze_minutes + 1), (9,)).should_run is True
 
 
 # --- configuration guards ---------------------------------------------------------------------
@@ -401,3 +484,34 @@ def test_the_guard_reads_gameweek_from_bronze_when_silver_is_missing(
     payload = json.loads(_run(capsys, "--data-dir", str(tmp_path), "--now", "2026-09-19T07:00:00Z"))
     assert payload["gameweek"] == 5
     assert payload["hours_to_deadline"] == pytest.approx(3.0)
+
+
+def test_the_guard_runs_gw38s_results_and_fetches_hourly_on_the_seasons_last_weekend(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """LIVE-02 end to end through the guard command: no gameweek is Open, gameweek 38 is in play."""
+    frame = pd.DataFrame(
+        [
+            {
+                "gameweek": gameweek,
+                "name": f"Gameweek {gameweek}",
+                "deadline_time": pd.Timestamp(deadline),
+                "finished": finished,
+                "is_next": False,
+                "data_checked": finished,
+            }
+            for gameweek, deadline, finished in (
+                (37, "2027-05-15T10:00:00Z", True),
+                (38, "2027-05-23T13:30:00Z", False),
+            )
+        ]
+    )
+    write_table(tmp_path / "silver", SEASON, Table.GAMEWEEK, frame)
+    sunday = ["--data-dir", str(tmp_path), "--now", "2027-05-23T19:07:00Z"]
+    payload = json.loads(_run(capsys, *sunday))
+    assert payload["gameweek"] is None and payload["in_play"] == [38]
+    assert payload["fast_ingest"]["should_run"] is True  # 19:00 is no four-hourly boundary
+    results = ["--decide", "pipeline", "--trigger", "change", "--kinds", "results"]
+    assert _run(capsys, *sunday, *results, "--gameweek", "") == "true"
+    prices = ["--decide", "pipeline", "--trigger", "change", "--kinds", "prices"]
+    assert _run(capsys, *sunday, *prices) == "false"

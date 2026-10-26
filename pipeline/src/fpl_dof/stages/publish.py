@@ -36,8 +36,9 @@ from fpl_dof.factory import (
 )
 from fpl_dof.factory.registry import published_strategies
 from fpl_dof.frames import as_float, as_int
-from fpl_dof.gameweek import SilverTables, open_gameweek
+from fpl_dof.gameweek import SilverTables, gameweeks_in_play, open_gameweek
 from fpl_dof.gold import read_team_match_odds
+from fpl_dof.live import LiveTables, has_kicked_off, live_gameweek
 from fpl_dof.obs.logging import get_logger
 from fpl_dof.obs.manifest import RunManifest, git_sha, read_manifest
 from fpl_dof.paths import find_repo_root
@@ -48,6 +49,7 @@ from fpl_dof.publish.fixtures import build_fixtures
 from fpl_dof.publish.health import build_health
 from fpl_dof.publish.history import build_history
 from fpl_dof.publish.league import build_league
+from fpl_dof.publish.live import build_live
 from fpl_dof.publish.models_compare import build_models
 from fpl_dof.publish.season_log import build_log
 from fpl_dof.publish.strategies import artefact_paths, build_strategies
@@ -126,6 +128,22 @@ def run(ctx: StageContext) -> StageResult:
         outputs.append(Output(path=contract.write("league", league, destination)))
     else:
         removed.append("league.json")
+
+    # The gameweek in play (LIVE-04): absent preseason and until the live gameweek kicks off, like
+    # `league.json`. Independent of the week stage, so it is written on the season's last weekend
+    # too, when no gameweek is Open and `week` skipped. Optional: a failure here is logged and
+    # costs this artefact alone, never the champion's publish (DP-15).
+    live = _live(ctx, season, gameweeks, rules)
+    published_live = False
+    if live is not None:
+        try:
+            path = contract.write("live", live, destination)
+            outputs.append(Output(path=path, rows=len(live["teams"])))
+            published_live = True
+        except Exception as exc:
+            log.warning("publish.live_dropped", extra={"error": repr(exc)})
+    if not published_live:
+        removed.append("live.json")
 
     # The season log (DL-69): absent until a team ID is configured and the game has recorded picks
     # for it, for the same reason `league.json` is — a stale one would describe a different owner.
@@ -247,6 +265,8 @@ def run(ctx: StageContext) -> StageResult:
             "fixture_teams_rated": fixtures["model"]["teams_rated"],
             "league_entries": len(league["entries"]) if league else 0,
             "league_squads": league["league"]["squads_published"] if league else 0,
+            "live_gameweek": live["gameweek"] if live else 0,
+            "live_teams": sum(1 for t in live["teams"] if t["live"]) if live else 0,
             "health_sources": len(health["sources"]) if health else 0,
             "health_sources_degraded": (
                 sum(1 for s in health["sources"] if s["status"] == "degraded") if health else 0
@@ -423,7 +443,12 @@ def _next_odds_check(ctx: StageContext, gameweeks: pd.DataFrame) -> str | None:
     state = open_gameweek(SilverTables(gameweeks), (), ctx.as_of)
     if state is None:
         return None
-    check = next_fast_ingest(now=ctx.as_of, state=state, config=ctx.config.schedule)
+    check = next_fast_ingest(
+        now=ctx.as_of,
+        state=state,
+        config=ctx.config.schedule,
+        in_play=gameweeks_in_play(gameweeks, ctx.as_of),
+    )
     return None if check is None else _iso(check)
 
 
@@ -600,6 +625,58 @@ def _league(ctx: StageContext, season: str, gameweeks: pd.DataFrame) -> dict[str
     )
 
 
+def _live(
+    ctx: StageContext, season: str, gameweeks: pd.DataFrame, rules: GameRules
+) -> dict[str, Any] | None:
+    """The gameweek in play, or ``None`` before it has kicked off (LIVE-04, DL-99).
+
+    The live gameweek is the latest past its deadline (LIVE-01), and the live tables hold it
+    alone; so from a deadline until that gameweek's first kick-off there is nothing played to
+    show, and the gameweek before has left the live tables. Every table but the gameweeks is
+    optional: a missing one costs the figures it fed, team by team, and says so (NFR-15).
+    """
+    gameweek = live_gameweek(gameweeks, ctx.as_of)
+    if gameweek is None:
+        return None
+    silver = ctx.layout.silver
+    tables = LiveTables(
+        gameweeks=gameweeks,
+        fixtures=read_table_optional(silver, season, Table.FIXTURE),
+        players=read_table_optional(silver, season, Table.PLAYER),
+        player_live=read_table_optional(silver, season, Table.PLAYER_LIVE),
+        entry_live=read_table_optional(silver, season, Table.ENTRY_LIVE),
+        entry_picks=read_table_optional(silver, season, Table.ENTRY_PICK),
+        league_picks=read_table_optional(silver, season, Table.LEAGUE_PICK),
+        entry_gameweeks=read_table_optional(silver, season, Table.ENTRY_GAMEWEEK),
+        league_gameweeks=read_table_optional(silver, season, Table.LEAGUE_GAMEWEEK),
+    )
+    if not has_kicked_off(tables, gameweek, ctx.as_of):
+        return None
+    owner_id = ctx.config.entry.team_id
+    entry = read_table_optional(silver, season, Table.ENTRY)
+    owner_name = None
+    if entry is not None and owner_id is not None:
+        names = entry.loc[entry["entry_id"] == owner_id, "name"]
+        owner_name = None if names.empty else str(names.iloc[0])
+    standings = (
+        read_table_optional(silver, season, Table.LEAGUE_STANDING)
+        if ctx.config.entry.league_id is not None
+        else None
+    )
+    return build_live(
+        tables=tables,
+        gameweek=gameweek,
+        rules=rules,
+        as_of=ctx.as_of,
+        matchday_zone=ctx.config.schedule.matchday_zone,
+        settle=dt.timedelta(hours=ctx.config.schedule.matchday_settle_hours),
+        owner_entry_id=owner_id,
+        owner_name=owner_name,
+        standings=standings,
+        contract_version=CONTRACT_VERSION,
+    )
+
+
 def _season_log(
     ctx: StageContext, season: str, evaluations: dict[int, dict[str, Any]]
 ) -> dict[str, Any] | None:
@@ -672,8 +749,13 @@ def _models(
         # ORC-07: an awaited source is next checked at the next fast-ingest firing that fetches.
         state = None if gameweeks is None else open_gameweek(SilverTables(gameweeks), (), ctx.as_of)
         check = None
-        if state is not None:
-            check = next_fast_ingest(now=ctx.as_of, state=state, config=ctx.config.schedule)
+        if gameweeks is not None and state is not None:
+            check = next_fast_ingest(
+                now=ctx.as_of,
+                state=state,
+                config=ctx.config.schedule,
+                in_play=gameweeks_in_play(gameweeks, ctx.as_of),
+            )
         payload = build_models(
             season=season,
             decisions=decisions,
