@@ -138,6 +138,11 @@ function HomeSquad() {
           {owner.reason ? `: ${owner.reason}` : ""}. This is your squad as last published.
         </p>
       )}
+      {(liveState.status === "error" || liveState.status === "malformed") && (
+        <p className="home-sub" data-testid="home-live-unavailable">
+          The live gameweek could not be read, so this is your squad as at the last finished gameweek.
+        </p>
+      )}
       {lastGw === null && (
         <p className="home-sub" data-testid="home-squad-no-points">
           {unready(state, "No player history is published yet") ?? "No gameweek has been scored yet"},

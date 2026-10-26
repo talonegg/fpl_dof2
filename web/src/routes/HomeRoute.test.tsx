@@ -249,6 +249,16 @@ describe("Home with the gameweek in play (LIVE-06)", () => {
 
     await screen.findByTestId("home-squad-1");
     await waitFor(() => expect(screen.queryByTestId("home-live")).toBeNull());
+    // As the league does: the fallback is stated, not silent.
+    expect(screen.getByTestId("home-live-unavailable").textContent).toContain("could not be read");
+  });
+
+  it("does not claim the live gameweek is unreadable when none is published", async () => {
+    installFetchStub({ bodies: { ...served, players: liveRoster } });
+    renderApp("/");
+
+    await screen.findByTestId("home-squad-1");
+    expect(screen.queryByTestId("home-live-unavailable")).toBeNull();
   });
 });
 

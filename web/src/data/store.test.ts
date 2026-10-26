@@ -134,6 +134,21 @@ describe("dataStore.refresh", () => {
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
+  it("asks the origin to revalidate on a refresh's reads, and leaves first loads plain", async () => {
+    const fetcher = vi.fn((..._args: unknown[]) => Promise.resolve(json(liveGameweek("in_play"))));
+    vi.stubGlobal("fetch", fetcher);
+    await dataStore.get("live");
+    expect(fetcher.mock.calls[0][1]).toBeUndefined(); // a first load is a plain fetch
+
+    dataStore.refresh();
+    await dataStore.get("live");
+    expect(fetcher.mock.calls[1][1]).toEqual({ cache: "no-cache" }); // GitHub Pages serves max-age=600
+
+    dataStore.reset(); // a hard reset starts over: plain again
+    await dataStore.get("live");
+    expect(fetcher.mock.calls[2][1]).toBeUndefined();
+  });
+
   it("tells subscribers, until they unsubscribe", () => {
     const heard = vi.fn();
     const unsubscribe = dataStore.subscribe(heard);

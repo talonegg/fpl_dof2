@@ -10,7 +10,8 @@
     "test": "vitest",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "verify:browser": "node verify/browser-check.mjs",
-    "verify:smoke": "node verify/smoke-check.mjs"
+    "verify:smoke": "node verify/smoke-check.mjs",
+    "verify:live": "node verify/live-layout-check.mjs"
   },
   "dependencies": {
     "@tanstack/react-virtual": "^3.14.9",

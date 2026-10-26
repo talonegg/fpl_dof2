@@ -3,6 +3,7 @@ import { act, fireEvent, screen, waitFor, within } from "@testing-library/react"
 import type { Live } from "../../contract/types";
 import { installFetchStub, renderApp, resetAppState } from "../../test/render";
 import { liveGameweek, liveRoster } from "../../test/liveFixtures";
+import { preseasonLeague } from "../../test/fixtures";
 import { formatLocalDateTime } from "../../format";
 
 /**
@@ -121,6 +122,25 @@ describe("LeagueTable with the gameweek in play (LIVE-05)", () => {
     expect(within(detail).getByText(/Raya, Watkins/)).toBeTruthy();
     // Status is text in its own column, not a colour.
     expect(screen.getByRole("columnheader", { name: "Status" })).toBeTruthy();
+  });
+
+  it("does not say no gameweek has been scored beside a live table in the first gameweek", async () => {
+    installFetchStub({ bodies: { league: preseasonLeague, players: liveRoster, live: liveGameweek("in_play") } });
+    renderApp("/league");
+
+    await waitFor(() => expect(screen.getByTestId("league-table")).toBeTruthy());
+    expect(screen.getByTestId("league-live")).toBeTruthy();
+    expect(screen.queryByTestId("league-anchor")).toBeNull();
+    expect(screen.getByTestId("league-table").textContent).not.toContain("No gameweek has been scored");
+    expect(screen.getByTestId("league-table").textContent).not.toContain("before any gameweek has been scored");
+  });
+
+  it("still says it before a gameweek is scored when there is no live.json", async () => {
+    installFetchStub({ bodies: { league: preseasonLeague } });
+    renderApp("/league");
+
+    await waitFor(() => expect(screen.getByTestId("league-table")).toBeTruthy());
+    expect(screen.getByTestId("league-anchor").textContent).toContain("No gameweek has been scored");
   });
 
   it("is today's table when live.json is absent", async () => {
