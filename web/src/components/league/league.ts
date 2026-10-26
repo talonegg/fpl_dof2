@@ -63,8 +63,8 @@ export interface LeagueRow {
   rankChange: number | null;
   /**
    * Points behind the leader. Zero for the leader; never negative. Null for a team with no live
-   * figure in the live view, whose total is a gameweek behind the others and cannot be set
-   * against them.
+   * figure in the live view, whose total is FPL's table, updated on FPL's clock rather than the
+   * scorer's, and so cannot be set against the others.
    */
   pointsBehindLeader: number | null;
   /** The team as `live.json` publishes it, or null in the plain table or when it is not in it. */
@@ -97,8 +97,9 @@ export interface LeagueView {
  * and the movement since FPL's last rank. A team with no live figure, because it is past
  * `league_rival_limit` or its picks were not read, is not dropped and not guessed at: it keeps the
  * league table's own figures, is marked "not live", and is listed **after every live team in the
- * league table's own order**. Its total is the last finished gameweek's, so setting it against the
- * others' live totals would rank it as though it had scored nothing this gameweek.
+ * league table's own order**. Its figures are FPL's table, which FPL updates on its own clock while
+ * the gameweek is scored, so setting them against the scorer's live totals would rank two
+ * different moments as one.
  */
 export function buildLeagueView(league: League, live: Live | null = null): LeagueView {
   const tableOrder = [...league.entries].sort((a, b) => a.rank - b.rank || a.entry_id - b.entry_id);
