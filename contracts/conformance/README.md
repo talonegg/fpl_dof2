@@ -78,17 +78,27 @@ What a team actually scored is FPL's to say, so this corpus is FPL's own answer,
 is a real public 2026/27 entry for one finished gameweek — the owner's and the mini-league's, by
 entry id and nothing else — and its `expected` is what the game published:
 `entry_history.points` (before the hit), `entry_history.event_transfers_cost`, and the game's
-`automatic_subs`. Only Python reads it today (`pipeline/tests/test_rules_realised.py`, against
-`fpl_dof/rules/realised.py`); it is here so a second implementation never gets its own copy.
+`automatic_subs`. Only Python reads it (`pipeline/tests/test_rules_realised.py`, against
+`fpl_dof/rules/realised.py`): the app has no scorer and reads scores from the published artefacts.
+It is here so a second implementation never gets its own copy.
 
 A case that the scorer cannot reproduce is a failing test, not an expectation to soften.
 
+**The gameweek in play is ours to say** (LIVE-03, DL-99): FPL publishes no answer for a team part
+way through a gameweek. The cases tagged `constructed` take one real case (`from`) and rewind some
+of its fixtures to unfinished, and their `expected` is the in-play rule worked by hand: a starter or
+captain yet to play keeps his place and the armband, a blank is substituted at once, a substitute
+yet to play cannot come on. Each says why in `why`. One constructed case has every fixture finished
+and keeps FPL's own answer for the case it is from. The builder writes no constructed case and a
+rebuild keeps them.
+
 | Key | What it is |
 | --- | --- |
-| `picks` | The fifteen in submitted order: starters 1–11, the reserve goalkeeper, then the outfield bench in order. Each has its `position` and `fixtures`, one `[minutes, points]` per fixture played (two in a double gameweek, none in a blank). |
+| `picks` | The fifteen in submitted order: starters 1–11, the reserve goalkeeper, then the outfield bench in order. Each has its `position` and `fixtures`, one `[minutes, points]` per fixture played (two in a double gameweek, none in a blank). A constructed case writes each as `[minutes, points, finished]`: `false` is a fixture not yet over, its minutes and points so far. |
 | `captain`, `vice_captain`, `chip` | As submitted. `chip` is the game's own name (`bboost`, `3xc`, `freehit`, `wildcard`) or `null`. |
 | `transfers`, `free_transfers` | `event_transfers` from `entry_history`, and the free transfers derived from the entry's history (below). `null` free transfers in the first gameweek, whose transfers are unlimited. |
 | `tags` | What the case exercises, so the test can insist the corpus still covers it. |
+| `from`, `why`, `expected.armband` | A constructed case only: the real case it rewinds, what it shows, and who wears the armband. |
 
 ### How a case is built from the public endpoints
 

@@ -6,7 +6,9 @@
 Writes contracts/conformance/realised/realised-corpus.json: one case per entry and finished
 gameweek, each with FPL's own points, hit and automatic substitutions as the expected answer. The
 owner's entry (FPL_DOF_TEAM_ID or --owner) comes first; the others are given by id, or taken from
-the top of the mini-league (FPL_DOF_LEAGUE_ID or --league). See contracts/conformance/README.md.
+the top of the mini-league (FPL_DOF_LEAGUE_ID or --league). The file's constructed cases (the
+gameweek in play, LIVE-03) are written by hand, not fetched, and a rebuild keeps them. See
+contracts/conformance/README.md.
 
 Public endpoints only, never a credential (Invariant 4). Entry ids only, never a name. Serial, one
 request a second, an honest User-Agent, and every response cached under data/ (gitignored), so a
@@ -164,6 +166,8 @@ def render(cases: list[dict[str, Any]]) -> str:
     head_keys = (
         "name",
         "tags",
+        "from",
+        "why",
         "entry_id",
         "gameweek",
         "chip",
@@ -174,11 +178,12 @@ def render(cases: list[dict[str, Any]]) -> str:
     )
     lines = [
         "{",
-        ' "about": "Real 2026/27 entries scored by FPL. See contracts/conformance/README.md.",',
+        ' "about": "Real 2026/27 entries scored by FPL, and in-play cases constructed from them.'
+        ' See contracts/conformance/README.md.",',
         ' "cases": [',
     ]
     for n, c in enumerate(cases):
-        head = json.dumps({k: c[k] for k in head_keys})[1:-1]
+        head = json.dumps({k: c[k] for k in head_keys if k in c})[1:-1]
         lines += [f"  {{{head},", '   "picks": [']
         lines += [
             "    " + json.dumps(p) + ("," if i < len(c["picks"]) - 1 else "")
@@ -229,6 +234,9 @@ def main() -> int:
             if entry == args.owner or found["tags"]:  # an untagged case adds nothing to test
                 cases.append(found)
 
+    if args.out.exists():  # the constructed cases are hand-written: a rebuild keeps them
+        kept = json.loads(args.out.read_text(encoding="utf-8"))["cases"]
+        cases += [c for c in kept if "constructed" in c["tags"]]
     args.out.write_text(render(cases), encoding="utf-8")
     print(f"{len(cases)} cases -> {args.out}")
     return 0
