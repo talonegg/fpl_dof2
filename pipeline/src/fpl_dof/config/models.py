@@ -2530,12 +2530,12 @@ class ScheduleConfig(_Section):
         description="Wall clock a CI workflow run may take, every job included (DL-94 Q9).",
     )
     python_tests_budget_seconds: int = Field(
-        default=120,
+        default=150,
         gt=0,
         description=(
-            "Wall clock the Python test step may take in CI, per shard (DL-94 Q9, DL-100): a "
-            "quarter above what the suite took once R1.4.3 landed, so a genuinely slow change "
-            "still fails it."
+            "Wall clock the Python test step may take in CI, per shard (DL-94 Q9, DL-101): the "
+            "same code has taken from 64 to 122 s on GitHub's runners, so the figure clears a slow "
+            "runner and still fails a change that doubles a shard."
         ),
     )
 
