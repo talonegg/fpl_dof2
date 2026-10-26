@@ -307,7 +307,7 @@ def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--shard",
         default=None,
-        help="Run one shard of the suite, as INDEX/COUNT (e.g. 0/3), as CI does side by side.",
+        help="Run one shard of the suite, as INDEX/COUNT (e.g. 0/2), as CI does side by side.",
     )
 
 
