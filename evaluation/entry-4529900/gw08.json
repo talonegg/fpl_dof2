@@ -1,0 +1,832 @@
+{
+  "gameweek": 8,
+  "season": "2026/27",
+  "evaluation_version": "4",
+  "evaluated_at": "2026-10-26T20:34:04.722519Z",
+  "run_id": "20261026T203404Z-c0742394",
+  "entry_id": 4529900,
+  "log": {
+    "gameweek": 8,
+    "played": {
+      "squad": [
+        109,
+        8,
+        257,
+        31,
+        115,
+        124,
+        399,
+        68,
+        237,
+        411,
+        464,
+        496,
+        426,
+        165,
+        277
+      ],
+      "starting": [
+        109,
+        8,
+        257,
+        31,
+        115,
+        124,
+        399,
+        68,
+        237,
+        411,
+        464
+      ],
+      "bench_order": [
+        496,
+        426,
+        165,
+        277
+      ],
+      "captain": 411,
+      "vice_captain": 426
+    },
+    "score": {
+      "points": 58,
+      "total_points": 543,
+      "rank": 1628561,
+      "overall_rank": 521249,
+      "points_on_bench": 13,
+      "transfers": 1,
+      "transfers_cost": 0
+    },
+    "chip": null,
+    "advised": {
+      "run_id": "20261023T171520Z-71acb230",
+      "recorded_at": "2026-10-23T17:15:20.155968Z",
+      "squad": [
+        8,
+        31,
+        68,
+        109,
+        115,
+        124,
+        165,
+        237,
+        277,
+        330,
+        399,
+        411,
+        426,
+        464,
+        496
+      ],
+      "starting": [
+        109,
+        8,
+        411,
+        31,
+        330,
+        115,
+        124,
+        426,
+        68,
+        399,
+        237
+      ],
+      "captain": 411,
+      "vice_captain": 426,
+      "expected_points": 40.944,
+      "transfers": 1,
+      "hit_points": 0,
+      "moves": [
+        {
+          "out": 175,
+          "in": 330
+        }
+      ]
+    },
+    "reconciliation": {
+      "followed": false,
+      "divergences": [
+        {
+          "kind": "squad",
+          "status": "unexplained",
+          "message": "squad: player 330 was advised but not played",
+          "advised": [
+            8,
+            31,
+            68,
+            109,
+            115,
+            124,
+            165,
+            237,
+            277,
+            330,
+            399,
+            411,
+            426,
+            464,
+            496
+          ],
+          "played": [
+            8,
+            31,
+            68,
+            109,
+            115,
+            124,
+            165,
+            237,
+            257,
+            277,
+            399,
+            411,
+            426,
+            464,
+            496
+          ],
+          "reason": ""
+        },
+        {
+          "kind": "squad",
+          "status": "unexplained",
+          "message": "squad: player 257 was played but not advised",
+          "advised": [
+            8,
+            31,
+            68,
+            109,
+            115,
+            124,
+            165,
+            237,
+            277,
+            330,
+            399,
+            411,
+            426,
+            464,
+            496
+          ],
+          "played": [
+            8,
+            31,
+            68,
+            109,
+            115,
+            124,
+            165,
+            237,
+            257,
+            277,
+            399,
+            411,
+            426,
+            464,
+            496
+          ],
+          "reason": ""
+        },
+        {
+          "kind": "starting",
+          "status": "unexplained",
+          "message": "starting: player 330 was advised but not played",
+          "advised": [
+            8,
+            31,
+            68,
+            109,
+            115,
+            124,
+            237,
+            330,
+            399,
+            411,
+            426
+          ],
+          "played": [
+            8,
+            31,
+            68,
+            109,
+            115,
+            124,
+            237,
+            257,
+            399,
+            411,
+            464
+          ],
+          "reason": ""
+        },
+        {
+          "kind": "starting",
+          "status": "unexplained",
+          "message": "starting: player 426 was advised but not played",
+          "advised": [
+            8,
+            31,
+            68,
+            109,
+            115,
+            124,
+            237,
+            330,
+            399,
+            411,
+            426
+          ],
+          "played": [
+            8,
+            31,
+            68,
+            109,
+            115,
+            124,
+            237,
+            257,
+            399,
+            411,
+            464
+          ],
+          "reason": ""
+        },
+        {
+          "kind": "starting",
+          "status": "unexplained",
+          "message": "starting: player 257 was played but not advised",
+          "advised": [
+            8,
+            31,
+            68,
+            109,
+            115,
+            124,
+            237,
+            330,
+            399,
+            411,
+            426
+          ],
+          "played": [
+            8,
+            31,
+            68,
+            109,
+            115,
+            124,
+            237,
+            257,
+            399,
+            411,
+            464
+          ],
+          "reason": ""
+        },
+        {
+          "kind": "starting",
+          "status": "unexplained",
+          "message": "starting: player 464 was played but not advised",
+          "advised": [
+            8,
+            31,
+            68,
+            109,
+            115,
+            124,
+            237,
+            330,
+            399,
+            411,
+            426
+          ],
+          "played": [
+            8,
+            31,
+            68,
+            109,
+            115,
+            124,
+            237,
+            257,
+            399,
+            411,
+            464
+          ],
+          "reason": ""
+        }
+      ]
+    },
+    "hindsight": {
+      "rankings": [
+        {
+          "model_name": "c1",
+          "rank": 1,
+          "score": {
+            "final_starting": [
+              411,
+              334,
+              31,
+              68,
+              399,
+              237,
+              464,
+              115,
+              8,
+              124,
+              109
+            ],
+            "points_before_hits": 59,
+            "hit_points": 0,
+            "net_points": 59,
+            "captain_id": 411,
+            "vice_used": false,
+            "armband_points": 16,
+            "autosubs_in": [
+              31,
+              399
+            ],
+            "autosubs_out": [
+              165,
+              426
+            ],
+            "expected_points": 53.855,
+            "prediction_delta": 5.15
+          }
+        },
+        {
+          "model_name": "c3",
+          "rank": 2,
+          "score": {
+            "final_starting": [
+              109,
+              8,
+              411,
+              31,
+              330,
+              115,
+              124,
+              277,
+              68,
+              399,
+              237
+            ],
+            "points_before_hits": 58,
+            "hit_points": 0,
+            "net_points": 58,
+            "captain_id": 411,
+            "vice_used": false,
+            "armband_points": 16,
+            "autosubs_in": [
+              277
+            ],
+            "autosubs_out": [
+              426
+            ],
+            "expected_points": 40.944,
+            "prediction_delta": 17.06
+          }
+        },
+        {
+          "model_name": "played",
+          "rank": 3,
+          "score": {
+            "final_starting": [
+              109,
+              8,
+              257,
+              31,
+              115,
+              124,
+              399,
+              68,
+              237,
+              411,
+              464
+            ],
+            "points_before_hits": 58,
+            "hit_points": 0,
+            "net_points": 58,
+            "captain_id": 411,
+            "vice_used": false,
+            "armband_points": 16,
+            "autosubs_in": [],
+            "autosubs_out": [],
+            "expected_points": 0.0,
+            "prediction_delta": 58.0
+          }
+        },
+        {
+          "model_name": "a",
+          "rank": 4,
+          "score": {
+            "final_starting": [
+              411,
+              40,
+              68,
+              277,
+              237,
+              464,
+              124,
+              31,
+              8,
+              115,
+              109
+            ],
+            "points_before_hits": 55,
+            "hit_points": 0,
+            "net_points": 55,
+            "captain_id": 411,
+            "vice_used": false,
+            "armband_points": 16,
+            "autosubs_in": [
+              277
+            ],
+            "autosubs_out": [
+              426
+            ],
+            "expected_points": 55.459,
+            "prediction_delta": -0.46
+          }
+        },
+        {
+          "model_name": "a_odds",
+          "rank": 5,
+          "score": {
+            "final_starting": [
+              411,
+              398,
+              124,
+              8,
+              31,
+              68,
+              115,
+              464,
+              237,
+              109,
+              277
+            ],
+            "points_before_hits": 55,
+            "hit_points": 0,
+            "net_points": 55,
+            "captain_id": 411,
+            "vice_used": false,
+            "armband_points": 16,
+            "autosubs_in": [
+              124,
+              115
+            ],
+            "autosubs_out": [
+              165,
+              426
+            ],
+            "expected_points": 57.887,
+            "prediction_delta": -2.89
+          }
+        },
+        {
+          "model_name": "engine",
+          "rank": 6,
+          "score": {
+            "final_starting": [
+              109,
+              8,
+              411,
+              334,
+              31,
+              115,
+              399,
+              124,
+              237,
+              175,
+              68
+            ],
+            "points_before_hits": 54,
+            "hit_points": 0,
+            "net_points": 54,
+            "captain_id": 109,
+            "vice_used": false,
+            "armband_points": 4,
+            "autosubs_in": [
+              237,
+              175
+            ],
+            "autosubs_out": [
+              165,
+              426
+            ],
+            "expected_points": 42.0914,
+            "prediction_delta": 11.91
+          }
+        }
+      ],
+      "optimal": {
+        "gameweek": 8,
+        "baseline_roll": {
+          "transfers_count": 0,
+          "moves": [],
+          "starting": [
+            31,
+            68,
+            496,
+            411,
+            237,
+            277,
+            175,
+            8,
+            115,
+            464,
+            124
+          ],
+          "captain_id": 31,
+          "captain_name": "Konsa",
+          "points_before_hits": 69,
+          "hit_points": 0,
+          "net_points": 69,
+          "gain_over_roll": 0.0
+        },
+        "optimal_single": {
+          "transfers_count": 1,
+          "moves": [
+            {
+              "player_out_id": 165,
+              "player_out_name": "Jo\u00e3o Pedro",
+              "player_in_id": 166,
+              "player_in_name": "N.Jackson",
+              "selling_price": 7.7,
+              "buying_price": 6.6
+            }
+          ],
+          "starting": [
+            31,
+            166,
+            68,
+            496,
+            411,
+            237,
+            277,
+            175,
+            8,
+            115,
+            464
+          ],
+          "captain_id": 31,
+          "captain_name": "Konsa",
+          "points_before_hits": 82,
+          "hit_points": 0,
+          "net_points": 82,
+          "gain_over_roll": 13.0
+        },
+        "optimal_overall": {
+          "transfers_count": 2,
+          "moves": [
+            {
+              "player_out_id": 8,
+              "player_out_name": "Calafiori",
+              "player_in_id": 4,
+              "player_in_name": "Gabriel",
+              "selling_price": 5.7,
+              "buying_price": 7.9
+            },
+            {
+              "player_out_id": 426,
+              "player_out_name": "B.Fernandes",
+              "player_in_id": 264,
+              "player_in_name": "Bobb",
+              "selling_price": 11.8,
+              "buying_price": 5.5
+            }
+          ],
+          "starting": [
+            4,
+            31,
+            264,
+            68,
+            496,
+            411,
+            237,
+            277,
+            175,
+            115,
+            464
+          ],
+          "captain_id": 4,
+          "captain_name": "Gabriel",
+          "points_before_hits": 99,
+          "hit_points": -4,
+          "net_points": 95,
+          "gain_over_roll": 26.0
+        },
+        "all_options": [
+          {
+            "transfers_count": 0,
+            "moves": [],
+            "starting": [
+              31,
+              68,
+              496,
+              411,
+              237,
+              277,
+              175,
+              8,
+              115,
+              464,
+              124
+            ],
+            "captain_id": 31,
+            "captain_name": "Konsa",
+            "points_before_hits": 69,
+            "hit_points": 0,
+            "net_points": 69,
+            "gain_over_roll": 0.0
+          },
+          {
+            "transfers_count": 1,
+            "moves": [
+              {
+                "player_out_id": 165,
+                "player_out_name": "Jo\u00e3o Pedro",
+                "player_in_id": 166,
+                "player_in_name": "N.Jackson",
+                "selling_price": 7.7,
+                "buying_price": 6.6
+              }
+            ],
+            "starting": [
+              31,
+              166,
+              68,
+              496,
+              411,
+              237,
+              277,
+              175,
+              8,
+              115,
+              464
+            ],
+            "captain_id": 31,
+            "captain_name": "Konsa",
+            "points_before_hits": 82,
+            "hit_points": 0,
+            "net_points": 82,
+            "gain_over_roll": 13.0
+          },
+          {
+            "transfers_count": 2,
+            "moves": [
+              {
+                "player_out_id": 8,
+                "player_out_name": "Calafiori",
+                "player_in_id": 4,
+                "player_in_name": "Gabriel",
+                "selling_price": 5.7,
+                "buying_price": 7.9
+              },
+              {
+                "player_out_id": 426,
+                "player_out_name": "B.Fernandes",
+                "player_in_id": 264,
+                "player_in_name": "Bobb",
+                "selling_price": 11.8,
+                "buying_price": 5.5
+              }
+            ],
+            "starting": [
+              4,
+              31,
+              264,
+              68,
+              496,
+              411,
+              237,
+              277,
+              175,
+              115,
+              464
+            ],
+            "captain_id": 4,
+            "captain_name": "Gabriel",
+            "points_before_hits": 99,
+            "hit_points": -4,
+            "net_points": 95,
+            "gain_over_roll": 26.0
+          }
+        ]
+      },
+      "diagnostics": [
+        {
+          "player_id": 4,
+          "player_name": "Gabriel",
+          "role": "captain",
+          "actual_points": 17,
+          "category": "captaincy_trap",
+          "explanation": "Gabriel scored 17 pts as optimal captain. Models played, c3, a, a_odds, c1, engine backed alternative captains who scored less.",
+          "models_xp": {},
+          "models_trapped": [
+            "played",
+            "c3",
+            "a",
+            "a_odds",
+            "c1",
+            "engine"
+          ],
+          "underlying_points": 12.29
+        },
+        {
+          "player_id": 4,
+          "player_name": "Gabriel",
+          "role": "transfer_in",
+          "actual_points": 17,
+          "category": "high_variance_outlier",
+          "explanation": "Gabriel hauled with 17 pts; no model's xP for him was recorded.",
+          "models_xp": {},
+          "models_trapped": [],
+          "underlying_points": 12.29
+        },
+        {
+          "player_id": 264,
+          "player_name": "Bobb",
+          "role": "transfer_in",
+          "actual_points": 11,
+          "category": "high_variance_outlier",
+          "explanation": "Bobb hauled with 11 pts; no model's xP for him was recorded.",
+          "models_xp": {},
+          "models_trapped": [],
+          "underlying_points": 6.48
+        }
+      ]
+    }
+  },
+  "strategies": {
+    "a": {
+      "actual": {
+        "points": 55.0,
+        "points_before_hits": 55.0,
+        "hit_points": 0.0,
+        "n_autosubs": 1,
+        "vice_used": false,
+        "armband_points": 16.0,
+        "underlying_points": 49.39,
+        "forecast_error": 6.07,
+        "luck": 5.61
+      },
+      "xp_accuracy": null
+    },
+    "a_odds": {
+      "actual": {
+        "points": 55.0,
+        "points_before_hits": 55.0,
+        "hit_points": 0.0,
+        "n_autosubs": 2,
+        "vice_used": false,
+        "armband_points": 16.0,
+        "underlying_points": 49.23,
+        "forecast_error": 8.65,
+        "luck": 5.77
+      },
+      "xp_accuracy": null
+    },
+    "c1": {
+      "actual": {
+        "points": 59.0,
+        "points_before_hits": 59.0,
+        "hit_points": 0.0,
+        "n_autosubs": 2,
+        "vice_used": false,
+        "armband_points": 16.0,
+        "underlying_points": 52.38,
+        "forecast_error": 1.47,
+        "luck": 6.62
+      },
+      "xp_accuracy": null
+    },
+    "c3": {
+      "actual": {
+        "points": 58.0,
+        "points_before_hits": 58.0,
+        "hit_points": 0.0,
+        "n_autosubs": 1,
+        "vice_used": false,
+        "armband_points": 16.0,
+        "underlying_points": 52.21,
+        "forecast_error": -11.26,
+        "luck": 5.79
+      },
+      "xp_accuracy": null
+    },
+    "engine": {
+      "actual": {
+        "points": 54.0,
+        "points_before_hits": 54.0,
+        "hit_points": 0.0,
+        "n_autosubs": 2,
+        "vice_used": false,
+        "armband_points": 4.0,
+        "underlying_points": 53.9,
+        "forecast_error": -11.81,
+        "luck": 0.1
+      },
+      "xp_accuracy": null
+    }
+  }
+}
