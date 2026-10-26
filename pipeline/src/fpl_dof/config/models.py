@@ -2530,9 +2530,13 @@ class ScheduleConfig(_Section):
         description="Wall clock a CI workflow run may take, every job included (DL-94 Q9).",
     )
     python_tests_budget_seconds: int = Field(
-        default=90,
+        default=120,
         gt=0,
-        description="Wall clock the Python test step may take in CI (DL-94 Q9).",
+        description=(
+            "Wall clock the Python test step may take in CI, per shard (DL-94 Q9, DL-100): a "
+            "quarter above what the suite took once R1.4.3 landed, so a genuinely slow change "
+            "still fails it."
+        ),
     )
 
     @model_validator(mode="after")
