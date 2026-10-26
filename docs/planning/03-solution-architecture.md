@@ -355,7 +355,12 @@ The single most important seam in the system: the boundary between DL-04's two l
   `useArtefact(key)`: `loading`, `ready`, `absent`, `malformed` or `error`. A per-artefact guard
   catches a body that is not the artefact, a floor rather than schema validation (§12, W1); the
   contract major is checked once, on `meta` (WEB-02). The data layer imports no component
-  (`data/layering.test.ts`).
+  (`data/layering.test.ts`). An open app that becomes visible again (`visibilitychange` to
+  visible) calls `DataStore.refresh()`, which drops every cached file and bumps a generation the
+  views subscribe to: they read again and update in place, keeping what they show if the read
+  fails, so a matchday refresh is seen without a reload. Nothing is fetched while the document is
+  hidden and there is no timer (`data/refresh.ts`, LIVE-06, R1.4.3 §5 Q5); the files stay
+  `NetworkFirst` in the service worker.
 
 #### `rules.json` — why the contract carries the rules ([DL-14](../decisions/DL-14.md))
 

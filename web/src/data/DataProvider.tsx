@@ -1,7 +1,9 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { loadPublishedData, resetPublishedDataCache } from "./published";
 import type { PublishedData } from "./published";
+import { useRefreshWhenVisible } from "./refresh";
+import { useRefreshGeneration } from "./store";
 import { ContractMajorError } from "./compat";
 import { MODEL_STORAGE_KEY, readModelChoice, storeModelChoice } from "./model";
 import { EMPTY_REGISTRY, resolveModel } from "./registry";
@@ -51,26 +53,38 @@ export function DataProvider({ children }: { children: ReactNode }) {
     }
   }, [registry, model]);
 
+  // An app that becomes visible again re-reads the published files (LIVE-06); the store announces
+  // it as a new generation, and the load below runs again in place.
+  useRefreshWhenVisible();
+  const generation = useRefreshGeneration();
+  const loadedAttempt = useRef<number | null>(null);
+
   useEffect(() => {
     let cancelled = false;
-    setState({ status: "loading" });
+    // A refresh keeps the screen as it is until the new data arrives; a first load, and the error
+    // view's retry, show the loading view.
+    const refreshing = loadedAttempt.current === attempt;
+    loadedAttempt.current = attempt;
+    if (!refreshing) setState({ status: "loading" });
     loadPublishedData()
       .then((data) => {
         if (!cancelled) setState({ status: "ready", data });
       })
       .catch((error: unknown) => {
-        if (!cancelled) {
-          setState({
-            status: "error",
-            error: error instanceof Error ? error.message : String(error),
-            refused: error instanceof ContractMajorError,
-          });
-        }
+        if (cancelled) return;
+        const refused = error instanceof ContractMajorError;
+        // A refresh that fails keeps the data on screen (stale and honest); a contract this app
+        // cannot read replaces it, as it would on a first load.
+        setState((previous) =>
+          refreshing && previous.status === "ready" && !refused
+            ? previous
+            : { status: "error", error: error instanceof Error ? error.message : String(error), refused },
+        );
       });
     return () => {
       cancelled = true;
     };
-  }, [attempt]);
+  }, [attempt, generation]);
 
   const reload = useCallback(() => {
     resetPublishedDataCache();

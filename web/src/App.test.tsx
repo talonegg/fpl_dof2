@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { installFetchStub, renderApp, resetAppState } from "./test/render";
 import { history } from "./components/player/testFixtures";
+import { liveGameweek } from "./test/liveFixtures";
 import { IDENTITY_STORAGE_KEY } from "./components/settings/identity";
 
 describe("App shell", () => {
@@ -121,9 +122,11 @@ describe("App shell", () => {
   it("navigating between routes does not re-fetch the published data", async () => {
     // The caching claim in DL-35, checked rather than assumed. Six artefacts, one request each,
     // however many times the reader moves between views.
-    const fetchSpy = installFetchStub({ bodies: { history } });
+    // `live.json` is served so that it is cached like the rest: a file that is absent is asked for
+    // again on each visit, by design (it may have appeared), and that is not what this checks.
+    const fetchSpy = installFetchStub({ bodies: { history, live: liveGameweek("in_play") } });
     renderApp("/");
-    // Home's own reads (history, health, log) settle before the count is taken.
+    // Home's own reads (history, health, log, live) settle before the count is taken.
     await waitFor(() => expect(screen.getByTestId("home-health").textContent).toContain("Run:"));
     await waitFor(() => expect(screen.getByTestId("home-last-yours")).toBeTruthy());
     const afterFirstLoad = fetchSpy.mock.calls.length;

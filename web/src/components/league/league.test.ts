@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { League, LeagueSquad } from "../../contract/types";
 import { leagueTable, players, preseasonLeague } from "../../test/fixtures";
+import { liveGameweek } from "../../test/liveFixtures";
 import {
   buildLeagueView,
   byOverlapDescending,
@@ -150,7 +151,70 @@ describe("buildLeagueView", () => {
 
     expect(byId.get(100)?.pointsBehindLeader).toBe(0);
     expect(byId.get(200)?.pointsBehindLeader).toBe(12);
-    expect(view.rows.every((row) => row.pointsBehindLeader >= 0)).toBe(true);
+    expect(view.rows.every((row) => (row.pointsBehindLeader ?? 0) >= 0)).toBe(true);
+  });
+});
+
+describe("buildLeagueView with the gameweek in play (LIVE-05)", () => {
+  const ids = (view: ReturnType<typeof buildLeagueView>) => view.rows.map((row) => row.entry.entry_id);
+
+  it("is the plain table, in FPL's order, without live.json", () => {
+    const view = buildLeagueView(leagueTable, null);
+    expect(view.mode).toBe("table");
+    expect(ids(view)).toEqual([100, 200, 300, 400]);
+    expect(view.rows.every((row) => row.figures === null && row.liveTeam === null)).toBe(true);
+    expect(view.rows.map((row) => row.shownRank)).toEqual([1, 2, 3, 4]);
+  });
+
+  it("orders by live total, with the live rank, and puts a team with no live figure last", () => {
+    const view = buildLeagueView(leagueTable, liveGameweek());
+    expect(view.mode).toBe("live");
+    // The owner overtakes entry 100; entry 300 is not live, so it follows every live team even
+    // though the league table has it third, and keeps the league table's own rank.
+    expect(ids(view)).toEqual([200, 100, 400, 300]);
+    expect(view.rows.map((row) => row.shownRank)).toEqual([1, 2, 3, 3]);
+    expect(view.rows[3].figures).toBeNull();
+    expect(view.rows[3].liveTeam?.reason).toContain("rival limit");
+  });
+
+  it("keeps the league table's own order among the teams that are not live", () => {
+    const live = liveGameweek();
+    const dark = { ...live, teams: live.teams.map((t) => (t.entry_id === 400 ? { ...t, live: null, rank: null, reason: "x" } : t)) };
+    // 300 (league 3rd) before 400 (league 4th), both after the live teams.
+    expect(ids(buildLeagueView(leagueTable, dark))).toEqual([200, 100, 300, 400]);
+  });
+
+  it("lets equal live totals share a rank, as published, and keeps the league's order within it", () => {
+    const live = liveGameweek();
+    const tied = {
+      ...live,
+      teams: live.teams.map((t) => (t.entry_id === 200 || t.entry_id === 100 ? { ...t, rank: 2 } : t)),
+    };
+    const view = buildLeagueView(leagueTable, tied);
+    expect(view.rows.slice(0, 2).map((row) => row.shownRank)).toEqual([2, 2]);
+    expect(ids(view).slice(0, 2)).toEqual([100, 200]); // league order: 100 is 1st, 200 is 2nd
+  });
+
+  it("reads movement as FPL's last rank less the live rank, and a first placing as unknown", () => {
+    const byId = new Map(buildLeagueView(leagueTable, liveGameweek()).rows.map((row) => [row.entry.entry_id, row]));
+    expect(byId.get(200)?.rankChange).toBe(0); // last rank 1, live 1st
+    expect(byId.get(100)?.rankChange).toBe(1); // last rank 3, live 2nd
+    expect(byId.get(400)?.rankChange).toBeNull(); // last_rank 0: never placed
+    expect(byId.get(300)?.rankChange).toBe(-1); // not live: the league table's own, 2nd to 3rd
+  });
+
+  it("measures the gap on live totals, and leaves a team that is not live without one", () => {
+    const byId = new Map(buildLeagueView(leagueTable, liveGameweek()).rows.map((row) => [row.entry.entry_id, row]));
+    expect(byId.get(200)?.pointsBehindLeader).toBe(0);
+    expect(byId.get(100)?.pointsBehindLeader).toBe(11); // 239 less 228
+    expect(byId.get(300)?.pointsBehindLeader).toBeNull();
+  });
+
+  it("treats a league entry missing from live.json as not live", () => {
+    const live = liveGameweek();
+    const view = buildLeagueView(leagueTable, { ...live, teams: live.teams.filter((t) => t.entry_id !== 100) });
+    expect(ids(view)).toEqual([200, 400, 100, 300]);
+    expect(view.rows.find((row) => row.entry.entry_id === 100)?.liveTeam).toBeNull();
   });
 });
 

@@ -1,0 +1,131 @@
+/**
+ * The live gameweek's marks and views (LIVE-05, LIVE-06).
+ *
+ * Colour comes only from `tokens.css`. Every mark is a word first: the status, "Provisional" and
+ * "not live" are legible with the colour taken away, and the border style differs per mark so the
+ * three do not read as one (NFR-14).
+ */
+
+.live-mark {
+  display: inline-block;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: var(--bg-panel-alt);
+  color: var(--text);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.live-status-in_play {
+  border-color: var(--accent);
+  background: var(--row-selected-bg);
+}
+
+.live-status-bonus_pending {
+  border-color: var(--warn-border);
+  background: var(--warn-bg);
+}
+
+.live-status-complete,
+.live-status-final {
+  border-style: solid;
+}
+
+/* Dashed: "this can still move". */
+.live-provisional {
+  border-style: dashed;
+  border-color: var(--warn-border);
+  background: var(--warn-bg);
+}
+
+/* Dotted and muted: "this is not a live figure". */
+.live-not-live {
+  border-style: dotted;
+  color: var(--text-muted);
+  font-style: italic;
+  font-weight: 400;
+}
+
+.live-mismatch {
+  margin: var(--space-1) 0 0;
+  padding: var(--space-1) var(--space-2);
+  border-left: 3px solid var(--danger-border);
+  background: var(--danger-bg);
+  color: var(--text);
+  font-size: var(--font-size-xs);
+}
+
+.live-marks {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+
+.live-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin: 0 0 var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.live-subs {
+  margin: var(--space-3) 0 0;
+  padding: var(--space-2) var(--space-3);
+  border-left: 3px solid var(--border-strong);
+  background: var(--bg-panel-alt);
+  font-size: var(--font-size-sm);
+}
+
+.live-subs ul {
+  margin: var(--space-1) 0 0;
+  padding-left: var(--space-5);
+}
+
+.live-pts-detail {
+  display: block;
+  color: var(--text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.live-bench {
+  color: var(--text-muted);
+}
+
+/* A wide table scrolls inside its own container; the page never scrolls sideways. */
+.live-scroll {
+  overflow-x: auto;
+}
+
+.live-table {
+  width: 100%;
+  /* Four short columns fit a 375 px screen; the global table's 42rem floor would scroll them. */
+  min-width: 0;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.live-table th,
+.live-table td {
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+
+.live-table th {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.live-table .live-number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}

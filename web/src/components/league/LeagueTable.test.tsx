@@ -105,6 +105,22 @@ describe("LeagueTable", () => {
     expect(screen.queryByTestId("league-you-entered-100")).toBeNull();
   });
 
+  it("is exactly today's table without live.json", async () => {
+    await renderLeague();
+
+    expect(screen.queryByTestId("league-live")).toBeNull();
+    expect(screen.queryByRole("columnheader", { name: "Status" })).toBeNull();
+    expect(screen.getByRole("columnheader", { name: "Total" })).toBeTruthy();
+    expect(screen.queryByText("Provisional")).toBeNull();
+    expect(screen.queryByText("not live")).toBeNull();
+    expect(screen.getAllByTestId(/^league-row-/).map((r) => r.getAttribute("data-testid"))).toEqual([
+      "league-row-100",
+      "league-row-200",
+      "league-row-300",
+      "league-row-400",
+    ]);
+  });
+
   it("re-orders by squad overlap without losing any row", async () => {
     await renderLeague();
     const rowCount = () => screen.getAllByTestId(/^league-row-/).length;

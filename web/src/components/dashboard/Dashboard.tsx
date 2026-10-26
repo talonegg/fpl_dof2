@@ -6,9 +6,11 @@ import { MODEL_PARAM } from "../../data/model";
 import { modelLabel } from "../../data/registry";
 import type { Registry } from "../../data/registry";
 import { latestGameweek, pointsIn } from "../../data/season";
+import { liveOwner } from "../../data/live";
 import { unready, useArtefact } from "../../data/store";
 import { formatPoints } from "../../format";
 import { gateOutcome, runOutcome, sourceName, troubledSources } from "../health/health";
+import { HomeLiveSquad } from "../live/HomeLiveSquad";
 import { ProvisionalBadge } from "../models/ProvisionalBadge";
 import { AlertsPanel } from "./AlertsPanel";
 import { DeadlineCountdown } from "./DeadlineCountdown";
@@ -76,13 +78,22 @@ function WaitingSources({ models }: { models: Models | null }) {
 /**
  * Your squad as it stands, before any model's advice (`currentSquad`): last gameweek's points
  * (history.json, measured) beside next gameweek's xP (a forecast).
+ *
+ * While a gameweek is in play and `live.json` holds a figure for the owner, the card is that
+ * gameweek's instead (`HomeLiveSquad`, LIVE-06); a gameweek in play without one for the owner keeps
+ * this card and says why.
  */
 function HomeSquad() {
   const { publishedSquad, week, players } = useData();
   const squad = currentSquad(publishedSquad, week, players);
   const { state } = useArtefact("history");
+  // The gameweek in play (LIVE-06): when it holds a figure for the owner, the card is the live one.
+  const { state: liveState } = useArtefact("live");
+  const live = liveState.status === "ready" ? liveState.data : null;
   const history = state.status === "ready" ? state.data : null;
   const lastGw = history && history.gameweeks_played > 0 ? history.gameweeks_played : null;
+  const owner = liveOwner(live);
+  if (live && owner?.live) return <HomeLiveSquad live={live} owner={owner} figures={owner.live} />;
   const pointsOf = (id: number): string => String(pointsIn(history, id, lastGw) ?? "—");
   // The bench is only named when the XI is known: an unknown lineup is not a bench of fifteen.
   const lineup = squad.players.some((p) => p.starting);
@@ -120,6 +131,12 @@ function HomeSquad() {
             ))}
           </tbody>
         </table>
+      )}
+      {live && owner && !owner.live && (
+        <p className="home-sub" data-testid="home-live-not-live">
+          Gameweek {live.gameweek} is in play, but there is no live figure for your team
+          {owner.reason ? `: ${owner.reason}` : ""}. This is your squad as last published.
+        </p>
       )}
       {lastGw === null && (
         <p className="home-sub" data-testid="home-squad-no-points">
