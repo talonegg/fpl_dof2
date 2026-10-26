@@ -19,6 +19,7 @@ dist/
 web/public/data/
 # Browser verification output — regenerate with `npm run verify:browser`.
 web/verify/screenshots/
+screenshots/
 
 # Data (local working data, not committed).
 # Anchored to the repository root on purpose: an unanchored `data/` matches *any* directory of that
@@ -46,3 +47,6 @@ Thumbs.db
 
 # Logs
 *.log
+
+# Miscellaneous
+.archify/
