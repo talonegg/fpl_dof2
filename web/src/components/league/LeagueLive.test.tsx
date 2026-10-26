@@ -83,11 +83,12 @@ describe("LeagueTable with the gameweek in play (LIVE-05)", () => {
       "Not live: past the rival limit, so its picks were not read. Showing the league table's own figures.",
     );
     expect(screen.queryByTestId("league-not-live-reason-200")).toBeNull();
-    // The league table's own total and last scored gameweek, the latter labelled as such.
+    // The league table's own total and points, labelled as FPL's for the gameweek in play: FPL's
+    // table is read after the deadline, so its points are this gameweek's, not the last scored.
     expect(screen.getByTestId("league-total-300").textContent).toBe("175");
     expect(screen.getByTestId("league-gw-300").textContent).toContain("41");
-    expect(screen.getByTestId("league-gw-300").textContent).toContain("GW3, last scored");
-    // Its total is a gameweek behind everyone else's, so no gap to the live leader is claimed.
+    expect(screen.getByTestId("league-gw-300").textContent).toContain("GW4, from FPL's table");
+    // Its total is on FPL's clock, not the scorer's, so no gap to the live leader is claimed.
     expect(row(300).getAllByRole("cell")[5].textContent).toBe("—");
     // It is not provisional: it carries no live figure to move.
     expect(screen.queryByTestId("league-provisional-300")).toBeNull();

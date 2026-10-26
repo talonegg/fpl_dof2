@@ -149,4 +149,5 @@ by hand.
 | [DL-99](DL-99.md) | 2026-10-26 | Accepted | R1.4.3 refreshes the app after each matchday and at gameweek completion, with provisional points and a live l… |
 | [DL-100](DL-100.md) | 2026-10-26 | Accepted | The Python tests' CI budget is 120 seconds per shard |
 | [DL-101](DL-101.md) | 2026-10-26 | Accepted | The Python tests' CI budget is 150 seconds per shard |
+| [DL-102](DL-102.md) | 2026-10-26 | Accepted | R1.4.4 fixes the live gameweek's labels and history, and speeds up CI's tests |
 <!-- index:end -->

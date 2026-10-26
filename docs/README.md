@@ -78,7 +78,7 @@ review in §12) and [conceptual design](planning/04-conceptual-design.md) (each 
 - **R1.1.0 — delivered 2026-10-21: data pipeline uplift.** Remediated before release
   ([DL-81](decisions/DL-81.md)); its backlog is archived in [`planning/archive/R1.1.0/`](planning/archive/README.md).
   **R1.1.1 — tagged 2026-10-22:** the permanent archive verified on `main` ([DL-85](decisions/DL-85.md)). Its effect on the architecture: [architecture §13](planning/03-solution-architecture.md#13-r110--data-architecture-as-delivered).
-- **R1.2.0 and R1.2.2 — tagged 2026-10-23 (R1.2.1 a hotfix, [DL-88](decisions/DL-88.md)); R1.3.0, R1.3.1 and R1.3.2 (gameweek orchestration) tagged; R1.4.0 and R1.4.1, the UI redesign's two drops, tagged and archived ([DL-95](decisions/DL-95.md)); R1.4.2, their close-out, tagged; R1.4.3, the live gameweek, open on `dev/R1.4.3` ([DL-99](decisions/DL-99.md)): the modular platform.** Orchestrator, model factory and web as
+- **R1.2.0 and R1.2.2 — tagged 2026-10-23 (R1.2.1 a hotfix, [DL-88](decisions/DL-88.md)); R1.3.0, R1.3.1 and R1.3.2 (gameweek orchestration) tagged; R1.4.0 and R1.4.1, the UI redesign's two drops, tagged and archived ([DL-95](decisions/DL-95.md)); R1.4.2, their close-out, tagged; R1.4.3, the live gameweek, tagged ([DL-99](decisions/DL-99.md)); R1.4.4, its fixes and CI test speed, open on `dev/R1.4.4` ([DL-102](decisions/DL-102.md)): the modular platform.** Orchestrator, model factory and web as
   independent modules around a strategy registry ([DL-86](decisions/DL-86.md)); design in
   [`planning/05-target-architecture.md`](planning/05-target-architecture.md).
 - **The season — live.** [E8 — ongoing in-season monitoring](planning/epics/E8-ongoing-in-season-monitoring.md)

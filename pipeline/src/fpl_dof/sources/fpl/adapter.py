@@ -1240,10 +1240,15 @@ class FplApiAdapter(SourceAdapter):
         Empty until the season starts, which is the normal preseason state and not a fault. Prior
         seasons are not available here at any granularity finer than a season total — that gap is
         what DL-19 exists to fill.
+
+        Only gameweeks the game has finished are kept, as for the owner's own rows: a summary
+        fetched while a gameweek is in play holds a partial row for it, which would read as a
+        gameweek played (the live view has its own table, ``player_live``).
         """
         divisor = self._currency_divisor(bootstrap)
         positions = self._position_by_element_type(bootstrap)
         season = str(self.season_name(bootstrap))
+        finished = {int(e["id"]) for e in bootstrap["events"] if e.get("finished")}
         rows = []
         for element in bootstrap["elements"]:
             if element.get("removed"):
@@ -1254,6 +1259,8 @@ class FplApiAdapter(SourceAdapter):
             except SourceNotFoundError, OfflineWithoutSnapshotError:
                 continue
             for row in summary.get("history") or []:
+                if int(row["round"]) not in finished:
+                    continue
                 rows.append(
                     {
                         "season": season,

@@ -440,7 +440,8 @@ exists to keep *prices, status and ownership* inside the NFR-05 freshness window
 in `bootstrap-static` — two requests, seconds.
 A summary is cached for a week, except that one fetched before the latest gameweek was checked
 (`finished` and `data_checked`) is stale whatever its age: its `history` is where `player_gameweek`
-comes from, and it lacks that gameweek. FPL publishes no finish time, so "checked" dates from the
+comes from, and it lacks that gameweek. Only the rows of gameweeks FPL has finished are kept: a
+summary fetched while a gameweek is in play holds a partial row for it, which would read as played. FPL publishes no finish time, so "checked" dates from the
 oldest bronze `bootstrap-static` snapshot that shows it, by sidecar `fetched_at`, never file mtime
 (F2). The first ingest after each gameweek is checked therefore re-fetches the whole sweep once. If
 that is the fast ingest whose capture is the first to show the flag flip (the resource's `on_check`,
