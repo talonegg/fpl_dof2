@@ -12,6 +12,7 @@ from __future__ import annotations
 import datetime as dt
 from pathlib import Path
 from typing import Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, model_validator
 
@@ -2420,9 +2421,29 @@ class ScheduleConfig(_Section):
 
     Everything is UTC. The deadline is stored in UTC (DL-11) and Actions cron is UTC, so no
     conversion happens anywhere on this path — which is the point, because the UK/AEST offset moves
-    twice a season and not on the same dates (CON-11).
+    twice a season and not on the same dates (CON-11). The one zone here, ``matchday_zone``, groups
+    kick-offs into matchdays and converts nothing.
     """
 
+    matchday_zone: str = Field(
+        default="Europe/London",
+        description=(
+            "The zone whose calendar date groups the gameweek in play's fixtures into matchdays "
+            "(LIVE-02, R1.4.3 §5 Q1): the game's own clock, so a late Saturday kick-off is "
+            "Saturday's. It groups and nothing else; every instant stays UTC (DL-11)."
+        ),
+    )
+    matchday_settle_hours: float = Field(
+        default=3.0,
+        gt=0,
+        description=(
+            "Hours after a matchday's last kick-off past which it counts as done though a match's "
+            "bonus is still unconfirmed, and is published bonus pending (LIVE-02, R1.4.3 §5 Q2). "
+            "A match lasts about two hours and FPL usually confirms bonus within the hour after, "
+            "so three hours waits out the usual case, and the hourly fast ingest sees a stuck one "
+            "within the hour after it."
+        ),
+    )
     fast_ingest_boundary_hours: tuple[int, ...] = Field(
         default=(0, 4, 8, 12, 16, 20),
         description=(
@@ -2516,6 +2537,13 @@ class ScheduleConfig(_Section):
 
     @model_validator(mode="after")
     def _windows_are_reachable_and_outside_the_freeze(self) -> ScheduleConfig:
+        try:
+            ZoneInfo(self.matchday_zone)
+        except (ZoneInfoNotFoundError, ValueError) as exc:
+            raise ValueError(
+                f"schedule.matchday_zone {self.matchday_zone!r} is not an IANA zone name such as "
+                "'Europe/London'"
+            ) from exc
         if not self.pipeline_offsets_minutes:
             raise ValueError("schedule.pipeline_offsets_minutes must name at least one offset")
         if self.pipeline_window_tolerance_minutes <= self.pipeline_cron_interval_minutes:

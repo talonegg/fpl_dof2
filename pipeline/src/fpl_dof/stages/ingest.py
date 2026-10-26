@@ -15,6 +15,7 @@ from fpl_dof.obs.logging import get_logger
 from fpl_dof.pipeline import Output, StageContext, StageResult
 from fpl_dof.sources import (
     BronzeStore,
+    ChangeContext,
     Fetcher,
     IngestRequest,
     before_ingest,
@@ -96,7 +97,8 @@ def run(ctx: StageContext) -> StageResult:
         result.metrics["quarantined"] = len(fetcher.quarantined)
 
         gameweek, window = _open_window(ctx)
-        kinds = changed_kinds(bronze, adapters, before, window)
+        context = ChangeContext.of(window, ctx.config.schedule)
+        kinds = changed_kinds(bronze, adapters, before, context)
     ctx.layout.changes.parent.mkdir(parents=True, exist_ok=True)
     ctx.layout.changes.write_text(
         json.dumps({"as_of": ctx.as_of.isoformat(), "gameweek": gameweek, "kinds": kinds}),

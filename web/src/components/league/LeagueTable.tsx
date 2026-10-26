@@ -1,7 +1,9 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import type { League } from "../../contract/types";
+import type { League, Live } from "../../contract/types";
 import { useData } from "../../data/DataProvider";
+import { isProvisional } from "../../data/live";
+import { NotLiveMark, ProvisionalMark, StatusMark, UpdatedAt } from "../live/LiveMarks";
 import { buildLeagueView, byOverlapDescending, nameList, playerNames } from "./league";
 import type { AnchorState, LeagueRow } from "./league";
 
@@ -13,12 +15,20 @@ import type { AnchorState, LeagueRow } from "./league";
  * rather than assumed. When there is no owner squad to compare against, the table still renders —
  * a league table is worth reading on its own — and the comparison columns are replaced by one
  * sentence saying why they are not there (DP-09, DP-15).
+ *
+ * While `live.json` is published (LIVE-05) the table is the gameweek in play: ordered by live total,
+ * each row with its live rank, gameweek points and status, "Provisional" until FPL has data-checked
+ * the gameweek, and a note where the scorer and FPL disagree. A team with no live figure keeps the
+ * league table's own figures, marked "not live". Without `live.json` it is the table as before.
  */
 export function LeagueTable({
   league,
+  live = null,
   enteredTeamId = null,
 }: {
   league: League;
+  /** The gameweek in play, when one is published (LIVE-04); null renders the plain league table. */
+  live?: Live | null;
   /**
    * The team ID typed into Settings (E13-S2), compared against each row's `entry_id`. Separate from
    * `row.isOwner`, which the pipeline bakes into `league.json` server-side from its own configured
@@ -28,13 +38,16 @@ export function LeagueTable({
   enteredTeamId?: number | null;
 }) {
   const { players } = useData();
-  const view = useMemo(() => buildLeagueView(league), [league]);
+  const view = useMemo(() => buildLeagueView(league, live), [league, live]);
+  const inPlay = view.mode === "live" && live !== null;
   const names = useMemo(() => playerNames(players), [players]);
   const [order, setOrder] = useState<"rank" | "overlap">("rank");
   const [expanded, setExpanded] = useState<number | null>(null);
 
   const rows = order === "overlap" ? byOverlapDescending(view.rows) : view.rows;
   const comparing = view.anchor === "anchored";
+  // With live figures the table is a gameweek in play; "no gameweek has been scored yet" would contradict it.
+  const hasLiveFigures = inPlay && view.rows.some((r) => r.figures);
 
   return (
     <section className="league" data-testid="league-table">
@@ -42,14 +55,28 @@ export function LeagueTable({
         <h2>{league.league.name}</h2>
         <p className="league-sub">
           {league.league.entries_published} entries shown
-          {league.gameweek === null
-            ? ", before any gameweek has been scored"
-            : `, squads as at gameweek ${league.gameweek}`}
+          {league.gameweek !== null
+            ? `, squads as at gameweek ${league.gameweek}`
+            : hasLiveFigures
+              ? ""
+              : ", before any gameweek has been scored"}
           .
         </p>
-        <p className="league-note" data-testid="league-anchor">
-          {anchorNote(view.anchor, view.comparableCount, league.league.squad_limit)}
-        </p>
+        {inPlay && (
+          <p className="live-summary" data-testid="league-live">
+            <span className="live-marks">
+              <span>Gameweek {live.gameweek}, ordered by live total</span>
+              <StatusMark status={live.status} testId="league-live-status" />
+              {live.provisional && <ProvisionalMark testId="league-live-provisional" />}
+            </span>
+            <UpdatedAt asOf={live.as_of} testId="league-live-as-of" />
+          </p>
+        )}
+        {!(hasLiveFigures && view.anchor === "no_gameweek") && (
+          <p className="league-note" data-testid="league-anchor">
+            {anchorNote(view.anchor, view.comparableCount, league.league.squad_limit)}
+          </p>
+        )}
       </header>
 
       {comparing && (
@@ -79,20 +106,38 @@ export function LeagueTable({
       <div className="league-scroll">
         <table className="league-grid">
           <caption className="visually-hidden">
-            {league.league.name} standings, with squad overlap and captain divergence against your
-            own team where both squads are published.
+            {league.league.name} standings
+            {inPlay ? ` by live total in gameweek ${live.gameweek}` : ""}, with squad overlap and
+            captain divergence against your own team where both squads are published.
           </caption>
           <thead>
             <tr>
               <th scope="col">Rank</th>
               <th scope="col">Team</th>
               <th scope="col">GW</th>
-              <th scope="col">Total</th>
+              {inPlay && <th scope="col">Status</th>}
+              <th scope="col">{inPlay ? "Live total" : "Total"}</th>
               <th scope="col">Behind</th>
-              {comparing && <th scope="col">Shared</th>}
-              {comparing && <th scope="col">They have</th>}
-              {comparing && <th scope="col">You have</th>}
-              {comparing && <th scope="col">Captain</th>}
+              {comparing && (
+                <th scope="col" className="league-compare">
+                  Shared
+                </th>
+              )}
+              {comparing && (
+                <th scope="col" className="league-compare">
+                  They have
+                </th>
+              )}
+              {comparing && (
+                <th scope="col" className="league-compare">
+                  You have
+                </th>
+              )}
+              {comparing && (
+                <th scope="col" className="league-compare">
+                  Captain
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -101,6 +146,8 @@ export function LeagueTable({
                 key={row.entry.entry_id}
                 row={row}
                 comparing={comparing}
+                inPlay={inPlay}
+                lastScoredGameweek={league.gameweek}
                 names={names}
                 isExpanded={expanded === row.entry.entry_id}
                 onToggle={() =>
@@ -119,6 +166,8 @@ export function LeagueTable({
 function Row({
   row,
   comparing,
+  inPlay,
+  lastScoredGameweek,
   names,
   isExpanded,
   onToggle,
@@ -126,24 +175,38 @@ function Row({
 }: {
   row: LeagueRow;
   comparing: boolean;
+  /** `live.json` is published: the gameweek and status columns are shown. */
+  inPlay: boolean;
+  /** The gameweek the league table's own `event_total` is for. */
+  lastScoredGameweek: number | null;
   names: Map<number, string>;
   isExpanded: boolean;
   onToggle: () => void;
   matchesEntered: boolean;
 }) {
-  const { entry, comparison } = row;
+  const { entry, comparison, figures, liveTeam } = row;
   const expandable = comparing && comparison !== null;
   const highlighted = row.isOwner || matchesEntered;
+  // Teams the pipeline has no live figure for show the league table's own: the last scored
+  // gameweek's points and the total after it, marked "not live".
+  const notLive = inPlay && figures === null;
+  const columns = (inPlay ? 6 : 5) + (comparing ? 4 : 0);
+  const game = liveTeam?.game ?? null;
+  const mismatch = figures !== null && liveTeam?.matches_game === false && game !== null;
+  const compareLine = comparing && !row.isOwner;
+  const hasNotes = notLive || mismatch;
+  const hasSub = hasNotes || compareLine;
 
   return (
     <>
       <tr
-        className={highlighted ? "league-row owner" : "league-row"}
+        className={`league-row${highlighted ? " owner" : ""}${hasNotes ? " league-attached" : compareLine ? " league-attached-compare" : ""}`}
         data-testid={`league-row-${entry.entry_id}`}
       >
         <td className="league-rank">
-          {entry.rank}
+          {row.shownRank}
           <RankMove change={row.rankChange} />
+          {notLive && <span className="visually-hidden"> (league table rank, not live)</span>}
         </td>
         <td>
           <Link className="league-team" to={`/league/${entry.entry_id}`}>
@@ -157,25 +220,50 @@ function Row({
             </span>
           )}
         </td>
-        <td className="league-number">{entry.event_total ?? "—"}</td>
-        <td className="league-number">{entry.total}</td>
-        <td className="league-number">{row.isOwner ? "—" : row.pointsBehindLeader}</td>
+        <td className="league-number" data-testid={`league-gw-${entry.entry_id}`}>
+          {figures ? figures.points : (entry.event_total ?? "—")}
+          {inPlay && figures && figures.hit_cost > 0 && (
+            <span className="live-pts-detail">after a {figures.hit_cost}-point hit</span>
+          )}
+          {inPlay && figures?.chip_label && <span className="live-pts-detail">{figures.chip_label}</span>}
+          {notLive && lastScoredGameweek !== null && (
+            <span className="live-pts-detail">GW{lastScoredGameweek}, last scored</span>
+          )}
+        </td>
+        {inPlay && (
+          <td data-testid={`league-status-${entry.entry_id}`}>
+            <span className="live-marks">
+              {figures ? (
+                <>
+                  <StatusMark status={figures.status} />
+                  {isProvisional(figures) && <ProvisionalMark testId={`league-provisional-${entry.entry_id}`} />}
+                </>
+              ) : (
+                <NotLiveMark reason={liveTeam?.reason ?? null} testId={`league-not-live-${entry.entry_id}`} />
+              )}
+            </span>
+          </td>
+        )}
+        <td className="league-number" data-testid={`league-total-${entry.entry_id}`}>
+          {figures ? figures.live_total : entry.total}
+        </td>
+        <td className="league-number">{row.isOwner || row.pointsBehindLeader === null ? "—" : row.pointsBehindLeader}</td>
 
         {comparing && !row.isOwner && !comparison && (
           // Not a zero. A rival outside the fetch budget has no squad published, and rendering
           // that as "0 shared" would state a fact nobody measured (DP-09).
-          <td className="league-unknown" colSpan={4}>
+          <td className="league-unknown league-compare" colSpan={4}>
             Squad not published for this entry
           </td>
         )}
         {comparing && row.isOwner && (
-          <td className="league-unknown" colSpan={4}>
+          <td className="league-unknown league-compare" colSpan={4}>
             Your squad — the comparison is measured against this row
           </td>
         )}
         {comparing && comparison && !row.isOwner && (
           <>
-            <td className="league-number">
+            <td className="league-number league-compare">
               <button
                 type="button"
                 className="league-expand"
@@ -189,9 +277,9 @@ function Row({
                 </span>
               </button>
             </td>
-            <td className="league-number risk">{comparison.rivalOnlyIds.length}</td>
-            <td className="league-number bet">{comparison.ownerOnlyIds.length}</td>
-            <td>
+            <td className="league-number league-compare risk">{comparison.rivalOnlyIds.length}</td>
+            <td className="league-number league-compare bet">{comparison.ownerOnlyIds.length}</td>
+            <td className="league-compare">
               <CaptainCell
                 captain={
                   comparison.captainId === null ? undefined : names.get(comparison.captainId)
@@ -204,9 +292,42 @@ function Row({
         )}
       </tr>
 
+      {hasSub && (
+        // The sentences about a row sit under it across the whole table, not squeezed into the team
+        // cell, which on a phone is a few words wide. A row with only the comparison line shows it on
+        // a phone alone (the columns say the same at desktop width).
+        <tr className={`league-sub${highlighted ? " owner" : ""}${hasNotes ? "" : " league-sub-compare"}`}>
+          <td colSpan={columns}>
+            {compareLine && (
+              <CompareInline
+                comparison={comparison}
+                names={names}
+                entryId={entry.entry_id}
+                teamName={entry.entry_name}
+                isExpanded={isExpanded}
+                onToggle={onToggle}
+              />
+            )}
+            {notLive && (
+              // The reason in words, in the row: a tooltip is out of reach of the keyboard and of touch (NFR-14).
+              <p className="live-reason" data-testid={`league-not-live-reason-${entry.entry_id}`}>
+                Not live: {liveTeam?.reason ?? "no live figure was published for this team"}. Showing the league
+                table&apos;s own figures.
+              </p>
+            )}
+            {mismatch && game && figures && (
+              <p className="live-mismatch" data-testid={`league-mismatch-${entry.entry_id}`}>
+                Differs from FPL: its own figure is {game.points} before a {game.hit_cost}-point hit; this
+                table has {figures.points} after it.
+              </p>
+            )}
+          </td>
+        </tr>
+      )}
+
       {expandable && isExpanded && comparison && (
         <tr className="league-detail" data-testid={`league-detail-${entry.entry_id}`}>
-          <td colSpan={9}>
+          <td colSpan={columns}>
             <dl>
               <div>
                 <dt>Shared ({comparison.overlapIds.length})</dt>
@@ -225,6 +346,53 @@ function Row({
         </tr>
       )}
     </>
+  );
+}
+
+/**
+ * The comparison columns' content as one line under the team, for a phone, where the four columns
+ * are hidden (`league.css`) because there is no room for them beside the figures the table is
+ * ordered by. It says everything the columns do, in words, and opens the same names below the row.
+ * Hidden at desktop width, where the columns are shown instead.
+ */
+function CompareInline({
+  comparison,
+  names,
+  entryId,
+  teamName,
+  isExpanded,
+  onToggle,
+}: {
+  comparison: LeagueRow["comparison"];
+  names: Map<number, string>;
+  entryId: number;
+  teamName: string;
+  isExpanded: boolean;
+  onToggle: () => void;
+}) {
+  if (comparison === null) {
+    return (
+      <p className="league-compare-inline league-unknown" data-testid={`league-compare-inline-${entryId}`}>
+        No squad published
+      </p>
+    );
+  }
+  const { captainId, captainDiverges } = comparison;
+  const captain = captainId === null ? undefined : (names.get(captainId) ?? `#${captainId}`);
+  const captainText =
+    captain === undefined
+      ? "Captain not published"
+      : captainDiverges === null
+        ? `Captain ${captain}, unknown against yours`
+        : `Captain ${captain}, ${captainDiverges ? "differs from yours" : "same as yours"}`;
+  return (
+    <p className="league-compare-inline" data-testid={`league-compare-inline-${entryId}`}>
+      <button type="button" className="league-expand" onClick={onToggle} aria-expanded={isExpanded}>
+        {comparison.overlapIds.length} shared
+        <span className="visually-hidden"> players with {teamName}; show the names</span>
+      </button>
+      {`, ${comparison.rivalOnlyIds.length} only they have, ${comparison.ownerOnlyIds.length} only you have. ${captainText}.`}
+    </p>
   );
 }
 

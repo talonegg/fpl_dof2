@@ -94,7 +94,9 @@ Each source's adapter and state are tabled in
 Public, unauthenticated, undocumented (CON-5). The `fpl` adapter fetches `bootstrap-static/`,
 `fixtures/`, `element-summary/{id}/`, `event/{gw}/live/` and `leagues-classic/{id}/standings/` (the
 last three slow path only), `team/set-piece-notes/`, and `entry/{id}/` with `history/`,
-`event/{gw}/picks/` and `transfers/`. It supplies prices, ownership, status flags, the points ledger, the rules (DL-17), chip
+`event/{gw}/picks/` and `transfers/`. For the gameweek in play, its live scores and the standings
+also run on the fast path, and each team's picks are fetched once after the deadline and once
+when it is data-checked (LIVE-01). It supplies prices, ownership, status flags, the points ledger, the rules (DL-17), chip
 windows — and **expected goals, assists and goals conceded per match**, so the model needs no scraped
 source (DL-34, DL-46). The pre-deadline picks gap is handled by squad state (§4.2, DL-20). If it
 fails, the run stops and the last publication stays live.
@@ -149,7 +151,7 @@ Every adapter subclasses `SourceAdapter` (`sources/base.py`):
 
 **Shared:** `Fetcher` (`sources/fetch.py`) — serial rate limit, retry with backoff and jitter,
 honest user agent, secret redaction, and caching by serving the latest snapshot inside its TTL, or
-at any age if it is immutable; `--force-refresh` and `--rebackfill` bypass the cache, and `--offline`
+at any age if it is immutable or taken from the caller's `fresh_from` (LIVE-01); `--force-refresh` and `--rebackfill` bypass the cache, and `--offline`
 serves only bronze;
 `BronzeStore`; `robots.py`. Conditional requests: a snapshot's `ETag` and `Last-Modified` are sent
 back, and a 304 revalidates it without a download (PIPE-07); a forced re-fetch sends neither
@@ -172,6 +174,7 @@ name is rejected. A failing non-essential source removes its fields and nothing 
 | --- | --- |
 | Game | `player`, `team`, `fixture`, `gameweek`, `chip`, `set_piece_note` |
 | Performance | `player_gameweek`, `player_season_history`, `price_history` |
+| The live gameweek | `player_live`, `entry_live` (LIVE-01): provisional, never features |
 | The owner | `entry`, `entry_pick`, `entry_transfer`, `entry_chip`, `entry_gameweek` (DL-69) |
 | Mini-league | `league_standing`, `league_pick`, `league_transfer`, `league_gameweek` (ORC-14) |
 | Cross-source | `player_crosswalk`, `player_advanced`, `player_metric`, `team_match_expectation` |
@@ -181,7 +184,10 @@ Identity is FPL's stable player `code`; season-local ids never cross a season (D
 cases, and carries `kickoff_time` as its knowability boundary. `player_advanced` and `player_metric`
 carry `as_of_gameweek` and `observed_at`, and the crosswalk records each source's `ingress`
 (DL-83). `price_history`, `player_gameweek`, `player_advanced` and `player_metric` accumulate across
-runs rather than being rebuilt (`APPENDED` in `stages/transform.py`, 03 §7.1). Forecasts and
+runs rather than being rebuilt (`APPENDED` in `stages/transform.py`, 03 §7.1). `player_live` and
+`entry_live` hold the latest gameweek past its deadline, stamped `provisional` until FPL has
+data-checked it; the transform removes them when nothing is live, and the feature store refuses a
+frame carrying the stamp (Invariant 5). Forecasts and
 decisions are gold, not silver. Silver has no `run_id` column; lineage is per snapshot and artefact (§12.4).
 
 ### 3.2 Entity resolution (FR-07, R-10)
@@ -215,8 +221,10 @@ Under `paths.DataLayout`; what persists between CI runs is
 Declarative gates (`GATES` in `quality/rules.py`, run by `quality/gates.py`) in four classes:
 **schema** (no player without position or price); **range** (prices, ownership, FPL difficulty);
 **referential** (clubs exist for players and fixtures; history references players; the crosswalk is
-one-to-one, for this season, under the unmatched threshold); **freshness and volume** (player, club
-and fixture counts, player count against the previous run, snapshot age, a deadline still ahead).
+one-to-one, for this season, under the unmatched threshold; on a finished gameweek with FPL's
+final figures, the realised scorer's points equal FPL's for every fetched team, a warning that names
+each team that differs, LIVE-03); **freshness and volume** (player, club and fixture counts, player
+count against the previous run, snapshot age, a deadline still ahead).
 
 `ERROR` blocks publication (Invariant 7); `WARN` publishes and shows on `/health`; `INFO` is unused.
 Every gate names the requirement it protects; thresholds are configuration. Gates read the run's
@@ -703,8 +711,8 @@ Each section's views as they stand; WEB-08 to WEB-14 rebuild them to the R1.4.0 
 
 | Route | Content |
 | --- | --- |
-| `/` Home | Deadline countdown, alerts, this week's move with the roll option beside it, squad and bench, plan and ownership bet |
-| `/league` League | Standings, overlap, differentials, captain divergence (DL-40) |
+| `/` Home | Deadline countdown, alerts, this week's move with the roll option beside it, squad and bench, plan and ownership bet. While a gameweek is in play (`live.json`) the squad card is that gameweek's: minutes and points so far per player (the captain's multiplied), the projected substitutions, the gameweek total, its status, "Provisional" until FPL data-checks it, and when it was last refreshed, with next gameweek's xP beside each player (LIVE-06, DL-99) |
+| `/league` League | Standings, overlap, differentials, captain divergence (DL-40). While a gameweek is in play: ordered by live total, with live rank, movement since FPL's last rank, each team's gameweek points and status, "Provisional" until final, a note where the scorer differs from FPL, and teams without a live figure last, marked "not live" on the league table's own figures; a team's page (`/league/:entryId`) adds each player's live points, minutes, bonus (confirmed or pending) and the projected substitutions (LIVE-05, DL-99) |
 | `/models` Models | A multi-select comparison of the registry's published strategies against the champion (advice differences, xP on the players they disagree on, historical performance), then summary, details and xP accuracy |
 | `/models/season` | Every model's live season to date: points per gameweek, the cumulative chart, the latest advice |
 | `/models/2025-26` | The 2025/26 playthrough of every frozen model (`/history` redirects) |

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { ARTEFACTS } from "../contract/types";
 import { PUBLISHED_CACHE, WARMED_ARTEFACTS, warmPublishedCache } from "./offline";
 
 /**
@@ -107,8 +108,15 @@ describe("warmPublishedCache", () => {
   it("warms the artefacts the registry marks warm, and not the lazy ones", () => {
     // `history.json` fully populated is larger than the other six combined (DL-37). If it ever ends
     // up in this list, a first visit pays for it whether or not the reader opens a player page.
-    expect([...WARMED_ARTEFACTS]).toEqual(["meta", "rules", "players", "squad", "models", "strategies"]);
+    expect([...WARMED_ARTEFACTS]).toEqual(["meta", "rules", "players", "squad", "models", "strategies", "live"]);
     expect(WARMED_ARTEFACTS).not.toContain("history");
     expect(WARMED_ARTEFACTS).not.toContain("fixtures");
+  });
+
+  it("warms the gameweek in play, which the smoke check does not require (LIVE-04)", () => {
+    // Absent preseason and until the gameweek kicks off, so a deploy without it is healthy; warmed,
+    // so a reader who loses signal at the ground still has the last matchday's figures.
+    expect(WARMED_ARTEFACTS).toContain("live");
+    expect(ARTEFACTS.live).toEqual({ path: "live.json", required: false, warm: true });
   });
 });

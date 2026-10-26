@@ -49,6 +49,8 @@ def run(ctx: StageContext) -> StageResult:
         "snapshot_age_seconds": _newest_snapshot_age(ctx),
         "previous_row_counts": _previous_row_counts(ctx, season),
         "tables": tables,
+        # The scorer check scores each fetched team with the rules the run uses (LIVE-03).
+        "rules": rules,
     }
 
     report = run_gates(GATES, tables, context)

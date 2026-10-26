@@ -279,7 +279,8 @@ strategy gets the full recommendation from the one decision engine on one snapsh
 advice file records each strategy's advice, or its "no advice" reason, under `models`.
 
 - **Triggers** (ORC-02). Ingest writes a change manifest — the kinds that moved since the bronze it
-  restored: prices, status and news, fixtures, the Open gameweek's first odds. Any of them
+  restored: prices, status and news, fixtures, the Open gameweek's first odds, and results (a
+  matchday of the gameweek in play done, the gameweek finished or data-checked, LIVE-02). Any of them
   dispatches `pipeline.yml` with typed `workflow_dispatch` inputs (`trigger`, `kinds`, `gameweek`,
   `must_publish`); the slow ingest also dispatches the daily refresh; one scheduled tick reads the
   Open gameweek's state for the pre-deadline windows. Nothing chains by workflow name, title or cron
@@ -311,7 +312,8 @@ bank and chips:
 
 Results are stored per gameweek under `evaluation/` on `ledger` and recomputed only when the
 evaluation's version changes; the season log is assembled from them. One realised-points scorer, in
-`core` and pinned by a conformance corpus, serves evaluation, the backtest and the models history.
+`core` and pinned by a conformance corpus, serves evaluation, the backtest, the models history and
+the provisional points of a gameweek in play (LIVE-03).
 Each strategy's own-path season simulation stays available as a secondary, labelled view.
 
 ---

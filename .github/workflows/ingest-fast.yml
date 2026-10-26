@@ -1,19 +1,27 @@
 # E7-S1: bootstrap-static and fixtures only — prices, status, ownership. Two cheap requests.
 #
 # GitHub Actions cron is static and cannot itself express "every 4h, hourly within 24h of a
-# deadline" (the cadence depends on the deadline, which the schedule does not know). So this fires
-# hourly and asks `fpl-dof-schedule --decide fast` whether *this* firing should actually ingest —
-# see pipeline/src/fpl_dof/week/schedule.py for the decision and why it is safe to ask often.
+# deadline, hourly while a gameweek is in play" (the cadence depends on the deadline and on FPL's
+# flags, which the schedule does not know). So this fires hourly and asks
+# `fpl-dof-schedule --decide fast` whether *this* firing should actually ingest — see
+# pipeline/src/fpl_dof/week/schedule.py for the decision and why it is safe to ask often. A gameweek
+# is in play from its deadline until FPL marks it data-checked (LIVE-02).
 #
-# `element-summary` never belongs here (see ingest-slow.yml) — it is ~700 requests and would turn
-# an hourly job into the exact cost problem DL-12 closed.
+# `element-summary` belongs here only in the firing that first sees a gameweek marked data-checked,
+# the live one or one checked after the next deadline (LIVE-07): ~700 requests, once a gameweek, so
+# the run that firing starts evaluates the gameweek on its final rows. Otherwise see
+# ingest-slow.yml; hourly, it would be the exact cost problem DL-12 closed.
 #
 # The rolling `data` branch (E7-S4, R-13) is rebuilt and force-pushed at the end of every ingest
 # that actually fetched, by pipeline/scripts/retention.py — see pipeline/src/fpl_dof/retention.py
 # for why the mechanism is "rebuild from nothing", not "delete the old file".
 #
-# A fetch that moved a price, a status or news line, a fixture, or priced the Open gameweek for the
-# first time then dispatches pipeline.yml with those kinds (ORC-02, DL-94). The cadence is unchanged.
+# A fetch that moved a price, a status or news line, a fixture, priced the Open gameweek for the
+# first time, or saw a result then dispatches pipeline.yml with those kinds (ORC-02, DL-94). A result
+# (`results`, LIVE-02, DL-99) is a matchday of the gameweek in play done (every match's bonus
+# confirmed, or the settle cap passed), or the gameweek marked finished, or data-checked; this
+# firing's captures are compared with the last ones, so whichever firing first sees one moves it,
+# once, however many firings GitHub dropped before it (D-35). A kick-off or a goal moves nothing.
 
 name: Ingest (fast)
 
@@ -33,6 +41,7 @@ permissions:
 jobs:
   ingest:
     runs-on: ubuntu-latest
+    timeout-minutes: 20 # the once-per-gameweek sweep takes ~6; past 20 it is hung, so the next firing is not blocked
     steps:
       - uses: actions/checkout@v4
 
