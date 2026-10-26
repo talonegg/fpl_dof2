@@ -414,7 +414,7 @@ manually dispatchable.
 | Workflow | Trigger | Does |
 | --- | --- | --- |
 | `ci.yml` | Push to `main`, `pre-release`, `dev/**`; every pull request | Lint, type-check, unit, property and contract tests; `scripts/docs.py check` |
-| `ingest-fast.yml` | Hourly; a guard (`fpl-dof-schedule --decide fast`) decides whether to fetch: four-hourly, but every hour within a day of the Open gameweek's deadline and while a gameweek is in play, from its deadline until data-checked (LIVE-02) | `bootstrap-static`, `fixtures` and the upcoming odds — prices, status, ownership; while a gameweek is in play, also its live scores and the league standings every firing, and each team's picks for it once after the deadline and once after data-check (LIVE-01). Rebuilds `data`, then dispatches `pipeline.yml` with `trigger=change` and the kinds its change manifest moved, if any (ORC-02) |
+| `ingest-fast.yml` | Hourly; a guard (`fpl-dof-schedule --decide fast`) decides whether to fetch: four-hourly, but every hour within a day of the Open gameweek's deadline and while a gameweek is in play, from its deadline until data-checked (LIVE-02) | `bootstrap-static`, `fixtures` and the upcoming odds — prices, status, ownership; while a gameweek is in play, also its live scores and the league standings every firing, and each team's picks for it once after the deadline and once after data-check (LIVE-01), and, in the firing that sees it data-checked, the per-player summaries once (LIVE-07). Rebuilds `data`, then dispatches `pipeline.yml` with `trigger=change` and the kinds its change manifest moved, if any (ORC-02) |
 | `ingest-slow.yml` | Daily, with a fallback slot (each scheduled firing is a no-op once today's ingest succeeded); dispatch, with `must_publish` from `day-before.yml` | Full ingest including per-player summaries; updates `data`; dispatches `pipeline.yml` (`day-before` when `must_publish`, else `change` with its kinds, else the daily `schedule` refresh); archives each newly closed gameweek's bronze to `snapshots`, once, and fails if bronze has no gameweek schedule |
 | `pipeline.yml` | One tick four times an hour (`7,23,41,53 * * * *`); dispatch with typed inputs `trigger` (`manual`, `change`, `schedule`, `day-before`), `kinds`, `gameweek`, `must_publish` (ORC-02) | `guard` (`fpl-dof-schedule --decide pipeline`: the tick runs only in a pre-deadline window; every trigger is refused inside the freeze or for a gameweek no longer Open, except that a `results` change may be for a gameweek in play and needs none Open; an unknown input fails the step) → `run` (restores the retired frozen harness's last record from `ledger`, read-only, so `models.json` keeps its history up to the switch; `fpl-dof bronze verify --quarantine`, then `fpl-dof run --only transform…publish`; advice appended to `ledger` — the champion's as soon as its week exists, before its plan and the challengers run — contract uploaded, `data` rebuilt with the new price history) → `deploy` (calls `deploy.yml` only when `run` published, ORC-03) |
 | `day-before.yml` | Every 20 minutes in a nightly UTC window | On the day before a deadline, dispatches `ingest-slow` with `must_publish=true` once (deduplicated by the run's `workflow_dispatch` event since midnight Sydney, never its title); that ingest dispatches the pipeline, whose deploy then requires a fresh contract |
@@ -426,15 +426,18 @@ manually dispatchable.
 
 ### Two cadence rules that are easy to get wrong
 
-**1. Per-player summaries never run on the fast path.** They are ~700 requests; at a polite two a
-second that is six minutes. The fast workflow exists to keep *prices, status and ownership* inside the
-NFR-05 freshness window, and those all live in `bootstrap-static` — two requests, seconds.
+**1. Per-player summaries run on the fast path once a gameweek, at its data-check, and never
+otherwise.** They are ~700 requests; at a polite two a second that is six minutes. The fast workflow
+exists to keep *prices, status and ownership* inside the NFR-05 freshness window, and those all live
+in `bootstrap-static` — two requests, seconds.
 A summary is cached for a week, except that one fetched before the latest gameweek was checked
 (`finished` and `data_checked`) is stale whatever its age: its `history` is where `player_gameweek`
 comes from, and it lacks that gameweek. FPL publishes no finish time, so "checked" dates from the
 oldest bronze `bootstrap-static` snapshot that shows it, by sidecar `fetched_at`, never file mtime
-(F2). The first slow ingest after each gameweek is checked therefore re-fetches the whole sweep once;
-the warning gate `player_gameweek_current` flags any player whose club played that gameweek but who
+(F2). The first ingest after each gameweek is checked therefore re-fetches the whole sweep once. If
+that is the fast ingest whose capture shows the flag flip (the resource's `on_check`, LIVE-07), the
+`results` run it starts evaluates the gameweek on its final rows, not at the next slow ingest; every
+other fast firing leaves the sweep alone. The warning gate `player_gameweek_current` flags any player whose club played that gameweek but who
 has no row for it.
 
 **2. An ingest starts a pipeline run only when something material moved** (ORC-02,

@@ -77,6 +77,11 @@ class Resource:
     """Whether the fast cadence fetches it too while a gameweek is in play, though it is off the
     fast path otherwise (LIVE-01). One or two requests a firing, for the scores and table of the
     gameweek being played; the adapter says which gameweek that is."""
+    on_check: bool = False
+    """Whether the fast cadence fetches it too, once, when the gameweek in play is data-checked,
+    though it is off the fast path otherwise (LIVE-07). For the resource whose rows for that
+    gameweek are final only then, so the run the check starts reads them rather than the last
+    daily sweep's. The adapter's own staleness rule keeps it to the one fetch."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -279,17 +284,25 @@ class SourceAdapter(ABC):
                 return declared
         raise KeyError(f"{self.name} declares no resource named {name!r}")
 
-    def wants(self, name: str, request: IngestRequest, *, in_play: bool = False) -> bool:
+    def wants(
+        self, name: str, request: IngestRequest, *, in_play: bool = False, checked: bool = False
+    ) -> bool:
         """Whether ``name`` should be fetched under this request's cadence.
 
         Adapters guard their expensive resources with this rather than branching on
         ``request.fast_path_only`` themselves, so the cadence rule exists in exactly one place and
         a resource opts out by declaring ``fast_path=False`` — a fact about the resource, stated
         next to its TTL, rather than a condition buried in an ingest method. ``in_play`` says a
-        gameweek is in play, which brings in a resource declared ``in_play`` (LIVE-01).
+        gameweek is in play, which brings in a resource declared ``in_play`` (LIVE-01); ``checked``
+        says the one in play is data-checked, which brings in one declared ``on_check`` (LIVE-07).
         """
         resource = self.resource(name)
-        return not request.fast_path_only or resource.fast_path or (in_play and resource.in_play)
+        return (
+            not request.fast_path_only
+            or resource.fast_path
+            or (in_play and resource.in_play)
+            or (checked and resource.on_check)
+        )
 
     def has_fast_path(self) -> bool:
         """Whether any of this source's resources belong on the frequent cadence at all.
