@@ -294,9 +294,12 @@ class FplApiAdapter(SourceAdapter):
             # history_past is fixed for the season, but `history` gains a row per player every
             # gameweek and is where player_gameweek comes from. So the week-long TTL (~670
             # requests a sweep) holds only until a gameweek is checked: ingest then treats every
-            # summary fetched before that as stale (`_summaries_stale_before`).
+            # summary fetched before that as stale (`_summaries_stale_before`). The fast ingest
+            # that sees the check does that sweep itself, once, so the run the check starts
+            # evaluates the gameweek on its final rows (LIVE-07).
             cache_ttl_seconds=_WEEK,
             fast_path=False,
+            on_check=True,
         ),
         Resource(
             name="event_live",
@@ -1687,9 +1690,12 @@ class FplApiAdapter(SourceAdapter):
 
         # ~700 requests, several minutes. It is declared off the fast path, and the fast cadence
         # runs six times a day, so honouring that declaration is what keeps the frequent workflow
-        # measured in seconds (Architecture §9).
+        # measured in seconds (Architecture §9). The one exception is the firing that sees the live
+        # gameweek data-checked: its rows are final only now, and the run that firing starts
+        # evaluates it, so it sweeps the summaries that predate the check, and only those (LIVE-07).
         fetched = 0
-        if not self.wants("element_summary", request):
+        checked = live is not None and live.checked
+        if not self.wants("element_summary", request, checked=checked):
             log.info("fpl.element_summary.skipped", extra={"reason": "off the fast path"})
         else:
             element_ids = [int(element["id"]) for element in bootstrap["elements"]]
