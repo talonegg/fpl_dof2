@@ -6,7 +6,7 @@
 
 export const CONTRACT_VERSION = 1;
 
-export const CONTRACT_MINOR = 7;
+export const CONTRACT_MINOR = 8;
 
 /** What this publication is, when it was made, and what produced it. The browser reads this first and can render an honest 'as at' line without trusting anything else. */
 export interface Meta {
@@ -1270,6 +1270,127 @@ export interface Strategies {
   strategies: Strategy[];
 }
 
+/** The gameweek's fixtures that share a kick-off date in the configured matchday zone (UK time, R1.4.3 §5 Q1). */
+export interface LiveMatchday {
+  /** The kick-off date in the matchday zone. */
+  date: string;
+  fixtures: number;
+  /** Fixtures finished with their bonus confirmed. */
+  fixtures_confirmed: number;
+  /** UTC (DL-11). */
+  last_kickoff: string;
+  /** Every fixture's bonus confirmed, or the settle cap passed since the last kick-off. */
+  done: boolean;
+  /** Done by the settle cap with a bonus still unconfirmed: its points are without that bonus. */
+  bonus_pending: boolean;
+}
+
+export interface LiveFixture {
+  fixture_id: number;
+  /** UTC (DL-11). */
+  kickoff_time: string | null;
+  /** The `date` of the matchday it belongs to. */
+  matchday: string | null;
+  home_team_id: number;
+  away_team_id: number;
+  /** FPL's flags: not started; started; full time (minutes final, bonus not yet confirmed); finished with bonus confirmed. */
+  state: "to_come" | "playing" | "full_time" | "bonus_confirmed";
+}
+
+/** One team's gameweek in play. A team whose picks, FPL figures or live scores were not read has `live: null` and a `reason`; that team alone degrades (NFR-15). */
+export interface LiveTeam {
+  entry_id: number;
+  entry_name: string;
+  /** The manager's display name from the league table; null for an owner outside the league. */
+  player_name: string | null;
+  is_owner: boolean;
+  /** Rank by live total among the published teams with one; equal totals share a rank. Null without a live figure. */
+  rank: number | null;
+  live: LiveFigures | null;
+  /** Why `live` is null; null when it is not. */
+  reason: string | null;
+  game: LiveGame | null;
+  /** Once the gameweek is finished and FPL's figures are final: whether the scorer's gameweek points equal FPL's, both net of the hit (LIVE-03's check, a warning gate, R1.4.3 §5 Q3). Null until then, or without a live figure. */
+  matches_game: boolean | null;
+}
+
+/** The team's provisional gameweek, from the one realised scorer (ORC-04). */
+export interface LiveFigures {
+  /** Provisional gameweek points, net of the hit. */
+  points: number;
+  points_before_hits: number;
+  /** This gameweek's hit, as FPL reports it, taken once. */
+  hit_cost: number;
+  /** The chip played this gameweek, by the API's own name. Null when none. */
+  chip: string | null;
+  /** The chip's name as the game shows it. Null when none. */
+  chip_label: string | null;
+  /** The season total after the last finished gameweek. */
+  last_total: number;
+  /** `last_total` plus `points`. */
+  live_total: number;
+  /** The team's own status, on the gameweek's rule, over the fixtures its fifteen have (LIVE-03). */
+  status: "in_play" | "bonus_pending" | "complete" | "final";
+  /** The player the armband counts for: the captain, or the vice-captain once the captain's gameweek is over without a minute. */
+  captain_id: number;
+  vice_used: boolean;
+  /** Projected substitutes coming on: only for a starter whose gameweek is over without a minute. */
+  autosubs_in: number[];
+  autosubs_out: number[];
+  /** The fifteen in slot order. */
+  players: LivePlayer[];
+}
+
+export interface LivePlayer {
+  player_id: number;
+  /** As submitted: 1-11 start, 12-15 bench in order. */
+  slot: number;
+  minutes: number;
+  /** His gameweek so far, every fixture summed, bonus included as FPL has it. */
+  points: number;
+  /** FPL's bonus so far; never estimated from BPS. */
+  bonus: number;
+  /** Every fixture he has has its bonus confirmed (true for a player with none). */
+  bonus_confirmed: boolean;
+  /** Every fixture he has is at full time: his minutes are final. False for a player yet to play. */
+  complete: boolean;
+  /** As applied: 0 off the field, 1 on it, the armband's multiplier on `captain_id`. */
+  multiplier: number;
+  is_captain: boolean;
+  is_vice_captain: boolean;
+}
+
+/** FPL's own figures for the team, from its picks. Before the gameweek is data-checked they are the deadline's capture, so they are not the gameweek's points (`final` false). */
+export interface LiveGame {
+  /** The gameweek's points before the hit, as FPL showed them. */
+  points: number;
+  hit_cost: number;
+  /** The season total, this gameweek included. */
+  total: number;
+  /** Captured once FPL had data-checked the gameweek. */
+  final: boolean;
+}
+
+/** The gameweek in play (LIVE-04, DL-99): the latest gameweek past its deadline, from its first kick-off until the next deadline moves the live tables on. Its status, its matchdays and fixtures, and for the owner and each mini-league rival their provisional points from the one realised scorer (ORC-04), live total and rank among the published teams. **Provisional, and says so**: until FPL data-checks the gameweek the figures can move; `log.json` and the evaluation are the record, and nothing reads this file back (DP-14). Absent preseason and between a deadline and that gameweek's first kick-off, never empty (DP-15). From contract minor 8. */
+export interface Live {
+  contract_version: 1;
+  gameweek: number;
+  /** How far a gameweek, or one team's part of it, has got (LIVE-03): `in_play` a fixture still to finish; `bonus_pending` every fixture at full time, a bonus not yet confirmed (bonus is never estimated from BPS); `complete` every bonus confirmed, not yet data-checked; `final` FPL has data-checked it. */
+  status: "in_play" | "bonus_pending" | "complete" | "final";
+  /** True until FPL data-checks the gameweek (`status` is `final`): every figure here can still move. */
+  provisional: boolean;
+  /** UTC instant of the run's snapshot (ORC-03). */
+  as_of: string;
+  /** UTC instant the live scores were captured; null when none were read, and then no team has a live figure. */
+  observed_at: string | null;
+  /** The gameweek's matchdays in date order, done and to come (LIVE-02). */
+  matchdays: LiveMatchday[];
+  /** The gameweek's fixtures in kick-off order. A postponed fixture has left the gameweek and is not here. */
+  fixtures: LiveFixture[];
+  /** The owner and every team in the mini-league table, ranked by live total first; teams without a live figure follow, by entry id. */
+  teams: LiveTeam[];
+}
+
 /** Every published artefact and how the app loads it, from `ARTEFACTS`. */
 export const ARTEFACTS = {
   "meta": {
@@ -1351,6 +1472,11 @@ export const ARTEFACTS = {
     "path": "strategies.json",
     "required": false,
     "warm": true
+  },
+  "live": {
+    "path": "live.json",
+    "required": false,
+    "warm": true
   }
 } as const;
 
@@ -1372,6 +1498,7 @@ export interface ArtefactMap {
   as_if_played: AsIfPlayed;
   xp_accuracy: XpAccuracy;
   strategies: Strategies;
+  live: Live;
 }
 
 export type ArtefactKey = keyof ArtefactMap;

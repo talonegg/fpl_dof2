@@ -5,7 +5,7 @@
   "counts": {
    "failed": 0,
    "passed": 15,
-   "skipped": 4
+   "skipped": 5
   },
   "passed": true,
   "results": [
@@ -160,6 +160,14 @@
     "outcome": "passed",
     "requirement": "FR-08",
     "severity": "error"
+   },
+   {
+    "class": "referential",
+    "gate": "scorer_matches_game",
+    "message": "table 'entry_live' is not present",
+    "outcome": "skipped",
+    "requirement": "FR-32",
+    "severity": "warn"
    }
   ]
  },

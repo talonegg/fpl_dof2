@@ -84,6 +84,10 @@ class ScoredLineup:
     autosubs_out: tuple[int, ...]
     expected_points: float
     prediction_delta: float
+    fielded: tuple[int, ...] = ()
+    """Everyone whose points count: the final XI, or all fifteen with a chip that lets the bench
+    score. What a view needs to show each player's multiplier as applied (LIVE-04); not part of
+    :meth:`as_dict`, so no recorded evaluation changes."""
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -175,6 +179,7 @@ def score_lineup(
         autosubs_out=tuple(subs_out),
         expected_points=lineup.expected_points,
         prediction_delta=round(net_points - lineup.expected_points, 2),
+        fielded=tuple(fielded),
     )
 
 
