@@ -98,14 +98,18 @@
   color: var(--text-muted);
 }
 
-/* A wide table scrolls inside its own container; the page never scrolls sideways. */
+/*
+ * The table is laid out to fit its card at every width (below), so this scroller is only the safety
+ * net: if a very long word ever forced it wider, the table would scroll inside its card and the page
+ * would still not scroll sideways.
+ */
 .live-scroll {
   overflow-x: auto;
 }
 
 .live-table {
   width: 100%;
-  /* Four short columns fit a 375 px screen; the global table's 42rem floor would scroll them. */
+  /* The global table's 42rem floor would scroll it; this one is sized by its content instead. */
   min-width: 0;
   border-collapse: collapse;
   font-size: var(--font-size-sm);
@@ -124,8 +128,30 @@
   font-weight: 600;
 }
 
-.live-table .live-number {
+/*
+ * The global `th, td { white-space: nowrap }` is what pushed the points column off a 375 px screen:
+ * a player's name, team, position and notes ("on for X (projected)") ran as one line. Here the
+ * player and the secondary column wrap onto further lines instead, so the name and the live points
+ * (the main figure) are on screen at every width with no sideways scroll inside the card. The
+ * numbers stay on one line, and nothing is hidden: what wraps is still all there.
+ */
+.live-table tbody th,
+.live-table tbody td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 480px) {
+  .live-table th,
+  .live-table td {
+    padding: var(--space-2);
+  }
+}
+
+.live-table th.live-number,
+.live-table td.live-number {
   text-align: right;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+  overflow-wrap: normal;
 }

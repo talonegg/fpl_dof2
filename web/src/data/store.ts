@@ -105,9 +105,16 @@ const message = (error: unknown) => (error instanceof Error ? error.message : St
  * One published file. A 404, or a single-page host's HTML fallback for a missing path, is absent
  * (DL-37); a body that fails its guard is malformed. Never rejects.
  */
-async function load<T>(path: string, looksRight: (body: unknown) => boolean = isObject): Promise<Loaded<T>> {
+async function load<T>(
+  path: string,
+  looksRight: (body: unknown) => boolean = isObject,
+  revalidate = false,
+): Promise<Loaded<T>> {
   try {
-    const res = await fetch(`${DATA_BASE}/${path}`);
+    // A read made after a refresh asks the origin whether the file changed (`no-cache` revalidates, and
+    // answers 304 when it did not): GitHub Pages serves `max-age=600`, so a plain fetch could hand back
+    // the copy the HTTP cache already held for up to ten minutes. First loads are plain fetches.
+    const res = await fetch(`${DATA_BASE}/${path}`, revalidate ? { cache: "no-cache" } : undefined);
     if (res.status === 404) return { status: "absent" };
     if (!res.ok) return { status: "error", message: `Failed to load ${path}: ${res.status} ${res.statusText}` };
     const contentType = res.headers.get("content-type") ?? "";
@@ -139,6 +146,8 @@ class DataStore {
   private publishedPromise: Promise<PublishedData> | null = null;
   private registryPromise: Promise<Registry> | null = null;
   private generationCount = 0;
+  /** True from the first `refresh` until a hard `reset`: reads made then revalidate with the origin. */
+  private revalidating = false;
   private listeners = new Set<() => void>();
 
   /** One artefact. Only a ready one is kept; anything else is asked for again next time. */
@@ -175,7 +184,7 @@ class DataStore {
     const key = `${kind}:${path}`;
     let promise = this.files.get(key);
     if (!promise) {
-      promise = load(path, GUARDS[kind]);
+      promise = load(path, GUARDS[kind], this.revalidating);
       this.files.set(key, promise);
     }
     return optional(await promise) as (K extends "week" ? Week : Plan) | null;
@@ -247,6 +256,7 @@ class DataStore {
   }
 
   reset(): void {
+    this.revalidating = false;
     this.cache.clear();
     this.files.clear();
     this.publishedPromise = null;
@@ -261,10 +271,11 @@ class DataStore {
    * Drop everything loaded so the next read asks the network again, and tell the views that read
    * the store (LIVE-06). Unlike a hard `reset`, this is for an app that is already showing data:
    * the views keep what they have until the new files arrive, so a refresh updates in place and
-   * never blanks the screen.
+   * never blanks the screen. The reads that follow revalidate rather than trust the HTTP cache.
    */
   refresh(): void {
     this.reset();
+    this.revalidating = true;
     this.generationCount += 1;
     for (const listener of [...this.listeners]) listener();
   }
@@ -295,9 +306,9 @@ class DataStore {
       // The champion's, at the path the registry publishes; nothing is published without one.
       const registry = await this.registry();
       const path = registry.entries.find((e) => e.id === registry.champion)?.artefacts[key];
-      return path ? load(path, GUARDS[key]) : { status: "absent" };
+      return path ? load(path, GUARDS[key], this.revalidating) : { status: "absent" };
     }
-    const loaded = await load(ARTEFACTS[key].path, GUARDS[key]);
+    const loaded = await load(ARTEFACTS[key].path, GUARDS[key], this.revalidating);
     const fix = NORMALISE[key] as ((registry: Registry, body: unknown) => unknown) | undefined;
     if (loaded.status !== "ready" || !fix) return loaded;
     try {

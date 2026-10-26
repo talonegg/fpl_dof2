@@ -46,6 +46,8 @@ export function LeagueTable({
 
   const rows = order === "overlap" ? byOverlapDescending(view.rows) : view.rows;
   const comparing = view.anchor === "anchored";
+  // With live figures the table is a gameweek in play; "no gameweek has been scored yet" would contradict it.
+  const hasLiveFigures = inPlay && view.rows.some((r) => r.figures);
 
   return (
     <section className="league" data-testid="league-table">
@@ -53,9 +55,11 @@ export function LeagueTable({
         <h2>{league.league.name}</h2>
         <p className="league-sub">
           {league.league.entries_published} entries shown
-          {league.gameweek === null
-            ? ", before any gameweek has been scored"
-            : `, squads as at gameweek ${league.gameweek}`}
+          {league.gameweek !== null
+            ? `, squads as at gameweek ${league.gameweek}`
+            : hasLiveFigures
+              ? ""
+              : ", before any gameweek has been scored"}
           .
         </p>
         {inPlay && (
@@ -68,9 +72,11 @@ export function LeagueTable({
             <UpdatedAt asOf={live.as_of} testId="league-live-as-of" />
           </p>
         )}
-        <p className="league-note" data-testid="league-anchor">
-          {anchorNote(view.anchor, view.comparableCount, league.league.squad_limit)}
-        </p>
+        {!(hasLiveFigures && view.anchor === "no_gameweek") && (
+          <p className="league-note" data-testid="league-anchor">
+            {anchorNote(view.anchor, view.comparableCount, league.league.squad_limit)}
+          </p>
+        )}
       </header>
 
       {comparing && (

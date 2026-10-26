@@ -21,6 +21,8 @@ A plain `npm run build` is password-gated and the check stops at the gate, so bu
 
 The check drives whatever the served site publishes. `live.json` exists only while a gameweek is in play, so the live League and Home views (LIVE-05, LIVE-06) are checked in the browser only when one is served; their ordering, marks, drill-down and visibility re-read are pinned by the component tests (`LeagueLive.test.tsx`, `HomeRoute.test.tsx`), which jsdom can run without a gameweek in play.
 
+The live squad tables' **layout** has no jsdom equivalent, so it has its own small check, `live-layout-check.mjs` (`npm run verify:live -- http://127.0.0.1:4173`). It needs a served build whose `live.json` holds a figure for the owner and for another team, and at 375 px and 1440 px, on Home and on a team's page, it fails unless the page does not scroll sideways, the table needs no sideways scroll inside its card, and every row's player name and live points lie inside the card's visible box. Set `PLAYWRIGHT_CHROMIUM_PATH` to use a Chromium that is not in Playwright's own cache.
+
 Screenshots land in `verify/screenshots/` — one per viewport at load, one after interacting, and
 `offline.png`, which is the app rendering with the network switched off.
 
