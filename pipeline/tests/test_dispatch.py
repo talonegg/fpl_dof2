@@ -263,6 +263,12 @@ def test_each_ingest_dispatches_after_it_pushed_data_with_actions_write(workflow
     assert "GH_TOKEN" in job["steps"][index]["env"]
 
 
+def test_the_fast_ingest_has_a_timeout_so_a_hang_cannot_block_the_next_firing() -> None:
+    """LIVE-07: the once-a-gameweek sweep takes ~6 minutes; a hung run must end, or it holds the
+    `ingest-fast` concurrency group and every later hourly firing queues behind it."""
+    assert _workflow("ingest-fast.yml")["jobs"]["ingest"]["timeout-minutes"] >= 10
+
+
 def test_the_day_before_path_is_typed_and_still_fails_closed() -> None:
     gate = _workflow("day-before.yml")["jobs"]["refresh"]
     assert "-f must_publish=true" in gate["steps"][0]["run"]
