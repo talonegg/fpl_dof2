@@ -10,7 +10,10 @@
 #   pre-deadline window (T-6h, T-3h, T-90m, T-45m). GitHub Actions cron cannot itself depend on when
 #   the next deadline is, so it fires often and the guard decides, as ingest-fast.yml does.
 # - **`change`**: an ingest whose change manifest moved a price, a status or news line, a fixture,
-#   or priced the Open gameweek for the first time dispatches a run with those kinds (DL-94).
+#   priced the Open gameweek for the first time, or saw a result dispatches a run with those kinds
+#   (DL-94). A `results` change (a matchday done, the gameweek finished or data-checked, LIVE-02)
+#   may be for a gameweek in play and runs with no gameweek Open, the season's last weekend
+#   included; it is a full run that deploys, like any other (DL-99).
 # - **`schedule`**: the slow ingest's daily refresh, dispatched after it pushed `data`.
 # - **`day-before`**: the slow ingest that day-before.yml started; `must_publish` makes deploy fail
 #   closed on a stale contract.
@@ -35,11 +38,11 @@ on:
         options: [manual, change, schedule, day-before]
         default: manual
       kinds:
-        description: "For change: the change manifest's kinds, comma-separated (prices,status,fixtures,odds)."
+        description: "For change: the change manifest's kinds, comma-separated (prices,status,fixtures,odds,results)."
         required: false
         type: string
       gameweek:
-        description: "The gameweek this run was started for; refused unless it is still the Open one. Blank for any."
+        description: "The gameweek this run was started for; refused unless it is still the Open one (for results, or one in play). Blank for any."
         required: false
         type: string
       must_publish:
@@ -64,7 +67,8 @@ permissions:
 jobs:
   guard:
     # Every trigger passes through the guard (ORC-02): it validates the typed inputs, refuses
-    # unknown values, and applies the freeze and the Open-gameweek check to a dispatched run too.
+    # unknown values, and applies the freeze and the Open-gameweek check to a dispatched run too
+    # (a results change passes the second for a gameweek in play, LIVE-02; never the first).
     permissions:
       contents: read
     runs-on: ubuntu-latest

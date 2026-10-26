@@ -7,9 +7,13 @@ guard and the dispatch script all read it without crossing a layer. JSON Schema 
 
 from __future__ import annotations
 
+#: The change kind a gameweek in play moves: a matchday done, the gameweek marked finished, the
+#: gameweek marked data-checked (LIVE-02). A kick-off, a goal or a score moves nothing.
+RESULTS = "results"
+
 #: Everything that starts a pipeline run: a price; a status or news line; a fixture's kick-off or
-#: gameweek; a match of the Open gameweek priced for the first time.
-CHANGE_KINDS: tuple[str, ...] = ("prices", "status", "fixtures", "odds")
+#: gameweek; a match of the Open gameweek priced for the first time; a result.
+CHANGE_KINDS: tuple[str, ...] = ("prices", "status", "fixtures", "odds", RESULTS)
 
 #: What may start a pipeline run, as `pipeline.yml`'s `trigger` input names it. The cron tick sends
 #: none. `schedule` is the daily refresh the slow ingest dispatches; `change` carries the change
@@ -28,6 +32,7 @@ __all__ = [
     "CHANGE_KINDS",
     "DAY_BEFORE",
     "MANUAL",
+    "RESULTS",
     "SCHEDULE",
     "TRIGGERS",
     "TRIGGER_STAMP",

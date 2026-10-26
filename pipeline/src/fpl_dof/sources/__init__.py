@@ -9,6 +9,7 @@ appears in a module outside this package.
 """
 
 from fpl_dof.sources.base import (
+    ChangeContext,
     IngestReport,
     IngestRequest,
     Resource,
@@ -40,6 +41,7 @@ __all__ = [
     "META_SUFFIX",
     "REFERENCE",
     "BronzeStore",
+    "ChangeContext",
     "Fetched",
     "Fetcher",
     "IngestReport",
