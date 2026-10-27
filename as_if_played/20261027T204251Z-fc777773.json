@@ -1,0 +1,827 @@
+[
+ {
+  "contract_version": 1,
+  "season": "2026/27",
+  "kind": "in_sample",
+  "caveat": "In-sample: today's models replayed on past gameweeks; not evidence of skill. Each model, with the weights it is fitted with today, plays 2026/27 from GW1 on its own squad, picked under the budget, with its own transfers, hits and chips, on the features, prices and fixtures known at each deadline. The evidence is the ladder of each model's advice on your squad and the backtest.",
+  "champion": "c3",
+  "provenance": {
+   "run_id": "20261027T204251Z-fc777773",
+   "config_digest": "544401f19162a6adb2d6e199067b5126f0116fc7f7ad4f4291bb087f9a06c69b",
+   "simulator": "fpl_dof.factory.as_if_played: each strategy's live forecast, fitted once on everything knowable now, replayed at every finished deadline (ORC-13, DL-97)",
+   "scorer": "rules/realised.py, the one realised-points scorer (ORC-04)",
+   "settings": "in-sample: today's weights; a from-scratch squad under the budget at the first gameweek played, the start-probability floor relaxed if it cannot be met; the decision engine's week, or the plan's when it plays a chip; features, prices and fixtures as known at each deadline; no availability news, which is not recorded per deadline"
+  },
+  "bootstrap": {
+   "draws": 2000,
+   "seed": 0,
+   "unit": "gameweek",
+   "level": 0.95
+  },
+  "models": [
+   {
+    "id": "c3",
+    "label": "Champion (C3)",
+    "role": "champion",
+    "available": true,
+    "unavailable_reason": null
+   },
+   {
+    "id": "a",
+    "label": "Model A",
+    "role": "challenger",
+    "available": true,
+    "unavailable_reason": null
+   },
+   {
+    "id": "a_odds",
+    "label": "A + odds",
+    "role": "challenger",
+    "available": false,
+    "unavailable_reason": "today's fit could not be replayed: MissingOddsError: no match odds knowable before the gameweek 9 deadline"
+   },
+   {
+    "id": "c1",
+    "label": "Challenger (C1)",
+    "role": "challenger",
+    "available": true,
+    "unavailable_reason": null
+   },
+   {
+    "id": "engine",
+    "label": "Engine",
+    "role": "challenger",
+    "available": true,
+    "unavailable_reason": null
+   },
+   {
+    "id": "c3_e2",
+    "label": "C3 with rating shrinkage (E2)",
+    "role": "experiment",
+    "available": true,
+    "unavailable_reason": null
+   }
+  ],
+  "gameweeks": [
+   {
+    "gameweek": 1,
+    "models": {
+     "a": {
+      "points": 43.0,
+      "points_before_hits": 43.0,
+      "hit_points": 0.0,
+      "n_transfers": 0,
+      "transfers": [],
+      "captain": "Saka",
+      "vice_captain": "Raya",
+      "captain_points": 9.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 43.0,
+      "rank": 1,
+      "cumulative_rank": 1
+     },
+     "c1": {
+      "points": 39.0,
+      "points_before_hits": 39.0,
+      "hit_points": 0.0,
+      "n_transfers": 0,
+      "transfers": [],
+      "captain": "B.Fernandes",
+      "vice_captain": "Saka",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 39.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     }
+    },
+    "unavailable": {
+     "c3": "ColdStartError: no feature row could be built at 2026-08-21",
+     "engine": "ColdStartError: no feature row could be built at 2026-08-21",
+     "c3_e2": "ColdStartError: no feature row could be built at 2026-08-21"
+    }
+   },
+   {
+    "gameweek": 2,
+    "models": {
+     "c3": {
+      "points": 50.0,
+      "points_before_hits": 50.0,
+      "hit_points": 0.0,
+      "n_transfers": 0,
+      "transfers": [],
+      "captain": "Saka",
+      "vice_captain": "O'Reilly",
+      "captain_points": 11.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 50.0,
+      "rank": 4,
+      "cumulative_rank": 4
+     },
+     "a": {
+      "points": 98.0,
+      "points_before_hits": 102.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Saka → Schade",
+       "Rice → B.Fernandes"
+      ],
+      "captain": "B.Fernandes",
+      "vice_captain": "Raya",
+      "captain_points": 23.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 141.0,
+      "rank": 1,
+      "cumulative_rank": 1
+     },
+     "c1": {
+      "points": 98.0,
+      "points_before_hits": 98.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Disasi → Castagne"
+      ],
+      "captain": "B.Fernandes",
+      "vice_captain": "Saka",
+      "captain_points": 23.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 137.0,
+      "rank": 1,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 39.0,
+      "points_before_hits": 39.0,
+      "hit_points": 0.0,
+      "n_transfers": 0,
+      "transfers": [],
+      "captain": "A.Becker",
+      "vice_captain": "White",
+      "captain_points": 0.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 39.0,
+      "rank": 5,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 54.0,
+      "points_before_hits": 54.0,
+      "hit_points": 0.0,
+      "n_transfers": 0,
+      "transfers": [],
+      "captain": "Isak",
+      "vice_captain": "A.Becker",
+      "captain_points": 8.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 54.0,
+      "rank": 3,
+      "cumulative_rank": 3
+     }
+    }
+   },
+   {
+    "gameweek": 3,
+    "models": {
+     "c3": {
+      "points": 41.0,
+      "points_before_hits": 41.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "A.Becker → Kelleher"
+      ],
+      "captain": "Saka",
+      "vice_captain": "O'Reilly",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 91.0,
+      "rank": 4,
+      "cumulative_rank": 4
+     },
+     "a": {
+      "points": 74.0,
+      "points_before_hits": 74.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Truffert → Vuskovic"
+      ],
+      "captain": "B.Fernandes",
+      "vice_captain": "Semenyo",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 215.0,
+      "rank": 1,
+      "cumulative_rank": 1
+     },
+     "c1": {
+      "points": 63.0,
+      "points_before_hits": 63.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Garner → Tavernier"
+      ],
+      "captain": "B.Fernandes",
+      "vice_captain": "Palmer",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 200.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 41.0,
+      "points_before_hits": 41.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "A.Becker → Kelleher"
+      ],
+      "captain": "Kelleher",
+      "vice_captain": "De Cuyper",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 80.0,
+      "rank": 4,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 61.0,
+      "points_before_hits": 61.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Hinshelwood → B.Fernandes"
+      ],
+      "captain": "B.Fernandes",
+      "vice_captain": "Saka",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 115.0,
+      "rank": 3,
+      "cumulative_rank": 3
+     }
+    }
+   },
+   {
+    "gameweek": 4,
+    "models": {
+     "c3": {
+      "points": 71.0,
+      "points_before_hits": 71.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "O'Reilly → Vuskovic"
+      ],
+      "captain": "Saka",
+      "vice_captain": "Raya",
+      "captain_points": 8.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 162.0,
+      "rank": 4,
+      "cumulative_rank": 4
+     },
+     "a": {
+      "points": 102.0,
+      "points_before_hits": 106.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Beto → Calvert-Lewin",
+       "B.Fernandes → Groß"
+      ],
+      "captain": "Raya",
+      "vice_captain": "Semenyo",
+      "captain_points": 14.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 317.0,
+      "rank": 1,
+      "cumulative_rank": 1
+     },
+     "c1": {
+      "points": 77.0,
+      "points_before_hits": 77.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Senesi → De Cuyper"
+      ],
+      "captain": "B.Fernandes",
+      "vice_captain": "Palmer",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 277.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 77.0,
+      "points_before_hits": 77.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "O'Reilly → Vuskovic"
+      ],
+      "captain": "Raya",
+      "vice_captain": "White",
+      "captain_points": 14.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 157.0,
+      "rank": 2,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 69.0,
+      "points_before_hits": 69.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Ajayi → Calafiori"
+      ],
+      "captain": "B.Fernandes",
+      "vice_captain": "Saka",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 184.0,
+      "rank": 5,
+      "cumulative_rank": 3
+     }
+    }
+   },
+   {
+    "gameweek": 5,
+    "models": {
+     "c3": {
+      "points": 43.0,
+      "points_before_hits": 43.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Kelleher → Donnarumma"
+      ],
+      "captain": "Saka",
+      "vice_captain": "Donnarumma",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 205.0,
+      "rank": 3,
+      "cumulative_rank": 4
+     },
+     "a": {
+      "points": 97.0,
+      "points_before_hits": 101.0,
+      "hit_points": -4.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Disasi → Hall",
+       "Calvert-Lewin → Brobbey"
+      ],
+      "captain": "Raya",
+      "vice_captain": "Semenyo",
+      "captain_points": 1.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 414.0,
+      "rank": 1,
+      "cumulative_rank": 1
+     },
+     "c1": {
+      "points": 73.0,
+      "points_before_hits": 73.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Beto → Brobbey"
+      ],
+      "captain": "B.Fernandes",
+      "vice_captain": "Palmer",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 350.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 43.0,
+      "points_before_hits": 43.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Kelleher → Donnarumma"
+      ],
+      "captain": "Donnarumma",
+      "vice_captain": "Guéhi",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 200.0,
+      "rank": 3,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 41.0,
+      "points_before_hits": 41.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "White → Bogle"
+      ],
+      "captain": "B.Fernandes",
+      "vice_captain": "Saka",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 225.0,
+      "rank": 5,
+      "cumulative_rank": 3
+     }
+    }
+   },
+   {
+    "gameweek": 6,
+    "models": {
+     "c3": {
+      "points": 72.0,
+      "points_before_hits": 72.0,
+      "hit_points": 0.0,
+      "n_transfers": 11,
+      "transfers": [
+       "White → Calafiori",
+       "Lewis-Potter → Kelleher",
+       "Thiago → Barry",
+       "Hinshelwood → Egan",
+       "Nketiah → Ajayi",
+       "Emersonn → Cherki",
+       "Gakpo → Haaland",
+       "Szoboszlai → Mbeumo",
+       "Donnarumma → Isidor",
+       "Guéhi → Yalcouyé",
+       "Gvardiol → Cho"
+      ],
+      "captain": "Raya",
+      "vice_captain": "Calafiori",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 277.0,
+      "rank": 1,
+      "cumulative_rank": 4,
+      "chip": "wildcard"
+     },
+     "a": {
+      "points": 58.0,
+      "points_before_hits": 58.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Van Hecke → De Cuyper"
+      ],
+      "captain": "Raya",
+      "vice_captain": "Semenyo",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 472.0,
+      "rank": 4,
+      "cumulative_rank": 1
+     },
+     "c1": {
+      "points": 62.0,
+      "points_before_hits": 62.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Truffert → Vuskovic"
+      ],
+      "captain": "B.Fernandes",
+      "vice_captain": "Palmer",
+      "captain_points": 1.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 412.0,
+      "rank": 2,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 59.0,
+      "points_before_hits": 59.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "White → Calafiori"
+      ],
+      "captain": "Raya",
+      "vice_captain": "Calafiori",
+      "captain_points": 3.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 259.0,
+      "rank": 3,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 55.0,
+      "points_before_hits": 55.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "A.Becker → Raya"
+      ],
+      "captain": "B.Fernandes",
+      "vice_captain": "Saka",
+      "captain_points": 1.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 280.0,
+      "rank": 5,
+      "cumulative_rank": 3
+     }
+    }
+   },
+   {
+    "gameweek": 7,
+    "models": {
+     "c3": {
+      "points": 79.0,
+      "points_before_hits": 79.0,
+      "hit_points": 0.0,
+      "n_transfers": 2,
+      "transfers": [
+       "Egan → Bogle",
+       "Ajayi → Muharemović"
+      ],
+      "captain": "Haaland",
+      "vice_captain": "Saka",
+      "captain_points": 13.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 356.0,
+      "rank": 1,
+      "cumulative_rank": 3
+     },
+     "a": {
+      "points": 72.0,
+      "points_before_hits": 72.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Brobbey → Evanilson"
+      ],
+      "captain": "Raya",
+      "vice_captain": "Semenyo",
+      "captain_points": 9.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 544.0,
+      "rank": 2,
+      "cumulative_rank": 1
+     },
+     "c1": {
+      "points": 69.0,
+      "points_before_hits": 69.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Brobbey → Evanilson"
+      ],
+      "captain": "Palmer",
+      "vice_captain": "Saka",
+      "captain_points": 2.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 481.0,
+      "rank": 3,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 61.0,
+      "points_before_hits": 61.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Hinshelwood → Yalcouyé"
+      ],
+      "captain": "Raya",
+      "vice_captain": "Calafiori",
+      "captain_points": 9.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 320.0,
+      "rank": 4,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 47.0,
+      "points_before_hits": 47.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Gvardiol → Muharemović"
+      ],
+      "captain": "B.Fernandes",
+      "vice_captain": "Saka",
+      "captain_points": 1.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 327.0,
+      "rank": 5,
+      "cumulative_rank": 4
+     }
+    }
+   },
+   {
+    "gameweek": 8,
+    "models": {
+     "c3": {
+      "points": 56.0,
+      "points_before_hits": 56.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Cho → Tavernier"
+      ],
+      "captain": "Raya",
+      "vice_captain": "Calafiori",
+      "captain_points": 7.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 412.0,
+      "rank": 2,
+      "cumulative_rank": 3,
+      "chip": "bboost"
+     },
+     "a": {
+      "points": 71.0,
+      "points_before_hits": 71.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Shaw → Gabriel"
+      ],
+      "captain": "Gabriel",
+      "vice_captain": "Raya",
+      "captain_points": 17.0,
+      "vice_used": false,
+      "n_autosubs": 0,
+      "cumulative": 615.0,
+      "rank": 1,
+      "cumulative_rank": 1
+     },
+     "c1": {
+      "points": 55.0,
+      "points_before_hits": 55.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Vuskovic → Hill"
+      ],
+      "captain": "B.Fernandes",
+      "vice_captain": "Palmer",
+      "captain_points": 0.0,
+      "vice_used": true,
+      "n_autosubs": 2,
+      "cumulative": 536.0,
+      "rank": 3,
+      "cumulative_rank": 2
+     },
+     "engine": {
+      "points": 37.0,
+      "points_before_hits": 37.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Guéhi → Muharemović"
+      ],
+      "captain": "Raya",
+      "vice_captain": "Calafiori",
+      "captain_points": 7.0,
+      "vice_used": false,
+      "n_autosubs": 1,
+      "cumulative": 357.0,
+      "rank": 4,
+      "cumulative_rank": 5
+     },
+     "c3_e2": {
+      "points": 37.0,
+      "points_before_hits": 37.0,
+      "hit_points": 0.0,
+      "n_transfers": 1,
+      "transfers": [
+       "Guéhi → Elvedi"
+      ],
+      "captain": "B.Fernandes",
+      "vice_captain": "Saka",
+      "captain_points": 0.0,
+      "vice_used": false,
+      "n_autosubs": 2,
+      "cumulative": 364.0,
+      "rank": 4,
+      "cumulative_rank": 4
+     }
+    }
+   }
+  ],
+  "summary": [
+   {
+    "model": "c3",
+    "total": 412.0,
+    "mean_per_gameweek": 58.86,
+    "gameweeks_won": 2,
+    "hit_points": 0.0,
+    "final_rank": 3,
+    "delta_vs_champion": null
+   },
+   {
+    "model": "a",
+    "total": 615.0,
+    "mean_per_gameweek": 76.88,
+    "gameweeks_won": 6,
+    "hit_points": -12.0,
+    "final_rank": 1,
+    "delta_vs_champion": {
+     "mean": 22.86,
+     "ci_low": 4.14,
+     "ci_high": 40.15,
+     "total": 160.0,
+     "significant": true,
+     "gameweeks_better": 5,
+     "gameweeks_worse": 2
+    }
+   },
+   {
+    "model": "c1",
+    "total": 536.0,
+    "mean_per_gameweek": 67.0,
+    "gameweeks_won": 1,
+    "hit_points": 0.0,
+    "final_rank": 2,
+    "delta_vs_champion": {
+     "mean": 12.14,
+     "ci_low": -2.86,
+     "ci_high": 27.71,
+     "total": 85.0,
+     "significant": false,
+     "gameweeks_better": 4,
+     "gameweeks_worse": 3
+    }
+   },
+   {
+    "model": "engine",
+    "total": 357.0,
+    "mean_per_gameweek": 51.0,
+    "gameweeks_won": 0,
+    "hit_points": 0.0,
+    "final_rank": 5,
+    "delta_vs_champion": {
+     "mean": -7.86,
+     "ci_low": -14.43,
+     "ci_high": -1.42,
+     "total": -55.0,
+     "significant": true,
+     "gameweeks_better": 1,
+     "gameweeks_worse": 4
+    }
+   },
+   {
+    "model": "c3_e2",
+    "total": 364.0,
+    "mean_per_gameweek": 52.0,
+    "gameweeks_won": 0,
+    "hit_points": 0.0,
+    "final_rank": 4,
+    "delta_vs_champion": {
+     "mean": -6.86,
+     "ci_low": -17.58,
+     "ci_high": 5.0,
+     "total": -48.0,
+     "significant": false,
+     "gameweeks_better": 2,
+     "gameweeks_worse": 5
+    }
+   }
+  ]
+ }
+]
