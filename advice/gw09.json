@@ -1,8 +1,8 @@
 {
   "gameweek": 9,
-  "run_id": "20261027T080337Z-18ca4924",
-  "recorded_at": "2026-10-27T08:03:37.179753Z",
-  "trigger": "schedule",
+  "run_id": "20261028T084554Z-daa16aca",
+  "recorded_at": "2026-10-28T08:45:54.467233Z",
+  "trigger": "change:prices,status",
   "advised": {
     "gameweek": 9,
     "squad": [
@@ -294,8 +294,8 @@
     "entry_id": 4529900,
     "as_of_gameweek": 8,
     "bank": 0.4,
-    "sell_value": 99.4,
-    "budget": 99.8,
+    "sell_value": 99.3,
+    "budget": 99.7,
     "free_transfers": 1,
     "chips_used": [],
     "warnings": []
@@ -307,8 +307,8 @@
         "id": "c3",
         "digest": "dd76f6b7f0c347f51071de57e039be3713cab42c7ea1985071e74f60512038b7"
       },
-      "as_of": "2026-10-27T08:03:37.179753Z",
-      "trigger": "schedule",
+      "as_of": "2026-10-28T08:45:54.467233Z",
+      "trigger": "change:prices,status",
       "advised": {
         "gameweek": 9,
         "squad": [
@@ -603,8 +603,8 @@
         "id": "a",
         "digest": "e92df0c93a4bd13a135e1d862dde1bfa8b084f4040373e55e045ba364a344d3c"
       },
-      "as_of": "2026-10-27T08:03:37.179753Z",
-      "trigger": "schedule",
+      "as_of": "2026-10-28T08:45:54.467233Z",
+      "trigger": "change:prices,status",
       "advised": {
         "gameweek": 9,
         "squad": [
@@ -646,30 +646,30 @@
         "captain": 411,
         "vice_captain": 40,
         "formation": "1-3-5-2",
-        "expected_points": 55.032
+        "expected_points": 55.007
       },
       "recommendation": {
-        "rationale": "2 transfers gain 2.88 expected points after a 4-point hit",
+        "rationale": "2 transfers gain 2.86 expected points after a 4-point hit",
         "is_roll": false,
         "transfers": 2,
         "hit_points": -4,
-        "net_expected_points": 51.0322,
-        "gain_over_roll": 2.8844,
-        "bank_after": 2.8,
+        "net_expected_points": 51.0072,
+        "gain_over_roll": 2.8594,
+        "bank_after": 2.6,
         "moves": [
           {
             "out": {
               "player_id": 165,
               "web_name": "Jo\u00e3o Pedro",
-              "price": 7.7,
-              "xp_next": 2.115,
+              "price": 7.6,
+              "xp_next": 0.0,
               "form_points_per_match": 7.833
             },
             "in": {
               "player_id": 379,
               "web_name": "Isak",
-              "price": 9.0,
-              "xp_next": 6.751,
+              "price": 9.1,
+              "xp_next": 6.726,
               "form_points_per_match": 8.167
             }
           },
@@ -710,10 +710,10 @@
           {
             "transfers": 2,
             "hit_points": -4,
-            "net_expected_points": 51.03,
-            "gain_over_roll": 2.88,
+            "net_expected_points": 51.01,
+            "gain_over_roll": 2.86,
             "moves": [
-              "Jo\u00e3o Pedro (\u00a37.7m) -> Isak (\u00a39.0m)",
+              "Jo\u00e3o Pedro (\u00a37.6m) -> Isak (\u00a39.1m)",
               "B.Fernandes (\u00a311.7m) -> Rogers (\u00a38.0m)"
             ]
           }
@@ -783,8 +783,8 @@
                 "player_out_name": "Jo\u00e3o Pedro",
                 "player_in_id": 379,
                 "player_in_name": "Isak",
-                "selling_price": 7.7,
-                "buying_price": 9.0
+                "selling_price": 7.6,
+                "buying_price": 9.1
               },
               {
                 "player_out_id": 426,
@@ -810,10 +810,10 @@
             ],
             "captain_id": 411,
             "captain_name": "Haaland",
-            "points_before_hits": 55.03,
+            "points_before_hits": 55.01,
             "hit_points": -4,
-            "net_points": 51.03,
-            "gain_over_roll": 2.88
+            "net_points": 51.01,
+            "gain_over_roll": 2.86
           },
           "all_options": [
             {
@@ -879,8 +879,8 @@
                   "player_out_name": "Jo\u00e3o Pedro",
                   "player_in_id": 379,
                   "player_in_name": "Isak",
-                  "selling_price": 7.7,
-                  "buying_price": 9.0
+                  "selling_price": 7.6,
+                  "buying_price": 9.1
                 },
                 {
                   "player_out_id": 426,
@@ -906,10 +906,10 @@
               ],
               "captain_id": 411,
               "captain_name": "Haaland",
-              "points_before_hits": 55.03,
+              "points_before_hits": 55.01,
               "hit_points": -4,
-              "net_points": 51.03,
-              "gain_over_roll": 2.88
+              "net_points": 51.01,
+              "gain_over_roll": 2.86
             }
           ]
         },
@@ -923,8 +923,8 @@
         "id": "a_odds",
         "digest": "d5b167eee9fc401ad70ee23ff45f8fe3a3a2f864524f41f28b07f545ee21fb71"
       },
-      "as_of": "2026-10-27T08:03:37.179753Z",
-      "trigger": "schedule",
+      "as_of": "2026-10-28T08:45:54.467233Z",
+      "trigger": "change:prices,status",
       "no_advice": "no advice: MissingOddsError: no match odds knowable before the gameweek 9 deadline",
       "missing": [
         "team_match_expectation"
@@ -937,8 +937,8 @@
         "id": "c1",
         "digest": "085155ad15a599ef0996f6e989338907d002bceaf6f90f9fc33bff0e0aff46d0"
       },
-      "as_of": "2026-10-27T08:03:37.179753Z",
-      "trigger": "schedule",
+      "as_of": "2026-10-28T08:45:54.467233Z",
+      "trigger": "change:prices,status",
       "advised": {
         "gameweek": 9,
         "squad": [
@@ -989,14 +989,14 @@
         "hit_points": 0,
         "net_expected_points": 52.2239,
         "gain_over_roll": 3.9408,
-        "bank_after": 0.3,
+        "bank_after": 0.2,
         "moves": [
           {
             "out": {
               "player_id": 165,
               "web_name": "Jo\u00e3o Pedro",
-              "price": 7.7,
-              "xp_next": 1.952,
+              "price": 7.6,
+              "xp_next": 0.0,
               "form_points_per_match": 7.833
             },
             "in": {
@@ -1022,7 +1022,7 @@
             "net_expected_points": 52.22,
             "gain_over_roll": 3.94,
             "moves": [
-              "Jo\u00e3o Pedro (\u00a37.7m) -> Thiago (\u00a37.8m)"
+              "Jo\u00e3o Pedro (\u00a37.6m) -> Thiago (\u00a37.8m)"
             ]
           },
           {
@@ -1031,7 +1031,7 @@
             "net_expected_points": 51.11,
             "gain_over_roll": 2.83,
             "moves": [
-              "Jo\u00e3o Pedro (\u00a37.7m) -> Thiago (\u00a37.8m)",
+              "Jo\u00e3o Pedro (\u00a37.6m) -> Thiago (\u00a37.8m)",
               "B.Fernandes (\u00a311.7m) -> Rogers (\u00a38.0m)"
             ]
           }
@@ -1069,7 +1069,7 @@
                 "player_out_name": "Jo\u00e3o Pedro",
                 "player_in_id": 106,
                 "player_in_name": "Thiago",
-                "selling_price": 7.7,
+                "selling_price": 7.6,
                 "buying_price": 7.8
               }
             ],
@@ -1101,7 +1101,7 @@
                 "player_out_name": "Jo\u00e3o Pedro",
                 "player_in_id": 106,
                 "player_in_name": "Thiago",
-                "selling_price": 7.7,
+                "selling_price": 7.6,
                 "buying_price": 7.8
               }
             ],
@@ -1157,7 +1157,7 @@
                   "player_out_name": "Jo\u00e3o Pedro",
                   "player_in_id": 106,
                   "player_in_name": "Thiago",
-                  "selling_price": 7.7,
+                  "selling_price": 7.6,
                   "buying_price": 7.8
                 }
               ],
@@ -1189,7 +1189,7 @@
                   "player_out_name": "Jo\u00e3o Pedro",
                   "player_in_id": 106,
                   "player_in_name": "Thiago",
-                  "selling_price": 7.7,
+                  "selling_price": 7.6,
                   "buying_price": 7.8
                 },
                 {
@@ -1233,8 +1233,8 @@
         "id": "engine",
         "digest": "b6f3ba709e6a8b6f441e594296e20cb9b34054a59144710372849bd9324a7c85"
       },
-      "as_of": "2026-10-27T08:03:37.179753Z",
-      "trigger": "schedule",
+      "as_of": "2026-10-28T08:45:54.467233Z",
+      "trigger": "change:prices,status",
       "advised": {
         "gameweek": 9,
         "squad": [
@@ -1529,8 +1529,8 @@
         "id": "c3_e2",
         "digest": "60592986c7c896745bdbe6b30870770a3483b235e2c456a79d1b093474cff09d"
       },
-      "as_of": "2026-10-27T08:03:37.179753Z",
-      "trigger": "schedule",
+      "as_of": "2026-10-28T08:45:54.467233Z",
+      "trigger": "change:prices,status",
       "advised": {
         "gameweek": 9,
         "squad": [
