@@ -1,7 +1,7 @@
 {
   "gameweek": 9,
-  "run_id": "20261028T084554Z-daa16aca",
-  "recorded_at": "2026-10-28T08:45:54.467233Z",
+  "run_id": "20261029T084129Z-ec5ec2af",
+  "recorded_at": "2026-10-29T08:41:29.737376Z",
   "trigger": "change:prices,status",
   "advised": {
     "gameweek": 9,
@@ -307,7 +307,7 @@
         "id": "c3",
         "digest": "dd76f6b7f0c347f51071de57e039be3713cab42c7ea1985071e74f60512038b7"
       },
-      "as_of": "2026-10-28T08:45:54.467233Z",
+      "as_of": "2026-10-29T08:41:29.737376Z",
       "trigger": "change:prices,status",
       "advised": {
         "gameweek": 9,
@@ -603,7 +603,7 @@
         "id": "a",
         "digest": "e92df0c93a4bd13a135e1d862dde1bfa8b084f4040373e55e045ba364a344d3c"
       },
-      "as_of": "2026-10-28T08:45:54.467233Z",
+      "as_of": "2026-10-29T08:41:29.737376Z",
       "trigger": "change:prices,status",
       "advised": {
         "gameweek": 9,
@@ -923,7 +923,7 @@
         "id": "a_odds",
         "digest": "d5b167eee9fc401ad70ee23ff45f8fe3a3a2f864524f41f28b07f545ee21fb71"
       },
-      "as_of": "2026-10-28T08:45:54.467233Z",
+      "as_of": "2026-10-29T08:41:29.737376Z",
       "trigger": "change:prices,status",
       "no_advice": "no advice: MissingOddsError: no match odds knowable before the gameweek 9 deadline",
       "missing": [
@@ -937,7 +937,7 @@
         "id": "c1",
         "digest": "085155ad15a599ef0996f6e989338907d002bceaf6f90f9fc33bff0e0aff46d0"
       },
-      "as_of": "2026-10-28T08:45:54.467233Z",
+      "as_of": "2026-10-29T08:41:29.737376Z",
       "trigger": "change:prices,status",
       "advised": {
         "gameweek": 9,
@@ -1233,7 +1233,7 @@
         "id": "engine",
         "digest": "b6f3ba709e6a8b6f441e594296e20cb9b34054a59144710372849bd9324a7c85"
       },
-      "as_of": "2026-10-28T08:45:54.467233Z",
+      "as_of": "2026-10-29T08:41:29.737376Z",
       "trigger": "change:prices,status",
       "advised": {
         "gameweek": 9,
@@ -1529,7 +1529,7 @@
         "id": "c3_e2",
         "digest": "60592986c7c896745bdbe6b30870770a3483b235e2c456a79d1b093474cff09d"
       },
-      "as_of": "2026-10-28T08:45:54.467233Z",
+      "as_of": "2026-10-29T08:41:29.737376Z",
       "trigger": "change:prices,status",
       "advised": {
         "gameweek": 9,
