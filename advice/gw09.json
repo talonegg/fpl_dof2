@@ -1,8 +1,8 @@
 {
   "gameweek": 9,
-  "run_id": "20261030T124640Z-c7fcb9f8",
-  "recorded_at": "2026-10-30T12:46:40.434672Z",
-  "trigger": "change:status,odds",
+  "run_id": "20261030T183542Z-fcb5f017",
+  "recorded_at": "2026-10-30T18:35:42.263748Z",
+  "trigger": "change:status",
   "advised": {
     "gameweek": 9,
     "squad": [
@@ -307,8 +307,8 @@
         "id": "c3",
         "digest": "dd76f6b7f0c347f51071de57e039be3713cab42c7ea1985071e74f60512038b7"
       },
-      "as_of": "2026-10-30T12:46:40.434672Z",
-      "trigger": "change:status,odds",
+      "as_of": "2026-10-30T18:35:42.263748Z",
+      "trigger": "change:status",
       "advised": {
         "gameweek": 9,
         "squad": [
@@ -603,8 +603,8 @@
         "id": "a",
         "digest": "e92df0c93a4bd13a135e1d862dde1bfa8b084f4040373e55e045ba364a344d3c"
       },
-      "as_of": "2026-10-30T12:46:40.434672Z",
-      "trigger": "change:status,odds",
+      "as_of": "2026-10-30T18:35:42.263748Z",
+      "trigger": "change:status",
       "advised": {
         "gameweek": 9,
         "squad": [
@@ -899,8 +899,8 @@
         "id": "a_odds",
         "digest": "d5b167eee9fc401ad70ee23ff45f8fe3a3a2f864524f41f28b07f545ee21fb71"
       },
-      "as_of": "2026-10-30T12:46:40.434672Z",
-      "trigger": "change:status,odds",
+      "as_of": "2026-10-30T18:35:42.263748Z",
+      "trigger": "change:status",
       "advised": {
         "gameweek": 9,
         "squad": [
@@ -1195,8 +1195,8 @@
         "id": "c1",
         "digest": "085155ad15a599ef0996f6e989338907d002bceaf6f90f9fc33bff0e0aff46d0"
       },
-      "as_of": "2026-10-30T12:46:40.434672Z",
-      "trigger": "change:status,odds",
+      "as_of": "2026-10-30T18:35:42.263748Z",
+      "trigger": "change:status",
       "advised": {
         "gameweek": 9,
         "squad": [
@@ -1491,8 +1491,8 @@
         "id": "engine",
         "digest": "b6f3ba709e6a8b6f441e594296e20cb9b34054a59144710372849bd9324a7c85"
       },
-      "as_of": "2026-10-30T12:46:40.434672Z",
-      "trigger": "change:status,odds",
+      "as_of": "2026-10-30T18:35:42.263748Z",
+      "trigger": "change:status",
       "advised": {
         "gameweek": 9,
         "squad": [
@@ -1787,8 +1787,8 @@
         "id": "c3_e2",
         "digest": "60592986c7c896745bdbe6b30870770a3483b235e2c456a79d1b093474cff09d"
       },
-      "as_of": "2026-10-30T12:46:40.434672Z",
-      "trigger": "change:status,odds",
+      "as_of": "2026-10-30T18:35:42.263748Z",
+      "trigger": "change:status",
       "advised": {
         "gameweek": 9,
         "squad": [
