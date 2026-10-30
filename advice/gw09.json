@@ -1,8 +1,8 @@
 {
   "gameweek": 9,
-  "run_id": "20261030T084729Z-1f4bed0a",
-  "recorded_at": "2026-10-30T08:47:29.298752Z",
-  "trigger": "change:prices",
+  "run_id": "20261030T124640Z-c7fcb9f8",
+  "recorded_at": "2026-10-30T12:46:40.434672Z",
+  "trigger": "change:status,odds",
   "advised": {
     "gameweek": 9,
     "squad": [
@@ -307,8 +307,8 @@
         "id": "c3",
         "digest": "dd76f6b7f0c347f51071de57e039be3713cab42c7ea1985071e74f60512038b7"
       },
-      "as_of": "2026-10-30T08:47:29.298752Z",
-      "trigger": "change:prices",
+      "as_of": "2026-10-30T12:46:40.434672Z",
+      "trigger": "change:status,odds",
       "advised": {
         "gameweek": 9,
         "squad": [
@@ -603,8 +603,8 @@
         "id": "a",
         "digest": "e92df0c93a4bd13a135e1d862dde1bfa8b084f4040373e55e045ba364a344d3c"
       },
-      "as_of": "2026-10-30T08:47:29.298752Z",
-      "trigger": "change:prices",
+      "as_of": "2026-10-30T12:46:40.434672Z",
+      "trigger": "change:status,odds",
       "advised": {
         "gameweek": 9,
         "squad": [
@@ -899,13 +899,295 @@
         "id": "a_odds",
         "digest": "d5b167eee9fc401ad70ee23ff45f8fe3a3a2f864524f41f28b07f545ee21fb71"
       },
-      "as_of": "2026-10-30T08:47:29.298752Z",
-      "trigger": "change:prices",
-      "no_advice": "no advice: MissingOddsError: no match odds knowable before the gameweek 9 deadline",
-      "missing": [
-        "team_match_expectation"
-      ],
-      "since": "2026-10-23T21:45:16.291102Z"
+      "as_of": "2026-10-30T12:46:40.434672Z",
+      "trigger": "change:status,odds",
+      "advised": {
+        "gameweek": 9,
+        "squad": [
+          8,
+          31,
+          68,
+          109,
+          115,
+          124,
+          165,
+          237,
+          257,
+          277,
+          399,
+          411,
+          464,
+          496,
+          617
+        ],
+        "starting": [
+          411,
+          617,
+          68,
+          399,
+          237,
+          124,
+          277,
+          31,
+          496,
+          257,
+          464
+        ],
+        "bench_order": [
+          115,
+          8,
+          165
+        ],
+        "reserve_goalkeeper": 109,
+        "captain": 411,
+        "vice_captain": 399,
+        "formation": "1-3-5-2",
+        "expected_points": 55.664
+      },
+      "recommendation": {
+        "rationale": "1 free transfer(s) gain 4.10 expected points",
+        "is_roll": false,
+        "transfers": 1,
+        "hit_points": 0,
+        "net_expected_points": 55.6637,
+        "gain_over_roll": 4.1032,
+        "bank_after": 7.1,
+        "moves": [
+          {
+            "out": {
+              "player_id": 426,
+              "web_name": "B.Fernandes",
+              "price": 11.7,
+              "xp_next": 1.691,
+              "form_points_per_match": 5.167
+            },
+            "in": {
+              "player_id": 617,
+              "web_name": "Cho",
+              "price": 5.0,
+              "xp_next": 6.579,
+              "form_points_per_match": 2.0
+            }
+          }
+        ],
+        "options": [
+          {
+            "transfers": 0,
+            "hit_points": 0,
+            "net_expected_points": 51.56,
+            "gain_over_roll": 0.0,
+            "moves": []
+          },
+          {
+            "transfers": 1,
+            "hit_points": 0,
+            "net_expected_points": 55.66,
+            "gain_over_roll": 4.1,
+            "moves": [
+              "B.Fernandes (\u00a311.7m) -> Cho (\u00a35.0m)"
+            ]
+          },
+          {
+            "transfers": 2,
+            "hit_points": -4,
+            "net_expected_points": 53.97,
+            "gain_over_roll": 2.41,
+            "moves": [
+              "Jo\u00e3o Pedro (\u00a37.6m) -> Isak (\u00a39.1m)",
+              "B.Fernandes (\u00a311.7m) -> Cho (\u00a35.0m)"
+            ]
+          }
+        ],
+        "option_set": {
+          "gameweek": 9,
+          "baseline_roll": {
+            "transfers_count": 0,
+            "moves": [],
+            "starting": [
+              411,
+              68,
+              399,
+              237,
+              124,
+              277,
+              31,
+              496,
+              257,
+              464,
+              115
+            ],
+            "captain_id": 411,
+            "captain_name": "Haaland",
+            "points_before_hits": 51.56,
+            "hit_points": 0,
+            "net_points": 51.56,
+            "gain_over_roll": 0.0
+          },
+          "optimal_single": {
+            "transfers_count": 1,
+            "moves": [
+              {
+                "player_out_id": 426,
+                "player_out_name": "B.Fernandes",
+                "player_in_id": 617,
+                "player_in_name": "Cho",
+                "selling_price": 11.7,
+                "buying_price": 5.0
+              }
+            ],
+            "starting": [
+              411,
+              617,
+              68,
+              399,
+              237,
+              124,
+              277,
+              31,
+              496,
+              257,
+              464
+            ],
+            "captain_id": 411,
+            "captain_name": "Haaland",
+            "points_before_hits": 55.66,
+            "hit_points": 0,
+            "net_points": 55.66,
+            "gain_over_roll": 4.1
+          },
+          "optimal_overall": {
+            "transfers_count": 1,
+            "moves": [
+              {
+                "player_out_id": 426,
+                "player_out_name": "B.Fernandes",
+                "player_in_id": 617,
+                "player_in_name": "Cho",
+                "selling_price": 11.7,
+                "buying_price": 5.0
+              }
+            ],
+            "starting": [
+              411,
+              617,
+              68,
+              399,
+              237,
+              124,
+              277,
+              31,
+              496,
+              257,
+              464
+            ],
+            "captain_id": 411,
+            "captain_name": "Haaland",
+            "points_before_hits": 55.66,
+            "hit_points": 0,
+            "net_points": 55.66,
+            "gain_over_roll": 4.1
+          },
+          "all_options": [
+            {
+              "transfers_count": 0,
+              "moves": [],
+              "starting": [
+                411,
+                68,
+                399,
+                237,
+                124,
+                277,
+                31,
+                496,
+                257,
+                464,
+                115
+              ],
+              "captain_id": 411,
+              "captain_name": "Haaland",
+              "points_before_hits": 51.56,
+              "hit_points": 0,
+              "net_points": 51.56,
+              "gain_over_roll": 0.0
+            },
+            {
+              "transfers_count": 1,
+              "moves": [
+                {
+                  "player_out_id": 426,
+                  "player_out_name": "B.Fernandes",
+                  "player_in_id": 617,
+                  "player_in_name": "Cho",
+                  "selling_price": 11.7,
+                  "buying_price": 5.0
+                }
+              ],
+              "starting": [
+                411,
+                617,
+                68,
+                399,
+                237,
+                124,
+                277,
+                31,
+                496,
+                257,
+                464
+              ],
+              "captain_id": 411,
+              "captain_name": "Haaland",
+              "points_before_hits": 55.66,
+              "hit_points": 0,
+              "net_points": 55.66,
+              "gain_over_roll": 4.1
+            },
+            {
+              "transfers_count": 2,
+              "moves": [
+                {
+                  "player_out_id": 165,
+                  "player_out_name": "Jo\u00e3o Pedro",
+                  "player_in_id": 379,
+                  "player_in_name": "Isak",
+                  "selling_price": 7.6,
+                  "buying_price": 9.1
+                },
+                {
+                  "player_out_id": 426,
+                  "player_out_name": "B.Fernandes",
+                  "player_in_id": 617,
+                  "player_in_name": "Cho",
+                  "selling_price": 11.7,
+                  "buying_price": 5.0
+                }
+              ],
+              "starting": [
+                411,
+                617,
+                68,
+                379,
+                399,
+                237,
+                124,
+                277,
+                31,
+                496,
+                257
+              ],
+              "captain_id": 411,
+              "captain_name": "Haaland",
+              "points_before_hits": 57.97,
+              "hit_points": -4,
+              "net_points": 53.97,
+              "gain_over_roll": 2.41
+            }
+          ]
+        },
+        "warnings": []
+      },
+      "transfers": 1
     },
     "c1": {
       "role": "challenger",
@@ -913,8 +1195,8 @@
         "id": "c1",
         "digest": "085155ad15a599ef0996f6e989338907d002bceaf6f90f9fc33bff0e0aff46d0"
       },
-      "as_of": "2026-10-30T08:47:29.298752Z",
-      "trigger": "change:prices",
+      "as_of": "2026-10-30T12:46:40.434672Z",
+      "trigger": "change:status,odds",
       "advised": {
         "gameweek": 9,
         "squad": [
@@ -1209,8 +1491,8 @@
         "id": "engine",
         "digest": "b6f3ba709e6a8b6f441e594296e20cb9b34054a59144710372849bd9324a7c85"
       },
-      "as_of": "2026-10-30T08:47:29.298752Z",
-      "trigger": "change:prices",
+      "as_of": "2026-10-30T12:46:40.434672Z",
+      "trigger": "change:status,odds",
       "advised": {
         "gameweek": 9,
         "squad": [
@@ -1505,8 +1787,8 @@
         "id": "c3_e2",
         "digest": "60592986c7c896745bdbe6b30870770a3483b235e2c456a79d1b093474cff09d"
       },
-      "as_of": "2026-10-30T08:47:29.298752Z",
-      "trigger": "change:prices",
+      "as_of": "2026-10-30T12:46:40.434672Z",
+      "trigger": "change:status,odds",
       "advised": {
         "gameweek": 9,
         "squad": [
