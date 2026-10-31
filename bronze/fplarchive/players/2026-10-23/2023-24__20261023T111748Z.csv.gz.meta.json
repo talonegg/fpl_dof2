@@ -1,0 +1,17 @@
+{
+  "source": "fplarchive",
+  "source_version": "1",
+  "resource": "players",
+  "key": "2023-24",
+  "url": "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data/2023-24/players_raw.csv",
+  "http_status": 200,
+  "fetched_at": "2026-10-23T11:17:48.630693Z",
+  "sha256": "43d8cf5efb3d901f2499558c40b392b7f0ee22afe28030f36266ad29024c63d9",
+  "bytes": 310197,
+  "content_encoding": "gzip",
+  "run_id": "20261023T111748Z-52e67217",
+  "immutable": true,
+  "retain": false,
+  "etag": "W/\"0f186914fcf4f5f64b026e91331d5480f1f097b3ba24a1565309a807c1e00513\"",
+  "last_modified": null
+}
