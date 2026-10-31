@@ -1,8 +1,8 @@
 {
   "gameweek": 9,
-  "run_id": "20261030T183542Z-fcb5f017",
-  "recorded_at": "2026-10-30T18:35:42.263748Z",
-  "trigger": "change:status",
+  "run_id": "20261031T021901Z-e7167ab2",
+  "recorded_at": "2026-10-31T02:19:01.944598Z",
+  "trigger": "change:prices",
   "advised": {
     "gameweek": 9,
     "squad": [
@@ -294,8 +294,8 @@
     "entry_id": 4529900,
     "as_of_gameweek": 8,
     "bank": 0.4,
-    "sell_value": 99.3,
-    "budget": 99.7,
+    "sell_value": 99.4,
+    "budget": 99.8,
     "free_transfers": 1,
     "chips_used": [],
     "warnings": []
@@ -307,8 +307,8 @@
         "id": "c3",
         "digest": "dd76f6b7f0c347f51071de57e039be3713cab42c7ea1985071e74f60512038b7"
       },
-      "as_of": "2026-10-30T18:35:42.263748Z",
-      "trigger": "change:status",
+      "as_of": "2026-10-31T02:19:01.944598Z",
+      "trigger": "change:prices",
       "advised": {
         "gameweek": 9,
         "squad": [
@@ -603,8 +603,8 @@
         "id": "a",
         "digest": "e92df0c93a4bd13a135e1d862dde1bfa8b084f4040373e55e045ba364a344d3c"
       },
-      "as_of": "2026-10-30T18:35:42.263748Z",
-      "trigger": "change:status",
+      "as_of": "2026-10-31T02:19:01.944598Z",
+      "trigger": "change:prices",
       "advised": {
         "gameweek": 9,
         "squad": [
@@ -694,11 +694,11 @@
           {
             "transfers": 2,
             "hit_points": -4,
-            "net_expected_points": 51.01,
+            "net_expected_points": 51.0,
             "gain_over_roll": 2.86,
             "moves": [
               "Jo\u00e3o Pedro (\u00a37.6m) -> Isak (\u00a39.1m)",
-              "B.Fernandes (\u00a311.7m) -> Rogers (\u00a38.0m)"
+              "B.Fernandes (\u00a311.7m) -> Belloumi (\u00a35.2m)"
             ]
           }
         ],
@@ -861,17 +861,17 @@
                 {
                   "player_out_id": 426,
                   "player_out_name": "B.Fernandes",
-                  "player_in_id": 40,
-                  "player_in_name": "Rogers",
+                  "player_in_id": 286,
+                  "player_in_name": "Belloumi",
                   "selling_price": 11.7,
-                  "buying_price": 8.0
+                  "buying_price": 5.2
                 }
               ],
               "starting": [
                 411,
                 379,
                 68,
-                40,
+                286,
                 257,
                 124,
                 31,
@@ -882,9 +882,9 @@
               ],
               "captain_id": 411,
               "captain_name": "Haaland",
-              "points_before_hits": 55.01,
+              "points_before_hits": 55.0,
               "hit_points": -4,
-              "net_points": 51.01,
+              "net_points": 51.0,
               "gain_over_roll": 2.86
             }
           ]
@@ -899,8 +899,8 @@
         "id": "a_odds",
         "digest": "d5b167eee9fc401ad70ee23ff45f8fe3a3a2f864524f41f28b07f545ee21fb71"
       },
-      "as_of": "2026-10-30T18:35:42.263748Z",
-      "trigger": "change:status",
+      "as_of": "2026-10-31T02:19:01.944598Z",
+      "trigger": "change:prices",
       "advised": {
         "gameweek": 9,
         "squad": [
@@ -1195,8 +1195,8 @@
         "id": "c1",
         "digest": "085155ad15a599ef0996f6e989338907d002bceaf6f90f9fc33bff0e0aff46d0"
       },
-      "as_of": "2026-10-30T18:35:42.263748Z",
-      "trigger": "change:status",
+      "as_of": "2026-10-31T02:19:01.944598Z",
+      "trigger": "change:prices",
       "advised": {
         "gameweek": 9,
         "squad": [
@@ -1290,7 +1290,7 @@
             "gain_over_roll": 2.83,
             "moves": [
               "Jo\u00e3o Pedro (\u00a37.6m) -> Thiago (\u00a37.8m)",
-              "B.Fernandes (\u00a311.7m) -> Rogers (\u00a38.0m)"
+              "B.Fernandes (\u00a311.7m) -> Rogers (\u00a38.1m)"
             ]
           }
         ],
@@ -1456,7 +1456,7 @@
                   "player_in_id": 40,
                   "player_in_name": "Rogers",
                   "selling_price": 11.7,
-                  "buying_price": 8.0
+                  "buying_price": 8.1
                 }
               ],
               "starting": [
@@ -1491,8 +1491,8 @@
         "id": "engine",
         "digest": "b6f3ba709e6a8b6f441e594296e20cb9b34054a59144710372849bd9324a7c85"
       },
-      "as_of": "2026-10-30T18:35:42.263748Z",
-      "trigger": "change:status",
+      "as_of": "2026-10-31T02:19:01.944598Z",
+      "trigger": "change:prices",
       "advised": {
         "gameweek": 9,
         "squad": [
@@ -1787,8 +1787,8 @@
         "id": "c3_e2",
         "digest": "60592986c7c896745bdbe6b30870770a3483b235e2c456a79d1b093474cff09d"
       },
-      "as_of": "2026-10-30T18:35:42.263748Z",
-      "trigger": "change:status",
+      "as_of": "2026-10-31T02:19:01.944598Z",
+      "trigger": "change:prices",
       "advised": {
         "gameweek": 9,
         "squad": [
