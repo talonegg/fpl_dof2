@@ -1,7 +1,7 @@
 {
   "gameweek": 10,
-  "run_id": "20261101T092541Z-2caff464",
-  "recorded_at": "2026-11-01T09:25:41.198655Z",
+  "run_id": "20261101T185408Z-b6711c61",
+  "recorded_at": "2026-11-01T18:54:08.981724Z",
   "trigger": "change:status",
   "advised": {
     "gameweek": 10,
@@ -92,11 +92,11 @@
       {
         "transfers": 2,
         "hit_points": -4,
-        "net_expected_points": 36.89,
-        "gain_over_roll": -1.34,
+        "net_expected_points": 36.96,
+        "gain_over_roll": -1.27,
         "moves": [
-          "Egan (\u00a34.1m) -> Muharemovi\u0107 (\u00a35.1m)",
-          "Kinsky (\u00a34.4m) -> Trafford (\u00a35.0m)"
+          "Verbruggen (\u00a34.5m) -> Trafford (\u00a35.0m)",
+          "Bassey (\u00a34.5m) -> Calafiori (\u00a35.9m)"
         ]
       }
     ],
@@ -249,26 +249,26 @@
           "transfers_count": 2,
           "moves": [
             {
-              "player_out_id": 277,
-              "player_out_name": "Egan",
-              "player_in_id": 334,
-              "player_in_name": "Muharemovi\u0107",
-              "selling_price": 4.1,
-              "buying_price": 5.1
-            },
-            {
-              "player_out_id": 496,
-              "player_out_name": "Kinsky",
+              "player_out_id": 109,
+              "player_out_name": "Verbruggen",
               "player_in_id": 385,
               "player_in_name": "Trafford",
-              "selling_price": 4.4,
+              "selling_price": 4.5,
               "buying_price": 5.0
+            },
+            {
+              "player_out_id": 257,
+              "player_out_name": "Bassey",
+              "player_in_id": 8,
+              "player_in_name": "Calafiori",
+              "selling_price": 4.5,
+              "buying_price": 5.9
             }
           ],
           "starting": [
             385,
             4,
-            334,
+            8,
             31,
             411,
             68,
@@ -276,14 +276,14 @@
             237,
             115,
             399,
-            257
+            277
           ],
           "captain_id": 411,
           "captain_name": "Haaland",
-          "points_before_hits": 40.89,
+          "points_before_hits": 40.96,
           "hit_points": -4,
-          "net_points": 36.89,
-          "gain_over_roll": -1.34
+          "net_points": 36.96,
+          "gain_over_roll": -1.27
         }
       ]
     },
@@ -307,7 +307,7 @@
         "id": "c3",
         "digest": "dd76f6b7f0c347f51071de57e039be3713cab42c7ea1985071e74f60512038b7"
       },
-      "as_of": "2026-11-01T09:25:41.198655Z",
+      "as_of": "2026-11-01T18:54:08.981724Z",
       "trigger": "change:status",
       "advised": {
         "gameweek": 10,
@@ -398,11 +398,11 @@
           {
             "transfers": 2,
             "hit_points": -4,
-            "net_expected_points": 36.89,
-            "gain_over_roll": -1.34,
+            "net_expected_points": 36.96,
+            "gain_over_roll": -1.27,
             "moves": [
-              "Egan (\u00a34.1m) -> Muharemovi\u0107 (\u00a35.1m)",
-              "Kinsky (\u00a34.4m) -> Trafford (\u00a35.0m)"
+              "Verbruggen (\u00a34.5m) -> Trafford (\u00a35.0m)",
+              "Bassey (\u00a34.5m) -> Calafiori (\u00a35.9m)"
             ]
           }
         ],
@@ -555,26 +555,26 @@
               "transfers_count": 2,
               "moves": [
                 {
-                  "player_out_id": 277,
-                  "player_out_name": "Egan",
-                  "player_in_id": 334,
-                  "player_in_name": "Muharemovi\u0107",
-                  "selling_price": 4.1,
-                  "buying_price": 5.1
-                },
-                {
-                  "player_out_id": 496,
-                  "player_out_name": "Kinsky",
+                  "player_out_id": 109,
+                  "player_out_name": "Verbruggen",
                   "player_in_id": 385,
                   "player_in_name": "Trafford",
-                  "selling_price": 4.4,
+                  "selling_price": 4.5,
                   "buying_price": 5.0
+                },
+                {
+                  "player_out_id": 257,
+                  "player_out_name": "Bassey",
+                  "player_in_id": 8,
+                  "player_in_name": "Calafiori",
+                  "selling_price": 4.5,
+                  "buying_price": 5.9
                 }
               ],
               "starting": [
                 385,
                 4,
-                334,
+                8,
                 31,
                 411,
                 68,
@@ -582,14 +582,14 @@
                 237,
                 115,
                 399,
-                257
+                277
               ],
               "captain_id": 411,
               "captain_name": "Haaland",
-              "points_before_hits": 40.89,
+              "points_before_hits": 40.96,
               "hit_points": -4,
-              "net_points": 36.89,
-              "gain_over_roll": -1.34
+              "net_points": 36.96,
+              "gain_over_roll": -1.27
             }
           ]
         },
@@ -603,7 +603,7 @@
         "id": "a",
         "digest": "e92df0c93a4bd13a135e1d862dde1bfa8b084f4040373e55e045ba364a344d3c"
       },
-      "as_of": "2026-11-01T09:25:41.198655Z",
+      "as_of": "2026-11-01T18:54:08.981724Z",
       "trigger": "change:status",
       "advised": {
         "gameweek": 10,
@@ -899,7 +899,7 @@
         "id": "a_odds",
         "digest": "d5b167eee9fc401ad70ee23ff45f8fe3a3a2f864524f41f28b07f545ee21fb71"
       },
-      "as_of": "2026-11-01T09:25:41.198655Z",
+      "as_of": "2026-11-01T18:54:08.981724Z",
       "trigger": "change:status",
       "no_advice": "no advice: MissingOddsError: no match odds knowable before the gameweek 10 deadline",
       "missing": [
@@ -913,7 +913,7 @@
         "id": "c1",
         "digest": "085155ad15a599ef0996f6e989338907d002bceaf6f90f9fc33bff0e0aff46d0"
       },
-      "as_of": "2026-11-01T09:25:41.198655Z",
+      "as_of": "2026-11-01T18:54:08.981724Z",
       "trigger": "change:status",
       "advised": {
         "gameweek": 10,
@@ -1004,11 +1004,11 @@
           {
             "transfers": 2,
             "hit_points": -4,
-            "net_expected_points": 54.89,
-            "gain_over_roll": 0.98,
+            "net_expected_points": 55.26,
+            "gain_over_roll": 1.35,
             "moves": [
               "Jo\u00e3o Pedro (\u00a37.6m) -> Isak (\u00a39.2m)",
-              "Cherki (\u00a37.8m) -> Gibbs-White (\u00a37.9m)"
+              "Cherki (\u00a37.8m) -> Rice (\u00a37.4m)"
             ]
           }
         ],
@@ -1171,18 +1171,18 @@
                 {
                   "player_out_id": 399,
                   "player_out_name": "Cherki",
-                  "player_in_id": 480,
-                  "player_in_name": "Gibbs-White",
+                  "player_in_id": 13,
+                  "player_in_name": "Rice",
                   "selling_price": 7.8,
-                  "buying_price": 7.9
+                  "buying_price": 7.4
                 }
               ],
               "starting": [
                 411,
                 379,
                 4,
+                13,
                 40,
-                480,
                 31,
                 68,
                 124,
@@ -1192,10 +1192,10 @@
               ],
               "captain_id": 411,
               "captain_name": "Haaland",
-              "points_before_hits": 58.89,
+              "points_before_hits": 59.26,
               "hit_points": -4,
-              "net_points": 54.89,
-              "gain_over_roll": 0.98
+              "net_points": 55.26,
+              "gain_over_roll": 1.35
             }
           ]
         },
@@ -1209,7 +1209,7 @@
         "id": "engine",
         "digest": "b6f3ba709e6a8b6f441e594296e20cb9b34054a59144710372849bd9324a7c85"
       },
-      "as_of": "2026-11-01T09:25:41.198655Z",
+      "as_of": "2026-11-01T18:54:08.981724Z",
       "trigger": "change:status",
       "advised": {
         "gameweek": 10,
@@ -1300,11 +1300,11 @@
           {
             "transfers": 2,
             "hit_points": -4,
-            "net_expected_points": 38.42,
-            "gain_over_roll": -0.71,
+            "net_expected_points": 38.49,
+            "gain_over_roll": -0.64,
             "moves": [
-              "Egan (\u00a34.1m) -> Muharemovi\u0107 (\u00a35.1m)",
-              "Kinsky (\u00a34.4m) -> Trafford (\u00a35.0m)"
+              "Verbruggen (\u00a34.5m) -> Trafford (\u00a35.0m)",
+              "Bassey (\u00a34.5m) -> Calafiori (\u00a35.9m)"
             ]
           }
         ],
@@ -1457,26 +1457,26 @@
               "transfers_count": 2,
               "moves": [
                 {
-                  "player_out_id": 277,
-                  "player_out_name": "Egan",
-                  "player_in_id": 334,
-                  "player_in_name": "Muharemovi\u0107",
-                  "selling_price": 4.1,
-                  "buying_price": 5.1
-                },
-                {
-                  "player_out_id": 496,
-                  "player_out_name": "Kinsky",
+                  "player_out_id": 109,
+                  "player_out_name": "Verbruggen",
                   "player_in_id": 385,
                   "player_in_name": "Trafford",
-                  "selling_price": 4.4,
+                  "selling_price": 4.5,
                   "buying_price": 5.0
+                },
+                {
+                  "player_out_id": 257,
+                  "player_out_name": "Bassey",
+                  "player_in_id": 8,
+                  "player_in_name": "Calafiori",
+                  "selling_price": 4.5,
+                  "buying_price": 5.9
                 }
               ],
               "starting": [
                 385,
                 4,
-                334,
+                8,
                 31,
                 411,
                 68,
@@ -1484,14 +1484,14 @@
                 124,
                 237,
                 115,
-                257
+                277
               ],
               "captain_id": 385,
               "captain_name": "Trafford",
-              "points_before_hits": 42.42,
+              "points_before_hits": 42.49,
               "hit_points": -4,
-              "net_points": 38.42,
-              "gain_over_roll": -0.71
+              "net_points": 38.49,
+              "gain_over_roll": -0.64
             }
           ]
         },
@@ -1505,7 +1505,7 @@
         "id": "c3_e2",
         "digest": "60592986c7c896745bdbe6b30870770a3483b235e2c456a79d1b093474cff09d"
       },
-      "as_of": "2026-11-01T09:25:41.198655Z",
+      "as_of": "2026-11-01T18:54:08.981724Z",
       "trigger": "change:status",
       "advised": {
         "gameweek": 10,
