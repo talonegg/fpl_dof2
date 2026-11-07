@@ -1,0 +1,13 @@
+{
+  "source": "fpl",
+  "source_version": "1",
+  "resource": "entry_picks",
+  "key": "1822417-6",
+  "url": "https://fantasy.premierleague.com/api/entry/1822417/event/6/picks/",
+  "http_status": 200,
+  "fetched_at": "2026-10-15T07:35:21.278066Z",
+  "sha256": "e4a8f666b4bafa95c5b5821cd474b7674195119ac13e12fa94f61fbb99cca802",
+  "bytes": 1931,
+  "content_encoding": "gzip",
+  "run_id": "20261015T073509Z-e326e68c"
+}
