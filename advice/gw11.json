@@ -1,8 +1,8 @@
 {
   "gameweek": 11,
-  "run_id": "20261108T003203Z-a41dd6cf",
-  "recorded_at": "2026-11-08T00:32:03.579271Z",
-  "trigger": "change:prices,status,results",
+  "run_id": "20261108T150737Z-41159ce6",
+  "recorded_at": "2026-11-08T15:07:37.065645Z",
+  "trigger": "change:status",
   "advised": {
     "gameweek": 11,
     "squad": [
@@ -333,8 +333,8 @@
         "id": "c3",
         "digest": "dd76f6b7f0c347f51071de57e039be3713cab42c7ea1985071e74f60512038b7"
       },
-      "as_of": "2026-11-08T00:32:03.579271Z",
-      "trigger": "change:prices,status,results",
+      "as_of": "2026-11-08T15:07:37.065645Z",
+      "trigger": "change:status",
       "advised": {
         "gameweek": 11,
         "squad": [
@@ -653,8 +653,8 @@
         "id": "a",
         "digest": "e92df0c93a4bd13a135e1d862dde1bfa8b084f4040373e55e045ba364a344d3c"
       },
-      "as_of": "2026-11-08T00:32:03.579271Z",
-      "trigger": "change:prices,status,results",
+      "as_of": "2026-11-08T15:07:37.065645Z",
+      "trigger": "change:status",
       "advised": {
         "gameweek": 11,
         "squad": [
@@ -665,18 +665,18 @@
           64,
           68,
           79,
-          106,
           109,
           115,
           124,
+          166,
           237,
           257,
           411,
           496
         ],
         "starting": [
-          106,
           411,
+          166,
           13,
           68,
           40,
@@ -696,16 +696,16 @@
         "captain": 411,
         "vice_captain": 4,
         "formation": "1-3-4-3",
-        "expected_points": 53.312
+        "expected_points": 53.208
       },
       "recommendation": {
-        "rationale": "2 free transfer(s) gain 2.07 expected points",
+        "rationale": "2 free transfer(s) gain 1.93 expected points",
         "is_roll": false,
         "transfers": 2,
         "hit_points": 0,
-        "net_expected_points": 53.3119,
-        "gain_over_roll": 2.0383,
-        "bank_after": 1.2,
+        "net_expected_points": 53.2082,
+        "gain_over_roll": 1.9346,
+        "bank_after": 1.9,
         "moves": [
           {
             "out": {
@@ -732,11 +732,11 @@
               "form_points_per_match": 7.167
             },
             "in": {
-              "player_id": 106,
-              "web_name": "Thiago",
-              "price": 7.8,
-              "xp_next": 5.054,
-              "form_points_per_match": 4.667
+              "player_id": 166,
+              "web_name": "N.Jackson",
+              "price": 7.1,
+              "xp_next": 4.95,
+              "form_points_per_match": 6.5
             }
           }
         ],
@@ -751,20 +751,20 @@
           {
             "transfers": 1,
             "hit_points": 0,
-            "net_expected_points": 52.38,
-            "gain_over_roll": 1.11,
+            "net_expected_points": 52.28,
+            "gain_over_roll": 1.01,
             "moves": [
-              "Isak (\u00a39.2m) -> Thiago (\u00a37.8m)"
+              "Isak (\u00a39.2m) -> N.Jackson (\u00a37.1m)"
             ]
           },
           {
             "transfers": 2,
             "hit_points": 0,
-            "net_expected_points": 53.31,
-            "gain_over_roll": 2.04,
+            "net_expected_points": 53.21,
+            "gain_over_roll": 1.93,
             "moves": [
               "Justin (\u00a34.5m) -> Konsa (\u00a34.8m)",
-              "Isak (\u00a39.2m) -> Thiago (\u00a37.8m)"
+              "Isak (\u00a39.2m) -> N.Jackson (\u00a37.1m)"
             ]
           }
         ],
@@ -799,15 +799,15 @@
               {
                 "player_out_id": 379,
                 "player_out_name": "Isak",
-                "player_in_id": 106,
-                "player_in_name": "Thiago",
+                "player_in_id": 166,
+                "player_in_name": "N.Jackson",
                 "selling_price": 9.2,
-                "buying_price": 7.8
+                "buying_price": 7.1
               }
             ],
             "starting": [
-              106,
               411,
+              166,
               13,
               68,
               40,
@@ -820,10 +820,10 @@
             ],
             "captain_id": 411,
             "captain_name": "Haaland",
-            "points_before_hits": 52.38,
+            "points_before_hits": 52.28,
             "hit_points": 0,
-            "net_points": 52.38,
-            "gain_over_roll": 1.11
+            "net_points": 52.28,
+            "gain_over_roll": 1.01
           },
           "optimal_overall": {
             "transfers_count": 2,
@@ -839,15 +839,15 @@
               {
                 "player_out_id": 379,
                 "player_out_name": "Isak",
-                "player_in_id": 106,
-                "player_in_name": "Thiago",
+                "player_in_id": 166,
+                "player_in_name": "N.Jackson",
                 "selling_price": 9.2,
-                "buying_price": 7.8
+                "buying_price": 7.1
               }
             ],
             "starting": [
-              106,
               411,
+              166,
               13,
               68,
               40,
@@ -860,10 +860,10 @@
             ],
             "captain_id": 411,
             "captain_name": "Haaland",
-            "points_before_hits": 53.31,
+            "points_before_hits": 53.21,
             "hit_points": 0,
-            "net_points": 53.31,
-            "gain_over_roll": 2.04
+            "net_points": 53.21,
+            "gain_over_roll": 1.93
           },
           "all_options": [
             {
@@ -895,15 +895,15 @@
                 {
                   "player_out_id": 379,
                   "player_out_name": "Isak",
-                  "player_in_id": 106,
-                  "player_in_name": "Thiago",
+                  "player_in_id": 166,
+                  "player_in_name": "N.Jackson",
                   "selling_price": 9.2,
-                  "buying_price": 7.8
+                  "buying_price": 7.1
                 }
               ],
               "starting": [
-                106,
                 411,
+                166,
                 13,
                 68,
                 40,
@@ -916,10 +916,10 @@
               ],
               "captain_id": 411,
               "captain_name": "Haaland",
-              "points_before_hits": 52.38,
+              "points_before_hits": 52.28,
               "hit_points": 0,
-              "net_points": 52.38,
-              "gain_over_roll": 1.11
+              "net_points": 52.28,
+              "gain_over_roll": 1.01
             },
             {
               "transfers_count": 2,
@@ -935,15 +935,15 @@
                 {
                   "player_out_id": 379,
                   "player_out_name": "Isak",
-                  "player_in_id": 106,
-                  "player_in_name": "Thiago",
+                  "player_in_id": 166,
+                  "player_in_name": "N.Jackson",
                   "selling_price": 9.2,
-                  "buying_price": 7.8
+                  "buying_price": 7.1
                 }
               ],
               "starting": [
-                106,
                 411,
+                166,
                 13,
                 68,
                 40,
@@ -956,10 +956,10 @@
               ],
               "captain_id": 411,
               "captain_name": "Haaland",
-              "points_before_hits": 53.31,
+              "points_before_hits": 53.21,
               "hit_points": 0,
-              "net_points": 53.31,
-              "gain_over_roll": 2.04
+              "net_points": 53.21,
+              "gain_over_roll": 1.93
             }
           ]
         },
@@ -973,8 +973,8 @@
         "id": "a_odds",
         "digest": "d5b167eee9fc401ad70ee23ff45f8fe3a3a2f864524f41f28b07f545ee21fb71"
       },
-      "as_of": "2026-11-08T00:32:03.579271Z",
-      "trigger": "change:prices,status,results",
+      "as_of": "2026-11-08T15:07:37.065645Z",
+      "trigger": "change:status",
       "no_advice": "no advice: MissingOddsError: no match odds knowable before the gameweek 11 deadline",
       "missing": [
         "team_match_expectation"
@@ -987,74 +987,74 @@
         "id": "c1",
         "digest": "085155ad15a599ef0996f6e989338907d002bceaf6f90f9fc33bff0e0aff46d0"
       },
-      "as_of": "2026-11-08T00:32:03.579271Z",
-      "trigger": "change:prices,status,results",
+      "as_of": "2026-11-08T15:07:37.065645Z",
+      "trigger": "change:status",
       "advised": {
         "gameweek": 11,
         "squad": [
           4,
           13,
+          31,
           40,
           64,
           68,
-          106,
+          79,
           109,
           115,
           124,
           166,
           237,
           257,
-          332,
           411,
           496
         ],
         "starting": [
-          106,
           4,
           411,
           13,
           166,
           40,
+          31,
           124,
           237,
+          79,
           109,
-          64,
-          115
+          64
         ],
         "bench_order": [
           68,
-          257,
-          332
+          115,
+          257
         ],
         "reserve_goalkeeper": 496,
         "captain": 411,
         "vice_captain": 4,
         "formation": "1-3-4-3",
-        "expected_points": 58.456
+        "expected_points": 56.858
       },
       "recommendation": {
-        "rationale": "2 free transfer(s) gain 4.21 expected points",
+        "rationale": "2 free transfer(s) gain 1.96 expected points",
         "is_roll": false,
         "transfers": 2,
         "hit_points": 0,
-        "net_expected_points": 58.4563,
-        "gain_over_roll": 3.5545,
-        "bank_after": 0.8,
+        "net_expected_points": 56.8577,
+        "gain_over_roll": 1.9559,
+        "bank_after": 1.9,
         "moves": [
           {
             "out": {
-              "player_id": 79,
-              "web_name": "Evanilson",
-              "price": 6.4,
-              "xp_next": 3.875,
-              "form_points_per_match": 6.833
+              "player_id": 332,
+              "web_name": "Justin",
+              "price": 4.5,
+              "xp_next": 2.56,
+              "form_points_per_match": 4.333
             },
             "in": {
-              "player_id": 106,
-              "web_name": "Thiago",
-              "price": 7.8,
-              "xp_next": 6.577,
-              "form_points_per_match": 4.667
+              "player_id": 31,
+              "web_name": "Konsa",
+              "price": 4.8,
+              "xp_next": 4.449,
+              "form_points_per_match": 7.333
             }
           },
           {
@@ -1085,19 +1085,19 @@
           {
             "transfers": 1,
             "hit_points": 0,
-            "net_expected_points": 57.14,
-            "gain_over_roll": 2.24,
+            "net_expected_points": 56.0,
+            "gain_over_roll": 1.1,
             "moves": [
-              "Isak (\u00a39.2m) -> Thiago (\u00a37.8m)"
+              "De Cuyper (\u00a35.0m) -> Konsa (\u00a34.8m)"
             ]
           },
           {
             "transfers": 2,
             "hit_points": 0,
-            "net_expected_points": 58.46,
-            "gain_over_roll": 3.55,
+            "net_expected_points": 56.86,
+            "gain_over_roll": 1.96,
             "moves": [
-              "Evanilson (\u00a36.4m) -> Thiago (\u00a37.8m)",
+              "Justin (\u00a34.5m) -> Konsa (\u00a34.8m)",
               "Isak (\u00a39.2m) -> N.Jackson (\u00a37.1m)"
             ]
           }
@@ -1131,44 +1131,44 @@
             "transfers_count": 1,
             "moves": [
               {
-                "player_out_id": 379,
-                "player_out_name": "Isak",
-                "player_in_id": 106,
-                "player_in_name": "Thiago",
-                "selling_price": 9.2,
-                "buying_price": 7.8
+                "player_out_id": 115,
+                "player_out_name": "De Cuyper",
+                "player_in_id": 31,
+                "player_in_name": "Konsa",
+                "selling_price": 5.0,
+                "buying_price": 4.8
               }
             ],
             "starting": [
-              106,
               4,
               411,
               13,
               40,
+              31,
+              379,
               124,
               237,
               79,
               109,
-              64,
-              115
+              64
             ],
             "captain_id": 411,
             "captain_name": "Haaland",
-            "points_before_hits": 57.14,
+            "points_before_hits": 56.0,
             "hit_points": 0,
-            "net_points": 57.14,
-            "gain_over_roll": 2.24
+            "net_points": 56.0,
+            "gain_over_roll": 1.1
           },
           "optimal_overall": {
             "transfers_count": 2,
             "moves": [
               {
-                "player_out_id": 79,
-                "player_out_name": "Evanilson",
-                "player_in_id": 106,
-                "player_in_name": "Thiago",
-                "selling_price": 6.4,
-                "buying_price": 7.8
+                "player_out_id": 332,
+                "player_out_name": "Justin",
+                "player_in_id": 31,
+                "player_in_name": "Konsa",
+                "selling_price": 4.5,
+                "buying_price": 4.8
               },
               {
                 "player_out_id": 379,
@@ -1180,24 +1180,24 @@
               }
             ],
             "starting": [
-              106,
               4,
               411,
               13,
               166,
               40,
+              31,
               124,
               237,
+              79,
               109,
-              64,
-              115
+              64
             ],
             "captain_id": 411,
             "captain_name": "Haaland",
-            "points_before_hits": 58.46,
+            "points_before_hits": 56.86,
             "hit_points": 0,
-            "net_points": 58.46,
-            "gain_over_roll": 3.55
+            "net_points": 56.86,
+            "gain_over_roll": 1.96
           },
           "all_options": [
             {
@@ -1227,44 +1227,44 @@
               "transfers_count": 1,
               "moves": [
                 {
-                  "player_out_id": 379,
-                  "player_out_name": "Isak",
-                  "player_in_id": 106,
-                  "player_in_name": "Thiago",
-                  "selling_price": 9.2,
-                  "buying_price": 7.8
+                  "player_out_id": 115,
+                  "player_out_name": "De Cuyper",
+                  "player_in_id": 31,
+                  "player_in_name": "Konsa",
+                  "selling_price": 5.0,
+                  "buying_price": 4.8
                 }
               ],
               "starting": [
-                106,
                 4,
                 411,
                 13,
                 40,
+                31,
+                379,
                 124,
                 237,
                 79,
                 109,
-                64,
-                115
+                64
               ],
               "captain_id": 411,
               "captain_name": "Haaland",
-              "points_before_hits": 57.14,
+              "points_before_hits": 56.0,
               "hit_points": 0,
-              "net_points": 57.14,
-              "gain_over_roll": 2.24
+              "net_points": 56.0,
+              "gain_over_roll": 1.1
             },
             {
               "transfers_count": 2,
               "moves": [
                 {
-                  "player_out_id": 79,
-                  "player_out_name": "Evanilson",
-                  "player_in_id": 106,
-                  "player_in_name": "Thiago",
-                  "selling_price": 6.4,
-                  "buying_price": 7.8
+                  "player_out_id": 332,
+                  "player_out_name": "Justin",
+                  "player_in_id": 31,
+                  "player_in_name": "Konsa",
+                  "selling_price": 4.5,
+                  "buying_price": 4.8
                 },
                 {
                   "player_out_id": 379,
@@ -1276,24 +1276,24 @@
                 }
               ],
               "starting": [
-                106,
                 4,
                 411,
                 13,
                 166,
                 40,
+                31,
                 124,
                 237,
+                79,
                 109,
-                64,
-                115
+                64
               ],
               "captain_id": 411,
               "captain_name": "Haaland",
-              "points_before_hits": 58.46,
+              "points_before_hits": 56.86,
               "hit_points": 0,
-              "net_points": 58.46,
-              "gain_over_roll": 3.55
+              "net_points": 56.86,
+              "gain_over_roll": 1.96
             }
           ]
         },
@@ -1307,8 +1307,8 @@
         "id": "engine",
         "digest": "b6f3ba709e6a8b6f441e594296e20cb9b34054a59144710372849bd9324a7c85"
       },
-      "as_of": "2026-11-08T00:32:03.579271Z",
-      "trigger": "change:prices,status,results",
+      "as_of": "2026-11-08T15:07:37.065645Z",
+      "trigger": "change:status",
       "advised": {
         "gameweek": 11,
         "squad": [
@@ -1627,8 +1627,8 @@
         "id": "c3_e2",
         "digest": "60592986c7c896745bdbe6b30870770a3483b235e2c456a79d1b093474cff09d"
       },
-      "as_of": "2026-11-08T00:32:03.579271Z",
-      "trigger": "change:prices,status,results",
+      "as_of": "2026-11-08T15:07:37.065645Z",
+      "trigger": "change:status",
       "advised": {
         "gameweek": 11,
         "squad": [
