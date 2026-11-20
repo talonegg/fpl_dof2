@@ -1,8 +1,8 @@
 {
   "gameweek": 11,
-  "run_id": "20261120T113620Z-9ddcc743",
-  "recorded_at": "2026-11-20T11:36:20.864934Z",
-  "trigger": "change:status,odds",
+  "run_id": "20261120T200532Z-70d9dab0",
+  "recorded_at": "2026-11-20T20:05:32.218381Z",
+  "trigger": "change:status",
   "advised": {
     "gameweek": 11,
     "squad": [
@@ -333,8 +333,8 @@
         "id": "c3",
         "digest": "dd76f6b7f0c347f51071de57e039be3713cab42c7ea1985071e74f60512038b7"
       },
-      "as_of": "2026-11-20T11:36:20.864934Z",
-      "trigger": "change:status,odds",
+      "as_of": "2026-11-20T20:05:32.218381Z",
+      "trigger": "change:status",
       "advised": {
         "gameweek": 11,
         "squad": [
@@ -653,8 +653,8 @@
         "id": "a",
         "digest": "e92df0c93a4bd13a135e1d862dde1bfa8b084f4040373e55e045ba364a344d3c"
       },
-      "as_of": "2026-11-20T11:36:20.864934Z",
-      "trigger": "change:status,odds",
+      "as_of": "2026-11-20T20:05:32.218381Z",
+      "trigger": "change:status",
       "advised": {
         "gameweek": 11,
         "squad": [
@@ -973,8 +973,8 @@
         "id": "a_odds",
         "digest": "d5b167eee9fc401ad70ee23ff45f8fe3a3a2f864524f41f28b07f545ee21fb71"
       },
-      "as_of": "2026-11-20T11:36:20.864934Z",
-      "trigger": "change:status,odds",
+      "as_of": "2026-11-20T20:05:32.218381Z",
+      "trigger": "change:status",
       "advised": {
         "gameweek": 11,
         "squad": [
@@ -1293,8 +1293,8 @@
         "id": "c1",
         "digest": "085155ad15a599ef0996f6e989338907d002bceaf6f90f9fc33bff0e0aff46d0"
       },
-      "as_of": "2026-11-20T11:36:20.864934Z",
-      "trigger": "change:status,odds",
+      "as_of": "2026-11-20T20:05:32.218381Z",
+      "trigger": "change:status",
       "advised": {
         "gameweek": 11,
         "squad": [
@@ -1306,61 +1306,61 @@
           79,
           109,
           115,
-          154,
+          124,
           166,
           237,
           257,
-          332,
+          356,
           379,
           496
         ],
         "starting": [
           166,
-          154,
           4,
           379,
+          356,
           40,
           13,
           115,
           79,
           68,
-          109,
-          257
+          237,
+          109
         ],
         "bench_order": [
-          237,
-          64,
-          332
+          124,
+          257,
+          64
         ],
         "reserve_goalkeeper": 496,
         "captain": 4,
-        "vice_captain": 154,
+        "vice_captain": 40,
         "formation": "1-3-4-3",
-        "expected_points": 58.5
+        "expected_points": 58.907
       },
       "recommendation": {
-        "rationale": "2 free transfer(s) gain 2.88 expected points",
+        "rationale": "2 free transfer(s) gain 3.29 expected points",
         "is_roll": false,
         "transfers": 2,
         "hit_points": 0,
-        "net_expected_points": 58.5003,
-        "gain_over_roll": 2.7995,
-        "bank_after": 4.6,
+        "net_expected_points": 58.907,
+        "gain_over_roll": 3.2062,
+        "bank_after": 6.6,
         "moves": [
           {
             "out": {
-              "player_id": 124,
-              "web_name": "Gro\u00df",
-              "price": 5.9,
-              "xp_next": 3.97,
-              "form_points_per_match": 6.167
+              "player_id": 332,
+              "web_name": "Justin",
+              "price": 4.5,
+              "xp_next": 1.828,
+              "form_points_per_match": 5.5
             },
             "in": {
-              "player_id": 154,
-              "web_name": "Palmer",
-              "price": 9.8,
-              "xp_next": 5.57,
-              "form_points_per_match": 3.5
+              "player_id": 356,
+              "web_name": "Virgil",
+              "price": 6.4,
+              "xp_next": 5.068,
+              "form_points_per_match": 4.333
             }
           },
           {
@@ -1400,10 +1400,10 @@
           {
             "transfers": 2,
             "hit_points": 0,
-            "net_expected_points": 58.5,
-            "gain_over_roll": 2.8,
+            "net_expected_points": 58.91,
+            "gain_over_roll": 3.21,
             "moves": [
-              "Gro\u00df (\u00a35.9m) -> Palmer (\u00a39.8m)",
+              "Justin (\u00a34.5m) -> Virgil (\u00a36.4m)",
               "Haaland (\u00a315.6m) -> N.Jackson (\u00a37.2m)"
             ]
           }
@@ -1469,12 +1469,12 @@
             "transfers_count": 2,
             "moves": [
               {
-                "player_out_id": 124,
-                "player_out_name": "Gro\u00df",
-                "player_in_id": 154,
-                "player_in_name": "Palmer",
-                "selling_price": 5.9,
-                "buying_price": 9.8
+                "player_out_id": 332,
+                "player_out_name": "Justin",
+                "player_in_id": 356,
+                "player_in_name": "Virgil",
+                "selling_price": 4.5,
+                "buying_price": 6.4
               },
               {
                 "player_out_id": 411,
@@ -1487,23 +1487,23 @@
             ],
             "starting": [
               166,
-              154,
               4,
               379,
+              356,
               40,
               13,
               115,
               79,
               68,
-              109,
-              257
+              237,
+              109
             ],
             "captain_id": 4,
             "captain_name": "Gabriel",
-            "points_before_hits": 58.5,
+            "points_before_hits": 58.91,
             "hit_points": 0,
-            "net_points": 58.5,
-            "gain_over_roll": 2.8
+            "net_points": 58.91,
+            "gain_over_roll": 3.21
           },
           "all_options": [
             {
@@ -1565,12 +1565,12 @@
               "transfers_count": 2,
               "moves": [
                 {
-                  "player_out_id": 124,
-                  "player_out_name": "Gro\u00df",
-                  "player_in_id": 154,
-                  "player_in_name": "Palmer",
-                  "selling_price": 5.9,
-                  "buying_price": 9.8
+                  "player_out_id": 332,
+                  "player_out_name": "Justin",
+                  "player_in_id": 356,
+                  "player_in_name": "Virgil",
+                  "selling_price": 4.5,
+                  "buying_price": 6.4
                 },
                 {
                   "player_out_id": 411,
@@ -1583,23 +1583,23 @@
               ],
               "starting": [
                 166,
-                154,
                 4,
                 379,
+                356,
                 40,
                 13,
                 115,
                 79,
                 68,
-                109,
-                257
+                237,
+                109
               ],
               "captain_id": 4,
               "captain_name": "Gabriel",
-              "points_before_hits": 58.5,
+              "points_before_hits": 58.91,
               "hit_points": 0,
-              "net_points": 58.5,
-              "gain_over_roll": 2.8
+              "net_points": 58.91,
+              "gain_over_roll": 3.21
             }
           ]
         },
@@ -1613,8 +1613,8 @@
         "id": "engine",
         "digest": "b6f3ba709e6a8b6f441e594296e20cb9b34054a59144710372849bd9324a7c85"
       },
-      "as_of": "2026-11-20T11:36:20.864934Z",
-      "trigger": "change:status,odds",
+      "as_of": "2026-11-20T20:05:32.218381Z",
+      "trigger": "change:status",
       "advised": {
         "gameweek": 11,
         "squad": [
@@ -1933,14 +1933,13 @@
         "id": "c3_e2",
         "digest": "60592986c7c896745bdbe6b30870770a3483b235e2c456a79d1b093474cff09d"
       },
-      "as_of": "2026-11-20T11:36:20.864934Z",
-      "trigger": "change:status,odds",
+      "as_of": "2026-11-20T20:05:32.218381Z",
+      "trigger": "change:status",
       "advised": {
         "gameweek": 11,
         "squad": [
           4,
           13,
-          31,
           40,
           64,
           68,
@@ -1951,6 +1950,7 @@
           166,
           237,
           332,
+          391,
           411,
           496
         ],
@@ -1959,7 +1959,7 @@
           79,
           4,
           166,
-          31,
+          391,
           115,
           411,
           68,
@@ -1976,16 +1976,16 @@
         "captain": 411,
         "vice_captain": 4,
         "formation": "1-4-3-3",
-        "expected_points": 38.891
+        "expected_points": 38.948
       },
       "recommendation": {
-        "rationale": "2 free transfer(s) gain 1.30 expected points",
+        "rationale": "2 free transfer(s) gain 1.36 expected points",
         "is_roll": false,
         "transfers": 2,
         "hit_points": 0,
-        "net_expected_points": 38.8908,
-        "gain_over_roll": 1.3029,
-        "bank_after": 1.7,
+        "net_expected_points": 38.9481,
+        "gain_over_roll": 1.3602,
+        "bank_after": 1.0,
         "moves": [
           {
             "out": {
@@ -1996,11 +1996,11 @@
               "form_points_per_match": 4.5
             },
             "in": {
-              "player_id": 31,
-              "web_name": "Konsa",
-              "price": 4.9,
-              "xp_next": 3.292,
-              "form_points_per_match": 7.667
+              "player_id": 391,
+              "web_name": "Gvardiol",
+              "price": 5.6,
+              "xp_next": 3.349,
+              "form_points_per_match": 1.833
             }
           },
           {
@@ -2040,10 +2040,10 @@
           {
             "transfers": 2,
             "hit_points": 0,
-            "net_expected_points": 38.89,
-            "gain_over_roll": 1.3,
+            "net_expected_points": 38.95,
+            "gain_over_roll": 1.36,
             "moves": [
-              "Bassey (\u00a34.5m) -> Konsa (\u00a34.9m)",
+              "Bassey (\u00a34.5m) -> Gvardiol (\u00a35.6m)",
               "Isak (\u00a39.2m) -> N.Jackson (\u00a37.2m)"
             ]
           }
@@ -2111,10 +2111,10 @@
               {
                 "player_out_id": 257,
                 "player_out_name": "Bassey",
-                "player_in_id": 31,
-                "player_in_name": "Konsa",
+                "player_in_id": 391,
+                "player_in_name": "Gvardiol",
                 "selling_price": 4.5,
-                "buying_price": 4.9
+                "buying_price": 5.6
               },
               {
                 "player_out_id": 379,
@@ -2130,7 +2130,7 @@
               79,
               4,
               166,
-              31,
+              391,
               115,
               411,
               68,
@@ -2140,10 +2140,10 @@
             ],
             "captain_id": 411,
             "captain_name": "Haaland",
-            "points_before_hits": 38.89,
+            "points_before_hits": 38.95,
             "hit_points": 0,
-            "net_points": 38.89,
-            "gain_over_roll": 1.3
+            "net_points": 38.95,
+            "gain_over_roll": 1.36
           },
           "all_options": [
             {
@@ -2207,10 +2207,10 @@
                 {
                   "player_out_id": 257,
                   "player_out_name": "Bassey",
-                  "player_in_id": 31,
-                  "player_in_name": "Konsa",
+                  "player_in_id": 391,
+                  "player_in_name": "Gvardiol",
                   "selling_price": 4.5,
-                  "buying_price": 4.9
+                  "buying_price": 5.6
                 },
                 {
                   "player_out_id": 379,
@@ -2226,7 +2226,7 @@
                 79,
                 4,
                 166,
-                31,
+                391,
                 115,
                 411,
                 68,
@@ -2236,10 +2236,10 @@
               ],
               "captain_id": 411,
               "captain_name": "Haaland",
-              "points_before_hits": 38.89,
+              "points_before_hits": 38.95,
               "hit_points": 0,
-              "net_points": 38.89,
-              "gain_over_roll": 1.3
+              "net_points": 38.95,
+              "gain_over_roll": 1.36
             }
           ]
         },
