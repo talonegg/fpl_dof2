@@ -1,0 +1,18 @@
+{
+  "source": "fpl",
+  "source_version": "1",
+  "resource": "bootstrap_static",
+  "key": "all",
+  "url": "https://fantasy.premierleague.com/api/bootstrap-static/",
+  "http_status": 200,
+  "fetched_at": "2026-11-18T10:21:49.943685Z",
+  "sha256": "744bb1239a42df8c969c94a87fdb5c82642c9104cc61f4408c60b306510a16ab",
+  "bytes": 1797712,
+  "content_encoding": "gzip",
+  "run_id": "20261118T102149Z-70d02a30",
+  "immutable": false,
+  "retain": false,
+  "etag": null,
+  "last_modified": null,
+  "quarantine_reason": null
+}

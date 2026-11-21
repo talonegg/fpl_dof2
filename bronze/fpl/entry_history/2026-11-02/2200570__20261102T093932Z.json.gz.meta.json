@@ -1,0 +1,18 @@
+{
+  "source": "fpl",
+  "source_version": "1",
+  "resource": "entry_history",
+  "key": "2200570",
+  "url": "https://fantasy.premierleague.com/api/entry/2200570/history/",
+  "http_status": 200,
+  "fetched_at": "2026-11-02T09:39:32.786858Z",
+  "sha256": "b9354a59fb1d2a4028a9046d0afade721b41e2bad9804b10c848106042c42e6b",
+  "bytes": 2879,
+  "content_encoding": "gzip",
+  "run_id": "20261102T093932Z-0e8372ee",
+  "immutable": false,
+  "retain": false,
+  "etag": null,
+  "last_modified": null,
+  "quarantine_reason": null
+}

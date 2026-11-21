@@ -1,0 +1,17 @@
+{
+  "source": "fplarchive",
+  "source_version": "1",
+  "resource": "teams",
+  "key": "2024-25",
+  "url": "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data/2024-25/teams.csv",
+  "http_status": 200,
+  "fetched_at": "2026-10-23T11:17:48.630693Z",
+  "sha256": "d10a6db8feca6db9e44a3ba50b15168396667ea387fee9235d6b211c7f598c3b",
+  "bytes": 1717,
+  "content_encoding": "gzip",
+  "run_id": "20261023T111748Z-52e67217",
+  "immutable": true,
+  "retain": false,
+  "etag": "W/\"c5539031a59685128b6661d8cb25de0dd56178affcfca4d75e13eea31bc3bdf0\"",
+  "last_modified": null
+}
