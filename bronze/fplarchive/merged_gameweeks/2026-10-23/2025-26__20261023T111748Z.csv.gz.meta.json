@@ -1,0 +1,17 @@
+{
+  "source": "fplarchive",
+  "source_version": "1",
+  "resource": "merged_gameweeks",
+  "key": "2025-26",
+  "url": "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data/2025-26/gws/merged_gw.csv",
+  "http_status": 200,
+  "fetched_at": "2026-10-23T11:17:48.630693Z",
+  "sha256": "0d09f1f1cb1b5520ec8e2f25238aa652efe2a263d8ca7cb2b6538b27bf86727d",
+  "bytes": 5445456,
+  "content_encoding": "gzip",
+  "run_id": "20261023T111748Z-52e67217",
+  "immutable": true,
+  "retain": false,
+  "etag": "W/\"4712dbf7afa0fd286282a277b37c2506554eee273b7d99d6149990102b082060\"",
+  "last_modified": null
+}

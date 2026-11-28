@@ -1,0 +1,17 @@
+{
+  "source": "fplarchive",
+  "source_version": "1",
+  "resource": "merged_gameweeks",
+  "key": "2023-24",
+  "url": "https://raw.githubusercontent.com/vaastav/Fantasy-Premier-League/master/data/2023-24/gws/merged_gw.csv",
+  "http_status": 200,
+  "fetched_at": "2026-10-23T11:17:48.630693Z",
+  "sha256": "e9c09c8856f1c86b4f920f46ddd5033af83409439dfda53be925df2a3e7c8a9e",
+  "bytes": 4997188,
+  "content_encoding": "gzip",
+  "run_id": "20261023T111748Z-52e67217",
+  "immutable": true,
+  "retain": false,
+  "etag": "W/\"f161e9c5386083ee03b42e10e0894f866cd473b881cf3bfc0474864158d136b3\"",
+  "last_modified": null
+}

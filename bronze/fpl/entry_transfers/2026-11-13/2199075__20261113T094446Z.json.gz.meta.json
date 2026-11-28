@@ -1,0 +1,18 @@
+{
+  "source": "fpl",
+  "source_version": "1",
+  "resource": "entry_transfers",
+  "key": "2199075",
+  "url": "https://fantasy.premierleague.com/api/entry/2199075/transfers/",
+  "http_status": 200,
+  "fetched_at": "2026-11-13T09:44:46.455347Z",
+  "sha256": "03cb30b48836f5ce9d5c54243dd069b32d6405ab7836870437636683c9b7b3a0",
+  "bytes": 1282,
+  "content_encoding": "gzip",
+  "run_id": "20261113T094446Z-396b9054",
+  "immutable": false,
+  "retain": false,
+  "etag": null,
+  "last_modified": null,
+  "quarantine_reason": null
+}

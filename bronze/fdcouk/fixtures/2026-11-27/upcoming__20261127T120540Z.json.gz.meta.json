@@ -1,0 +1,18 @@
+{
+  "source": "fdcouk",
+  "source_version": "1",
+  "resource": "fixtures",
+  "key": "upcoming",
+  "url": "https://football-data.co.uk/fixtures.csv",
+  "http_status": 200,
+  "fetched_at": "2026-11-27T21:14:25.591363Z",
+  "sha256": "c86cbd00243da04216eaee79b628df262229601c8241712f2a18808f2ee6ad0c",
+  "bytes": 49636,
+  "content_encoding": null,
+  "run_id": "20261127T211425Z-c2799a03",
+  "immutable": false,
+  "retain": true,
+  "etag": "\"c1e4-6613f7bf4a24f\"",
+  "last_modified": "Fri, 27 Nov 2026 10:25:50 GMT",
+  "quarantine_reason": null
+}

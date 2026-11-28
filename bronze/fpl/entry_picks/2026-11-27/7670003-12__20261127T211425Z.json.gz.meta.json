@@ -1,0 +1,18 @@
+{
+  "source": "fpl",
+  "source_version": "1",
+  "resource": "entry_picks",
+  "key": "7670003-12",
+  "url": "https://fantasy.premierleague.com/api/entry/7670003/event/12/picks/",
+  "http_status": 200,
+  "fetched_at": "2026-11-27T21:14:25.591363Z",
+  "sha256": "dbf8350fca35ae471b1228adac1257642ef589ce926d940b2139ba28c36c0b06",
+  "bytes": 1864,
+  "content_encoding": "gzip",
+  "run_id": "20261127T211425Z-c2799a03",
+  "immutable": false,
+  "retain": false,
+  "etag": null,
+  "last_modified": null,
+  "quarantine_reason": null
+}
